@@ -23,21 +23,21 @@ yargs.command({
 })
 
 yargs.command({
-    command: 'clone',
-    describe: 'Clone an Instance',
+    command: 'pull',
+    describe: 'Pull your Instance',
     builder: {
         guid: {
-            describe: 'Provide guid to clone an instance.',
+            describe: 'Provide guid to pull your instance.',
             demandOption: true,
             type: 'string'
         },
         locale: {
-            describe: 'Provide the locale to clone an instance.',
+            describe: 'Provide the locale to pull your instance.',
             demandOption: true,
             type: 'string'
         },
         channel: {
-            describe: 'Provide the channel to clone an instance.',
+            describe: 'Provide the channel to pull your instance.',
             demandOption: true,
             type: 'string'
         }
