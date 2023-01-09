@@ -12,11 +12,13 @@ export class model{
     async getModels(guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
 
-        let contentModules = await apiClient.modelMethods.getContentModules(true, guid, true);
+        let contentModules = await apiClient.modelMethods.getContentModules(true, guid, false);
 
         let pageModules = await apiClient.modelMethods.getPageModules(true, guid);
 
         let fileExport = new fileOperations();
+
+        let totalLength = contentModules.length + pageModules.length;
 
         for(let i = 0; i < contentModules.length; i++){
             fileExport.exportFiles('models',contentModules[i].referenceName,contentModules[i]);
@@ -25,5 +27,6 @@ export class model{
         for(let i = 0; i < pageModules.length; i++){
             fileExport.exportFiles('models',pageModules[i].referenceName,pageModules[i]);
         }
+
     }
 }

@@ -1,6 +1,7 @@
 import * as mgmtApi  from '@agility/management-sdk';
 import { fileOperations } from './fileOperations';
 
+
 export class container{
     _options : mgmtApi.Options;
 
@@ -17,6 +18,8 @@ export class container{
 
         for(let i = 0; i < containers.length; i++){
             fileExport.exportFiles('containers', containers[i].referenceName,containers[i]);
+            let progressCount = i + 1;
         }
+
     }
 }

@@ -7,6 +7,8 @@ import {container} from './container';
 import { model } from "./model";
 import * as mgmtApi  from '@agility/management-sdk';
 const FormData = require('form-data');
+const cliProgress = require('cli-progress');
+const colors = require('ansi-colors');
 
 let auth: Auth
 let options: mgmtApi.Options;
@@ -43,6 +45,8 @@ yargs.command({
         }
     },
     handler: async function(argv) {
+        let tasks = 4;
+        let tasksCompleted = 0;
         auth = new Auth();
         let code = new fileOperations();
         let data = JSON.parse(code.readFile('code.json'));
@@ -59,22 +63,47 @@ yargs.command({
         options.token = token.access_token;
 
         let syncKey = await auth.getPreviewKey(guid);
-
         let contentPageSync = new sync(guid, syncKey, locale, channel);
 
         await contentPageSync.sync();
 
+        const b1 = new cliProgress.SingleBar({
+            format: 'Pulling Your instance |' + colors.yellow('{bar}') + '| {percentage}% | {value}/{total} Tasks | Task: {speed}',
+            barCompleteChar: '\u2588',
+            barIncompleteChar: '\u2591',
+            hideCursor: true
+        });
+
+        b1.start(tasks, tasksCompleted);
+
+        b1.increment();
+
+        b1.update(tasksCompleted, {speed: 'Content and Page Pull started'});
+        tasksCompleted += 1; 
+        b1.update(tasksCompleted, {speed: 'Content and Page Pull completed'});
+
         let assetsSync = new asset(options);
 
+        b1.update(tasksCompleted, {speed: 'Assets Pull started'});
         await assetsSync.getAssets(guid);
+        tasksCompleted += 1; 
+        b1.update(tasksCompleted, {speed: 'Assets Pull completed'});
 
         let containerSync = new container(options);
 
+        b1.update(tasksCompleted, {speed: 'Containers Pull started'});
         await containerSync.getContainers(guid);
+        tasksCompleted += 1; 
+        b1.update(tasksCompleted, {speed: 'Containers Pull completed'});
 
         let modelSync = new model(options);
 
+        b1.update(tasksCompleted, {speed: 'Models Pull started'});
         await modelSync.getModels(guid);
+        tasksCompleted += 1; 
+        b1.update(tasksCompleted, {speed: 'Instance pull complete.'});
+
+        b1.stop();
     }
 })
 

@@ -12,11 +12,13 @@ export class asset{
         let apiClient = new mgmtApi.ApiClient(this._options);
         let fileExport = new fileOperations();
 
-        let pageSize = 250;
+        let pageSize = 20;
         let recordOffset = 0;
         let index = 1;
 
         let initialRecords = await apiClient.assetMethods.getMediaList(pageSize, recordOffset, guid);
+
+        let totalRecords = initialRecords.totalCount;
 
         fileExport.exportFiles('assets', index, initialRecords);
 
@@ -26,13 +28,10 @@ export class asset{
             let fileName = `${initialRecords.assetMedias[i].mediaID}.${extension}`;
 
             await fileExport.downloadFile(initialRecords.assetMedias[i].originUrl, `.agility-files/assets/${fileName}`);
+
         }
 
-        let totalRecords = initialRecords.totalCount;
-        console.log(`Total records: ${totalRecords}`);
-
         let iterations = Math.round(totalRecords/pageSize);
-        console.log(`Iterations: ${iterations}`);
 
         for(let i = 0; i < iterations - 1; i++){
             recordOffset += pageSize;
