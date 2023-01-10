@@ -49,7 +49,7 @@ yargs.command({
         let tasksCompleted = 0;
         auth = new Auth();
         let code = new fileOperations();
-        let data = JSON.parse(code.readFile('code.json'));
+        let data = JSON.parse(code.readTempFile('code.json'));
         
         const form = new FormData();
         form.append('cliCode', data.code);
@@ -102,7 +102,6 @@ yargs.command({
         await modelSync.getModels(guid);
         tasksCompleted += 1; 
         b1.update(tasksCompleted, {speed: 'Instance pull complete.'});
-
         b1.stop();
     }
 })

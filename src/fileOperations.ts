@@ -1,5 +1,7 @@
 import * as fs from 'fs';
 import * as Https from 'https';
+const os = require('os');
+os.tmpDir = os.tmpdir;
 
 export class fileOperations{
 
@@ -52,5 +54,30 @@ export class fileOperations{
 
     deleteFile(fileName: string) {
       fs.unlinkSync(fileName);
+  }
+
+  readTempFile(fileName: string){
+      let appName = 'mgmt-cli-code';
+      let tmpFolder = os.tmpDir();
+      let tmpDir = `${tmpFolder}\\${appName}`;
+      let fileData = this.readFile(`${tmpDir}\\${fileName}`);
+      return fileData;
+  }
+
+
+  createTempFile(fileName: string, content: string){
+      let appName = 'mgmt-cli-code';
+      let tmpFolder = os.tmpDir();
+      let tmpDir = `${tmpFolder}\\${appName}`;
+      fs.access(tmpDir, (error) => {
+          if(error){
+            fs.mkdirSync(tmpDir);
+            this.createFile(`${tmpDir}\\${fileName}`, content);
+          }
+          else{
+            this.createFile(`${tmpDir}\\${fileName}`, content);
+          }
+      });
+      return tmpDir;
   }
 }

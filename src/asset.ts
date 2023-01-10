@@ -12,7 +12,7 @@ export class asset{
         let apiClient = new mgmtApi.ApiClient(this._options);
         let fileExport = new fileOperations();
 
-        let pageSize = 20;
+        let pageSize = 250;
         let recordOffset = 0;
         let index = 1;
 
