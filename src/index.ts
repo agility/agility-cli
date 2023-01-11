@@ -106,4 +106,19 @@ yargs.command({
     }
 })
 
+yargs.command({
+    command: 'push',
+    describe: 'Push your Instance',
+    builder: {
+        guid: {
+            describe: 'Provide guid to push your instance.',
+            demandOption: true,
+            type: 'string'
+        }
+    },
+    handler: async function() {
+        console.log('push');
+    }
+})
+
 yargs.parse();
