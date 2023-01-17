@@ -9,6 +9,7 @@ import * as mgmtApi  from '@agility/management-sdk';
 const FormData = require('form-data');
 const cliProgress = require('cli-progress');
 const colors = require('ansi-colors');
+const inquirer = require('inquirer');
 
 let auth: Auth
 let options: mgmtApi.Options;
@@ -103,6 +104,56 @@ yargs.command({
         tasksCompleted += 1; 
         b1.update(tasksCompleted, {speed: 'Instance pull complete.'});
         b1.stop();
+    }
+})
+
+yargs.command({
+    command: 'validate',
+    describe: 'Validate before push.',
+    builder: {
+        guid: {
+            describe: 'Provide the target guid to validate your data before push.',
+            demandOption: true,
+            type: 'string'
+        }
+    },
+    handler: async function(argv) {
+       let guid: string = argv.guid as string;
+       let code = new fileOperations();
+       auth = new Auth();
+       let data = JSON.parse(code.readTempFile('code.json'));
+        
+       const form = new FormData();
+       form.append('cliCode', data.code);
+
+       let token = await auth.cliPoll(form, guid);
+
+       options = new mgmtApi.Options();
+       options.token = token.access_token;
+       let modelSync = new model(options);
+       let existingModels = await modelSync.validateModels(guid);
+
+       let containerSync = new container(options);
+       let existingContainers = await containerSync.validateContainers(guid);
+
+        inquirer.prompt([
+                {
+                    type: 'checkbox',
+                    name: 'models',
+                    message: 'Model(s) with following referenceName(s) are duplicate. Please select the referenceName(s) to skip.',
+                    choices : existingModels
+                },
+                {
+                    type: 'checkbox',
+                    name: 'containers',
+                    message: 'Container(s) with following referenceName(s) are duplicate. Please select the referenceName(s) to skip.',
+                    choices : existingContainers
+                }
+        ]).then(answers=> {
+            console.info('Models: ', answers.models);
+            console.info('Containers: ', answers.containers);
+        })
+
     }
 })
 

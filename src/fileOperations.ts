@@ -80,4 +80,15 @@ export class fileOperations{
       });
       return tmpDir;
   }
+
+  readDirectory(folderName: string){
+    let directory = `.agility-files\\${folderName}`;
+    let files : string[] = [];
+    fs.readdirSync(directory).forEach(file => {
+      let readFile = this.readFile(`${directory}\\${file}`);
+      files.push(readFile);
+    })
+
+    return files;
+  }
 }
