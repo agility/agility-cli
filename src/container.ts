@@ -25,21 +25,26 @@ export class container{
     }
 
     async validateContainers(guid: string){
-        let apiClient = new mgmtApi.ApiClient(this._options);
+        try{
+            let apiClient = new mgmtApi.ApiClient(this._options);
 
-        let fileOperation = new fileOperations();
-        let files = fileOperation.readDirectory('containers');
-
-        let containerStr: string[] = [];
-        for(let i = 0; i < files.length; i++){
-            let container = JSON.parse(files[i]) as mgmtApi.Container;
-            let existingContainer = await apiClient.containerMethods.getContainerByReferenceName(container.referenceName, guid);
-
-            if(existingContainer.referenceName){
-                containerStr.push(existingContainer.referenceName);
+            let fileOperation = new fileOperations();
+            let files = fileOperation.readDirectory('containers');
+    
+            let containerStr: string[] = [];
+            for(let i = 0; i < files.length; i++){
+                let container = JSON.parse(files[i]) as mgmtApi.Container;
+                let existingContainer = await apiClient.containerMethods.getContainerByReferenceName(container.referenceName, guid);
+    
+                if(existingContainer.referenceName){
+                    containerStr.push(existingContainer.referenceName);
+                }
+               
             }
-           
+            return containerStr;
+        } catch{
+
         }
-        return containerStr;
+        
     }
 }

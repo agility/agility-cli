@@ -141,13 +141,13 @@ yargs.command({
                     type: 'checkbox',
                     name: 'models',
                     message: 'Model(s) with following referenceName(s) are duplicate. Please select the referenceName(s) to skip.',
-                    choices : existingModels
+                    choices : (!existingModels) ? ['Press enter to proceed'] : existingModels
                 },
                 {
                     type: 'checkbox',
                     name: 'containers',
                     message: 'Container(s) with following referenceName(s) are duplicate. Please select the referenceName(s) to skip.',
-                    choices : existingContainers
+                    choices : (!existingContainers) ? ['Press enter to proceed'] : existingContainers
                 }
         ]).then(answers=> {
             console.info('Models: ', answers.models);

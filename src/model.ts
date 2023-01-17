@@ -37,20 +37,26 @@ export class model{
     }
 
     async validateModels(guid: string){
-        let apiClient = new mgmtApi.ApiClient(this._options);
+        try{
+            let apiClient = new mgmtApi.ApiClient(this._options);
 
-        let fileOperation = new fileOperations();
-        let files = fileOperation.readDirectory('models');
-        let modelStr: string[] = [];
-        for(let i = 0; i < files.length; i++){
-            let model = JSON.parse(files[i]) as mgmtApi.Model;
-            let existingModel = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
-
-            if(existingModel.referenceName){
-                modelStr.push(existingModel.referenceName);
+            let fileOperation = new fileOperations();
+            let files = fileOperation.readDirectory('models');
+            let modelStr: string[] = [];
+            for(let i = 0; i < files.length; i++){
+                let model = JSON.parse(files[i]) as mgmtApi.Model;
+                let existingModel = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
+    
+                if(existingModel.referenceName){
+                    modelStr.push(existingModel.referenceName);
+                }
+               
             }
-           
+            return modelStr;
         }
-        return modelStr;
+        catch{
+
+        }
+        
     }
 }
