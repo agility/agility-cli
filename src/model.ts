@@ -59,4 +59,28 @@ export class model{
         }
         
     }
+
+    deleteModelFiles(models: string[]){
+        let file = new fileOperations();
+        for(let i = 0; i < models.length; i++){
+            let fileName = `${models[i]}.json`;
+            file.deleteFile(`.agility-files/models/${fileName}`);
+        }
+    }
+
+    async pushModels(guid: string){
+        try{
+            let apiClient = new mgmtApi.ApiClient(this._options);
+
+            let fileOperation = new fileOperations();
+            let files = fileOperation.readDirectory('models');
+
+            for(let i = 0; i < files.length; i++){
+                let model = JSON.parse(files[i]) as mgmtApi.Model;
+            }
+
+        } catch {
+
+        }
+    }
 }

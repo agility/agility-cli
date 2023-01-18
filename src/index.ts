@@ -108,11 +108,11 @@ yargs.command({
 })
 
 yargs.command({
-    command: 'validate',
-    describe: 'Validate before push.',
+    command: 'push',
+    describe: 'Push your Instance.',
     builder: {
         guid: {
-            describe: 'Provide the target guid to validate your data before push.',
+            describe: 'Provide the target guid to push your instance.',
             demandOption: true,
             type: 'string'
         }
@@ -136,40 +136,38 @@ yargs.command({
        let containerSync = new container(options);
        let existingContainers = await containerSync.validateContainers(guid);
 
+       let duplicates: string[] = [];
+
+       if(existingModels){
+            for(let i = 0; i < existingModels.length; i++){
+                duplicates.push(existingModels[i]);
+            }
+       }
+       if(existingContainers){
+            for(let i = 0; i < existingContainers.length; i++){
+                duplicates.push(existingContainers[i]);
+            }
+       }
+
+       if(duplicates.length > 0){
         inquirer.prompt([
-                {
-                    type: 'checkbox',
-                    name: 'models',
-                    message: 'Model(s) with following referenceName(s) are duplicate. Please select the referenceName(s) to skip.',
-                    choices : (!existingModels) ? ['Press enter to proceed'] : existingModels
-                },
-                {
-                    type: 'checkbox',
-                    name: 'containers',
-                    message: 'Container(s) with following referenceName(s) are duplicate. Please select the referenceName(s) to skip.',
-                    choices : (!existingContainers) ? ['Press enter to proceed'] : existingContainers
+            {
+                type: 'confirm',
+                name: 'duplicates',
+                message: 'Found duplicate(s) Models and Containers. Overwrite the models and containers? '
+            }
+        ]).then((answers: { duplicates: boolean; })=> {
+
+            if(!answers.duplicates){
+                    if(existingContainers)
+                        containerSync.deleteContainerFiles(existingContainers);
+                    if(existingModels)
+                        modelSync.deleteModelFiles(existingModels);
                 }
-        ]).then(answers=> {
-            console.info('Models: ', answers.models);
-            console.info('Containers: ', answers.containers);
         })
-
+       }
     }
 })
 
-yargs.command({
-    command: 'push',
-    describe: 'Push your Instance',
-    builder: {
-        guid: {
-            describe: 'Provide guid to push your instance.',
-            demandOption: true,
-            type: 'string'
-        }
-    },
-    handler: async function() {
-        console.log('push');
-    }
-})
 
 yargs.parse();
