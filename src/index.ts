@@ -5,6 +5,7 @@ import { sync } from "./sync";
 import {asset} from './asset';
 import {container} from './container';
 import { model } from "./model";
+import { push } from "./push";
 import * as mgmtApi  from '@agility/management-sdk';
 const FormData = require('form-data');
 const cliProgress = require('cli-progress');
@@ -131,6 +132,7 @@ yargs.command({
        options = new mgmtApi.Options();
        options.token = token.access_token;
        let modelSync = new model(options);
+       let pushSync = new push(options);
        let existingModels = await modelSync.validateModels(guid);
 
        let containerSync = new container(options);
@@ -166,6 +168,7 @@ yargs.command({
                 }
         })
        }
+       await pushSync.pushModelsContainers(guid);
     }
 })
 
