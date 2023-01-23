@@ -65,30 +65,11 @@ export class push{
         }
     }
 
-    async pushNormalModels(models: mgmtApi.Model[], guid: string){
-            let apiClient = new mgmtApi.ApiClient(this._options);
-
-            for(let i = 0; i < models.length; i++){
-                try{
-                    let model = models[i];
-                    let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
-                    if(existing){
-                        model.id = existing.id;
-                        await apiClient.modelMethods.saveModel(model,guid);
-                    } else{
-                        model.id = 0;
-                        await apiClient.modelMethods.saveModel(model,guid);
-                    }
-                } catch{
-                    let model = models[i];
-                    model.id = 0;
-                    await apiClient.modelMethods.saveModel(model,guid);
-                }
-               
-            }
+    async pushNormalModels(model: mgmtApi.Model, guid: string){
+        await this.createModel(model, guid);
     }
 
-    async pushNormalContainers(containers: mgmtApi.Container[], oldModelId: number, newModelId: number, guid: string){
+    async pushContainers(containers: mgmtApi.Container[], oldModelId: number, newModelId: number, guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
 
         for(let i = 0; i < containers.length; i++){
@@ -115,19 +96,78 @@ export class push{
         }
     }
 
-    async testMethod(){
-        console.log('create model');
+    async pushLinkedModels(models: mgmtApi.Model[], guid: string){
+        for(let m = 0; m < models.length; m++){
+            let model = models[m];
+            for(let i = 0; i < model.fields.length; i++){
+                let field = model.fields[i];
+                if(field.type == 'Content'){
+                    let setting = field.settings;
+                    if(setting['ContentDefinition']){
+                        let modelRef = setting['ContentDefinition'];
+                        let existingModel = await this.getLinkedModel(modelRef, guid);
+                        if(existingModel){
+                            //create or update
+                            console.log('Update Linked');
+                            await this.createModel(model, guid);
+                            break;
+                        } else{
+                            let ref = models.find((m) => m.referenceName === modelRef);
+                            console.log(`Ref in collection ${ref.referenceName}`);
+                        }
+                    }
+                }
+             }
+        }
+         
     }
 
-   async pushModelsContainers(guid: string){
+    async getLinkedModel(modelRef: string, guid: string){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        try{
+            let existing = await apiClient.modelMethods.getModelByReferenceName(modelRef, guid);
+            if(existing){
+                return existing;
+            } else{
+                return null;
+            }
+        }
+        catch{
+            return null;
+        }
+    }
+
+    async createModel(model: mgmtApi.Model, guid){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        try{
+            let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
+            let oldModelId = model.id;
+            if(existing){
+                model.id = existing.id;
+                let newModel = await apiClient.modelMethods.saveModel(model,guid);
+            } else{
+                model.id = 0;
+                await apiClient.modelMethods.saveModel(model,guid);
+            }
+        }
+        catch{
+            model.id = 0;
+            await apiClient.modelMethods.saveModel(model,guid);
+        }
+    }
+
+    async pushModelsContainers(guid: string){
         try{
             let models = await this.createBaseModels();
             let containers = await this.createBaseContainers();
-           
-            let linkedModels = await this.getLinkedModels(models);
-            let normalModels = await this.getNormalModels(models, linkedModels);
-            console.log(JSON.stringify(containers));
- //           await this.pushNormalModels(normalModels, guid);
+           // await this.processModels(models, guid);
+             let linkedModels = await this.getLinkedModels(models);
+             let normalModels = await this.getNormalModels(models, linkedModels);
+             for(let i = 0; i < normalModels.length; i++){
+                let normalModel = normalModels[i];
+                await this.pushNormalModels(normalModel, guid);
+             }
+            await this.pushLinkedModels(linkedModels, guid);
         } catch {
 
         }

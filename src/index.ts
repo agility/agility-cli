@@ -152,7 +152,7 @@ yargs.command({
        }
 
        if(duplicates.length > 0){
-        inquirer.prompt([
+       await inquirer.prompt([
             {
                 type: 'confirm',
                 name: 'duplicates',
