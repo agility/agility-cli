@@ -3,9 +3,11 @@ import { fileOperations } from './fileOperations';
 
 export class push{
     _options : mgmtApi.Options;
+    processedModels: { [key: string]: number; };
 
     constructor(options: mgmtApi.Options){
         this._options = options;
+        this.processedModels = {};
     }
 
     async createBaseModels(){
@@ -97,62 +99,75 @@ export class push{
     }
 
     async pushLinkedModels(models: mgmtApi.Model[], guid: string){
-        for(let m = 0; m < models.length; m++){
-            let model = models[m];
-            for(let i = 0; i < model.fields.length; i++){
-                let field = model.fields[i];
-                if(field.type == 'Content'){
-                    let setting = field.settings;
-                    if(setting['ContentDefinition']){
-                        let modelRef = setting['ContentDefinition'];
-                        let existingModel = await this.getLinkedModel(modelRef, guid);
-                        if(existingModel){
-                            //create or update
-                            console.log('Update Linked');
-                            await this.createModel(model, guid);
-                            break;
-                        } else{
-                            let ref = models.find((m) => m.referenceName === modelRef);
-                            console.log(`Ref in collection ${ref.referenceName}`);
-                        }
-                    }
-                }
-             }
-        }
-         
-    }
-
-    async getLinkedModel(modelRef: string, guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
-        try{
-            let existing = await apiClient.modelMethods.getModelByReferenceName(modelRef, guid);
-            if(existing){
-                return existing;
-            } else{
-                return null;
+        do{
+            for(let i = 0; i < models.length; i++ ){
+                let model = models[i];
+                if(!model){
+                    continue;
+                }
+                try{
+                  //  console.log(`Processing model ${model.referenceName}`);
+                    let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
+                    if(existing){
+                        model.id = existing.id;
+                        let updatedModel = await apiClient.modelMethods.saveModel(model, guid);
+                        this.processedModels[updatedModel.referenceName] = updatedModel.id;
+                        models[i] = null;
+                       // return;
+                    } 
+                } catch{
+                    model.fields.forEach((async (field) => {
+                        if(field.settings['ContentDefinition']){
+                            let modelRef = field.settings['ContentDefinition'];
+                            if(modelRef in this.processedModels){
+                                model.id = 0;
+                                try{
+                                    let createdModel = await apiClient.modelMethods.saveModel(model, guid);
+                                    this.processedModels[createdModel.referenceName] = createdModel.id;
+                                    models[i] = null;
+                                } catch{
+                                    console.log(`Error creating model ${model.referenceName}`);
+                                }
+                                console.log(JSON.stringify(this.processedModels));
+                               // this.processedModels[model.referenceName] = model.id;
+                                
+                               // return;
+                            }
+                            else{
+
+                            }
+                        }
+                    }))
+                }
+                
             }
-        }
-        catch{
-            return null;
-        }
+            
+            //console.log(models.filter(m => m !== null).length);
+        } while(models.filter(m => m !== null).length >= 0)
+       
     }
 
-    async createModel(model: mgmtApi.Model, guid){
+
+    async createModel(model: mgmtApi.Model, guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
         try{
             let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
             let oldModelId = model.id;
             if(existing){
                 model.id = existing.id;
-                let newModel = await apiClient.modelMethods.saveModel(model,guid);
+                let updatedModel = await apiClient.modelMethods.saveModel(model,guid);
+                this.processedModels[updatedModel.referenceName] = updatedModel.id;
             } else{
                 model.id = 0;
-                await apiClient.modelMethods.saveModel(model,guid);
+                let newModel =  await apiClient.modelMethods.saveModel(model,guid);
+                this.processedModels[newModel.referenceName] = newModel.id;
             }
         }
         catch{
             model.id = 0;
-            await apiClient.modelMethods.saveModel(model,guid);
+            let newModel =  await apiClient.modelMethods.saveModel(model,guid);
+            this.processedModels[newModel.referenceName] = newModel.id;
         }
     }
 
@@ -172,5 +187,4 @@ export class push{
 
         }
    }
-
 }
