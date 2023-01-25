@@ -88,7 +88,7 @@ export class push{
                         await apiClient.containerMethods.saveContainer(container, guid);
                     }
                 }
-                
+
             } catch{
                 let container = containers[i];
                 container.contentViewID = -1;
@@ -107,20 +107,20 @@ export class push{
                     continue;
                 }
                 try{
-                  //  console.log(`Processing model ${model.referenceName}`);
                     let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
                     if(existing){
                         model.id = existing.id;
                         let updatedModel = await apiClient.modelMethods.saveModel(model, guid);
                         this.processedModels[updatedModel.referenceName] = updatedModel.id;
                         models[i] = null;
-                       // return;
-                    } 
+                    }
                 } catch{
-                    model.fields.forEach((async (field) => {
+                    for(let j = 0; j < model.fields.length; j++){
+                        let field = model.fields[j];
                         if(field.settings['ContentDefinition']){
+                            console.log(`Saving Model: ${model.referenceName}`);
                             let modelRef = field.settings['ContentDefinition'];
-                            if(modelRef in this.processedModels){
+                            if(this.processedModels[modelRef] && !(this.processedModels[model.referenceName])){
                                 model.id = 0;
                                 try{
                                     let createdModel = await apiClient.modelMethods.saveModel(model, guid);
@@ -129,23 +129,19 @@ export class push{
                                 } catch{
                                     console.log(`Error creating model ${model.referenceName}`);
                                 }
-                                console.log(JSON.stringify(this.processedModels));
-                               // this.processedModels[model.referenceName] = model.id;
-                                
-                               // return;
-                            }
-                            else{
-
                             }
                         }
-                    }))
+                        else{
+
+                        }
+                    }
                 }
-                
+
             }
-            
-            //console.log(models.filter(m => m !== null).length);
-        } while(models.filter(m => m !== null).length >= 0)
-       
+
+            console.log(models.filter(m => m !== null).length);
+        } while(models.filter(m => m !== null).length !== 0)
+
     }
 
 
