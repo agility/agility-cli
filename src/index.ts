@@ -168,7 +168,7 @@ yargs.command({
                 }
         })
        }
-       await pushSync.pushModelsContainers(guid);
+       await pushSync.pushInstance(guid);
     }
 })
 
