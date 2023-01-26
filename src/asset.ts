@@ -20,7 +20,7 @@ export class asset{
 
         let totalRecords = initialRecords.totalCount;
 
-        fileExport.exportFiles('assets', index, initialRecords);
+        fileExport.exportFiles('assets/json', index, initialRecords);
 
         for(let i = 0; i < initialRecords.assetMedias.length; i++){
 
@@ -38,7 +38,7 @@ export class asset{
             index += 1;
 
             let assets = await apiClient.assetMethods.getMediaList(pageSize, recordOffset, guid);
-            fileExport.exportFiles('assets', index, assets);
+            fileExport.exportFiles('assets/json', index, assets);
 
             for(let j = 0; j < assets.assetMedias.length; j++){
                 

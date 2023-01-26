@@ -30,17 +30,15 @@ export class push{
     createBaseAssets(){
         try{
             let fileOperation = new fileOperations();
-            let files = fileOperation.readDirectory('assets');
+            let files = fileOperation.readDirectory('assets/json');
 
-            let assets: mgmtApi.Media[] = [];
+            let assets: mgmtApi.AssetMediaList[] = [];
 
             for(let i = 0; i < files.length; i++){
-                let asset = files[i];
-                console.log(asset.substring(asset.lastIndexOf(".")+1));
-           //     assets.push(asset);
+                let file = JSON.parse(files[i]) as mgmtApi.AssetMediaList;
+                assets.push(file);
             }
-
-            //return assets;
+            return assets;
         } catch {
 
         }
@@ -208,9 +206,39 @@ export class push{
     }
 
     async pushAssets(guid: string){
-        let assets = this.createBaseAssets();
-
-        console.log(JSON.stringify(assets));
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        let assetMedias = this.createBaseAssets();
+        let medias: mgmtApi.Media[] = [];
+        for(let i = 0; i < assetMedias.length; i++){
+            let assetMedia = assetMedias[i];
+            for(let j = 0; j < assetMedia.assetMedias.length; j++){
+                let media = assetMedia.assetMedias[j];
+                medias.push(media);
+            }
+        }
+        
+        //let url = new URL(medias[0].originUrl);
+        
+        for(let i = 0; i < medias.length; i++){
+            let media = medias[i];
+            try{
+                //Change the URL to the instance to be cloned.
+                //Check if the media present from the new URL.
+                
+                let existingMedia = await apiClient.assetMethods.getAssetByUrl(media.originKey, guid);
+                if(existingMedia){
+                    media.mediaID = existingMedia.mediaID;
+                    media.containerEdgeUrl = existingMedia.containerEdgeUrl;
+                    media.edgeUrl = existingMedia.edgeUrl;
+                    media.originUrl = existingMedia.originUrl;
+                    media.containerOriginUrl = existingMedia.containerOriginUrl;
+                } else {
+                    
+                }
+            } catch {
+                
+            }
+        }
     }
 
     async pushInstance(guid: string){

@@ -1,6 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 import { cliToken } from './models/cliToken';
 import { fileOperations } from './fileOperations';
+import { serverUser } from './models/serverUser';
 const open = require('open');
 
 
@@ -93,5 +94,24 @@ export class Auth{
 
         const response = await this.executeGet(apiPath, guid);
         return response.data as string;
+    }
+
+    async getUser(guid: string, token: string){
+        let baseUrl = this.determineBaseUrl(guid);
+        let instance =  axios.create({
+            baseURL: `${baseUrl}/api/v1/`
+        })
+        let apiPath = '/users/me';
+        try{
+            const resp = await instance.get(apiPath, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Cache-Control': 'no-cache'
+                }
+              })
+            return resp.data as serverUser;
+        } catch(err){
+           // throw err;
+        }
     }
 }
