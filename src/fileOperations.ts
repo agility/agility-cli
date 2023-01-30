@@ -81,6 +81,10 @@ export class fileOperations{
       return tmpDir;
   }
 
+  renameFile(oldFile: string, newFile: string){
+      fs.renameSync(oldFile, newFile);
+  }
+
   readDirectory(folderName: string){
     let directory = `.agility-files\\${folderName}`;
     let files : string[] = [];

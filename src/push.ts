@@ -1,5 +1,8 @@
 import * as mgmtApi  from '@agility/management-sdk';
 import { fileOperations } from './fileOperations';
+import { Auth } from './auth';
+import * as fs from 'fs';
+const FormData = require('form-data');
 
 export class push{
     _options : mgmtApi.Options;
@@ -207,6 +210,11 @@ export class push{
 
     async pushAssets(guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
+        let auth = new Auth();
+        let serverUser = await auth.getUser(guid, this._options.token);
+        let fileOperation = new fileOperations();
+
+        let website = serverUser.websiteAccess.find((websiteListing) => websiteListing.guid === guid).websiteNameStripped;
         let assetMedias = this.createBaseAssets();
         let medias: mgmtApi.Media[] = [];
         for(let i = 0; i < assetMedias.length; i++){
@@ -217,28 +225,63 @@ export class push{
             }
         }
         
-        //let url = new URL(medias[0].originUrl);
-        
-        for(let i = 0; i < medias.length; i++){
-            let media = medias[i];
+         //let url = new URL(medias[0].originUrl);
+         var re = /(?:\.([^.]+))?$/;
+         
+
+         //for(let i = 0; i < medias.length; i++){
+            let media = medias[0];
             try{
-                //Change the URL to the instance to be cloned.
-                //Check if the media present from the new URL.
-                
-                let existingMedia = await apiClient.assetMethods.getAssetByUrl(media.originKey, guid);
-                if(existingMedia){
-                    media.mediaID = existingMedia.mediaID;
-                    media.containerEdgeUrl = existingMedia.containerEdgeUrl;
-                    media.edgeUrl = existingMedia.edgeUrl;
-                    media.originUrl = existingMedia.originUrl;
-                    media.containerOriginUrl = existingMedia.containerOriginUrl;
-                } else {
-                    
-                }
+                let extension = re.exec(media.fileName)[1];
+                let oldFile = `.agility-files/assets/${media.mediaID}.${extension}`;
+                let newFile = `.agility-files/assets/${media.fileName}`;
+                fileOperation.renameFile(oldFile, newFile);
+
+                let filePath = this.getFilePath(media.originUrl);
+
+                let folderPath = filePath.split("/").slice(0, -1).join("/");
+
+                const form = new FormData();
+                const file = fs.readFileSync(`${newFile}`, null);
+                form.append('files',file, media.fileName);
+                let existingMedia = await apiClient.assetMethods.getAssetByUrl(media.originUrl, guid);
+                let uploadedMedia = await apiClient.assetMethods.upload(form, folderPath, guid,media.mediaGroupingID);
             } catch {
-                
+
             }
-        }
+         //}
+         
+        // console.log(medias[0].mediaID);
+        
+        // for(let i = 0; i < medias.length; i++){
+        //     let media = medias[i];
+        //     try{
+        //         //Change the URL to the instance to be cloned.
+        //         //Check if the media present from the new URL.
+                
+        //         let existingMedia = await apiClient.assetMethods.getAssetByUrl(media.originUrl, guid);
+        //         if(existingMedia){
+        //             media.mediaID = existingMedia.mediaID;
+        //             media.containerEdgeUrl = existingMedia.containerEdgeUrl;
+        //             media.edgeUrl = existingMedia.edgeUrl;
+        //             media.originUrl = existingMedia.originUrl;
+        //             media.containerOriginUrl = existingMedia.containerOriginUrl;
+        //         } else {
+                    
+        //         }
+        //     } catch {
+                
+        //     }
+        // }
+    }
+
+    getFilePath(originUrl: string): string{
+        let url = new URL(originUrl);
+        let pathName = url.pathname;
+        let extractedStr = pathName.split("/")[1];
+        let removedStr = pathName.replace(`/${extractedStr}/`, "");
+
+        return removedStr;
     }
 
     async pushInstance(guid: string){
