@@ -47,6 +47,23 @@ export class push{
         }
     }
 
+    createBaseGalleries(){
+        try{
+            let fileOperation = new fileOperations();
+            let files = fileOperation.readDirectory('assets/galleries');
+
+            let assetGalleries: mgmtApi.assetGalleries[] = [];
+
+            for(let i = 0; i < files.length; i++){
+                let assetGallery = JSON.parse(files[i]) as mgmtApi.assetGalleries;
+                assetGalleries.push(assetGallery);
+            }
+            return assetGalleries;
+        } catch{
+
+        }
+    }
+
     createBaseContainers(){
         try{
             let fileOperation = new fileOperations();
@@ -208,13 +225,36 @@ export class push{
         }
     }
 
+    async pushGalleries(guid: string){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+
+        let assetGalleries = this.createBaseGalleries();
+        for(let i = 0; i < assetGalleries.length; i++){
+            let assetGallery = assetGalleries[i];
+            for(let j = 0; j < assetGallery.assetMediaGroupings.length; j++){
+                let gallery = assetGallery.assetMediaGroupings[j];
+                try{
+                    let existingGallery = await apiClient.assetMethods.getGalleryByName(guid, gallery.name);
+                    if(existingGallery){
+                        gallery.mediaGroupingID = existingGallery.mediaGroupingID;
+                    }
+                    else{
+                        gallery.mediaGroupingID = 0;
+                    }
+                  await apiClient.assetMethods.saveGallery(guid, gallery);
+                } catch {
+                    gallery.mediaGroupingID = 0;
+                    await apiClient.assetMethods.saveGallery(guid, gallery);
+                }
+            }
+        }
+    }
+
     async pushAssets(guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
-        let auth = new Auth();
-        let serverUser = await auth.getUser(guid, this._options.token);
+        let defaultContainer = await apiClient.assetMethods.getDefaultContainer(guid);
         let fileOperation = new fileOperations();
 
-        let website = serverUser.websiteAccess.find((websiteListing) => websiteListing.guid === guid).websiteNameStripped;
         let assetMedias = this.createBaseAssets();
         let medias: mgmtApi.Media[] = [];
         for(let i = 0; i < assetMedias.length; i++){
@@ -225,54 +265,66 @@ export class push{
             }
         }
         
-         //let url = new URL(medias[0].originUrl);
-         var re = /(?:\.([^.]+))?$/;
-         
-
-         //for(let i = 0; i < medias.length; i++){
-            let media = medias[0];
-            try{
-                let extension = re.exec(media.fileName)[1];
-                let oldFile = `.agility-files/assets/${media.mediaID}.${extension}`;
-                let newFile = `.agility-files/assets/${media.fileName}`;
-                fileOperation.renameFile(oldFile, newFile);
-
-                let filePath = this.getFilePath(media.originUrl);
-
-                let folderPath = filePath.split("/").slice(0, -1).join("/");
-
-                const form = new FormData();
-                const file = fs.readFileSync(`${newFile}`, null);
-                form.append('files',file, media.fileName);
-                let existingMedia = await apiClient.assetMethods.getAssetByUrl(media.originUrl, guid);
-                let uploadedMedia = await apiClient.assetMethods.upload(form, folderPath, guid,media.mediaGroupingID);
-            } catch {
-
+         let re = /(?:\.([^.]+))?$/;
+         for(let i = 0; i < medias.length; i++){
+            console.log(`Iteration ${i}`);
+            let media = medias[i];
+            let filePath = this.getFilePath(media.originUrl);
+            filePath = filePath.replace(/%20/g, " ");
+            let folderPath = filePath.split("/").slice(0, -1).join("/");
+            if(!folderPath){
+                folderPath = '/';
             }
-         //}
-         
-        // console.log(medias[0].mediaID);
-        
-        // for(let i = 0; i < medias.length; i++){
-        //     let media = medias[i];
-        //     try{
-        //         //Change the URL to the instance to be cloned.
-        //         //Check if the media present from the new URL.
+            let orginUrl = `${defaultContainer.originUrl}/${filePath}`;
+            const form = new FormData();
+            const file = fs.readFileSync(`.agility-files/assets/${filePath}`, null);
+            form.append('files',file, media.fileName);
+            let mediaGroupingID = -1;
+            try{
+                let existingMedia = await apiClient.assetMethods.getAssetByUrl(orginUrl, guid);
                 
-        //         let existingMedia = await apiClient.assetMethods.getAssetByUrl(media.originUrl, guid);
-        //         if(existingMedia){
-        //             media.mediaID = existingMedia.mediaID;
-        //             media.containerEdgeUrl = existingMedia.containerEdgeUrl;
-        //             media.edgeUrl = existingMedia.edgeUrl;
-        //             media.originUrl = existingMedia.originUrl;
-        //             media.containerOriginUrl = existingMedia.containerOriginUrl;
-        //         } else {
-                    
-        //         }
-        //     } catch {
+                if(existingMedia){
+                    console.log(`Existing Media file name : ${media.fileName}`);
+                    if(media.mediaGroupingID > 0){
+                        console.log(`If Existing Gallery: ${media.mediaGroupingName}`)
+                        mediaGroupingID = await this.doesGalleryExists(guid, media.mediaGroupingName);
+                    }
+                }
+                else{
+                    console.log(`Else New Media file name : ${media.fileName}`);
+                    if(media.mediaGroupingID > 0){
+                        console.log(`Else Existing Gallery: ${media.mediaGroupingName}`)
+                        mediaGroupingID = await this.doesGalleryExists(guid, media.mediaGroupingName);
+                    }
+                }
+                let uploadedMedia = await apiClient.assetMethods.upload(form, folderPath, guid,mediaGroupingID);
+            } catch {
+                console.log(`Exception New Media file name : ${media.fileName}`);
+                if(media.mediaGroupingID > 0){
+                    console.log(`Catch Existing Gallery: ${media.mediaGroupingName}`)
+                    mediaGroupingID = await this.doesGalleryExists(guid, media.mediaGroupingName);
+                }
+               let uploadedMedia = await apiClient.assetMethods.upload(form, folderPath, guid,mediaGroupingID);
+            }
                 
-        //     }
-        // }
+        }
+
+    }
+
+    async doesGalleryExists(guid: string, mediaGroupingName: string){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        let mediaGroupingID = -1;
+        try{
+            let gallery = await apiClient.assetMethods.getGalleryByName(guid, mediaGroupingName);
+            if(gallery){
+                mediaGroupingID = gallery.mediaGroupingID;
+            } else{
+                mediaGroupingID =  -1;
+            }
+        } catch {
+            return -1;
+        }
+        return mediaGroupingID;
     }
 
     getFilePath(originUrl: string): string{
@@ -286,20 +338,21 @@ export class push{
 
     async pushInstance(guid: string){
         try{
+            await this.pushGalleries(guid);
             await this.pushAssets(guid);
-            // let models = this.createBaseModels();
-            // let containers = this.createBaseContainers();
+            let models = this.createBaseModels();
+            let containers = this.createBaseContainers();
             
-            // let linkedModels = await this.getLinkedModels(models);
-            // let normalModels = await this.getNormalModels(models, linkedModels);
-            //  for(let i = 0; i < normalModels.length; i++){
-            //     let normalModel = normalModels[i];
-            //     await this.pushNormalModels(normalModel, guid);
-            //  }
+            let linkedModels = await this.getLinkedModels(models);
+            let normalModels = await this.getNormalModels(models, linkedModels);
+             for(let i = 0; i < normalModels.length; i++){
+                let normalModel = normalModels[i];
+                await this.pushNormalModels(normalModel, guid);
+             }
              
-            // await this.pushLinkedModels(linkedModels, guid);
-            // let containerModels = this.createBaseModels();
-            // await this.pushContainers(containers, containerModels, guid);
+            await this.pushLinkedModels(linkedModels, guid);
+            let containerModels = this.createBaseModels();
+            await this.pushContainers(containers, containerModels, guid);
         } catch {
 
         }
