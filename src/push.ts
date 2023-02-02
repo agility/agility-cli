@@ -1,6 +1,5 @@
 import * as mgmtApi  from '@agility/management-sdk';
 import { fileOperations } from './fileOperations';
-import { Auth } from './auth';
 import * as fs from 'fs';
 const FormData = require('form-data');
 
@@ -132,7 +131,6 @@ export class push{
             if(referenceName){
                 let modelID = this.processedModels[referenceName];
                 if(modelID){
-                    console.log(`Processing Container : ${container.referenceName}, For Model ${referenceName}`)
                     container.contentDefinitionID = modelID;
                     try{
                         let existingContainer = await apiClient.containerMethods.getContainerByReferenceName(container.referenceName, guid);
@@ -140,20 +138,16 @@ export class push{
                             container.contentViewID = existingContainer.contentViewID;
                         } else {
                             container.contentViewID = -1;
-                            console.log('in else');
                         }
                         await apiClient.containerMethods.saveContainer(container, guid);
                     } catch{
                         container.contentViewID = -1;
-                        console.log('in exception');
                         await apiClient.containerMethods.saveContainer(container, guid);
                     }
                 }
                 else{
-                    console.log('ModelID not found');
                 }
             } else{
-                console.log('ReferenceName not found');
             }
         }
        
@@ -180,16 +174,27 @@ export class push{
                         let field = model.fields[j];
                         if(field.settings['ContentDefinition']){
                             let modelRef = field.settings['ContentDefinition'];
-                            if(this.processedModels[modelRef] && !(this.processedModels[model.referenceName])){
+                            if(model.referenceName !== modelRef){
+                                if(this.processedModels[modelRef] && !(this.processedModels[model.referenceName])){
+                                    model.id = 0;
+                                    try{
+                                        let createdModel = await apiClient.modelMethods.saveModel(model, guid);
+                                        this.processedModels[createdModel.referenceName] = createdModel.id;
+                                        models[i] = null;
+                                    } catch{
+                                    }
+                                }
+                            } else{
                                 model.id = 0;
                                 try{
                                     let createdModel = await apiClient.modelMethods.saveModel(model, guid);
                                     this.processedModels[createdModel.referenceName] = createdModel.id;
                                     models[i] = null;
                                 } catch{
-                                    console.log(`Error creating model ${model.referenceName}`);
+
                                 }
                             }
+                            
                         }
                         else{
 
@@ -267,7 +272,6 @@ export class push{
         
          let re = /(?:\.([^.]+))?$/;
          for(let i = 0; i < medias.length; i++){
-            console.log(`Iteration ${i}`);
             let media = medias[i];
             let filePath = this.getFilePath(media.originUrl);
             filePath = filePath.replace(/%20/g, " ");
@@ -284,24 +288,18 @@ export class push{
                 let existingMedia = await apiClient.assetMethods.getAssetByUrl(orginUrl, guid);
                 
                 if(existingMedia){
-                    console.log(`Existing Media file name : ${media.fileName}`);
                     if(media.mediaGroupingID > 0){
-                        console.log(`If Existing Gallery: ${media.mediaGroupingName}`)
                         mediaGroupingID = await this.doesGalleryExists(guid, media.mediaGroupingName);
                     }
                 }
                 else{
-                    console.log(`Else New Media file name : ${media.fileName}`);
                     if(media.mediaGroupingID > 0){
-                        console.log(`Else Existing Gallery: ${media.mediaGroupingName}`)
                         mediaGroupingID = await this.doesGalleryExists(guid, media.mediaGroupingName);
                     }
                 }
                 let uploadedMedia = await apiClient.assetMethods.upload(form, folderPath, guid,mediaGroupingID);
             } catch {
-                console.log(`Exception New Media file name : ${media.fileName}`);
                 if(media.mediaGroupingID > 0){
-                    console.log(`Catch Existing Gallery: ${media.mediaGroupingName}`)
                     mediaGroupingID = await this.doesGalleryExists(guid, media.mediaGroupingName);
                 }
                let uploadedMedia = await apiClient.assetMethods.upload(form, folderPath, guid,mediaGroupingID);
@@ -338,8 +336,8 @@ export class push{
 
     async pushInstance(guid: string){
         try{
-            await this.pushGalleries(guid);
-            await this.pushAssets(guid);
+            // await this.pushGalleries(guid);
+            // await this.pushAssets(guid);
             let models = this.createBaseModels();
             let containers = this.createBaseContainers();
             
@@ -350,7 +348,7 @@ export class push{
                 await this.pushNormalModels(normalModel, guid);
              }
              
-            await this.pushLinkedModels(linkedModels, guid);
+           await this.pushLinkedModels(linkedModels, guid);
             let containerModels = this.createBaseModels();
             await this.pushContainers(containers, containerModels, guid);
         } catch {
