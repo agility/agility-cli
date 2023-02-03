@@ -116,10 +116,16 @@ yargs.command({
             describe: 'Provide the target guid to push your instance.',
             demandOption: true,
             type: 'string'
+        },
+        locale: {
+            describe: 'Provide the locale to push your instance.',
+            demandOption: true,
+            type: 'string'
         }
     },
     handler: async function(argv) {
        let guid: string = argv.guid as string;
+       let locale: string = argv.locale as string;
        let code = new fileOperations();
        auth = new Auth();
        let data = JSON.parse(code.readTempFile('code.json'));
@@ -168,7 +174,7 @@ yargs.command({
                 }
         })
        }
-       await pushSync.pushInstance(guid);
+       await pushSync.pushInstance(guid, locale);
     }
 })
 

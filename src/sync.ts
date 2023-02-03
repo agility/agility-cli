@@ -16,8 +16,8 @@ export class sync{
 
      async sync(){
         let syncClient = agilitySync.getSyncClient({
-            guid: this._guid,// '9670e398-d',
-            apiKey: this._apiKey,// 'defaultpreview.2ba972eae0618c6a80a68a23ef5d260a92a482c6b34e8cd142ea80a6db904510',
+            guid: this._guid,
+            apiKey: this._apiKey,
             languages: [`${this._locale}`],
             channels: [`${this._channel}`],
             isPreview: true
@@ -25,9 +25,4 @@ export class sync{
 
         await syncClient.runSync();
      }
-     
-
-    // const method = async () => {
-    //     await syncClient.runSync();
-    // }
 }

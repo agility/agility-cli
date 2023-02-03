@@ -80,6 +80,56 @@ export class push{
         }
     }
 
+    createBaseContentItems(locale: string){
+        try{
+            let fileOperation = new fileOperations();
+            let files = fileOperation.readDirectory(`${locale}\\item`);
+
+            let contentItems : mgmtApi.ContentItem[] = [];
+
+            for(let i = 0; i < files.length; i++){
+                let contentItem = JSON.parse(files[i]) as mgmtApi.ContentItem;
+                contentItems.push(contentItem);
+            }
+            return contentItems;
+        } catch{
+
+        }
+    }
+
+    async getLinkedContent(guid: string, contentItems: mgmtApi.ContentItem[]){
+        try{
+            let normalContentItems : mgmtApi.ContentItem[] = []
+            let apiClient = new mgmtApi.ApiClient(this._options);
+            for(let i = 0; i < contentItems.length; i++){
+                console.log(`Iteration ${i}`);
+                
+                let contentItem = contentItems[i];
+                console.log(`Ref Name ${contentItem.properties.referenceName}`);
+                let containerRef = contentItem.properties.referenceName;
+                let container = await apiClient.containerMethods.getContainerByReferenceName(containerRef, guid);
+
+                let model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
+                
+                model.fields.flat().find((field) => {
+                    if(field.type === 'Content'){
+                        return normalContentItems.push(contentItem);
+                    }
+                })
+                // for(let j = 0; j < model.fields.length; j++){
+                //     let field = model.fields[i];
+                //     if(field.type === 'Content'){
+                //         normalContentItems.push(contentItem);
+                //         return;
+                //     }
+                // }
+            }
+            return normalContentItems;
+        } catch{
+
+        }
+    }
+
     async getLinkedModels(models: mgmtApi.Model[]){
         try{
             let linkedModels : mgmtApi.Model[] = [];
@@ -334,10 +384,10 @@ export class push{
         return removedStr;
     }
 
-    async pushInstance(guid: string){
+    async pushInstance(guid: string, locale: string){
         try{
-            // await this.pushGalleries(guid);
-            // await this.pushAssets(guid);
+          /*  await this.pushGalleries(guid);
+            await this.pushAssets(guid);
             let models = this.createBaseModels();
             let containers = this.createBaseContainers();
             
@@ -350,7 +400,13 @@ export class push{
              
            await this.pushLinkedModels(linkedModels, guid);
             let containerModels = this.createBaseModels();
-            await this.pushContainers(containers, containerModels, guid);
+            await this.pushContainers(containers, containerModels, guid);*/
+
+            let contentItems = this.createBaseContentItems(locale);
+
+            let normalContentItems = await this.getLinkedContent(guid, contentItems);
+
+            console.log(JSON.stringify(normalContentItems));
         } catch {
 
         }
