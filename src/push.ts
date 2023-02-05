@@ -80,8 +80,8 @@ export class push{
         }
     }
 
-    createBaseContentItems(locale: string){
-        try{
+    async createBaseContentItems(guid: string, locale: string){
+            let apiClient = new mgmtApi.ApiClient(this._options);
             let fileOperation = new fileOperations();
             let files = fileOperation.readDirectory(`${locale}\\item`);
 
@@ -89,45 +89,59 @@ export class push{
 
             for(let i = 0; i < files.length; i++){
                 let contentItem = JSON.parse(files[i]) as mgmtApi.ContentItem;
-                contentItems.push(contentItem);
+                try{
+                    let container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
+                    if(container){
+                        contentItems.push(contentItem);
+                    }
+                } catch{
+                    continue;
+                }
             }
             return contentItems;
-        } catch{
-
-        }
     }
 
     async getLinkedContent(guid: string, contentItems: mgmtApi.ContentItem[]){
-        try{
-            let normalContentItems : mgmtApi.ContentItem[] = []
+            let linkedContentItems : mgmtApi.ContentItem[] = []
             let apiClient = new mgmtApi.ApiClient(this._options);
             for(let i = 0; i < contentItems.length; i++){
-                console.log(`Iteration ${i}`);
-                
                 let contentItem = contentItems[i];
-                console.log(`Ref Name ${contentItem.properties.referenceName}`);
                 let containerRef = contentItem.properties.referenceName;
-                let container = await apiClient.containerMethods.getContainerByReferenceName(containerRef, guid);
-
-                let model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
+                try{
+                    let container = await apiClient.containerMethods.getContainerByReferenceName(containerRef, guid);
+                    let model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
                 
-                model.fields.flat().find((field) => {
-                    if(field.type === 'Content'){
-                        return normalContentItems.push(contentItem);
-                    }
-                })
-                // for(let j = 0; j < model.fields.length; j++){
-                //     let field = model.fields[i];
-                //     if(field.type === 'Content'){
-                //         normalContentItems.push(contentItem);
-                //         return;
-                //     }
-                // }
+                    model.fields.flat().find((field) => {
+                        if(field.type === 'Content'){
+                            return linkedContentItems.push(contentItem);
+                        }
+                    })
+                } catch {
+                    continue;
+                }
             }
-            return normalContentItems;
-        } catch{
-
+            return linkedContentItems;
         }
+        
+    async getNormalContent(guid: string, baseContentItems: mgmtApi.ContentItem[], linkedContentItems: mgmtApi.ContentItem[]){
+//        let normalContentItems : mgmtApi.ContentItem[] = []
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        let contentItems = baseContentItems.filter(contentItem => linkedContentItems.indexOf(contentItem) < 0);
+
+        // for(let i = 0; i < contentItems.length; i++){
+        //     let contentItem = contentItems[i];
+        //    try{
+        //         let container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
+        //         if(container){
+        //             normalContentItems.push(contentItem);
+        //         } else{
+        //             continue;
+        //         }
+        //    } catch {
+        //     continue;
+        //    }
+        // }
+        return contentItems;
     }
 
     async getLinkedModels(models: mgmtApi.Model[]){
@@ -386,7 +400,7 @@ export class push{
 
     async pushInstance(guid: string, locale: string){
         try{
-          /*  await this.pushGalleries(guid);
+           /* await this.pushGalleries(guid);
             await this.pushAssets(guid);
             let models = this.createBaseModels();
             let containers = this.createBaseContainers();
@@ -402,11 +416,12 @@ export class push{
             let containerModels = this.createBaseModels();
             await this.pushContainers(containers, containerModels, guid);*/
 
-            let contentItems = this.createBaseContentItems(locale);
+            let contentItems = await this.createBaseContentItems(guid, locale);
 
-            let normalContentItems = await this.getLinkedContent(guid, contentItems);
+            let linkedContentItems = await this.getLinkedContent(guid, contentItems);
 
-            console.log(JSON.stringify(normalContentItems));
+            let normalContentItems = await this.getNormalContent(guid, contentItems, linkedContentItems);
+
         } catch {
 
         }
