@@ -12,6 +12,48 @@ export class push{
         this.processedModels = {};
     }
 
+
+    /////////////////////////////START: DELETE METHODS ONCE DONE/////////////////////////////////////////////////////////////////
+    createAllContent(){
+        let fileOperation = new fileOperations();
+        try{
+            let files = fileOperation.readFile('.agility-files\\all\\all.json');
+            let contentItems = JSON.parse(files) as mgmtApi.ContentItem[];
+
+            return contentItems;
+        } catch(err){
+            console.log(err);
+        }
+        
+    }
+
+    createLinkedContent(){
+        let fileOperation = new fileOperations();
+        try{
+            let files = fileOperation.readFile('.agility-files\\linked\\linked.json');
+            let contentItems = JSON.parse(files) as mgmtApi.ContentItem[];
+
+            return contentItems;
+        } catch(err){
+            console.log(err);
+        }
+        
+    }
+
+    createNonLinkedContent(){
+        let fileOperation = new fileOperations();
+        try{
+            let files = fileOperation.readFile('.agility-files\\nonlinked\\nonlinked.json');
+            let contentItems = JSON.parse(files) as mgmtApi.ContentItem[];
+
+            return contentItems;
+        } catch(err){
+            console.log(err);
+        }
+        
+    }
+    /////////////////////////////END: DELETE METHODS ONCE DONE/////////////////////////////////////////////////////////////////
+
     createBaseModels(){
         try{
             let fileOperation = new fileOperations();
@@ -83,6 +125,7 @@ export class push{
     async createBaseContentItems(guid: string, locale: string){
             let apiClient = new mgmtApi.ApiClient(this._options);
             let fileOperation = new fileOperations();
+            let skippedContents: mgmtApi.ContentItem[] = [];
             let files = fileOperation.readDirectory(`${locale}\\item`);
 
             let contentItems : mgmtApi.ContentItem[] = [];
@@ -95,9 +138,11 @@ export class push{
                         contentItems.push(contentItem);
                     }
                 } catch{
+                    skippedContents.push(contentItem);
                     continue;
                 }
             }
+            fileOperation.createTempFile('skippedContents.json', JSON.stringify(skippedContents));
             return contentItems;
     }
 
@@ -124,25 +169,89 @@ export class push{
         }
         
     async getNormalContent(guid: string, baseContentItems: mgmtApi.ContentItem[], linkedContentItems: mgmtApi.ContentItem[]){
-//        let normalContentItems : mgmtApi.ContentItem[] = []
         let apiClient = new mgmtApi.ApiClient(this._options);
         let contentItems = baseContentItems.filter(contentItem => linkedContentItems.indexOf(contentItem) < 0);
 
-        // for(let i = 0; i < contentItems.length; i++){
-        //     let contentItem = contentItems[i];
-        //    try{
-        //         let container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
-        //         if(container){
-        //             normalContentItems.push(contentItem);
-        //         } else{
-        //             continue;
-        //         }
-        //    } catch {
-        //     continue;
-        //    }
-        // }
         return contentItems;
     }
+
+    async pusNormalContentItems(guid: string, locale: string, contentItems: mgmtApi.ContentItem[]){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+
+         let contentItem =  contentItems.find((content) => content.contentID === 160);//160, 106
+
+         let container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
+         
+         let model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
+        for(let j = 0; j < model.fields.length; j++){
+            let field = model.fields[j];
+            let fieldName = this.camelize(field.name);
+            let fieldVal = contentItem.fields[fieldName];
+            if(field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList'){
+                if(typeof fieldVal === 'object'){
+                        if(Array.isArray(fieldVal)){
+                            for(let k = 0; k < fieldVal.length; k++){
+                                let retUrl = await this.changeOriginKey(guid, fieldVal[k].url);
+                                contentItem.fields[fieldName][k].url = retUrl;
+                            }
+                        } else {
+                            if('url' in fieldVal){
+                                let retUrl = await this.changeOriginKey(guid, fieldVal.url);
+                                contentItem.fields[fieldName].url = retUrl;
+                            }
+                        }
+                } 
+            }
+            else 
+            {
+                if(typeof fieldVal === 'object'){
+                    if('fulllist' in fieldVal){
+                        ///Continue with gallery.
+                        console.log('inside here');
+                        delete fieldVal.fulllist;
+                    }
+                }
+            }
+        }
+        // for(let i = 0; i < contentItems.length; i++){
+        //     let contentItem = contentItems[0];
+
+        //     let container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
+
+        //     let model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
+
+        //     model.fields.flat().find((field) => {
+        //         if(field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList'){
+                    
+        //         }
+        //     })
+        // }
+    }
+    
+
+    async changeOriginKey(guid: string, url: string){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+
+        let defaultContainer = await apiClient.assetMethods.getDefaultContainer(guid);
+
+        let filePath = this.getFilePath(url);
+        filePath = filePath.replace(/%20/g, " ");
+
+        let orginUrl = `${defaultContainer.originUrl}/${filePath}`;
+
+        try{
+            let existingMedia = await apiClient.assetMethods.getAssetByUrl(orginUrl, guid);
+            return orginUrl;
+        } catch{
+            return url;
+        }
+    }
+
+     camelize(str: string) {
+        return str.replace(/(?:^\w|[A-Z]|\b\w)/g, function(word, index) {
+          return index === 0 ? word.toLowerCase() : word.toUpperCase();
+        }).replace(/\s+/g, '');
+      }
 
     async getLinkedModels(models: mgmtApi.Model[]){
         try{
@@ -416,12 +525,18 @@ export class push{
             let containerModels = this.createBaseModels();
             await this.pushContainers(containers, containerModels, guid);*/
 
-            let contentItems = await this.createBaseContentItems(guid, locale);
+          /*  let contentItems = await this.createBaseContentItems(guid, locale);
 
             let linkedContentItems = await this.getLinkedContent(guid, contentItems);
 
-            let normalContentItems = await this.getNormalContent(guid, contentItems, linkedContentItems);
+            let normalContentItems = await this.getNormalContent(guid, contentItems, linkedContentItems);*/
+            let contentItems = this.createAllContent();
 
+            let linkedContentItems = this.createLinkedContent();
+
+            let normalContentItems = this.createNonLinkedContent();
+            await this.pusNormalContentItems(guid, locale, normalContentItems);
+    
         } catch {
 
         }
