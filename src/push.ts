@@ -6,10 +6,16 @@ const FormData = require('form-data');
 export class push{
     _options : mgmtApi.Options;
     processedModels: { [key: string]: number; };
+    processedContentIds : {[key: number]: number;}; //format Key -> Old ContentId, Value New ContentId.
+    skippedContentItems: {[key: number]: string}; //format Key -> ContentId, Value ReferenceName of the content.
+    processedGalleries: {[key: number]: number};
 
     constructor(options: mgmtApi.Options){
         this._options = options;
         this.processedModels = {};
+        this.processedContentIds = {};
+        this.processedGalleries = {};
+        this.skippedContentItems = {};
     }
 
 
@@ -125,7 +131,6 @@ export class push{
     async createBaseContentItems(guid: string, locale: string){
             let apiClient = new mgmtApi.ApiClient(this._options);
             let fileOperation = new fileOperations();
-            let skippedContents: mgmtApi.ContentItem[] = [];
             let files = fileOperation.readDirectory(`${locale}\\item`);
 
             let contentItems : mgmtApi.ContentItem[] = [];
@@ -138,11 +143,10 @@ export class push{
                         contentItems.push(contentItem);
                     }
                 } catch{
-                    skippedContents.push(contentItem);
+                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName
                     continue;
                 }
             }
-            fileOperation.createTempFile('skippedContents.json', JSON.stringify(skippedContents));
             return contentItems;
     }
 
@@ -178,55 +182,173 @@ export class push{
     async pusNormalContentItems(guid: string, locale: string, contentItems: mgmtApi.ContentItem[]){
         let apiClient = new mgmtApi.ApiClient(this._options);
 
-         let contentItem =  contentItems.find((content) => content.contentID === 160);//160, 106
-
-         let container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
-         
-         let model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
-        for(let j = 0; j < model.fields.length; j++){
-            let field = model.fields[j];
-            let fieldName = this.camelize(field.name);
-            let fieldVal = contentItem.fields[fieldName];
-            if(field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList'){
-                if(typeof fieldVal === 'object'){
-                        if(Array.isArray(fieldVal)){
-                            for(let k = 0; k < fieldVal.length; k++){
-                                let retUrl = await this.changeOriginKey(guid, fieldVal[k].url);
-                                contentItem.fields[fieldName][k].url = retUrl;
+        for(let i = 0; i < contentItems.length; i++){
+            let contentItem = contentItems[i]; //contentItems.find((content) => content.contentID === 122);//160, 106
+         //   console.log(`Iteration ${i}, Content Item Ref: ${contentItem.properties.referenceName}, Content ID: ${contentItem.contentID}`);
+            let container = new mgmtApi.Container();
+            let model = new mgmtApi.Model();
+                try{
+                    container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
+                } catch {
+                 //   console.log(`Container not found for ref: ${contentItem.properties.referenceName}`);
+                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                    continue;
+                }
+            
+                try{
+                    model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
+                } catch{
+                 //   console.log(`Model not found for id ${container.contentDefinitionID}`);
+                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                    continue;
+                }
+            for(let j = 0; j < model.fields.length; j++){
+                let field = model.fields[j];
+                let fieldName = this.camelize(field.name);
+                let fieldVal = contentItem.fields[fieldName];
+                if(field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList'){
+                    if(typeof fieldVal === 'object'){
+                            if(Array.isArray(fieldVal)){
+                                for(let k = 0; k < fieldVal.length; k++){
+                                    let retUrl = await this.changeOriginKey(guid, fieldVal[k].url);
+                                    contentItem.fields[fieldName][k].url = retUrl;
+                                }
+                            } else {
+                                if('url' in fieldVal){
+                                    let retUrl = await this.changeOriginKey(guid, fieldVal.url);
+                                    contentItem.fields[fieldName].url = retUrl;
+                                }
                             }
-                        } else {
-                            if('url' in fieldVal){
-                                let retUrl = await this.changeOriginKey(guid, fieldVal.url);
-                                contentItem.fields[fieldName].url = retUrl;
+                    } 
+                }
+                else 
+                {
+                    if(typeof fieldVal === 'object'){
+                        if('fulllist' in fieldVal){
+                            delete fieldVal.fulllist;
+                            if(field.type === 'PhotoGallery'){
+                                let oldGalleryId = fieldVal.galleryid;
+                                if(this.processedGalleries[oldGalleryId]){
+                                  //  console.log(`Gallery found old: ${oldGalleryId}, New Gallery: ${this.processedGalleries[oldGalleryId]}`);
+                                    contentItem.fields[fieldName] = this.processedGalleries[oldGalleryId].toString();
+                                }
+                                else{
+                                //    console.log(`Gallery Not found old: ${oldGalleryId}`);
+                                    contentItem.fields[fieldName] = fieldVal.galleryid.toString();
+                                }
                             }
                         }
-                } 
-            }
-            else 
-            {
-                if(typeof fieldVal === 'object'){
-                    if('fulllist' in fieldVal){
-                        ///Continue with gallery.
-                        console.log('inside here');
-                        delete fieldVal.fulllist;
                     }
                 }
             }
+            const oldContentId = contentItem.contentID; 
+            contentItem.contentID = -1;
+
+            let createdContentItemId = await apiClient.contentMethods.saveContentItem(contentItem, guid, locale);
+
+            if(createdContentItemId[0]){
+                if(createdContentItemId[0] > 0){
+                    this.processedContentIds[oldContentId] = createdContentItemId[0];
+                }
+                else{
+                    this.skippedContentItems[oldContentId] = contentItem.properties.referenceName;
+                  //  console.log(`Unable to create content for old contentId: ${oldContentId}`);
+                }
+            }
         }
-        // for(let i = 0; i < contentItems.length; i++){
-        //     let contentItem = contentItems[0];
+        // let fileOperation = new fileOperations();
+        // fileOperation.createTempFile('skippedContents.json', JSON.stringify(this.skippedContentItems));
+        // fileOperation.createTempFile('processedContents.json', JSON.stringify(this.processedContentIds));
+   }
 
-        //     let container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
+   async pushLinkedContentItems(guid: string, locale: string, contentItems: mgmtApi.ContentItem[]){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        /////////////START: TEMPORARY//////////////////////////////////////////////////////////////////
+        let fileOperation = new fileOperations();
+        let files = fileOperation.readFile('.agility-files\\processed\\processedContents.json');
+        this.processedContentIds = JSON.parse(files);
+        
+        let files2 = fileOperation.readFile('.agility-files\\skipped\\skippedContents.json');
+        this.skippedContentItems = JSON.parse(files2);
 
-        //     let model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
-
-        //     model.fields.flat().find((field) => {
-        //         if(field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList'){
+        /////////////END: TEMPORARY//////////////////////////////////////////////////////////////////
+       // do{
+            //for(let i = 0; i < contentItems.length; i++){
+                //let contentItem = contentItems[i];
+                let contentItem = contentItems.find(c => c.contentID === 108);
+                if(!contentItem){
+                    //continue;
+                }
+                let container = new mgmtApi.Container();
+                let model = new mgmtApi.Model();
+    
+                try{
+                    container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
+                } catch {
+                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                    contentItem = null;
+                   // continue;
+                }
+            
+                try{
+                    model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
+                } catch{
+                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                    contentItem = null;
+                   // continue;
+                }
+                
+                for(let j = 0; j < model.fields.length; j++){
+                    let field = model.fields[j];
+                    let fieldName = this.camelize(field.name);
+                    let fieldVal = contentItem.fields[fieldName];
+                    let linkedFields: string[] = [];
+                    if(field.type === 'Content'){
+                        if('fulllist' in fieldVal){
+                            delete fieldVal.fulllist;
+                            if('contentid' in fieldVal){
+                                let linkedContentId = fieldVal.contentid;
+                                console.log(linkedContentId);
+                                if(this.skippedContentItems[linkedContentId]){
+                                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                    console.log(`Content Found in skipped ${linkedContentId}`);
+                                    contentItem = null;
+                                    return;
+                                }
+                                if(this.processedContentIds[linkedContentId]){
+                                    console.log(`Found content: ${linkedContentId}, new content ${this.processedContentIds[linkedContentId]}`);
+                                    contentItem.fields[fieldName].contentid = this.processedContentIds[linkedContentId];
+                                }
+                            }
+                            if('referencename' in fieldVal){
+                                let refName = fieldVal.referencename;
+                                try{
+                                    let container = await apiClient.containerMethods.getContainerByReferenceName(refName, guid);
+                                    if(!container){
+                                        this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                        contentItem = null;
+                                        return;
+                                    }
+                                linkedFields.push(fieldName);
+                                } catch{
+                                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                    contentItem = null;
+                                    return;
+                                }
+                            }
+                        }
+                    }
                     
-        //         }
-        //     })
-        // }
-    }
+                }
+                if(contentItem){
+                    contentItem.contentID = -1;
+                }
+                //console.log(JSON.stringify(contentItem));
+            //}
+            
+       // } while(contentItems.filter(c => c !== null).length !==0)
+        
+   }
     
 
     async changeOriginKey(guid: string, url: string){
@@ -237,11 +359,11 @@ export class push{
         let filePath = this.getFilePath(url);
         filePath = filePath.replace(/%20/g, " ");
 
-        let orginUrl = `${defaultContainer.originUrl}/${filePath}`;
+        let edgeUrl = `${defaultContainer.edgeUrl}/${filePath}`;
 
         try{
-            let existingMedia = await apiClient.assetMethods.getAssetByUrl(orginUrl, guid);
-            return orginUrl;
+            let existingMedia = await apiClient.assetMethods.getAssetByUrl(edgeUrl, guid);
+            return edgeUrl;
         } catch{
             return url;
         }
@@ -411,6 +533,7 @@ export class push{
             let assetGallery = assetGalleries[i];
             for(let j = 0; j < assetGallery.assetMediaGroupings.length; j++){
                 let gallery = assetGallery.assetMediaGroupings[j];
+                const oldGalleryId = gallery.mediaGroupingID;
                 try{
                     let existingGallery = await apiClient.assetMethods.getGalleryByName(guid, gallery.name);
                     if(existingGallery){
@@ -419,10 +542,12 @@ export class push{
                     else{
                         gallery.mediaGroupingID = 0;
                     }
-                  await apiClient.assetMethods.saveGallery(guid, gallery);
+                 let createdGallery = await apiClient.assetMethods.saveGallery(guid, gallery);
+                 this.processedGalleries[oldGalleryId] = createdGallery.mediaGroupingID;
                 } catch {
                     gallery.mediaGroupingID = 0;
-                    await apiClient.assetMethods.saveGallery(guid, gallery);
+                    let createdGallery = await apiClient.assetMethods.saveGallery(guid, gallery);
+                    this.processedGalleries[oldGalleryId] = createdGallery.mediaGroupingID;
                 }
             }
         }
@@ -509,8 +634,8 @@ export class push{
 
     async pushInstance(guid: string, locale: string){
         try{
-           /* await this.pushGalleries(guid);
-            await this.pushAssets(guid);
+            await this.pushGalleries(guid);
+            /*await this.pushAssets(guid);
             let models = this.createBaseModels();
             let containers = this.createBaseContainers();
             
@@ -523,9 +648,9 @@ export class push{
              
            await this.pushLinkedModels(linkedModels, guid);
             let containerModels = this.createBaseModels();
-            await this.pushContainers(containers, containerModels, guid);*/
+            await this.pushContainers(containers, containerModels, guid);
 
-          /*  let contentItems = await this.createBaseContentItems(guid, locale);
+            let contentItems = await this.createBaseContentItems(guid, locale);
 
             let linkedContentItems = await this.getLinkedContent(guid, contentItems);
 
@@ -535,7 +660,9 @@ export class push{
             let linkedContentItems = this.createLinkedContent();
 
             let normalContentItems = this.createNonLinkedContent();
-            await this.pusNormalContentItems(guid, locale, normalContentItems);
+            //await this.pusNormalContentItems(guid, locale, normalContentItems);
+
+            await this.pushLinkedContentItems(guid, locale, linkedContentItems);
     
         } catch {
 
