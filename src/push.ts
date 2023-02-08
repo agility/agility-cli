@@ -272,12 +272,13 @@ export class push{
         this.skippedContentItems = JSON.parse(files2);
 
         /////////////END: TEMPORARY//////////////////////////////////////////////////////////////////
-       // do{
-            //for(let i = 0; i < contentItems.length; i++){
-                //let contentItem = contentItems[i];
-                let contentItem = contentItems.find(c => c.contentID === 108);
+        let content = 1111;
+        do{
+            for(let i = 0; i < contentItems.length; i++){
+                let contentItem = contentItems[i];
+                //let contentItem = contentItems.find(c => c.contentID === 162);
                 if(!contentItem){
-                    //continue;
+                    continue;
                 }
                 let container = new mgmtApi.Container();
                 let model = new mgmtApi.Model();
@@ -286,67 +287,219 @@ export class push{
                     container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
                 } catch {
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                    contentItem = null;
-                   // continue;
+                    contentItem[i] = null;
+                    continue;
                 }
             
                 try{
                     model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
                 } catch{
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                    contentItem = null;
-                   // continue;
+                    contentItem[i] = null;
+                    continue;
                 }
-                
+                let linkedTextFields: string[] = [];
                 for(let j = 0; j < model.fields.length; j++){
                     let field = model.fields[j];
+                    let settings = field.settings;
                     let fieldName = this.camelize(field.name);
                     let fieldVal = contentItem.fields[fieldName];
-                    let linkedFields: string[] = [];
-                    if(field.type === 'Content'){
-                        if('fulllist' in fieldVal){
-                            delete fieldVal.fulllist;
-                            if('contentid' in fieldVal){
-                                let linkedContentId = fieldVal.contentid;
-                                console.log(linkedContentId);
-                                if(this.skippedContentItems[linkedContentId]){
-                                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                    console.log(`Content Found in skipped ${linkedContentId}`);
-                                    contentItem = null;
-                                    return;
-                                }
-                                if(this.processedContentIds[linkedContentId]){
-                                    console.log(`Found content: ${linkedContentId}, new content ${this.processedContentIds[linkedContentId]}`);
-                                    contentItem.fields[fieldName].contentid = this.processedContentIds[linkedContentId];
-                                }
+                    if(fieldVal){
+                        if(field.type === 'Content'){
+                             if(settings['LinkeContentDropdownValueField']){
+                                 if(settings['LinkeContentDropdownValueField']!=='CREATENEW'){
+                                     let linkedField = this.camelize(settings['LinkeContentDropdownValueField']);
+                                     linkedTextFields.push(linkedField);
+                                 }
+                             }
+                                 delete fieldVal.fulllist;
+                                 if('contentid' in fieldVal){
+                                     let linkedContentId = fieldVal.contentid;
+                                     if(this.skippedContentItems[linkedContentId]){
+                                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                         console.log(`Content Found in skipped ${linkedContentId}`);
+                                         contentItem[i] = null;
+                                         continue;
+                                     }
+                                     if(this.processedContentIds[linkedContentId]){
+                                         let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedContentId}.json`);
+                                         let extractedContent = JSON.parse(file) as mgmtApi.ContentItem;
+                                         contentItem.fields[fieldName] = extractedContent.properties.referenceName; 
+                                     }
+                                     else{
+                                         try{
+                                             let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedContentId}.json`);
+                                         }
+                                         catch{
+                                             this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                             this.skippedContentItems[linkedContentId] = 'OrphanRef';
+                                             console.log(`1. handle totally orphan record contentID ${contentItem.contentID}`);
+                                             contentItem[i] = null;
+                                             continue;
+                                         }
+                                         
+                                     }
+                                 }
+                                 if('referencename' in fieldVal){
+                                     let refName = fieldVal.referencename;
+                                     try{
+                                         let container = await apiClient.containerMethods.getContainerByReferenceName(refName, guid);
+                                         if(!container){
+                                             this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                             contentItem[i] = null;
+                                             continue;
+                                         }
+                                         if('sortids' in fieldVal){
+                                             contentItem.fields[fieldName].referencename = fieldVal.referencename;
+                                         }
+                                         else{
+                                             contentItem.fields[fieldName] = fieldVal.referencename;
+                                         }
+                                     } catch{
+                                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                         contentItem[i] = null;
+                                         continue;
+                                     }
+                                 }
+                                 if('sortids' in fieldVal){
+                                     let sortids = fieldVal.sortids.split(',');
+                                     let newSortIds = '';
+                                     for(let s = 0; s < sortids.length; s++){
+                                         let sortid = sortids[s];
+                                         if(this.skippedContentItems[sortid]){
+                                             this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                             contentItem[i] = null;
+                                             continue;
+                                         }
+                                         if(this.processedContentIds[sortid]){
+                                             let newSortId = this.processedContentIds[sortid].toString();
+                                             if(!newSortIds){
+                                                 newSortIds = newSortId.toString();
+                                                 
+                                             } else{
+                                                 newSortIds += ',' + newSortId.toString();
+                                             }
+                                         }
+                                         else{
+                                             try{
+                                                 let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${sortid}.json`);
+                                             } catch{
+                                                 this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                 this.skippedContentItems[sortid] = 'OrphanRef';
+                                                 console.log(`2. handle totally orphan record contentID ${contentItem.contentID}`);
+                                                 contentItem[i] = null;
+                                                 continue;
+                                             }
+                                             
+                                         }
+                                     }
+                                     if(newSortIds){
+                                         newSortIds = newSortIds.substring(0, newSortIds.length);
+                                     }
+                                     contentItem.fields[fieldName].sortids = newSortIds;
+                                 }
+                             //}
+                             
+                         }
+                         else if(field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList'){
+                             if(typeof fieldVal === 'object'){
+                                 if(Array.isArray(fieldVal)){
+                                     for(let k = 0; k < fieldVal.length; k++){
+                                         let retUrl = await this.changeOriginKey(guid, fieldVal[k].url);
+                                         contentItem.fields[fieldName][k].url = retUrl;
+                                     }
+                                 } else {
+                                     if('url' in fieldVal){
+                                         let retUrl = await this.changeOriginKey(guid, fieldVal.url);
+                                         contentItem.fields[fieldName].url = retUrl;
+                                     }
+                                 }
+                             } 
+                         }
+                         else 
+                         {
+                             if(typeof fieldVal === 'object'){
+                                 if('fulllist' in fieldVal){
+                                     delete fieldVal.fulllist;
+                                     if(field.type === 'PhotoGallery'){
+                                         let oldGalleryId = fieldVal.galleryid;
+                                         if(this.processedGalleries[oldGalleryId]){
+                                             contentItem.fields[fieldName] = this.processedGalleries[oldGalleryId].toString();
+                                         }
+                                         else{
+                                             contentItem.fields[fieldName] = fieldVal.galleryid.toString();
+                                         }
+                                     }
+                                 }
+                             }
+                         }
+                    }
+                    
+                }
+
+                for(let k = 0; k < linkedTextFields.length; k++){
+                    let linkedField = linkedTextFields[k];
+                    if(contentItem.fields[linkedField]){
+                        let value = contentItem.fields[linkedField];
+                        let idStr = '';
+                        let linkedFieldValues = value.split(',');
+                        for(let l = 0; l < linkedFieldValues.length; l++){
+                           
+                            if(this.skippedContentItems[linkedFieldValues[l]]){
+                                this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                contentItem[i] = null;
+                                continue;
                             }
-                            if('referencename' in fieldVal){
-                                let refName = fieldVal.referencename;
+                            if(this.processedContentIds[linkedFieldValues[l]]){
+                                if(!idStr){
+                                    idStr = this.processedContentIds[linkedFieldValues[l]].toString();
+                                }
+                                else{
+                                    idStr += ',' + this.processedContentIds[linkedFieldValues[l]].toString();
+                                }
+                                if(idStr){
+                                    idStr = idStr.substring(0, idStr.length);
+                                }
+                                contentItem.fields[linkedField] = idStr;
+                                continue;
+                            } else{
                                 try{
-                                    let container = await apiClient.containerMethods.getContainerByReferenceName(refName, guid);
-                                    if(!container){
-                                        this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                        contentItem = null;
-                                        return;
-                                    }
-                                linkedFields.push(fieldName);
+                                    let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedFieldValues[l]}.json`);
                                 } catch{
                                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                    contentItem = null;
-                                    return;
+                                    this.skippedContentItems[linkedFieldValues[l]] = 'OrphanRef';
+                                    console.log(`3. handle totally orphan record contentID ${contentItem.contentID}`);
+                                    contentItem[i] = null;
+                                    continue;
                                 }
                             }
                         }
                     }
-                    
                 }
                 if(contentItem){
+                    const oldContentId = contentItem.contentID; 
+                    console.log(`Processed old Content ${oldContentId}`);
                     contentItem.contentID = -1;
+                    content += i;
+
+                    this.processedContentIds[oldContentId] = content;
+
+                /*    let createdContentItemId = await apiClient.contentMethods.saveContentItem(contentItem, guid, locale);
+
+                    if(createdContentItemId[0]){
+                        if(createdContentItemId[0] > 0){
+                            this.processedContentIds[oldContentId] = createdContentItemId[0];
+                        }
+                        else{
+                            this.skippedContentItems[oldContentId] = contentItem.properties.referenceName;
+                            console.log(`Unable to create content for old contentId: ${oldContentId}`);
+                        }
+                    }*/
                 }
                 //console.log(JSON.stringify(contentItem));
-            //}
+            }
             
-       // } while(contentItems.filter(c => c !== null).length !==0)
+        } while(contentItems.filter(c => c !== null).length !==0)
         
    }
     
