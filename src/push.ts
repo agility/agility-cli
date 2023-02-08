@@ -270,13 +270,14 @@ export class push{
         
         let files2 = fileOperation.readFile('.agility-files\\skipped\\skippedContents.json');
         this.skippedContentItems = JSON.parse(files2);
+      //  let skipped: {[key: number]: string} = {};
 
         /////////////END: TEMPORARY//////////////////////////////////////////////////////////////////
         let content = 1111;
         do{
             for(let i = 0; i < contentItems.length; i++){
                 let contentItem = contentItems[i];
-                //let contentItem = contentItems.find(c => c.contentID === 162);
+                //let contentItem = contentItems.find(c => c.contentID === 112);
                 if(!contentItem){
                     continue;
                 }
@@ -288,7 +289,8 @@ export class push{
                 } catch {
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                     contentItem[i] = null;
-                    continue;
+                    // contentItem = null;
+                   // continue;
                 }
             
                 try{
@@ -296,9 +298,9 @@ export class push{
                 } catch{
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                     contentItem[i] = null;
-                    continue;
+                    // contentItem = null;
+                    //continue;
                 }
-                let linkedTextFields: string[] = [];
                 for(let j = 0; j < model.fields.length; j++){
                     let field = model.fields[j];
                     let settings = field.settings;
@@ -308,8 +310,46 @@ export class push{
                         if(field.type === 'Content'){
                              if(settings['LinkeContentDropdownValueField']){
                                  if(settings['LinkeContentDropdownValueField']!=='CREATENEW'){
-                                     let linkedField = this.camelize(settings['LinkeContentDropdownValueField']);
-                                     linkedTextFields.push(linkedField);
+                                    let linkedField = this.camelize(settings['LinkeContentDropdownValueField']);
+                                    let linkedContentIds = contentItem.fields[linkedField];
+                                    let newlinkedContentIds = '';
+                                    if(linkedContentIds){
+                                        let splitIds = linkedContentIds.split(',');
+                                        for(let k = 0; k < splitIds.length; k++){
+                                            let id = splitIds[k];
+                                            if(this.skippedContentItems[id]){
+                                                this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                // contentItem = null;
+                                                contentItem[i] = null;
+                                                //continue;
+                                            }
+                                            if(this.processedContentIds[id]){
+                                                let newSortId = this.processedContentIds[id].toString();
+                                                if(!newlinkedContentIds){
+                                                    newlinkedContentIds = newSortId.toString();
+                                                    
+                                                } else{
+                                                    newlinkedContentIds += ',' + newSortId.toString();
+                                                }
+                                            }
+                                            else{
+                                                try{
+                                                    let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${id}.json`);
+                                                    break;
+                                                } catch{
+                                                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                    this.skippedContentItems[id] = 'OrphanRef';
+                                                    console.log(`4. handle totally orphan record contentID ${contentItem.contentID}`);
+                                                    // contentItem = null;
+                                                    contentItem[i] = null;
+                                                   // continue;
+                                                }
+                                                
+                                            }
+                                        }
+                                    }
+                                    if(newlinkedContentIds)
+                                        contentItem.fields[linkedField] = newlinkedContentIds;
                                  }
                              }
                                  delete fieldVal.fulllist;
@@ -318,8 +358,9 @@ export class push{
                                      if(this.skippedContentItems[linkedContentId]){
                                          this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                          console.log(`Content Found in skipped ${linkedContentId}`);
+                                        //  contentItem = null;
                                          contentItem[i] = null;
-                                         continue;
+                                        // continue;
                                      }
                                      if(this.processedContentIds[linkedContentId]){
                                          let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedContentId}.json`);
@@ -329,13 +370,15 @@ export class push{
                                      else{
                                          try{
                                              let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedContentId}.json`);
+                                             break;
                                          }
                                          catch{
                                              this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                              this.skippedContentItems[linkedContentId] = 'OrphanRef';
                                              console.log(`1. handle totally orphan record contentID ${contentItem.contentID}`);
+                                            //  contentItem = null;
                                              contentItem[i] = null;
-                                             continue;
+                                            // continue;
                                          }
                                          
                                      }
@@ -346,8 +389,9 @@ export class push{
                                          let container = await apiClient.containerMethods.getContainerByReferenceName(refName, guid);
                                          if(!container){
                                              this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                            //  contentItem = null;
                                              contentItem[i] = null;
-                                             continue;
+                                            // continue;
                                          }
                                          if('sortids' in fieldVal){
                                              contentItem.fields[fieldName].referencename = fieldVal.referencename;
@@ -357,8 +401,9 @@ export class push{
                                          }
                                      } catch{
                                          this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                        //  contentItem = null;
                                          contentItem[i] = null;
-                                         continue;
+                                        // continue;
                                      }
                                  }
                                  if('sortids' in fieldVal){
@@ -368,8 +413,9 @@ export class push{
                                          let sortid = sortids[s];
                                          if(this.skippedContentItems[sortid]){
                                              this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                            //  contentItem = null;
                                              contentItem[i] = null;
-                                             continue;
+                                            // continue;
                                          }
                                          if(this.processedContentIds[sortid]){
                                              let newSortId = this.processedContentIds[sortid].toString();
@@ -383,12 +429,14 @@ export class push{
                                          else{
                                              try{
                                                  let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${sortid}.json`);
+                                                 break;
                                              } catch{
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                  this.skippedContentItems[sortid] = 'OrphanRef';
                                                  console.log(`2. handle totally orphan record contentID ${contentItem.contentID}`);
+                                                // contentItem = null;
                                                  contentItem[i] = null;
-                                                 continue;
+                                                // continue;
                                              }
                                              
                                          }
@@ -398,7 +446,6 @@ export class push{
                                      }
                                      contentItem.fields[fieldName].sortids = newSortIds;
                                  }
-                             //}
                              
                          }
                          else if(field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList'){
@@ -437,50 +484,13 @@ export class push{
                     
                 }
 
-                for(let k = 0; k < linkedTextFields.length; k++){
-                    let linkedField = linkedTextFields[k];
-                    if(contentItem.fields[linkedField]){
-                        let value = contentItem.fields[linkedField];
-                        let idStr = '';
-                        let linkedFieldValues = value.split(',');
-                        for(let l = 0; l < linkedFieldValues.length; l++){
-                           
-                            if(this.skippedContentItems[linkedFieldValues[l]]){
-                                this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                contentItem[i] = null;
-                                continue;
-                            }
-                            if(this.processedContentIds[linkedFieldValues[l]]){
-                                if(!idStr){
-                                    idStr = this.processedContentIds[linkedFieldValues[l]].toString();
-                                }
-                                else{
-                                    idStr += ',' + this.processedContentIds[linkedFieldValues[l]].toString();
-                                }
-                                if(idStr){
-                                    idStr = idStr.substring(0, idStr.length);
-                                }
-                                contentItem.fields[linkedField] = idStr;
-                                continue;
-                            } else{
-                                try{
-                                    let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedFieldValues[l]}.json`);
-                                } catch{
-                                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                    this.skippedContentItems[linkedFieldValues[l]] = 'OrphanRef';
-                                    console.log(`3. handle totally orphan record contentID ${contentItem.contentID}`);
-                                    contentItem[i] = null;
-                                    continue;
-                                }
-                            }
-                        }
-                    }
-                }
+             //   console.log(JSON.stringify(contentItem));
+             //console.log(JSON.stringify(contentItem));
                 if(contentItem){
                     const oldContentId = contentItem.contentID; 
                     console.log(`Processed old Content ${oldContentId}`);
                     contentItem.contentID = -1;
-                    content += i;
+                  //  content += i;
 
                     this.processedContentIds[oldContentId] = content;
 
