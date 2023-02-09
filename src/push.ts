@@ -265,14 +265,14 @@ export class push{
         let apiClient = new mgmtApi.ApiClient(this._options);
         /////////////START: TEMPORARY//////////////////////////////////////////////////////////////////
         let fileOperation = new fileOperations();
-        let files = fileOperation.readFile('.agility-files\\processed\\processedContents.json');
+       /* let files = fileOperation.readFile('.agility-files\\processed\\processedContents.json');
         this.processedContentIds = JSON.parse(files);
         
         let files2 = fileOperation.readFile('.agility-files\\skipped\\skippedContents.json');
-        this.skippedContentItems = JSON.parse(files2);
+        this.skippedContentItems = JSON.parse(files2);*/
  
         /////////////END: TEMPORARY//////////////////////////////////////////////////////////////////
-        let content = 1111;
+        // let content = 1111;
         
         do{
             for(let i = 0; i < contentItems.length; i++){
@@ -280,7 +280,6 @@ export class push{
                 if(this.skippedContentItems[contentItem.contentID]){
                     contentItem = null;
                 }
-                //let contentItem = contentItems.find(c => c.contentID === 112);
                 if(!contentItem){
                     continue;
                 }
@@ -339,7 +338,7 @@ export class push{
                                                 } catch{
                                                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                     this.skippedContentItems[id] = 'OrphanRef';
-                                                    console.log(`4. handle totally orphan record contentID ${contentItem.contentID}`);
+                                                    // console.log(`4. handle totally orphan record contentID ${contentItem.contentID}`);
                                                     // contentItem = null;
                                                     //contentItem[i] = null;
                                                     continue;
@@ -357,7 +356,7 @@ export class push{
                                      let linkedContentId = fieldVal.contentid;
                                      if(this.skippedContentItems[linkedContentId]){
                                          this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                         console.log(`Content Found in skipped ${linkedContentId}`);
+                                        //  console.log(`Content Found in skipped ${linkedContentId}`);
                                         //  contentItem = null;
                                          //contentItem[i] = null;
                                          continue;
@@ -376,7 +375,7 @@ export class push{
                                          catch{
                                              this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                              this.skippedContentItems[linkedContentId] = 'OrphanRef';
-                                             console.log(`1. handle totally orphan record contentID ${contentItem.contentID}`);
+                                            //  console.log(`1. handle totally orphan record contentID ${contentItem.contentID}`);
                                             //  contentItem = null;
                                              //contentItem[i] = null;
                                              continue;
@@ -435,7 +434,7 @@ export class push{
                                              } catch{
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                  this.skippedContentItems[sortid] = 'OrphanRef';
-                                                 console.log(`2. handle totally orphan record contentID ${contentItem.contentID}`);
+                                                //  console.log(`2. handle totally orphan record contentID ${contentItem.contentID}`);
                                                 // contentItem = null;
                                                  //contentItem[i] = null;
                                                  continue;
@@ -486,16 +485,13 @@ export class push{
                     
                 }
 
-                //console.log(contentItem.contentID);
                 if(contentItem){
                     if(!this.skippedContentItems[contentItem.contentID]){
                         const oldContentId = contentItem.contentID; 
                         console.log(`Processed old Content ${oldContentId}`);
                         contentItem.contentID = -1;
-                        content += i;
-                        this.processedContentIds[oldContentId] = content;
-                        contentItem[i] = null;
-                       /* let createdContentItemId = await apiClient.contentMethods.saveContentItem(contentItem, guid, locale);
+                        
+                        let createdContentItemId = await apiClient.contentMethods.saveContentItem(contentItem, guid, locale);
 
                         if(createdContentItemId[0]){
                             if(createdContentItemId[0] > 0){
@@ -503,16 +499,13 @@ export class push{
                             }
                             else{
                                 this.skippedContentItems[oldContentId] = contentItem.properties.referenceName;
-                                console.log(`Unable to create content for old contentId: ${oldContentId}`);
+                                // console.log(`Unable to create content for old contentId: ${oldContentId}`);
                             }
-                        }*/
-
+                        }
+                        contentItem[i] = null;
                     }
-                    
-                  
                
                 }
-                //console.log(JSON.stringify(contentItem));
             }
         } while(contentItems.filter(c => c !== null).length !==0)
         
@@ -803,7 +796,7 @@ export class push{
     async pushInstance(guid: string, locale: string){
         try{
             await this.pushGalleries(guid);
-            /*await this.pushAssets(guid);
+            await this.pushAssets(guid);
             let models = this.createBaseModels();
             let containers = this.createBaseContainers();
             
@@ -822,13 +815,13 @@ export class push{
 
             let linkedContentItems = await this.getLinkedContent(guid, contentItems);
 
-            let normalContentItems = await this.getNormalContent(guid, contentItems, linkedContentItems);*/
-            let contentItems = this.createAllContent();
+            let normalContentItems = await this.getNormalContent(guid, contentItems, linkedContentItems);
+          /*  let contentItems = this.createAllContent();
 
             let linkedContentItems = this.createLinkedContent();
 
-            let normalContentItems = this.createNonLinkedContent();
-            //await this.pusNormalContentItems(guid, locale, normalContentItems);
+            let normalContentItems = this.createNonLinkedContent();*/
+            await this.pusNormalContentItems(guid, locale, normalContentItems);
 
             await this.pushLinkedContentItems(guid, locale, linkedContentItems);
     
