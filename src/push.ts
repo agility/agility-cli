@@ -270,13 +270,16 @@ export class push{
         
         let files2 = fileOperation.readFile('.agility-files\\skipped\\skippedContents.json');
         this.skippedContentItems = JSON.parse(files2);
-      //  let skipped: {[key: number]: string} = {};
-
+ 
         /////////////END: TEMPORARY//////////////////////////////////////////////////////////////////
         let content = 1111;
+        
         do{
             for(let i = 0; i < contentItems.length; i++){
                 let contentItem = contentItems[i];
+                if(this.skippedContentItems[contentItem.contentID]){
+                    contentItem = null;
+                }
                 //let contentItem = contentItems.find(c => c.contentID === 112);
                 if(!contentItem){
                     continue;
@@ -289,8 +292,6 @@ export class push{
                 } catch {
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                     contentItem[i] = null;
-                    // contentItem = null;
-                   // continue;
                 }
             
                 try{
@@ -298,8 +299,6 @@ export class push{
                 } catch{
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                     contentItem[i] = null;
-                    // contentItem = null;
-                    //continue;
                 }
                 for(let j = 0; j < model.fields.length; j++){
                     let field = model.fields[j];
@@ -320,8 +319,8 @@ export class push{
                                             if(this.skippedContentItems[id]){
                                                 this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                 // contentItem = null;
-                                                contentItem[i] = null;
-                                                //continue;
+                                                //contentItem[i] = null;
+                                                continue;
                                             }
                                             if(this.processedContentIds[id]){
                                                 let newSortId = this.processedContentIds[id].toString();
@@ -335,14 +334,15 @@ export class push{
                                             else{
                                                 try{
                                                     let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${id}.json`);
+                                                    contentItem = null;
                                                     break;
                                                 } catch{
                                                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                     this.skippedContentItems[id] = 'OrphanRef';
                                                     console.log(`4. handle totally orphan record contentID ${contentItem.contentID}`);
                                                     // contentItem = null;
-                                                    contentItem[i] = null;
-                                                   // continue;
+                                                    //contentItem[i] = null;
+                                                    continue;
                                                 }
                                                 
                                             }
@@ -359,8 +359,8 @@ export class push{
                                          this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                          console.log(`Content Found in skipped ${linkedContentId}`);
                                         //  contentItem = null;
-                                         contentItem[i] = null;
-                                        // continue;
+                                         //contentItem[i] = null;
+                                         continue;
                                      }
                                      if(this.processedContentIds[linkedContentId]){
                                          let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedContentId}.json`);
@@ -370,6 +370,7 @@ export class push{
                                      else{
                                          try{
                                              let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedContentId}.json`);
+                                             contentItem = null;
                                              break;
                                          }
                                          catch{
@@ -377,8 +378,8 @@ export class push{
                                              this.skippedContentItems[linkedContentId] = 'OrphanRef';
                                              console.log(`1. handle totally orphan record contentID ${contentItem.contentID}`);
                                             //  contentItem = null;
-                                             contentItem[i] = null;
-                                            // continue;
+                                             //contentItem[i] = null;
+                                             continue;
                                          }
                                          
                                      }
@@ -390,8 +391,8 @@ export class push{
                                          if(!container){
                                              this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                             //  contentItem = null;
-                                             contentItem[i] = null;
-                                            // continue;
+                                             //contentItem[i] = null;
+                                             continue;
                                          }
                                          if('sortids' in fieldVal){
                                              contentItem.fields[fieldName].referencename = fieldVal.referencename;
@@ -402,8 +403,8 @@ export class push{
                                      } catch{
                                          this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                         //  contentItem = null;
-                                         contentItem[i] = null;
-                                        // continue;
+                                         //contentItem[i] = null;
+                                         continue;
                                      }
                                  }
                                  if('sortids' in fieldVal){
@@ -414,8 +415,8 @@ export class push{
                                          if(this.skippedContentItems[sortid]){
                                              this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                             //  contentItem = null;
-                                             contentItem[i] = null;
-                                            // continue;
+                                             //contentItem[i] = null;
+                                             continue;
                                          }
                                          if(this.processedContentIds[sortid]){
                                              let newSortId = this.processedContentIds[sortid].toString();
@@ -429,14 +430,15 @@ export class push{
                                          else{
                                              try{
                                                  let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${sortid}.json`);
+                                                 contentItem = null;
                                                  break;
                                              } catch{
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                  this.skippedContentItems[sortid] = 'OrphanRef';
                                                  console.log(`2. handle totally orphan record contentID ${contentItem.contentID}`);
                                                 // contentItem = null;
-                                                 contentItem[i] = null;
-                                                // continue;
+                                                 //contentItem[i] = null;
+                                                 continue;
                                              }
                                              
                                          }
@@ -484,31 +486,34 @@ export class push{
                     
                 }
 
-             //   console.log(JSON.stringify(contentItem));
-             //console.log(JSON.stringify(contentItem));
+                //console.log(contentItem.contentID);
                 if(contentItem){
-                    const oldContentId = contentItem.contentID; 
-                    console.log(`Processed old Content ${oldContentId}`);
-                    contentItem.contentID = -1;
-                  //  content += i;
+                    if(!this.skippedContentItems[contentItem.contentID]){
+                        const oldContentId = contentItem.contentID; 
+                        console.log(`Processed old Content ${oldContentId}`);
+                        contentItem.contentID = -1;
+                        content += i;
+                        this.processedContentIds[oldContentId] = content;
+                        contentItem[i] = null;
+                       /* let createdContentItemId = await apiClient.contentMethods.saveContentItem(contentItem, guid, locale);
 
-                    this.processedContentIds[oldContentId] = content;
+                        if(createdContentItemId[0]){
+                            if(createdContentItemId[0] > 0){
+                                this.processedContentIds[oldContentId] = createdContentItemId[0];
+                            }
+                            else{
+                                this.skippedContentItems[oldContentId] = contentItem.properties.referenceName;
+                                console.log(`Unable to create content for old contentId: ${oldContentId}`);
+                            }
+                        }*/
 
-                /*    let createdContentItemId = await apiClient.contentMethods.saveContentItem(contentItem, guid, locale);
-
-                    if(createdContentItemId[0]){
-                        if(createdContentItemId[0] > 0){
-                            this.processedContentIds[oldContentId] = createdContentItemId[0];
-                        }
-                        else{
-                            this.skippedContentItems[oldContentId] = contentItem.properties.referenceName;
-                            console.log(`Unable to create content for old contentId: ${oldContentId}`);
-                        }
-                    }*/
+                    }
+                    
+                  
+               
                 }
                 //console.log(JSON.stringify(contentItem));
             }
-            
         } while(contentItems.filter(c => c !== null).length !==0)
         
    }
