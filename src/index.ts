@@ -139,7 +139,7 @@ yargs.command({
        options.token = token.access_token;
        let modelSync = new model(options);
        let pushSync = new push(options);
-       /*let existingModels = await modelSync.validateModels(guid);
+       let existingModels = await modelSync.validateModels(guid);
 
        let containerSync = new container(options);
        let existingContainers = await containerSync.validateContainers(guid);
@@ -173,7 +173,7 @@ yargs.command({
                         modelSync.deleteModelFiles(existingModels);
                 }
         })
-       }*/
+       }
        await pushSync.pushInstance(guid, locale);
     }
 })
