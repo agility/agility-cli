@@ -65,7 +65,7 @@ yargs.command({
         options.token = token.access_token;
 
         let syncKey = await auth.getPreviewKey(guid);
-        let contentPageSync = new sync(guid, syncKey, locale, channel);
+        let contentPageSync = new sync(guid, syncKey, locale, channel, options);
 
         await contentPageSync.sync();
 

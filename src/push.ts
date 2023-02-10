@@ -128,6 +128,23 @@ export class push{
         }
     }
 
+    createBaseTemplates(){
+        try{
+            let fileOperation = new fileOperations();
+            let files = fileOperation.readDirectory('templates');
+
+            let pageModels : mgmtApi.PageModel[] = [];
+
+            for(let i = 0; i < files.length; i++){
+                let pageModel = JSON.parse(files[i]) as mgmtApi.PageModel;
+                pageModels.push(pageModel);
+            }
+            return pageModels;
+        } catch {
+
+        }
+    }
+
     async createBaseContentItems(guid: string, locale: string){
             let apiClient = new mgmtApi.ApiClient(this._options);
             let fileOperation = new fileOperations();
@@ -816,15 +833,16 @@ export class push{
             let linkedContentItems = await this.getLinkedContent(guid, contentItems);
 
             let normalContentItems = await this.getNormalContent(guid, contentItems, linkedContentItems);
-          /*  let contentItems = this.createAllContent();
+            // let contentItems = this.createAllContent();
 
-            let linkedContentItems = this.createLinkedContent();
+            // let linkedContentItems = this.createLinkedContent();
 
-            let normalContentItems = this.createNonLinkedContent();*/
+            // let normalContentItems = this.createNonLinkedContent();
             await this.pusNormalContentItems(guid, locale, normalContentItems);
 
             await this.pushLinkedContentItems(guid, locale, linkedContentItems);
-    
+
+            let pageTemplates = this.createBaseTemplates();
         } catch {
 
         }
