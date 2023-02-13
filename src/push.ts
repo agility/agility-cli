@@ -9,6 +9,7 @@ export class push{
     processedContentIds : {[key: number]: number;}; //format Key -> Old ContentId, Value New ContentId.
     skippedContentItems: {[key: number]: string}; //format Key -> ContentId, Value ReferenceName of the content.
     processedGalleries: {[key: number]: number};
+    processedTemplates: {[key: string]: number}; //format Key -> pageTemplateName, Value pageTemplateID.
 
     constructor(options: mgmtApi.Options){
         this._options = options;
@@ -16,6 +17,7 @@ export class push{
         this.processedContentIds = {};
         this.processedGalleries = {};
         this.skippedContentItems = {};
+        this.processedTemplates = {};
     }
 
 
@@ -194,6 +196,63 @@ export class push{
         let contentItems = baseContentItems.filter(contentItem => linkedContentItems.indexOf(contentItem) < 0);
 
         return contentItems;
+    }
+
+    async pushTemplates(templates: mgmtApi.PageModel[], guid: string, locale: string){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+
+        for(let i = 0; i < templates.length; i++){
+            let template = templates[i];
+
+            try{
+                let existingTemplate = await apiClient.pageMethods.getPageTemplateName(guid, locale, template.pageTemplateName);
+
+                //await apiClient.pageMethods.getPageItemTemplates()
+                if(existingTemplate){
+                    template.pageTemplateID = existingTemplate.pageTemplateID;
+                    let existingDefinitions = await apiClient.pageMethods.getPageItemTemplates(guid, locale, existingTemplate.pageTemplateID);
+
+                    if(existingDefinitions){
+                        for(const sourceDef of template.contentSectionDefinitions){
+                            for(const targetDef of existingDefinitions){
+                                if(sourceDef.pageItemTemplateReferenceName === targetDef.pageItemTemplateReferenceName){
+                                    sourceDef.pageItemTemplateID = targetDef.pageItemTemplateID;
+                                    sourceDef.pageTemplateID = targetDef.pageTemplateID;
+                                    sourceDef.contentViewID = targetDef.contentViewID;
+                                    sourceDef.contentReferenceName = targetDef.contentReferenceName;
+                                    sourceDef.contentDefinitionID = targetDef.contentDefinitionID;
+                                    sourceDef.itemContainerID = targetDef.itemContainerID;
+                                    sourceDef.publishContentItemID = targetDef.publishContentItemID;
+                                }
+                                else{
+                                    sourceDef.pageItemTemplateID = -1;
+                                    sourceDef.pageTemplateID = -1;
+                                    sourceDef.contentViewID = 0;
+                                    sourceDef.contentReferenceName = null;
+                                    sourceDef.contentDefinitionID = 0;
+                                    sourceDef.itemContainerID = 0;
+                                    sourceDef.publishContentItemID = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch{
+                template.pageTemplateID = -1;
+                for(let j = 0; j < template.contentSectionDefinitions.length; j++){
+                    template.contentSectionDefinitions[j].pageItemTemplateID = -1;
+                    template.contentSectionDefinitions[j].pageTemplateID = -1;
+                    template.contentSectionDefinitions[j].contentViewID = 0;
+                    template.contentSectionDefinitions[j].contentReferenceName = null;
+                    template.contentSectionDefinitions[j].contentDefinitionID = 0;
+                    template.contentSectionDefinitions[j].itemContainerID = 0;
+                    template.contentSectionDefinitions[j].publishContentItemID = 0;
+                }
+            }
+
+           let createdTemplate =  await apiClient.pageMethods.savePageTemplate(guid, locale, template);
+           this.processedTemplates[createdTemplate.pageTemplateName] = createdTemplate.pageTemplateID;
+       }
     }
 
     async pusNormalContentItems(guid: string, locale: string, contentItems: mgmtApi.ContentItem[]){
@@ -812,7 +871,7 @@ export class push{
 
     async pushInstance(guid: string, locale: string){
         try{
-            await this.pushGalleries(guid);
+         /*   await this.pushGalleries(guid);
             await this.pushAssets(guid);
             let models = this.createBaseModels();
             let containers = this.createBaseContainers();
@@ -840,9 +899,11 @@ export class push{
             // let normalContentItems = this.createNonLinkedContent();
             await this.pusNormalContentItems(guid, locale, normalContentItems);
 
-            await this.pushLinkedContentItems(guid, locale, linkedContentItems);
+            await this.pushLinkedContentItems(guid, locale, linkedContentItems);*/
 
             let pageTemplates = this.createBaseTemplates();
+
+            await this.pushTemplates(pageTemplates, guid, locale);
         } catch {
 
         }

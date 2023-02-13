@@ -31,7 +31,7 @@ export class model{
 
         for(let i = 0; i < models.length; i++){
             let model = await apiClient.modelMethods.getContentModel(models[i].id, guid);
-            fileExport.exportFiles('models', model.referenceName, model);
+            fileExport.exportFiles('models', model.id, model);
         }
 
     }
