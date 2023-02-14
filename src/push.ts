@@ -130,7 +130,7 @@ export class push{
         }
     }
 
-    createBaseTemplates(){
+    async createBaseTemplates(){
         try{
             let fileOperation = new fileOperations();
             let files = fileOperation.readDirectory('templates');
@@ -143,6 +143,23 @@ export class push{
             }
             return pageModels;
         } catch {
+
+        }
+    }
+
+    async createBasePages(locale: string){
+        try{
+            let fileOperation = new fileOperations();
+            let files = fileOperation.readDirectory(`${locale}\\page`);
+
+            let pages : mgmtApi.PageItem[] = [];
+
+            for(let i = 0; i < files.length; i++){
+                let page = JSON.parse(files[i]) as mgmtApi.PageItem;
+                pages.push(page);
+            }
+            return pages;
+        } catch{
 
         }
     }
@@ -203,7 +220,6 @@ export class push{
 
         for(let i = 0; i < templates.length; i++){
             let template = templates[i];
-
             try{
                 let existingTemplate = await apiClient.pageMethods.getPageTemplateName(guid, locale, template.pageTemplateName);
 
@@ -253,6 +269,50 @@ export class push{
            let createdTemplate =  await apiClient.pageMethods.savePageTemplate(guid, locale, template);
            this.processedTemplates[createdTemplate.pageTemplateName] = createdTemplate.pageTemplateID;
        }
+    }
+
+    async pushPages(guid: string, locale: string, pages: mgmtApi.PageItem[]){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        let fileOperation = new fileOperations();
+        let files = fileOperation.readFile('.agility-files\\processed\\processedContents.json');
+        this.processedContentIds = JSON.parse(files);
+        
+        let files2 = fileOperation.readFile('.agility-files\\skipped\\skippedContents.json');
+        this.skippedContentItems = JSON.parse(files2);
+       // let pageTemplates = await apiClient.pageMethods.getPageTemplates(guid, locale, true);
+        for(let i = 0; i < pages.length; i++){
+            let page = pages[i];//pages.find(p => p.pageID === 2);
+            let keys = Object.keys(page.zones);
+            let zones = page.zones;
+            for(let k = 0; k < keys.length; k++){
+                let zone = zones[keys[k]];
+                for(let z = 0; z < zone.length; z++){
+                    //console.log(zone[z]);
+                    if('contentid' in zone[z].item){
+                     //   console.log(zone[z].item.contentid);
+                        if(this.processedContentIds[zone[z].item.contentid]){
+                            zone[z].item.contentid = this.processedContentIds[zone[z].item.contentid];
+                        }
+                        else{
+                            console.log(`Unable to process page ${page.pageID}`);
+                            page = null;
+                            continue;
+                        }
+                    }
+                }
+            }
+
+            if(page){
+                let oldPageId = page.pageID;
+                page.pageID = -1;
+                console.log(`Process the page ${oldPageId}`);
+            }
+            // for(let j = 0; j < pageTemplates.length; j++){
+            //     for(let k = 0; k < pageTemplates[j].contentSectionDefinitions.length; k++){
+
+            //     }
+            // }
+        }
     }
 
     async pusNormalContentItems(guid: string, locale: string, contentItems: mgmtApi.ContentItem[]){
@@ -349,242 +409,244 @@ export class push{
  
         /////////////END: TEMPORARY//////////////////////////////////////////////////////////////////
         // let content = 1111;
+        try{
+            do{
+                for(let i = 0; i < contentItems.length; i++){
+                    let contentItem = contentItems[i];
+                    if(this.skippedContentItems[contentItem.contentID]){
+                        contentItem = null;
+                    }
+                    if(!contentItem){
+                        continue;
+                    }
+                    let container = new mgmtApi.Container();
+                    let model = new mgmtApi.Model();
         
-        do{
-            for(let i = 0; i < contentItems.length; i++){
-                let contentItem = contentItems[i];
-                if(this.skippedContentItems[contentItem.contentID]){
-                    contentItem = null;
-                }
-                if(!contentItem){
-                    continue;
-                }
-                let container = new mgmtApi.Container();
-                let model = new mgmtApi.Model();
-    
-                try{
-                    container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
-                } catch {
-                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                    contentItem[i] = null;
-                }
-            
-                try{
-                    model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
-                } catch{
-                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                    contentItem[i] = null;
-                }
-                for(let j = 0; j < model.fields.length; j++){
-                    let field = model.fields[j];
-                    let settings = field.settings;
-                    let fieldName = this.camelize(field.name);
-                    let fieldVal = contentItem.fields[fieldName];
-                    if(fieldVal){
-                        if(field.type === 'Content'){
-                             if(settings['LinkeContentDropdownValueField']){
-                                 if(settings['LinkeContentDropdownValueField']!=='CREATENEW'){
-                                    let linkedField = this.camelize(settings['LinkeContentDropdownValueField']);
-                                    let linkedContentIds = contentItem.fields[linkedField];
-                                    let newlinkedContentIds = '';
-                                    if(linkedContentIds){
-                                        let splitIds = linkedContentIds.split(',');
-                                        for(let k = 0; k < splitIds.length; k++){
-                                            let id = splitIds[k];
-                                            if(this.skippedContentItems[id]){
-                                                this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                                // contentItem = null;
-                                                //contentItem[i] = null;
-                                                continue;
-                                            }
-                                            if(this.processedContentIds[id]){
-                                                let newSortId = this.processedContentIds[id].toString();
-                                                if(!newlinkedContentIds){
-                                                    newlinkedContentIds = newSortId.toString();
-                                                    
-                                                } else{
-                                                    newlinkedContentIds += ',' + newSortId.toString();
-                                                }
-                                            }
-                                            else{
-                                                try{
-                                                    let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${id}.json`);
-                                                    contentItem = null;
-                                                    break;
-                                                } catch{
+                    try{
+                        container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
+                    } catch {
+                        this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                        contentItem[i] = null;
+                    }
+                
+                    try{
+                        model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
+                    } catch{
+                        this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                        contentItem[i] = null;
+                    }
+                    for(let j = 0; j < model.fields.length; j++){
+                        let field = model.fields[j];
+                        let settings = field.settings;
+                        let fieldName = this.camelize(field.name);
+                        let fieldVal = contentItem.fields[fieldName];
+                        if(fieldVal){
+                            if(field.type === 'Content'){
+                                 if(settings['LinkeContentDropdownValueField']){
+                                     if(settings['LinkeContentDropdownValueField']!=='CREATENEW'){
+                                        let linkedField = this.camelize(settings['LinkeContentDropdownValueField']);
+                                        let linkedContentIds = contentItem.fields[linkedField];
+                                        let newlinkedContentIds = '';
+                                        if(linkedContentIds){
+                                            let splitIds = linkedContentIds.split(',');
+                                            for(let k = 0; k < splitIds.length; k++){
+                                                let id = splitIds[k];
+                                                if(this.skippedContentItems[id]){
                                                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                                    this.skippedContentItems[id] = 'OrphanRef';
-                                                    // console.log(`4. handle totally orphan record contentID ${contentItem.contentID}`);
                                                     // contentItem = null;
                                                     //contentItem[i] = null;
                                                     continue;
                                                 }
-                                                
+                                                if(this.processedContentIds[id]){
+                                                    let newSortId = this.processedContentIds[id].toString();
+                                                    if(!newlinkedContentIds){
+                                                        newlinkedContentIds = newSortId.toString();
+                                                        
+                                                    } else{
+                                                        newlinkedContentIds += ',' + newSortId.toString();
+                                                    }
+                                                }
+                                                else{
+                                                    try{
+                                                        let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${id}.json`);
+                                                        contentItem = null;
+                                                        break;
+                                                    } catch{
+                                                        this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                        this.skippedContentItems[id] = 'OrphanRef';
+                                                        // console.log(`4. handle totally orphan record contentID ${contentItem.contentID}`);
+                                                        // contentItem = null;
+                                                        //contentItem[i] = null;
+                                                        continue;
+                                                    }
+                                                    
+                                                }
                                             }
                                         }
-                                    }
-                                    if(newlinkedContentIds)
-                                        contentItem.fields[linkedField] = newlinkedContentIds;
+                                        if(newlinkedContentIds)
+                                            contentItem.fields[linkedField] = newlinkedContentIds;
+                                     }
                                  }
-                             }
-                                 delete fieldVal.fulllist;
-                                 if('contentid' in fieldVal){
-                                     let linkedContentId = fieldVal.contentid;
-                                     if(this.skippedContentItems[linkedContentId]){
-                                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                        //  console.log(`Content Found in skipped ${linkedContentId}`);
-                                        //  contentItem = null;
-                                         //contentItem[i] = null;
-                                         continue;
-                                     }
-                                     if(this.processedContentIds[linkedContentId]){
-                                         let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedContentId}.json`);
-                                         let extractedContent = JSON.parse(file) as mgmtApi.ContentItem;
-                                         contentItem.fields[fieldName] = extractedContent.properties.referenceName; 
-                                     }
-                                     else{
-                                         try{
+                                     delete fieldVal.fulllist;
+                                     if('contentid' in fieldVal){
+                                         let linkedContentId = fieldVal.contentid;
+                                         if(this.skippedContentItems[linkedContentId]){
+                                             this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                            //  console.log(`Content Found in skipped ${linkedContentId}`);
+                                            //  contentItem = null;
+                                             //contentItem[i] = null;
+                                             continue;
+                                         }
+                                         if(this.processedContentIds[linkedContentId]){
                                              let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedContentId}.json`);
-                                             contentItem = null;
-                                             break;
-                                         }
-                                         catch{
-                                             this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                             this.skippedContentItems[linkedContentId] = 'OrphanRef';
-                                            //  console.log(`1. handle totally orphan record contentID ${contentItem.contentID}`);
-                                            //  contentItem = null;
-                                             //contentItem[i] = null;
-                                             continue;
-                                         }
-                                         
-                                     }
-                                 }
-                                 if('referencename' in fieldVal){
-                                     let refName = fieldVal.referencename;
-                                     try{
-                                         let container = await apiClient.containerMethods.getContainerByReferenceName(refName, guid);
-                                         if(!container){
-                                             this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                            //  contentItem = null;
-                                             //contentItem[i] = null;
-                                             continue;
-                                         }
-                                         if('sortids' in fieldVal){
-                                             contentItem.fields[fieldName].referencename = fieldVal.referencename;
-                                         }
-                                         else{
-                                             contentItem.fields[fieldName] = fieldVal.referencename;
-                                         }
-                                     } catch{
-                                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                        //  contentItem = null;
-                                         //contentItem[i] = null;
-                                         continue;
-                                     }
-                                 }
-                                 if('sortids' in fieldVal){
-                                     let sortids = fieldVal.sortids.split(',');
-                                     let newSortIds = '';
-                                     for(let s = 0; s < sortids.length; s++){
-                                         let sortid = sortids[s];
-                                         if(this.skippedContentItems[sortid]){
-                                             this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                            //  contentItem = null;
-                                             //contentItem[i] = null;
-                                             continue;
-                                         }
-                                         if(this.processedContentIds[sortid]){
-                                             let newSortId = this.processedContentIds[sortid].toString();
-                                             if(!newSortIds){
-                                                 newSortIds = newSortId.toString();
-                                                 
-                                             } else{
-                                                 newSortIds += ',' + newSortId.toString();
-                                             }
+                                             let extractedContent = JSON.parse(file) as mgmtApi.ContentItem;
+                                             contentItem.fields[fieldName] = extractedContent.properties.referenceName; 
                                          }
                                          else{
                                              try{
-                                                 let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${sortid}.json`);
+                                                 let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedContentId}.json`);
                                                  contentItem = null;
                                                  break;
-                                             } catch{
+                                             }
+                                             catch{
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                                 this.skippedContentItems[sortid] = 'OrphanRef';
-                                                //  console.log(`2. handle totally orphan record contentID ${contentItem.contentID}`);
-                                                // contentItem = null;
+                                                 this.skippedContentItems[linkedContentId] = 'OrphanRef';
+                                                //  console.log(`1. handle totally orphan record contentID ${contentItem.contentID}`);
+                                                //  contentItem = null;
                                                  //contentItem[i] = null;
                                                  continue;
                                              }
                                              
                                          }
                                      }
-                                     if(newSortIds){
-                                         newSortIds = newSortIds.substring(0, newSortIds.length);
-                                     }
-                                     contentItem.fields[fieldName].sortids = newSortIds;
-                                 }
-                             
-                         }
-                         else if(field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList'){
-                             if(typeof fieldVal === 'object'){
-                                 if(Array.isArray(fieldVal)){
-                                     for(let k = 0; k < fieldVal.length; k++){
-                                         let retUrl = await this.changeOriginKey(guid, fieldVal[k].url);
-                                         contentItem.fields[fieldName][k].url = retUrl;
-                                     }
-                                 } else {
-                                     if('url' in fieldVal){
-                                         let retUrl = await this.changeOriginKey(guid, fieldVal.url);
-                                         contentItem.fields[fieldName].url = retUrl;
-                                     }
-                                 }
-                             } 
-                         }
-                         else 
-                         {
-                             if(typeof fieldVal === 'object'){
-                                 if('fulllist' in fieldVal){
-                                     delete fieldVal.fulllist;
-                                     if(field.type === 'PhotoGallery'){
-                                         let oldGalleryId = fieldVal.galleryid;
-                                         if(this.processedGalleries[oldGalleryId]){
-                                             contentItem.fields[fieldName] = this.processedGalleries[oldGalleryId].toString();
+                                     if('referencename' in fieldVal){
+                                         let refName = fieldVal.referencename;
+                                         try{
+                                             let container = await apiClient.containerMethods.getContainerByReferenceName(refName, guid);
+                                             if(!container){
+                                                 this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                //  contentItem = null;
+                                                 //contentItem[i] = null;
+                                                 continue;
+                                             }
+                                             if('sortids' in fieldVal){
+                                                 contentItem.fields[fieldName].referencename = fieldVal.referencename;
+                                             }
+                                             else{
+                                                 contentItem.fields[fieldName] = fieldVal.referencename;
+                                             }
+                                         } catch{
+                                             this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                            //  contentItem = null;
+                                             //contentItem[i] = null;
+                                             continue;
                                          }
-                                         else{
-                                             contentItem.fields[fieldName] = fieldVal.galleryid.toString();
+                                     }
+                                     if('sortids' in fieldVal){
+                                         let sortids = fieldVal.sortids.split(',');
+                                         let newSortIds = '';
+                                         for(let s = 0; s < sortids.length; s++){
+                                             let sortid = sortids[s];
+                                             if(this.skippedContentItems[sortid]){
+                                                 this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                //  contentItem = null;
+                                                 //contentItem[i] = null;
+                                                 continue;
+                                             }
+                                             if(this.processedContentIds[sortid]){
+                                                 let newSortId = this.processedContentIds[sortid].toString();
+                                                 if(!newSortIds){
+                                                     newSortIds = newSortId.toString();
+                                                     
+                                                 } else{
+                                                     newSortIds += ',' + newSortId.toString();
+                                                 }
+                                             }
+                                             else{
+                                                 try{
+                                                     let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${sortid}.json`);
+                                                     contentItem = null;
+                                                     break;
+                                                 } catch{
+                                                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                     this.skippedContentItems[sortid] = 'OrphanRef';
+                                                    //  console.log(`2. handle totally orphan record contentID ${contentItem.contentID}`);
+                                                    // contentItem = null;
+                                                     //contentItem[i] = null;
+                                                     continue;
+                                                 }
+                                                 
+                                             }
+                                         }
+                                         if(newSortIds){
+                                             newSortIds = newSortIds.substring(0, newSortIds.length);
+                                         }
+                                         contentItem.fields[fieldName].sortids = newSortIds;
+                                     }
+                                 
+                             }
+                             else if(field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList'){
+                                 if(typeof fieldVal === 'object'){
+                                     if(Array.isArray(fieldVal)){
+                                         for(let k = 0; k < fieldVal.length; k++){
+                                             let retUrl = await this.changeOriginKey(guid, fieldVal[k].url);
+                                             contentItem.fields[fieldName][k].url = retUrl;
+                                         }
+                                     } else {
+                                         if('url' in fieldVal){
+                                             let retUrl = await this.changeOriginKey(guid, fieldVal.url);
+                                             contentItem.fields[fieldName].url = retUrl;
+                                         }
+                                     }
+                                 } 
+                             }
+                             else 
+                             {
+                                 if(typeof fieldVal === 'object'){
+                                     if('fulllist' in fieldVal){
+                                         delete fieldVal.fulllist;
+                                         if(field.type === 'PhotoGallery'){
+                                             let oldGalleryId = fieldVal.galleryid;
+                                             if(this.processedGalleries[oldGalleryId]){
+                                                 contentItem.fields[fieldName] = this.processedGalleries[oldGalleryId].toString();
+                                             }
+                                             else{
+                                                 contentItem.fields[fieldName] = fieldVal.galleryid.toString();
+                                             }
                                          }
                                      }
                                  }
                              }
-                         }
-                    }
-                    
-                }
-
-                if(contentItem){
-                    if(!this.skippedContentItems[contentItem.contentID]){
-                        const oldContentId = contentItem.contentID; 
-                        console.log(`Processed old Content ${oldContentId}`);
-                        contentItem.contentID = -1;
-                        
-                        let createdContentItemId = await apiClient.contentMethods.saveContentItem(contentItem, guid, locale);
-
-                        if(createdContentItemId[0]){
-                            if(createdContentItemId[0] > 0){
-                                this.processedContentIds[oldContentId] = createdContentItemId[0];
-                            }
-                            else{
-                                this.skippedContentItems[oldContentId] = contentItem.properties.referenceName;
-                                // console.log(`Unable to create content for old contentId: ${oldContentId}`);
-                            }
                         }
-                        contentItem[i] = null;
+                        
                     }
-               
+    
+                    if(contentItem){
+                        if(!this.skippedContentItems[contentItem.contentID]){
+                            const oldContentId = contentItem.contentID; 
+                            console.log(`Processed old Content ${oldContentId}`);
+                            contentItem.contentID = -1;
+                            
+                            let createdContentItemId = await apiClient.contentMethods.saveContentItem(contentItem, guid, locale);
+    
+                            if(createdContentItemId[0]){
+                                if(createdContentItemId[0] > 0){
+                                    this.processedContentIds[oldContentId] = createdContentItemId[0];
+                                }
+                                else{
+                                    this.skippedContentItems[oldContentId] = contentItem.properties.referenceName;
+                                    // console.log(`Unable to create content for old contentId: ${oldContentId}`);
+                                }
+                            }
+                            contentItem[i] = null;
+                        }
+                   
+                    }
                 }
-            }
-        } while(contentItems.filter(c => c !== null).length !==0)
-        
+            } while(contentItems.filter(c => c !== null).length !==0)
+        } catch {
+
+        }
    }
     
 
@@ -871,8 +933,8 @@ export class push{
 
     async pushInstance(guid: string, locale: string){
         try{
-         /*   await this.pushGalleries(guid);
-            await this.pushAssets(guid);
+           /* await this.pushGalleries(guid);
+            //await this.pushAssets(guid);
             let models = this.createBaseModels();
             let containers = this.createBaseContainers();
             
@@ -899,11 +961,19 @@ export class push{
             // let normalContentItems = this.createNonLinkedContent();
             await this.pusNormalContentItems(guid, locale, normalContentItems);
 
-            await this.pushLinkedContentItems(guid, locale, linkedContentItems);*/
+            await this.pushLinkedContentItems(guid, locale, linkedContentItems);
 
-            let pageTemplates = this.createBaseTemplates();
+            let pageTemplates = await this.createBaseTemplates();
 
-            await this.pushTemplates(pageTemplates, guid, locale);
+            await this.pushTemplates(pageTemplates, guid, locale);*/
+
+        // let fileOperation = new fileOperations();
+        // fileOperation.createTempFile('skippedContents.json', JSON.stringify(this.skippedContentItems));
+        // fileOperation.createTempFile('processedContents.json', JSON.stringify(this.processedContentIds));
+
+            let pages = await this.createBasePages(locale);
+            console.log(JSON.stringify(pages));
+            await this.pushPages(guid, locale, pages);
         } catch {
 
         }
