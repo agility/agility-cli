@@ -6,6 +6,7 @@ import {asset} from './asset';
 import {container} from './container';
 import { model } from "./model";
 import { push } from "./push";
+import { clone } from "./clone";
 import * as mgmtApi  from '@agility/management-sdk';
 const FormData = require('form-data');
 const cliProgress = require('cli-progress');
@@ -175,6 +176,45 @@ yargs.command({
         })
        }
        await pushSync.pushInstance(guid, locale);
+    }
+})
+
+yargs.command({
+    command: 'clone',
+    describe: 'Clone your Instance.',
+    builder: {
+        sourceGuid: {
+            describe: 'Provide the source guid to clone your instance.',
+            demandOption: true,
+            type: 'string'
+        },
+        targetGuid: {
+            describe: 'Provide the target guid to clone your instance.',
+            demandOption: true,
+            type: 'string'
+        },
+        locale: {
+            describe: 'Provide the locale to clone your instance.',
+            demandOption: true,
+            type: 'string'
+        },
+        channel: {
+            describe: 'Provide the channel to pull your instance.',
+            demandOption: true,
+            type: 'string'
+        }
+    },
+    handler: async function(argv) {
+       let sourceGuid: string = argv.sourceGuid as string;
+       let targetGuid: string = argv.targetGuid as string;
+       let locale: string = argv.locale as string;
+       let channel: string = argv.channel as string;
+
+       let cloneSync = new clone(sourceGuid, targetGuid, locale, channel);
+
+       await cloneSync.pull();
+
+       await cloneSync.push();
     }
 })
 
