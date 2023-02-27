@@ -52,60 +52,66 @@ yargs.command({
         let tasksCompleted = 0;
         auth = new Auth();
         let code = new fileOperations();
-        let data = JSON.parse(code.readTempFile('code.json'));
+        let codeFileStatus = code.codeFileExists();
+        if(codeFileStatus){
+            let data = JSON.parse(code.readTempFile('code.json'));
         
-        const form = new FormData();
-        form.append('cliCode', data.code);
-        let guid: string = argv.guid as string;
-        let locale: string = argv.locale as string;
-        let channel: string = argv.channel as string;
+            const form = new FormData();
+            form.append('cliCode', data.code);
+            let guid: string = argv.guid as string;
+            let locale: string = argv.locale as string;
+            let channel: string = argv.channel as string;
 
-        let token = await auth.cliPoll(form, guid);
+            let token = await auth.cliPoll(form, guid);
 
-        options = new mgmtApi.Options();
-        options.token = token.access_token;
+            options = new mgmtApi.Options();
+            options.token = token.access_token;
 
-        let syncKey = await auth.getPreviewKey(guid);
-        let contentPageSync = new sync(guid, syncKey, locale, channel, options);
+            let syncKey = await auth.getPreviewKey(guid);
+            let contentPageSync = new sync(guid, syncKey, locale, channel, options);
 
-        await contentPageSync.sync();
+            await contentPageSync.sync();
 
-        const b1 = new cliProgress.SingleBar({
-            format: 'Pulling Your instance |' + colors.yellow('{bar}') + '| {percentage}% | {value}/{total} Tasks | Task: {speed}',
-            barCompleteChar: '\u2588',
-            barIncompleteChar: '\u2591',
-            hideCursor: true
-        });
+            const b1 = new cliProgress.SingleBar({
+                format: 'Pulling Your instance |' + colors.yellow('{bar}') + '| {percentage}% | {value}/{total} Tasks | Task: {speed}',
+                barCompleteChar: '\u2588',
+                barIncompleteChar: '\u2591',
+                hideCursor: true
+            });
 
-        b1.start(tasks, tasksCompleted);
+            b1.start(tasks, tasksCompleted);
 
-        b1.increment();
+            b1.increment();
 
-        b1.update(tasksCompleted, {speed: 'Content and Page Pull started'});
-        tasksCompleted += 1; 
-        b1.update(tasksCompleted, {speed: 'Content and Page Pull completed'});
+            b1.update(tasksCompleted, {speed: 'Content and Page Pull started'});
+            tasksCompleted += 1; 
+            b1.update(tasksCompleted, {speed: 'Content and Page Pull completed'});
 
-        let assetsSync = new asset(options);
+            let assetsSync = new asset(options);
 
-        b1.update(tasksCompleted, {speed: 'Assets Pull started'});
-        await assetsSync.getAssets(guid);
-        tasksCompleted += 1; 
-        b1.update(tasksCompleted, {speed: 'Assets Pull completed'});
+            b1.update(tasksCompleted, {speed: 'Assets Pull started'});
+            await assetsSync.getAssets(guid);
+            tasksCompleted += 1; 
+            b1.update(tasksCompleted, {speed: 'Assets Pull completed'});
 
-        let containerSync = new container(options);
+            let containerSync = new container(options);
 
-        b1.update(tasksCompleted, {speed: 'Containers Pull started'});
-        await containerSync.getContainers(guid);
-        tasksCompleted += 1; 
-        b1.update(tasksCompleted, {speed: 'Containers Pull completed'});
+            b1.update(tasksCompleted, {speed: 'Containers Pull started'});
+            await containerSync.getContainers(guid);
+            tasksCompleted += 1; 
+            b1.update(tasksCompleted, {speed: 'Containers Pull completed'});
 
-        let modelSync = new model(options);
+            let modelSync = new model(options);
 
-        b1.update(tasksCompleted, {speed: 'Models Pull started'});
-        await modelSync.getModels(guid);
-        tasksCompleted += 1; 
-        b1.update(tasksCompleted, {speed: 'Instance pull complete.'});
-        b1.stop();
+            b1.update(tasksCompleted, {speed: 'Models Pull started'});
+            await modelSync.getModels(guid);
+            tasksCompleted += 1; 
+            b1.update(tasksCompleted, {speed: 'Instance pull complete.'});
+            b1.stop();
+        }
+        else{
+            console.log('Please authenticate first to perform the pull operation.');
+        }
     }
 })
 
@@ -129,53 +135,60 @@ yargs.command({
        let locale: string = argv.locale as string;
        let code = new fileOperations();
        auth = new Auth();
-       let data = JSON.parse(code.readTempFile('code.json'));
+       let codeFileStatus = code.codeFileExists();
+
+       if(codeFileStatus){
+        let data = JSON.parse(code.readTempFile('code.json'));
         
-       const form = new FormData();
-       form.append('cliCode', data.code);
+        const form = new FormData();
+        form.append('cliCode', data.code);
 
-       let token = await auth.cliPoll(form, guid);
+        let token = await auth.cliPoll(form, guid);
 
-       options = new mgmtApi.Options();
-       options.token = token.access_token;
-       let modelSync = new model(options);
-       let pushSync = new push(options);
-       let existingModels = await modelSync.validateModels(guid);
+        options = new mgmtApi.Options();
+        options.token = token.access_token;
+        let modelSync = new model(options);
+        let pushSync = new push(options);
+        let existingModels = await modelSync.validateModels(guid);
 
-       let containerSync = new container(options);
-       let existingContainers = await containerSync.validateContainers(guid);
+        let containerSync = new container(options);
+        let existingContainers = await containerSync.validateContainers(guid);
 
-       let duplicates: string[] = [];
+        let duplicates: string[] = [];
 
-       if(existingModels){
-            for(let i = 0; i < existingModels.length; i++){
-                duplicates.push(existingModels[i]);
-            }
-       }
-       if(existingContainers){
-            for(let i = 0; i < existingContainers.length; i++){
-                duplicates.push(existingContainers[i]);
-            }
-       }
-
-       if(duplicates.length > 0){
-       await inquirer.prompt([
-            {
-                type: 'confirm',
-                name: 'duplicates',
-                message: 'Found duplicate(s) Models and Containers. Overwrite the models and containers? '
-            }
-        ]).then((answers: { duplicates: boolean; })=> {
-
-            if(!answers.duplicates){
-                    if(existingContainers)
-                        containerSync.deleteContainerFiles(existingContainers);
-                    if(existingModels)
-                        modelSync.deleteModelFiles(existingModels);
+        if(existingModels){
+                for(let i = 0; i < existingModels.length; i++){
+                    duplicates.push(existingModels[i]);
                 }
-        })
+        }
+        if(existingContainers){
+                for(let i = 0; i < existingContainers.length; i++){
+                    duplicates.push(existingContainers[i]);
+                }
+        }
+
+        if(duplicates.length > 0){
+        await inquirer.prompt([
+                {
+                    type: 'confirm',
+                    name: 'duplicates',
+                    message: 'Found duplicate(s) Models and Containers. Overwrite the models and containers? '
+                }
+            ]).then((answers: { duplicates: boolean; })=> {
+
+                if(!answers.duplicates){
+                        if(existingContainers)
+                            containerSync.deleteContainerFiles(existingContainers);
+                        if(existingModels)
+                            modelSync.deleteModelFiles(existingModels);
+                    }
+            })
+        }
+        await pushSync.pushInstance(guid, locale);
        }
-       await pushSync.pushInstance(guid, locale);
+       else {
+        console.log('Please authenticate first to perform the push operation.');
+       }
     }
 })
 

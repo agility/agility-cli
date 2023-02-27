@@ -60,7 +60,7 @@ export class push{
         }
         
     }
-    /////////////////////////////END: START: METHODS FOR DEBUG ONLY/////////////////////////////////////////////////////////////////
+    /////////////////////////////END: METHODS FOR DEBUG ONLY/////////////////////////////////////////////////////////////////
 
     createBaseModels(){
         try{
@@ -180,6 +180,7 @@ export class push{
                     }
                 } catch{
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName
+                    fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName}`);
                     continue;
                 }
             }
@@ -263,6 +264,7 @@ export class push{
 
     async pushPages(guid: string, locale: string, pages: mgmtApi.PageItem[]){
         let apiClient = new mgmtApi.ApiClient(this._options);
+        let fileOperation = new fileOperations();
 
         for(let i = 0; i < pages.length; i++){
             let page = pages[i];//pages.find(p => p.pageID === 15); //pages[i];
@@ -279,6 +281,7 @@ export class push{
                                 delete zone[z].item.contentid
                             }
                             else{
+                                fileOperation.appendLogFile(`\n Unable to process page as the for name ${page.name} as the content is not present in the instance.`);
                                 page = null;
                                 break;
                             }
@@ -294,10 +297,10 @@ export class push{
                 let createdPage = await apiClient.pageMethods.savePage(page, guid, locale, -1, -1);
                 if(createdPage[0]){
                     if(createdPage[0] > 0){
-                        console.log(`Process the page ${oldPageId}, New Page ID ${createdPage[0]}`);
+                        //console.log(`Process the page ${oldPageId}, New Page ID ${createdPage[0]}`);
                     }
                     else{
-                        console.log(`Unable to create page ${oldPageId}`);
+                        fileOperation.appendLogFile(`\n Unable to create page as the for name ${page.name}.`);
                     }
                 }
                 
@@ -307,6 +310,7 @@ export class push{
 
     async pusNormalContentItems(guid: string, locale: string, contentItems: mgmtApi.ContentItem[]){
         let apiClient = new mgmtApi.ApiClient(this._options);
+        let fileOperation = new fileOperations();
 
         for(let i = 0; i < contentItems.length; i++){
             let contentItem = contentItems[i]; //contentItems.find((content) => content.contentID === 122);//160, 106
@@ -316,12 +320,14 @@ export class push{
                     container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
                 } catch {
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                    fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName}`);
                     continue;
                 }
             
                 try{
                     model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
                 } catch{
+                    fileOperation.appendLogFile(`\n Unable to find model for content item referenceName ${contentItem.properties.referenceName}`);
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                     continue;
                 }
@@ -373,6 +379,7 @@ export class push{
                 }
                 else{
                     this.skippedContentItems[oldContentId] = contentItem.properties.referenceName;
+                    fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName}`);
                 }
             }
         }
@@ -399,6 +406,7 @@ export class push{
                         container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
                     } catch {
                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                        fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName}`);
                         contentItem[i] = null;
                     }
                 
@@ -406,6 +414,7 @@ export class push{
                         model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
                     } catch{
                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                        fileOperation.appendLogFile(`\n Unable to find model for content item referenceName ${contentItem.properties.referenceName}`);
                         contentItem[i] = null;
                     }
                     for(let j = 0; j < model.fields.length; j++){
@@ -426,6 +435,7 @@ export class push{
                                                 let id = splitIds[k];
                                                 if(this.skippedContentItems[id]){
                                                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                    fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName}`);
                                                     continue;
                                                 }
                                                 if(this.processedContentIds[id]){
@@ -445,6 +455,7 @@ export class push{
                                                     } catch{
                                                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                         this.skippedContentItems[id] = 'OrphanRef';
+                                                        fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} as the content is orphan.`);
                                                         continue;
                                                     }
                                                     
@@ -460,6 +471,7 @@ export class push{
                                          let linkedContentId = fieldVal.contentid;
                                          if(this.skippedContentItems[linkedContentId]){
                                              this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                             fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName}`);
                                              continue;
                                          }
                                          if(this.processedContentIds[linkedContentId]){
@@ -476,6 +488,7 @@ export class push{
                                              catch{
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                  this.skippedContentItems[linkedContentId] = 'OrphanRef';
+                                                 fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} as the content is orphan.`);
                                                  continue;
                                              }
                                              
@@ -487,6 +500,7 @@ export class push{
                                              let container = await apiClient.containerMethods.getContainerByReferenceName(refName, guid);
                                              if(!container){
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                 fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName}`);
                                                  continue;
                                              }
                                              if('sortids' in fieldVal){
@@ -497,6 +511,7 @@ export class push{
                                              }
                                          } catch{
                                              this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                             fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} as the content is orphan.`);
                                              continue;
                                          }
                                      }
@@ -507,6 +522,7 @@ export class push{
                                              let sortid = sortids[s];
                                              if(this.skippedContentItems[sortid]){
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                 fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} as the content is orphan.`);
                                                  continue;
                                              }
                                              if(this.processedContentIds[sortid]){
@@ -526,6 +542,7 @@ export class push{
                                                  } catch{
                                                      this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                      this.skippedContentItems[sortid] = 'OrphanRef';
+                                                     fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} as the content is orphan.`);
                                                      continue;
                                                  }
                                                  
@@ -577,7 +594,6 @@ export class push{
                     if(contentItem){
                         if(!this.skippedContentItems[contentItem.contentID]){
                             const oldContentId = contentItem.contentID; 
-                            console.log(`Processed old Content ${oldContentId}`);
                             contentItem.contentID = -1;
                             
                             let createdContentItemId = await apiClient.contentMethods.saveContentItem(contentItem, guid, locale);
@@ -588,6 +604,7 @@ export class push{
                                 }
                                 else{
                                     this.skippedContentItems[oldContentId] = contentItem.properties.referenceName;
+                                    fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName}.`);
                                 }
                             }
                             contentItem[i] = null;
@@ -885,6 +902,8 @@ export class push{
 
     async pushInstance(guid: string, locale: string){
         try{
+            let fileOperation = new fileOperations();
+            fileOperation.createLogFile('logs', 'instancelog');
             await this.pushGalleries(guid);
             await this.pushAssets(guid);
             let models = this.createBaseModels();

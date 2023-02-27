@@ -15,6 +15,19 @@ export class fileOperations{
       
     }
 
+    createLogFile(folder: string, fileIdentifier: any){
+      if(!fs.existsSync(`.agility-files/${folder}`)){
+          fs.mkdirSync(`.agility-files/${folder}`);
+      }
+      let fileName =  `.agility-files/${folder}/${fileIdentifier}.txt`;
+      fs.closeSync(fs.openSync(fileName, 'w'))
+    }
+
+    appendLogFile(data: string){
+      let fileName =  `.agility-files/logs/instancelog.txt`;
+      fs.appendFileSync(fileName, data);
+    }
+
     createFolder(folder: string){
       if(!fs.existsSync(`.agility-files/${folder}`)){
         fs.mkdirSync(`.agility-files/${folder}`, { recursive: true });
@@ -100,5 +113,17 @@ export class fileOperations{
     })
 
     return files;
+  }
+
+  codeFileExists(){
+    let appName = 'mgmt-cli-code';
+    let tmpFolder = os.tmpDir();
+    let tmpDir = `${tmpFolder}\\${appName}\\code.json`;
+    if(fs.existsSync(tmpDir)){
+      return true;
+    } 
+    else{
+      return false;
+    }
   }
 }
