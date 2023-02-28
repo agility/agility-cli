@@ -1,11 +1,14 @@
 import * as mgmtApi  from '@agility/management-sdk';
 import { fileOperations } from './fileOperations';
+import * as cliProgress from 'cli-progress';
 
 export class asset{
     _options : mgmtApi.Options;
+    _multibar: cliProgress.MultiBar;
 
-    constructor(options: mgmtApi.Options){
+    constructor(options: mgmtApi.Options, multibar: cliProgress.MultiBar){
         this._options = options;
+        this._multibar = multibar;
     }
 
     async getGalleries(guid: string){
@@ -24,11 +27,20 @@ export class asset{
         fileExport.exportFiles('assets/galleries', index, initialRecords);
 
         let iterations = Math.round(totalRecords/pageSize);
+
+        const progressBar1 = this._multibar.create(iterations, 0);
+
+        progressBar1.update(0, {name : 'Galleries'});
  
         for(let i = 0; i < iterations; i++){
             rowIndex += pageSize;
+            if(index === 1){
+                progressBar1.update(1);
+            }
+            else{
+                progressBar1.update(index);
+            }
             index += 1;
-
             let galleries = await apiClient.assetMethods.getGalleries(guid, '', pageSize, rowIndex);
 
             fileExport.exportFiles('assets/galleries', index, galleries);
@@ -56,7 +68,6 @@ export class asset{
         let initialRecords = await apiClient.assetMethods.getMediaList(pageSize, recordOffset, guid);
 
         let totalRecords = initialRecords.totalCount;
-
         fileExport.exportFiles('assets/json', index, initialRecords);
 
         for(let i = 0; i < initialRecords.assetMedias.length; i++){
@@ -73,19 +84,31 @@ export class asset{
             else{
                 await fileExport.downloadFile(initialRecords.assetMedias[i].originUrl, `.agility-files/assets/${fileName}`);
             }
+
         }
 
         let iterations = Math.round(totalRecords/pageSize);
 
+        const progressBar2 = this._multibar.create(iterations, 0);
+
+        progressBar2.update(0, {name : 'Assets'});
+
         for(let i = 0; i < iterations; i++){
             recordOffset += pageSize;
+
+            if(index === 1){
+                progressBar2.update(1);
+            }
+            else{
+                progressBar2.update(index);
+            }
             index += 1;
 
             let assets = await apiClient.assetMethods.getMediaList(pageSize, recordOffset, guid);
             fileExport.exportFiles('assets/json', index, assets);
 
             for(let j = 0; j < assets.assetMedias.length; j++){
-                
+              
                 let extension = assets.assetMedias[j].fileName.substring(assets.assetMedias[j].fileName.lastIndexOf(".")+1);
                 let filePath = this.getFilePath(assets.assetMedias[j].originUrl);
 
@@ -101,5 +124,6 @@ export class asset{
             }
         }
 
+        // this._multibar.stop();
     }
 }

@@ -2,17 +2,20 @@ import * as mgmtApi  from '@agility/management-sdk';
 import { fileOperations } from './fileOperations';
 import * as fs from 'fs';
 const FormData = require('form-data');
+import * as cliProgress from 'cli-progress';
 
 export class push{
     _options : mgmtApi.Options;
+    _multibar: cliProgress.MultiBar;
     processedModels: { [key: string]: number; };
     processedContentIds : {[key: number]: number;}; //format Key -> Old ContentId, Value New ContentId.
     skippedContentItems: {[key: number]: string}; //format Key -> ContentId, Value ReferenceName of the content.
     processedGalleries: {[key: number]: number};
     processedTemplates: {[key: string]: number}; //format Key -> pageTemplateName, Value pageTemplateID.
 
-    constructor(options: mgmtApi.Options){
+    constructor(options: mgmtApi.Options, multibar: cliProgress.MultiBar){
         this._options = options;
+        this._multibar = multibar;
         this.processedModels = {};
         this.processedContentIds = {};
         this.processedGalleries = {};
@@ -169,10 +172,17 @@ export class push{
             let fileOperation = new fileOperations();
             let files = fileOperation.readDirectory(`${locale}\\item`);
 
+            const validBar1 = this._multibar.create(files.length, 0);
+            validBar1.update(0, {name : 'Content Items: Validation'});
+
+            let index = 1;
+
             let contentItems : mgmtApi.ContentItem[] = [];
 
             for(let i = 0; i < files.length; i++){
                 let contentItem = JSON.parse(files[i]) as mgmtApi.ContentItem;
+                validBar1.update(index);
+                index += 1;
                 try{
                     let container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
                     if(container){
@@ -218,9 +228,14 @@ export class push{
 
     async pushTemplates(templates: mgmtApi.PageModel[], guid: string, locale: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
+        const progressBar8 = this._multibar.create(templates.length, 0);
+        progressBar8.update(0, {name : 'Page Templates'});
 
+        let index = 1;
         for(let i = 0; i < templates.length; i++){
             let template = templates[i];
+            progressBar8.update(index);
+            index += 1;
             try{
                 let existingTemplate = await apiClient.pageMethods.getPageTemplateName(guid, locale, template.pageTemplateName);
 
@@ -265,9 +280,14 @@ export class push{
     async pushPages(guid: string, locale: string, pages: mgmtApi.PageItem[]){
         let apiClient = new mgmtApi.ApiClient(this._options);
         let fileOperation = new fileOperations();
+        const progressBar9 = this._multibar.create(pages.length, 0);
+        progressBar9.update(0, {name : 'Pages'});
 
+        let index = 1;
         for(let i = 0; i < pages.length; i++){
             let page = pages[i];//pages.find(p => p.pageID === 15); //pages[i];
+            progressBar9.update(index);
+            index += 1;
             if(page.zones){
                 let keys = Object.keys(page.zones);
                 let zones = page.zones;
@@ -306,14 +326,21 @@ export class push{
                 
             }
         }
+        this._multibar.stop();
     }
 
     async pusNormalContentItems(guid: string, locale: string, contentItems: mgmtApi.ContentItem[]){
         let apiClient = new mgmtApi.ApiClient(this._options);
         let fileOperation = new fileOperations();
+        const progressBar6 = this._multibar.create(contentItems.length, 0);
+        progressBar6.update(0, {name : 'Content Items: Non Linked'});
 
+        let index = 1;
         for(let i = 0; i < contentItems.length; i++){
             let contentItem = contentItems[i]; //contentItems.find((content) => content.contentID === 122);//160, 106
+            progressBar6.update(index);
+            index += 1;
+
             let container = new mgmtApi.Container();
             let model = new mgmtApi.Model();
                 try{
@@ -388,11 +415,16 @@ export class push{
    async pushLinkedContentItems(guid: string, locale: string, contentItems: mgmtApi.ContentItem[]){
         let apiClient = new mgmtApi.ApiClient(this._options);
         let fileOperation = new fileOperations();
+        const progressBar7 = this._multibar.create(contentItems.length, 0);
+        progressBar7.update(0, {name : 'Content Items: Linked'});
 
+        let index = 1;
         try{
             do{
                 for(let i = 0; i < contentItems.length; i++){
                     let contentItem = contentItems[i];
+                    progressBar7.update(index);
+                    index += 1;
                     if(this.skippedContentItems[contentItem.contentID]){
                         contentItem = null;
                     }
@@ -616,6 +648,7 @@ export class push{
         } catch {
 
         }
+
    }
     
 
@@ -672,9 +705,12 @@ export class push{
 
     async pushContainers(containers: mgmtApi.Container[], models: mgmtApi.Model[], guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
+        const progressBar5 = this._multibar.create(containers.length, 0);
+        progressBar5.update(0, {name : 'Containers'});
+
         let modelRefs: { [key: number]: string; } = {};
 
-  
+        let index = 1;
         for(let i = 0; i < containers.length; i++){
             let container = containers[i];
             try{
@@ -690,6 +726,8 @@ export class push{
         }
         for(let i = 0; i < containers.length; i++){
             let container = containers[i];
+            progressBar5.update(index);
+            index += 1;
             let referenceName = modelRefs[container.contentDefinitionID];
             if(referenceName){
                 let modelID = this.processedModels[referenceName];
@@ -713,14 +751,19 @@ export class push{
             } else{
             }
         }
-       
     }
 
     async pushLinkedModels(models: mgmtApi.Model[], guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
+        const progressBar4 = this._multibar.create(models.length, 0);
+        progressBar4.update(0, {name : 'Models: Linked'});
+        let index = 1;
         do{
             for(let i = 0; i < models.length; i++ ){
                 let model = models[i];
+                progressBar4.update(index);
+                index += 1;
+
                 if(!model){
                     continue;
                 }
@@ -797,8 +840,14 @@ export class push{
         let apiClient = new mgmtApi.ApiClient(this._options);
 
         let assetGalleries = this.createBaseGalleries();
+        const progressBar1 = this._multibar.create(assetGalleries.length, 0);
+        progressBar1.update(0, {name : 'Galleries'});
+        let index = 1;
         for(let i = 0; i < assetGalleries.length; i++){
             let assetGallery = assetGalleries[i];
+
+            progressBar1.update(index);
+            index += 1;
             for(let j = 0; j < assetGallery.assetMediaGroupings.length; j++){
                 let gallery = assetGallery.assetMediaGroupings[j];
                 const oldGalleryId = gallery.mediaGroupingID;
@@ -837,8 +886,16 @@ export class push{
         }
         
          let re = /(?:\.([^.]+))?$/;
+         const progressBar2 = this._multibar.create(medias.length, 0);
+         progressBar2.update(0, {name : 'Assets'});
+
+         let index = 1;
          for(let i = 0; i < medias.length; i++){
             let media = medias[i];
+            
+            progressBar2.update(index);
+            index += 1;
+
             let filePath = this.getFilePath(media.originUrl);
             filePath = filePath.replace(/%20/g, " ");
             let folderPath = filePath.split("/").slice(0, -1).join("/");
@@ -911,12 +968,17 @@ export class push{
             
             let linkedModels = await this.getLinkedModels(models);
             let normalModels = await this.getNormalModels(models, linkedModels);
+            const progressBar3 = this._multibar.create(normalModels.length, 0);
+            progressBar3.update(0, {name : 'Models: Non Linked'});
+            let index = 1;
              for(let i = 0; i < normalModels.length; i++){
                 let normalModel = normalModels[i];
                 await this.pushNormalModels(normalModel, guid);
+                progressBar3.update(index);
+                index += 1;
              }
              
-           await this.pushLinkedModels(linkedModels, guid);
+            await this.pushLinkedModels(linkedModels, guid);
             let containerModels = this.createBaseModels();
             await this.pushContainers(containers, containerModels, guid);
 

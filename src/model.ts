@@ -1,11 +1,14 @@
 import * as mgmtApi  from '@agility/management-sdk';
 import { fileOperations } from './fileOperations';
+import * as cliProgress from 'cli-progress';
 
 export class model{
     _options : mgmtApi.Options;
+    _multibar: cliProgress.MultiBar;
 
-    constructor(options: mgmtApi.Options){
+    constructor(options: mgmtApi.Options, multibar: cliProgress.MultiBar){
         this._options = options;
+        this._multibar = multibar;
     }
 
     async getModels(guid: string){
@@ -21,6 +24,9 @@ export class model{
 
         let totalLength = contentModules.length + pageModules.length;
 
+        const progressBar4 = this._multibar.create(totalLength, 0);
+        progressBar4.update(0, {name : 'Models'});
+
         for(let i = 0; i < contentModules.length; i++){
             models.push(contentModules[i]);
         }
@@ -29,11 +35,19 @@ export class model{
             models.push(pageModules[i]);
         }
 
+        let index = 1;
         for(let i = 0; i < models.length; i++){
             let model = await apiClient.modelMethods.getContentModel(models[i].id, guid);
             fileExport.exportFiles('models', model.id, model);
+            if(index === 1){
+                progressBar4.update(1);
+            }
+            else{
+                progressBar4.update(index);
+            }
+            index += 1;
         }
-
+        this._multibar.stop();
     }
 
     async validateModels(guid: string){

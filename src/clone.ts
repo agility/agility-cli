@@ -8,6 +8,7 @@ import { asset } from './asset';
 import { container } from './container';
 import { model } from './model';
 import { push } from "./push";
+import { createMultibar } from './multibar';
 
 export class clone{
     auth: Auth
@@ -41,15 +42,17 @@ export class clone{
 
         await contentPageSync.sync();
 
-        let assetsSync = new asset(this.options);
+        let multibar = createMultibar({name: 'Instance'});
+
+        let assetsSync = new asset(this.options, multibar);
 
         await assetsSync.getAssets(this.sourceGuid);
 
-        let containerSync = new container(this.options);
+        let containerSync = new container(this.options, multibar);
 
         await containerSync.getContainers(this.sourceGuid);
 
-        let modelSync = new model(this.options);
+        let modelSync = new model(this.options, multibar);
 
         await modelSync.getModels(this.sourceGuid);
     }
@@ -58,6 +61,7 @@ export class clone{
         let code = new fileOperations();
         this.auth = new Auth();
         let data = JSON.parse(code.readTempFile('code.json'));
+        let multibar = createMultibar({name: 'Instance'});
          
         const form = new FormData();
         form.append('cliCode', data.code);
@@ -67,10 +71,11 @@ export class clone{
         this.options = new mgmtApi.Options();
         this.options.token = token.access_token;
 
-        let modelSync = new model(this.options);
-        let pushSync = new push(this.options);
+        let modelSync = new model(this.options, multibar);
+        let pushSync = new push(this.options, multibar);
 
-        let containerSync = new container(this.options);
+        
+        let containerSync = new container(this.options,multibar);
 
         await pushSync.pushInstance(this.targetGuid, this.locale);
     }

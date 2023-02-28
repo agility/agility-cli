@@ -12,6 +12,7 @@ const FormData = require('form-data');
 const cliProgress = require('cli-progress');
 const colors = require('ansi-colors');
 const inquirer = require('inquirer');
+import { createMultibar } from './multibar';
 
 let auth: Auth
 let options: mgmtApi.Options;
@@ -48,8 +49,6 @@ yargs.command({
         }
     },
     handler: async function(argv) {
-        let tasks = 4;
-        let tasksCompleted = 0;
         auth = new Auth();
         let code = new fileOperations();
         let codeFileStatus = code.codeFileExists();
@@ -72,42 +71,19 @@ yargs.command({
 
             await contentPageSync.sync();
 
-            const b1 = new cliProgress.SingleBar({
-                format: 'Pulling Your instance |' + colors.yellow('{bar}') + '| {percentage}% | {value}/{total} Tasks | Task: {speed}',
-                barCompleteChar: '\u2588',
-                barIncompleteChar: '\u2591',
-                hideCursor: true
-            });
+            let multibar = createMultibar({name: 'Pull'});
 
-            b1.start(tasks, tasksCompleted);
+            let assetsSync = new asset(options, multibar);
 
-            b1.increment();
-
-            b1.update(tasksCompleted, {speed: 'Content and Page Pull started'});
-            tasksCompleted += 1; 
-            b1.update(tasksCompleted, {speed: 'Content and Page Pull completed'});
-
-            let assetsSync = new asset(options);
-
-            b1.update(tasksCompleted, {speed: 'Assets Pull started'});
             await assetsSync.getAssets(guid);
-            tasksCompleted += 1; 
-            b1.update(tasksCompleted, {speed: 'Assets Pull completed'});
+ 
+            let containerSync = new container(options, multibar);
 
-            let containerSync = new container(options);
-
-            b1.update(tasksCompleted, {speed: 'Containers Pull started'});
             await containerSync.getContainers(guid);
-            tasksCompleted += 1; 
-            b1.update(tasksCompleted, {speed: 'Containers Pull completed'});
+ 
+            let modelSync = new model(options, multibar);
 
-            let modelSync = new model(options);
-
-            b1.update(tasksCompleted, {speed: 'Models Pull started'});
             await modelSync.getModels(guid);
-            tasksCompleted += 1; 
-            b1.update(tasksCompleted, {speed: 'Instance pull complete.'});
-            b1.stop();
         }
         else{
             console.log('Please authenticate first to perform the pull operation.');
@@ -139,6 +115,8 @@ yargs.command({
 
        if(codeFileStatus){
         let data = JSON.parse(code.readTempFile('code.json'));
+
+        let multibar = createMultibar({name: 'Push'});
         
         const form = new FormData();
         form.append('cliCode', data.code);
@@ -147,11 +125,11 @@ yargs.command({
 
         options = new mgmtApi.Options();
         options.token = token.access_token;
-        let modelSync = new model(options);
-        let pushSync = new push(options);
+        let modelSync = new model(options, multibar);
+        let pushSync = new push(options, multibar);
         let existingModels = await modelSync.validateModels(guid);
 
-        let containerSync = new container(options);
+        let containerSync = new container(options, multibar);
         let existingContainers = await containerSync.validateContainers(guid);
 
         let duplicates: string[] = [];

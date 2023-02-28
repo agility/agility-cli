@@ -1,12 +1,15 @@
 import * as mgmtApi  from '@agility/management-sdk';
 import { fileOperations } from './fileOperations';
+import * as cliProgress from 'cli-progress';
 
 
 export class container{
     _options : mgmtApi.Options;
+    _multibar: cliProgress.MultiBar;
 
-    constructor(options: mgmtApi.Options){
+    constructor(options: mgmtApi.Options, multibar: cliProgress.MultiBar){
         this._options = options;
+        this._multibar = multibar;
     }
 
     async getContainers(guid: string){
@@ -14,14 +17,24 @@ export class container{
 
         let containers = await apiClient.containerMethods.getContainerList(guid);
 
+        const progressBar3 = this._multibar.create(containers.length, 0);
+        progressBar3.update(0, {name : 'Containers'});
+
         let fileExport = new fileOperations();
 
+        let index = 1;
         for(let i = 0; i < containers.length; i++){
             let container = await apiClient.containerMethods.getContainerByID(containers[i].contentViewID, guid);
             fileExport.exportFiles('containers', container.referenceName,container);
             let progressCount = i + 1;
+            if(index === 1){
+                progressBar3.update(1);
+            }
+            else{
+                progressBar3.update(index);
+            }
+            index += 1;
         }
-
     }
 
     async validateContainers(guid: string){
