@@ -301,7 +301,7 @@ export class push{
                                 delete zone[z].item.contentid
                             }
                             else{
-                                fileOperation.appendLogFile(`\n Unable to process page as the for name ${page.name} as the content is not present in the instance.`);
+                                fileOperation.appendLogFile(`\n Unable to process page as the for name ${page.name} with pageID ${page.pageID} as the content is not present in the instance.`);
                                 page = null;
                                 break;
                             }
@@ -320,7 +320,7 @@ export class push{
                         //console.log(`Process the page ${oldPageId}, New Page ID ${createdPage[0]}`);
                     }
                     else{
-                        fileOperation.appendLogFile(`\n Unable to create page as the for name ${page.name}.`);
+                        fileOperation.appendLogFile(`\n Unable to create page as the for name ${page.name} with pageID ${oldPageId}.`);
                     }
                 }
                 
@@ -347,14 +347,14 @@ export class push{
                     container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
                 } catch {
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                    fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName}`);
+                    fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                     continue;
                 }
             
                 try{
                     model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
                 } catch{
-                    fileOperation.appendLogFile(`\n Unable to find model for content item referenceName ${contentItem.properties.referenceName}`);
+                    fileOperation.appendLogFile(`\n Unable to find model for content item referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                     continue;
                 }
@@ -406,7 +406,7 @@ export class push{
                 }
                 else{
                     this.skippedContentItems[oldContentId] = contentItem.properties.referenceName;
-                    fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName}`);
+                    fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${oldContentId}.`);
                 }
             }
         }
@@ -438,7 +438,7 @@ export class push{
                         container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
                     } catch {
                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                        fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName}`);
+                        fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                         contentItem[i] = null;
                     }
                 
@@ -446,7 +446,7 @@ export class push{
                         model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, guid);
                     } catch{
                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                        fileOperation.appendLogFile(`\n Unable to find model for content item referenceName ${contentItem.properties.referenceName}`);
+                        fileOperation.appendLogFile(`\n Unable to find model for content item referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                         contentItem[i] = null;
                     }
                     for(let j = 0; j < model.fields.length; j++){
@@ -467,7 +467,7 @@ export class push{
                                                 let id = splitIds[k];
                                                 if(this.skippedContentItems[id]){
                                                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                                    fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName}`);
+                                                    fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                                                     continue;
                                                 }
                                                 if(this.processedContentIds[id]){
@@ -487,7 +487,7 @@ export class push{
                                                     } catch{
                                                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                         this.skippedContentItems[id] = 'OrphanRef';
-                                                        fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} as the content is orphan.`);
+                                                        fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
                                                         continue;
                                                     }
                                                     
@@ -498,12 +498,55 @@ export class push{
                                             contentItem.fields[linkedField] = newlinkedContentIds;
                                      }
                                  }
+                                 if(settings['SortIDFieldName']){
+                                    if(settings['SortIDFieldName']!=='CREATENEW'){
+                                        let sortField = this.camelize(settings['SortIDFieldName']);
+                                        let sortContentIds = contentItem.fields[sortField];
+                                        let newSortContentIds = '';
+                                        
+                                        if(sortContentIds){
+                                            let splitIds = sortContentIds.split(',');
+                                            for(let k = 0; k < splitIds.length; k++){
+                                                let id = splitIds[k];
+                                                if(this.skippedContentItems[id]){
+                                                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                    fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
+                                                    continue;
+                                                }
+                                                if(this.processedContentIds[id]){
+                                                    let newSortId = this.processedContentIds[id].toString();
+                                                    if(!newSortContentIds){
+                                                        newSortContentIds = newSortId.toString();
+                                                        
+                                                    } else{
+                                                        newSortContentIds += ',' + newSortId.toString();
+                                                    }
+                                                }
+                                                else{
+                                                    try{
+                                                        let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${id}.json`);
+                                                        contentItem = null;
+                                                        break;
+                                                    } catch{
+                                                        this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
+                                                        this.skippedContentItems[id] = 'OrphanRef';
+                                                        fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
+                                                        continue;
+                                                    }
+                                                    
+                                                }
+                                            }
+                                        }
+                                        if(newSortContentIds)
+                                            contentItem.fields[sortField] = newSortContentIds;
+                                    }
+                                 }
                                      delete fieldVal.fulllist;
                                      if('contentid' in fieldVal){
                                          let linkedContentId = fieldVal.contentid;
                                          if(this.skippedContentItems[linkedContentId]){
                                              this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                             fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName}`);
+                                             fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                                              continue;
                                          }
                                          if(this.processedContentIds[linkedContentId]){
@@ -520,7 +563,7 @@ export class push{
                                              catch{
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                  this.skippedContentItems[linkedContentId] = 'OrphanRef';
-                                                 fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} as the content is orphan.`);
+                                                 fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
                                                  continue;
                                              }
                                              
@@ -532,7 +575,7 @@ export class push{
                                              let container = await apiClient.containerMethods.getContainerByReferenceName(refName, guid);
                                              if(!container){
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                                 fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName}`);
+                                                 fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                                                  continue;
                                              }
                                              if('sortids' in fieldVal){
@@ -543,7 +586,7 @@ export class push{
                                              }
                                          } catch{
                                              this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                             fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} as the content is orphan.`);
+                                             fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
                                              continue;
                                          }
                                      }
@@ -554,7 +597,7 @@ export class push{
                                              let sortid = sortids[s];
                                              if(this.skippedContentItems[sortid]){
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                                 fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} as the content is orphan.`);
+                                                 fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
                                                  continue;
                                              }
                                              if(this.processedContentIds[sortid]){
@@ -574,7 +617,7 @@ export class push{
                                                  } catch{
                                                      this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                      this.skippedContentItems[sortid] = 'OrphanRef';
-                                                     fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} as the content is orphan.`);
+                                                     fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
                                                      continue;
                                                  }
                                                  
@@ -636,7 +679,7 @@ export class push{
                                 }
                                 else{
                                     this.skippedContentItems[oldContentId] = contentItem.properties.referenceName;
-                                    fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName}.`);
+                                    fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${oldContentId}.`);
                                 }
                             }
                             contentItem[i] = null;
@@ -648,7 +691,6 @@ export class push{
         } catch {
 
         }
-
    }
     
 
