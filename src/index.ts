@@ -53,6 +53,8 @@ yargs.command({
         let code = new fileOperations();
         let codeFileStatus = code.codeFileExists();
         if(codeFileStatus){
+            console.log(colors.yellow('Pulling your instance...'));
+            
             let data = JSON.parse(code.readTempFile('code.json'));
         
             const form = new FormData();
@@ -114,6 +116,7 @@ yargs.command({
        let codeFileStatus = code.codeFileExists();
 
        if(codeFileStatus){
+        console.log(colors.yellow('Pushing your instance...'));
         let data = JSON.parse(code.readTempFile('code.json'));
 
         let multibar = createMultibar({name: 'Push'});
@@ -125,8 +128,11 @@ yargs.command({
 
         options = new mgmtApi.Options();
         options.token = token.access_token;
-        let modelSync = new model(options, multibar);
+        
         let pushSync = new push(options, multibar);
+        /*
+      TODO: Inquirer for Content and Pages.
+        let modelSync = new model(options, multibar);
         let existingModels = await modelSync.validateModels(guid);
 
         let containerSync = new container(options, multibar);
@@ -145,6 +151,7 @@ yargs.command({
                 }
         }
 
+      
         if(duplicates.length > 0){
         await inquirer.prompt([
                 {
@@ -161,7 +168,7 @@ yargs.command({
                             modelSync.deleteModelFiles(existingModels);
                     }
             })
-        }
+        }*/
         await pushSync.pushInstance(guid, locale);
        }
        else {
@@ -200,12 +207,19 @@ yargs.command({
        let targetGuid: string = argv.targetGuid as string;
        let locale: string = argv.locale as string;
        let channel: string = argv.channel as string;
+       let code = new fileOperations();
+       let codeFileStatus = code.codeFileExists();
+       if(codeFileStatus){
+        console.log(colors.yellow('Cloning your instance...'));
+        let cloneSync = new clone(sourceGuid, targetGuid, locale, channel);
 
-       let cloneSync = new clone(sourceGuid, targetGuid, locale, channel);
+        await cloneSync.pull();
 
-       await cloneSync.pull();
-
-       await cloneSync.push();
+        await cloneSync.push();
+       }
+       else {
+        console.log('Please authenticate first to perform the clone operation.');
+       }
     }
 })
 
