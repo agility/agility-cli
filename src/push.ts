@@ -487,7 +487,7 @@ export class push{
                                                     } catch{
                                                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                         this.skippedContentItems[id] = 'OrphanRef';
-                                                        fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
+                                                        fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan. Orphan ID ${id}.`);
                                                         continue;
                                                     }
                                                     
@@ -530,7 +530,7 @@ export class push{
                                                     } catch{
                                                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                         this.skippedContentItems[id] = 'OrphanRef';
-                                                        fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
+                                                        fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan. Orphan ID ${id}`);
                                                         continue;
                                                     }
                                                     
@@ -563,7 +563,7 @@ export class push{
                                              catch{
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                  this.skippedContentItems[linkedContentId] = 'OrphanRef';
-                                                 fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
+                                                 fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan. Orphan ID ${linkedContentId}`);
                                                  continue;
                                              }
                                              
@@ -586,7 +586,7 @@ export class push{
                                              }
                                          } catch{
                                              this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                             fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
+                                             fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                                              continue;
                                          }
                                      }
@@ -597,7 +597,7 @@ export class push{
                                              let sortid = sortids[s];
                                              if(this.skippedContentItems[sortid]){
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                                 fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
+                                                 fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                                                  continue;
                                              }
                                              if(this.processedContentIds[sortid]){
@@ -617,7 +617,7 @@ export class push{
                                                  } catch{
                                                      this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
                                                      this.skippedContentItems[sortid] = 'OrphanRef';
-                                                     fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan.`);
+                                                     fileOperation.appendLogFile(`\n Unable to process content item for referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID} as the content is orphan. . Orphan ID ${sortid}`);
                                                      continue;
                                                  }
                                                  
