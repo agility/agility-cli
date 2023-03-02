@@ -30,6 +30,8 @@ export class sync{
         await syncClient.runSync();
 
         await this.getPageTemplates();
+
+        await this.getPages();
      }
 
      async getPageTemplates(){
@@ -43,6 +45,25 @@ export class sync{
          let template = pageTemplates[i];
 
          fileExport.exportFiles('templates', template.pageTemplateID, template);
+      }
+     }
+
+     async getPages(){
+      let apiClient = new mgmtApi.ApiClient(this._options);
+
+      let fileOperation = new fileOperations();
+      let files = fileOperation.readDirectory(`${this._locale}\\page`);
+
+      for(let i = 0; i < files.length; i++){
+         let pageItem = JSON.parse(files[i]) as mgmtApi.PageItem;
+
+         try{
+            let page = await apiClient.pageMethods.getPage(pageItem.pageID, this._guid, this._locale);
+
+            fileOperation.exportFiles(`${this._locale}\\pages`, page.pageID, page);
+         } catch{
+
+         }
       }
      }
 }

@@ -153,7 +153,7 @@ export class push{
     async createBasePages(locale: string){
         try{
             let fileOperation = new fileOperations();
-            let files = fileOperation.readDirectory(`${locale}\\page`);
+            let files = fileOperation.readDirectory(`${locale}\\pages`);
 
             let pages : mgmtApi.PageItem[] = [];
 
