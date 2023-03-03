@@ -140,4 +140,12 @@ export class fileOperations{
       fs.rmdirSync(path);
     }
   }
+
+  cliFolderExists(){
+    if(fs.existsSync('.agility-files')){
+      return true;
+    } else{
+      return false;
+    }
+  }
 }

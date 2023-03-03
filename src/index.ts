@@ -117,63 +117,70 @@ yargs.command({
        let codeFileStatus = code.codeFileExists();
 
        if(codeFileStatus){
-        console.log(colors.yellow('Pushing your instance...'));
-        let data = JSON.parse(code.readTempFile('code.json'));
+        let agilityFolder = code.cliFolderExists();
+        if(agilityFolder){
+            console.log(colors.yellow('Pushing your instance...'));
+            let data = JSON.parse(code.readTempFile('code.json'));
 
-        let multibar = createMultibar({name: 'Push'});
-        
-        const form = new FormData();
-        form.append('cliCode', data.code);
+            let multibar = createMultibar({name: 'Push'});
+            
+            const form = new FormData();
+            form.append('cliCode', data.code);
 
-        let token = await auth.cliPoll(form, guid);
+            let token = await auth.cliPoll(form, guid);
 
-        options = new mgmtApi.Options();
-        options.token = token.access_token;
-        
-        let pushSync = new push(options, multibar);
-        /*
-      TODO: Inquirer for Content and Pages.
-        let modelSync = new model(options, multibar);
-        let existingModels = await modelSync.validateModels(guid);
+            options = new mgmtApi.Options();
+            options.token = token.access_token;
+            
+            let pushSync = new push(options, multibar);
+            /*
+        TODO: Inquirer for Content and Pages.
+            let modelSync = new model(options, multibar);
+            let existingModels = await modelSync.validateModels(guid);
 
-        let containerSync = new container(options, multibar);
-        let existingContainers = await containerSync.validateContainers(guid);
+            let containerSync = new container(options, multibar);
+            let existingContainers = await containerSync.validateContainers(guid);
 
-        let duplicates: string[] = [];
+            let duplicates: string[] = [];
 
-        if(existingModels){
-                for(let i = 0; i < existingModels.length; i++){
-                    duplicates.push(existingModels[i]);
-                }
-        }
-        if(existingContainers){
-                for(let i = 0; i < existingContainers.length; i++){
-                    duplicates.push(existingContainers[i]);
-                }
-        }
-
-      
-        if(duplicates.length > 0){
-        await inquirer.prompt([
-                {
-                    type: 'confirm',
-                    name: 'duplicates',
-                    message: 'Found duplicate(s) Models and Containers. Overwrite the models and containers? '
-                }
-            ]).then((answers: { duplicates: boolean; })=> {
-
-                if(!answers.duplicates){
-                        if(existingContainers)
-                            containerSync.deleteContainerFiles(existingContainers);
-                        if(existingModels)
-                            modelSync.deleteModelFiles(existingModels);
+            if(existingModels){
+                    for(let i = 0; i < existingModels.length; i++){
+                        duplicates.push(existingModels[i]);
                     }
-            })
-        }*/
-        await pushSync.pushInstance(guid, locale);
+            }
+            if(existingContainers){
+                    for(let i = 0; i < existingContainers.length; i++){
+                        duplicates.push(existingContainers[i]);
+                    }
+            }
+
+        
+            if(duplicates.length > 0){
+            await inquirer.prompt([
+                    {
+                        type: 'confirm',
+                        name: 'duplicates',
+                        message: 'Found duplicate(s) Models and Containers. Overwrite the models and containers? '
+                    }
+                ]).then((answers: { duplicates: boolean; })=> {
+
+                    if(!answers.duplicates){
+                            if(existingContainers)
+                                containerSync.deleteContainerFiles(existingContainers);
+                            if(existingModels)
+                                modelSync.deleteModelFiles(existingModels);
+                        }
+                })
+            }*/
+            await pushSync.pushInstance(guid, locale);
+        }
+        else{
+            console.log(colors.red('Please pull an instance first to push an instance.'));
+        }
+        
        }
        else {
-        console.log('Please authenticate first to perform the push operation.');
+        console.log(colors.red('Please authenticate first to perform the push operation.'));
        }
     }
 })
@@ -211,15 +218,25 @@ yargs.command({
        let code = new fileOperations();
        let codeFileStatus = code.codeFileExists();
        if(codeFileStatus){
+        code.cleanup('.agility-files');
         console.log(colors.yellow('Cloning your instance...'));
         let cloneSync = new clone(sourceGuid, targetGuid, locale, channel);
 
+        console.log(colors.yellow('Pulling your instance...'));
         await cloneSync.pull();
 
-        await cloneSync.push();
+        let agilityFolder = code.cliFolderExists();
+        if(agilityFolder){
+            console.log(colors.yellow('Pushing your instance...'));
+            await cloneSync.push();
+        }
+        else{
+            console.log(colors.red('Please pull an instance first to push an instance.'));
+        }
+        
        }
        else {
-        console.log('Please authenticate first to perform the clone operation.');
+        console.log(colors.red('Please authenticate first to perform the clone operation.'));
        }
     }
 })
