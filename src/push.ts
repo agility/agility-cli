@@ -12,6 +12,7 @@ export class push{
     skippedContentItems: {[key: number]: string}; //format Key -> ContentId, Value ReferenceName of the content.
     processedGalleries: {[key: number]: number};
     processedTemplates: {[key: string]: number}; //format Key -> pageTemplateName, Value pageTemplateID.
+    processedPages : {[key: number]: number}; //format Key -> old page id, Value new page id.
 
     constructor(options: mgmtApi.Options, multibar: cliProgress.MultiBar){
         this._options = options;
@@ -21,6 +22,7 @@ export class push{
         this.processedGalleries = {};
         this.skippedContentItems = {};
         this.processedTemplates = {};
+        this.processedPages = {};
     }
 
 
@@ -278,55 +280,90 @@ export class push{
     }
 
     async pushPages(guid: string, locale: string, pages: mgmtApi.PageItem[]){
-        let apiClient = new mgmtApi.ApiClient(this._options);
-        let fileOperation = new fileOperations();
         const progressBar9 = this._multibar.create(pages.length, 0);
+        let code = new fileOperations();
+//        this.processedContentIds = JSON.parse(code.readTempFile('processed.json'));
         progressBar9.update(0, {name : 'Pages'});
 
         let index = 1;
-        for(let i = 0; i < pages.length; i++){
-            let page = pages[i];//pages.find(p => p.pageID === 15); //pages[i];
-            progressBar9.update(index);
+        
+        let parentPages = pages.filter(p => p.parentPageID < 0);
+
+        let childPages = pages.filter(p => p.parentPageID > 0);
+
+       for(let i = 0; i < parentPages.length; i++){
+          progressBar9.update(index);
             index += 1;
-            if(page.zones){
-                let keys = Object.keys(page.zones);
-                let zones = page.zones;
-                for(let k = 0; k < keys.length; k++){
-                    let zone = zones[keys[k]];
-                    for(let z = 0; z < zone.length; z++){
-                        if('contentid' in zone[z].item){
-                            delete zone[z].item.fulllist;
-                            if(this.processedContentIds[zone[z].item.contentid]){
-                                zone[z].item.contentId = this.processedContentIds[zone[z].item.contentid];
-                                delete zone[z].item.contentid
-                            }
-                            else{
-                                fileOperation.appendLogFile(`\n Unable to process page as the for name ${page.name} with pageID ${page.pageID} as the content is not present in the instance.`);
-                                page = null;
-                                break;
+            await this.processPage(parentPages[i], guid, locale, false);
+        }
+
+       for(let j = 0; j < childPages.length; j++){
+           progressBar9.update(index);
+            index += 1;
+            await this.processPage(childPages[j], guid, locale, true);
+        }
+       this._multibar.stop();
+    }
+
+    async processPage(page: mgmtApi.PageItem, guid: string, locale: string, isChildPage: boolean){
+        let fileOperation = new fileOperations();
+        let pageName = page.name;
+        let pageId = page.pageID;
+        try{
+            let apiClient = new mgmtApi.ApiClient(this._options);
+            let parentPageID = -1;
+            if(isChildPage){
+                if(this.processedPages[page.parentPageID]){
+                    parentPageID = this.processedPages[page.parentPageID];
+                    page.parentPageID = parentPageID;
+                }
+                else{
+                    page = null;
+                    fileOperation.appendLogFile(`\n Unable to process page for name ${page.name} with pageID ${page.pageID} as the parent page is not present in the instance.`);
+                }
+            }
+            if(page){
+                if(page.zones){
+                    let keys = Object.keys(page.zones);
+                    let zones = page.zones;
+                    for(let k = 0; k < keys.length; k++){
+                        let zone = zones[keys[k]];
+                        for(let z = 0; z < zone.length; z++){
+                            if('contentId' in zone[z].item){
+                                if(this.processedContentIds[zone[z].item.contentId]){
+                                    zone[z].item.contentId = this.processedContentIds[zone[z].item.contentId];
+                                    continue;
+                                }
+                                else{
+                                    fileOperation.appendLogFile(`\n Unable to process page for name ${page.name} with pageID ${page.pageID} as the content is not present in the instance.`);
+                                    page = null;
+                                    break;
+                                }
                             }
                         }
                     }
                 }
+                
             }
 
             if(page){
                 let oldPageId = page.pageID;
                 page.pageID = -1;
                 page.channelID = -1;
-                let createdPage = await apiClient.pageMethods.savePage(page, guid, locale, -1, -1);
+                let createdPage = await apiClient.pageMethods.savePage(page, guid, locale, parentPageID, -1);
                 if(createdPage[0]){
                     if(createdPage[0] > 0){
-                        //console.log(`Process the page ${oldPageId}, New Page ID ${createdPage[0]}`);
+                        this.processedPages[oldPageId] = createdPage[0];
                     }
                     else{
-                        fileOperation.appendLogFile(`\n Unable to create page as the for name ${page.name} with pageID ${oldPageId}.`);
+                        fileOperation.appendLogFile(`\n Unable to create page for name ${page.name} with pageID ${oldPageId}.`);
                     }
                 }
-                
             }
+        } catch{
+            fileOperation.appendLogFile(`\n Unable to create page for name ${pageName} with id ${pageId}.`);
         }
-        this._multibar.stop();
+        
     }
 
     async pusNormalContentItems(guid: string, locale: string, contentItems: mgmtApi.ContentItem[]){
