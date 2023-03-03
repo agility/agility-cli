@@ -6,6 +6,7 @@
 .pnp.js
 /dist/
 /.agility-files/
+/temp/
 /code.json
 src/apiCall.ts
 

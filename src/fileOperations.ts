@@ -126,4 +126,18 @@ export class fileOperations{
       return false;
     }
   }
+
+  cleanup(path: string) {
+    if (fs.existsSync(path)) {
+      fs.readdirSync(path).forEach((file) => {
+        const curPath = `${path}/${file}`;
+        if (fs.lstatSync(curPath).isDirectory()) {
+          this.cleanup(curPath);
+        } else {
+          fs.unlinkSync(curPath);
+        }
+      });
+      fs.rmdirSync(path);
+    }
+  }
 }

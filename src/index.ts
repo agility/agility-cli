@@ -53,6 +53,7 @@ yargs.command({
         let code = new fileOperations();
         let codeFileStatus = code.codeFileExists();
         if(codeFileStatus){
+            code.cleanup('.agility-files');
             console.log(colors.yellow('Pulling your instance...'));
             
             let data = JSON.parse(code.readTempFile('code.json'));

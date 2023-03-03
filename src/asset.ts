@@ -57,7 +57,6 @@ export class asset{
     }
 
     async getAssets(guid: string){
-        await this.getGalleries(guid);
         let apiClient = new mgmtApi.ApiClient(this._options);
         let fileExport = new fileOperations();
 
@@ -68,6 +67,7 @@ export class asset{
         let initialRecords = await apiClient.assetMethods.getMediaList(pageSize, recordOffset, guid);
 
         let totalRecords = initialRecords.totalCount;
+        fileExport.createFolder('assets/json');
         fileExport.exportFiles('assets/json', index, initialRecords);
 
         for(let i = 0; i < initialRecords.assetMedias.length; i++){
@@ -124,6 +124,6 @@ export class asset{
             }
         }
 
-        // this._multibar.stop();
+        await this.getGalleries(guid);
     }
 }
