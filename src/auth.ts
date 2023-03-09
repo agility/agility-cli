@@ -75,7 +75,8 @@ export class Auth{
 
     async authorize(){
         let code = await this.generateCode();
-        let url = `https://mgmt-dev.aglty.io/oauth/Authorize?response_type=code&redirect_uri=https://mgmt-dev.aglty.io/oauth/CliAuth&state=cli-code%2e${code}`;
+        //let url = `https://mgmt-dev.aglty.io/oauth/Authorize?response_type=code&redirect_uri=https://mgmt-dev.aglty.io/oauth/CliAuth&state=cli-code%2e${code}`;
+        let url = `https://mgmt.aglty.io/oauth/Authorize?response_type=code&redirect_uri=https://mgmt.aglty.io/oauth/CliAuth&state=cli-code%2e${code}`;
         await open(url);
         let codeFile = new fileOperations();
         codeFile.createTempFile('code.json', `{"code": "${code}"}`);
