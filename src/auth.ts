@@ -22,13 +22,13 @@ export class Auth{
         else if(guid.endsWith('u')){
             return "https://mgmt.aglty.io";
         }
-        else if(guid.endsWith('ca')){
+        else if(guid.endsWith('c')){
             return "https://mgmt-ca.aglty.io";
         }
-        else if(guid.endsWith('eu')){
+        else if(guid.endsWith('e')){
             return "https://mgmt-eu.aglty.io";
         }
-        else if(guid.endsWith('aus')){
+        else if(guid.endsWith('a')){
             return "https://mgmt-aus.aglty.io";
         }
         return "https://mgmt.aglty.io";
