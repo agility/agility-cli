@@ -1,15 +1,34 @@
 {
-  "name": "agility-cms-management-cli",
-  "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "name": "@agility/management-cli",
+  "version": "0.0.1",
+  "description": "Agility CMS CLI for Management API.",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/agility/agility-cms-management-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/agility/agility-cms-management-cli/issues"
+  },
+  "homepage": "https://github.com/agility/agility-cms-management-cli#readme",
+  "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
     "prepare": "yarn build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
-  "author": "",
+  "keywords": [
+    "typescript",
+    "agility",
+    "cms",
+    "headlesscms",
+    "management-api",
+    "management-api-cli"
+  ],
+  "author": "Agility CMS",
+  "contributors": [
+    "Joel Varty",
+    "Mohit Vashishtha"
+  ],
   "license": "ISC",
   "dependencies": {
     "@agility/content-sync": "^1.1.3",
