@@ -15,8 +15,10 @@ export class asset{
         let apiClient = new mgmtApi.ApiClient(this._options);
         let fileExport = new fileOperations();
 
-        let pageSize = 5;
+        let pageSize = 250;
         let rowIndex = 0;
+
+        let multiExport = false;
 
         let index = 1;
 
@@ -28,23 +30,37 @@ export class asset{
 
         let iterations = Math.round(totalRecords/pageSize);
 
+        if(totalRecords > pageSize){
+            multiExport = true;
+        }
+
+        if(iterations === 0){
+            iterations = 1;
+        }
+
         const progressBar1 = this._multibar.create(iterations, 0);
 
-        progressBar1.update(0, {name : 'Galleries'});
- 
-        for(let i = 0; i < iterations; i++){
-            rowIndex += pageSize;
-            if(index === 1){
-                progressBar1.update(1);
+        if(multiExport){
+            progressBar1.update(0, {name : 'Galleries'});
+        
+            for(let i = 0; i < iterations; i++){
+                rowIndex += pageSize;
+                if(index === 1){
+                    progressBar1.update(1);
+                }
+                else{
+                    progressBar1.update(index);
+                }
+                index += 1;
+                let galleries = await apiClient.assetMethods.getGalleries(guid, '', pageSize, rowIndex);
+    
+                fileExport.exportFiles('assets/galleries', index, galleries);
             }
-            else{
-                progressBar1.update(index);
-            }
-            index += 1;
-            let galleries = await apiClient.assetMethods.getGalleries(guid, '', pageSize, rowIndex);
-
-            fileExport.exportFiles('assets/galleries', index, galleries);
         }
+        else{
+            progressBar1.update(1, {name : 'Galleries'});
+        }
+       
     }
 
     getFilePath(originUrl: string): string{
@@ -60,15 +76,30 @@ export class asset{
         let apiClient = new mgmtApi.ApiClient(this._options);
         let fileExport = new fileOperations();
 
-        let pageSize = 20;
+        let pageSize = 250;
         let recordOffset = 0;
         let index = 1;
+        let multiExport = false;
 
         let initialRecords = await apiClient.assetMethods.getMediaList(pageSize, recordOffset, guid);
 
         let totalRecords = initialRecords.totalCount;
         fileExport.createFolder('assets/json');
         fileExport.exportFiles('assets/json', index, initialRecords);
+
+        let iterations = Math.round(totalRecords/pageSize);
+
+        if(totalRecords > pageSize){
+            multiExport = true;
+        }
+
+        if(iterations === 0){
+            iterations = 1;
+        }
+
+        const progressBar2 = this._multibar.create(iterations, 0);
+
+        progressBar2.update(0, {name : 'Assets'});
 
         for(let i = 0; i < initialRecords.assetMedias.length; i++){
 
@@ -87,42 +118,42 @@ export class asset{
 
         }
 
-        let iterations = Math.round(totalRecords/pageSize);
-
-        const progressBar2 = this._multibar.create(iterations, 0);
-
-        progressBar2.update(0, {name : 'Assets'});
-
-        for(let i = 0; i < iterations; i++){
-            recordOffset += pageSize;
-
-            if(index === 1){
-                progressBar2.update(1);
-            }
-            else{
-                progressBar2.update(index);
-            }
-            index += 1;
-
-            let assets = await apiClient.assetMethods.getMediaList(pageSize, recordOffset, guid);
-            fileExport.exportFiles('assets/json', index, assets);
-
-            for(let j = 0; j < assets.assetMedias.length; j++){
-              
-                let extension = assets.assetMedias[j].fileName.substring(assets.assetMedias[j].fileName.lastIndexOf(".")+1);
-                let filePath = this.getFilePath(assets.assetMedias[j].originUrl);
-
-                let folderPath = filePath.split("/").slice(0, -1).join("/");
-                let fileName = `${assets.assetMedias[j].fileName}`;
-                if(folderPath){ 
-                    fileExport.createFolder(`assets/${folderPath}`);
-                    await fileExport.downloadFile(assets.assetMedias[j].originUrl, `.agility-files/assets/${folderPath}/${fileName}`);
+        if(multiExport){
+            for(let i = 0; i < iterations; i++){
+                recordOffset += pageSize;
+    
+                if(index === 1){
+                    progressBar2.update(1);
                 }
                 else{
-                    await fileExport.downloadFile(assets.assetMedias[j].originUrl, `.agility-files/assets/${fileName}`);
+                    progressBar2.update(index);
+                }
+                index += 1;
+    
+                let assets = await apiClient.assetMethods.getMediaList(pageSize, recordOffset, guid);
+                fileExport.exportFiles('assets/json', index, assets);
+    
+                for(let j = 0; j < assets.assetMedias.length; j++){
+                  
+                    let extension = assets.assetMedias[j].fileName.substring(assets.assetMedias[j].fileName.lastIndexOf(".")+1);
+                    let filePath = this.getFilePath(assets.assetMedias[j].originUrl);
+    
+                    let folderPath = filePath.split("/").slice(0, -1).join("/");
+                    let fileName = `${assets.assetMedias[j].fileName}`;
+                    if(folderPath){ 
+                        fileExport.createFolder(`assets/${folderPath}`);
+                        await fileExport.downloadFile(assets.assetMedias[j].originUrl, `.agility-files/assets/${folderPath}/${fileName}`);
+                    }
+                    else{
+                        await fileExport.downloadFile(assets.assetMedias[j].originUrl, `.agility-files/assets/${fileName}`);
+                    }
                 }
             }
         }
+        else{
+            progressBar2.update(1);
+        }
+        
 
         await this.getGalleries(guid);
     }
