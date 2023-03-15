@@ -4,12 +4,12 @@
   "description": "Agility CLI for working with your content.",
   "repository": {
     "type": "git",
-    "url": "https://github.com/agility/agility-cms-management-cli.git"
+    "url": "https://github.com/agility/agility-cli.git"
   },
   "bugs": {
-    "url": "https://github.com/agility/agility-cms-management-cli/issues"
+    "url": "https://github.com/agility/agility-cli/issues"
   },
-  "homepage": "https://github.com/agility/agility-cms-management-cli#readme",
+  "homepage": "https://github.com/agility/agility-cli#readme",
   "main": "dist/index.js",
   "scripts": {
     "build": "tsc",
