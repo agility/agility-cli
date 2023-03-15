@@ -22,7 +22,7 @@ let options: mgmtApi.Options;
 yargs.version('0.0.1_beta');
 
 yargs.command({
-    command: 'agility login',
+    command: 'login',
     describe: 'Login to Agility.',
     handler: async function() {
         auth = new Auth();
