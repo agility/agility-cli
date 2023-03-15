@@ -10,14 +10,14 @@
 ## Getting Started
 
 ### Prerequisites
-1. Login to agility instance using command ```agility login```.
+1. Login to agility instance using command ```execute agility login```.
 2. Once authenticated use the following steps to perform operations on your instance.
 3. Should have an instance pulled first to push to a target instance.
 
 ### Steps
-1. To pull an instance use the command ```pull --guid="<<Provide Guid of your Instance>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be pulled>>"``` to pull an instance.
-2. To push an instance use the command ```push --guid="<<Provide the target Instance guid>> --locale="<<Provide the locale of the Instance>>"```
-3. For instance cloning, this command is a mix of push and pull. Use the command ```clone --sourceGuid="<<Provide Guid of your source Instance>>" --targetGuid="<<Provide the target Instance guid>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be cloned>>"``` to perform cloning between instances.
+1. To pull an instance use the command ```execute pull --guid="<<Provide Guid of your Instance>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be pulled>>"``` to pull an instance.
+2. To push an instance use the command ```execute push --guid="<<Provide the target Instance guid>> --locale="<<Provide the locale of the Instance>>"```
+3. For instance cloning, this command is a mix of push and pull. Use the command ```execute clone --sourceGuid="<<Provide Guid of your source Instance>>" --targetGuid="<<Provide the target Instance guid>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be cloned>>"``` to perform cloning between instances.
 
 ## Folder Structure
 1. If a pull or clone instance is initiated, a local folder .agility-files is created.

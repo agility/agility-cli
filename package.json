@@ -1,7 +1,7 @@
 {
-  "name": "@agility/management-cli",
+  "name": "@agility/cli",
   "version": "0.0.1",
-  "description": "Agility CMS CLI for Management API.",
+  "description": "Agility CLI for working with your content.",
   "repository": {
     "type": "git",
     "url": "https://github.com/agility/agility-cms-management-cli.git"
@@ -30,6 +30,9 @@
     "Mohit Vashishtha"
   ],
   "license": "ISC",
+  "bin" : {
+    "agility" : "dist/index.js"
+  },
   "dependencies": {
     "@agility/content-sync": "^1.1.3",
     "@agility/management-sdk": "^0.1.13",
