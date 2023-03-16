@@ -78,8 +78,8 @@ export class fileOperations{
   readTempFile(fileName: string){
       let appName = 'mgmt-cli-code';
       let tmpFolder = os.tmpDir();
-      let tmpDir = `${tmpFolder}\\${appName}`;
-      let fileData = this.readFile(`${tmpDir}\\${fileName}`);
+      let tmpDir = `${tmpFolder}/${appName}`;
+      let fileData = this.readFile(`${tmpDir}/${fileName}`);
       return fileData;
   }
 
@@ -87,14 +87,14 @@ export class fileOperations{
   createTempFile(fileName: string, content: string){
       let appName = 'mgmt-cli-code';
       let tmpFolder = os.tmpDir();
-      let tmpDir = `${tmpFolder}\\${appName}`;
+      let tmpDir = `${tmpFolder}/${appName}`;
       fs.access(tmpDir, (error) => {
           if(error){
             fs.mkdirSync(tmpDir);
-            this.createFile(`${tmpDir}\\${fileName}`, content);
+            this.createFile(`${tmpDir}/${fileName}`, content);
           }
           else{
-            this.createFile(`${tmpDir}\\${fileName}`, content);
+            this.createFile(`${tmpDir}/${fileName}`, content);
           }
       });
       return tmpDir;
@@ -105,10 +105,10 @@ export class fileOperations{
   }
 
   readDirectory(folderName: string){
-    let directory = `.agility-files\\${folderName}`;
+    let directory = `.agility-files/${folderName}`;
     let files : string[] = [];
     fs.readdirSync(directory).forEach(file => {
-      let readFile = this.readFile(`${directory}\\${file}`);
+      let readFile = this.readFile(`${directory}/${file}`);
       files.push(readFile);
     })
 
@@ -118,7 +118,7 @@ export class fileOperations{
   codeFileExists(){
     let appName = 'mgmt-cli-code';
     let tmpFolder = os.tmpDir();
-    let tmpDir = `${tmpFolder}\\${appName}\\code.json`;
+    let tmpDir = `${tmpFolder}/${appName}/code.json`;
     if(fs.existsSync(tmpDir)){
       return true;
     } 

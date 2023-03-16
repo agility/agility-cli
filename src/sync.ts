@@ -52,7 +52,7 @@ export class sync{
       let apiClient = new mgmtApi.ApiClient(this._options);
 
       let fileOperation = new fileOperations();
-      let files = fileOperation.readDirectory(`${this._locale}\\page`);
+      let files = fileOperation.readDirectory(`${this._locale}/page`);
 
       for(let i = 0; i < files.length; i++){
          let pageItem = JSON.parse(files[i]) as mgmtApi.PageItem;
@@ -60,7 +60,7 @@ export class sync{
          try{
             let page = await apiClient.pageMethods.getPage(pageItem.pageID, this._guid, this._locale);
 
-            fileOperation.exportFiles(`${this._locale}\\pages`, page.pageID, page);
+            fileOperation.exportFiles(`${this._locale}/pages`, page.pageID, page);
          } catch{
 
          }

@@ -30,7 +30,7 @@ export class push{
     createAllContent(){
         let fileOperation = new fileOperations();
         try{
-            let files = fileOperation.readFile('.agility-files\\all\\all.json');
+            let files = fileOperation.readFile('.agility-files/all/all.json');
             let contentItems = JSON.parse(files) as mgmtApi.ContentItem[];
 
             return contentItems;
@@ -43,7 +43,7 @@ export class push{
     createLinkedContent(){
         let fileOperation = new fileOperations();
         try{
-            let files = fileOperation.readFile('.agility-files\\linked\\linked.json');
+            let files = fileOperation.readFile('.agility-files/linked/linked.json');
             let contentItems = JSON.parse(files) as mgmtApi.ContentItem[];
 
             return contentItems;
@@ -56,7 +56,7 @@ export class push{
     createNonLinkedContent(){
         let fileOperation = new fileOperations();
         try{
-            let files = fileOperation.readFile('.agility-files\\nonlinked\\nonlinked.json');
+            let files = fileOperation.readFile('.agility-files/nonlinked/nonlinked.json');
             let contentItems = JSON.parse(files) as mgmtApi.ContentItem[];
 
             return contentItems;
@@ -155,7 +155,7 @@ export class push{
     async createBasePages(locale: string){
         try{
             let fileOperation = new fileOperations();
-            let files = fileOperation.readDirectory(`${locale}\\pages`);
+            let files = fileOperation.readDirectory(`${locale}/pages`);
 
             let pages : mgmtApi.PageItem[] = [];
 
@@ -172,7 +172,7 @@ export class push{
     async createBaseContentItems(guid: string, locale: string){
             let apiClient = new mgmtApi.ApiClient(this._options);
             let fileOperation = new fileOperations();
-            let files = fileOperation.readDirectory(`${locale}\\item`);
+            let files = fileOperation.readDirectory(`${locale}/item`);
 
             const validBar1 = this._multibar.create(files.length, 0);
             validBar1.update(0, {name : 'Content Items: Validation'});
@@ -518,7 +518,7 @@ export class push{
                                                 }
                                                 else{
                                                     try{
-                                                        let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${id}.json`);
+                                                        let file = fileOperation.readFile(`.agility-files/${locale}/item/${id}.json`);
                                                         contentItem = null;
                                                         break;
                                                     } catch{
@@ -561,7 +561,7 @@ export class push{
                                                 }
                                                 else{
                                                     try{
-                                                        let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${id}.json`);
+                                                        let file = fileOperation.readFile(`.agility-files/${locale}/item/${id}.json`);
                                                         contentItem = null;
                                                         break;
                                                     } catch{
@@ -587,13 +587,13 @@ export class push{
                                              continue;
                                          }
                                          if(this.processedContentIds[linkedContentId]){
-                                             let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedContentId}.json`);
+                                             let file = fileOperation.readFile(`.agility-files/${locale}/item/${linkedContentId}.json`);
                                              let extractedContent = JSON.parse(file) as mgmtApi.ContentItem;
                                              contentItem.fields[fieldName] = extractedContent.properties.referenceName; 
                                          }
                                          else{
                                              try{
-                                                 let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${linkedContentId}.json`);
+                                                 let file = fileOperation.readFile(`.agility-files/${locale}/item/${linkedContentId}.json`);
                                                  contentItem = null;
                                                  break;
                                              }
@@ -648,7 +648,7 @@ export class push{
                                              }
                                              else{
                                                  try{
-                                                     let file = fileOperation.readFile(`.agility-files\\${locale}\\item\\${sortid}.json`);
+                                                     let file = fileOperation.readFile(`.agility-files/${locale}/item/${sortid}.json`);
                                                      contentItem = null;
                                                      break;
                                                  } catch{
