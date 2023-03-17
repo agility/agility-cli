@@ -29,12 +29,6 @@
 6. Models metadata is present inside .agility-files/models folder.
 7. Templates metadata is present inside .agility-files/templates folder.
 
-## How It Works
-
-- [How Pages Work](https://help.agilitycms.com/hc/en-us/articles/4404222849677)
-- [How Page Modules Work](https://help.agilitycms.com/hc/en-us/articles/4404222989453)
-- [How Page Templates Work](https://help.agilitycms.com/hc/en-us/articles/4404229108877)
-
 ## Resources
 
 ### Agility CMS
