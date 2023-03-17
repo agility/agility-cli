@@ -273,9 +273,11 @@ export class push{
                     template.contentSectionDefinitions[j].publishContentItemID = 0;
                 }
             }
-
-           let createdTemplate =  await apiClient.pageMethods.savePageTemplate(guid, locale, template);
-           this.processedTemplates[createdTemplate.pageTemplateName] = createdTemplate.pageTemplateID;
+            try{
+                let createdTemplate =  await apiClient.pageMethods.savePageTemplate(guid, locale, template);
+                this.processedTemplates[createdTemplate.pageTemplateName] = createdTemplate.pageTemplateID;
+            } catch{
+            }
        }
     }
 
@@ -456,11 +458,13 @@ export class push{
         progressBar7.update(0, {name : 'Content Items: Linked'});
 
         let index = 1;
+        let contentLength = contentItems.length;
         try{
             do{
                 for(let i = 0; i < contentItems.length; i++){
                     let contentItem = contentItems[i];
-                    progressBar7.update(index);
+                    if(index <= contentLength)
+                        progressBar7.update(index);
                     index += 1;
                     if(this.skippedContentItems[contentItem.contentID]){
                         contentItem = null;
@@ -834,6 +838,7 @@ export class push{
 
     async pushLinkedModels(models: mgmtApi.Model[], guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
+        let fileOperation = new fileOperations();
         const progressBar4 = this._multibar.create(models.length, 0);
         progressBar4.update(0, {name : 'Models: Linked'});
         let index = 1;
@@ -867,22 +872,39 @@ export class push{
                                         this.processedModels[createdModel.referenceName] = createdModel.id;
                                         models[i] = null;
                                     } catch{
+                                        fileOperation.appendLogFile(`\n Unable to process model for referenceName ${model.referenceName} with modelId ${model.id}.`);
+                                        models[i] = null;
+                                        continue;
                                     }
                                 }
                             } else{
+                                let oldModelId = model.id;
                                 model.id = 0;
                                 try{
                                     let createdModel = await apiClient.modelMethods.saveModel(model, guid);
                                     this.processedModels[createdModel.referenceName] = createdModel.id;
                                     models[i] = null;
                                 } catch{
-
+                                    fileOperation.appendLogFile(`\n Unable to process model for referenceName ${model.referenceName} with modelId ${oldModelId}.`);
+                                    models[i] = null;
+                                    continue;
                                 }
                             }
                             
                         }
                         else{
-
+                            //special case to handle if the content definition id is not present.
+                            let oldModelId = model.id;
+                            model.id = 0;
+                                try{
+                                    let createdModel = await apiClient.modelMethods.saveModel(model, guid);
+                                    this.processedModels[createdModel.referenceName] = createdModel.id;
+                                    models[i] = null;
+                                } catch (err){
+                                    fileOperation.appendLogFile(`\n Unable to process model for referenceName ${model.referenceName} with modelId ${oldModelId}.`);
+                                    models[i] = null;
+                                    continue;
+                                }
                         }
                     }
                 }
