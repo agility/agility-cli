@@ -68,15 +68,17 @@ yargs.command({
 
             let token = await auth.cliPoll(form, guid);
 
+            let multibar = createMultibar({name: 'Pull'});
+
             options = new mgmtApi.Options();
             options.token = token.access_token;
 
             let syncKey = await auth.getPreviewKey(guid);
-            let contentPageSync = new sync(guid, syncKey, locale, channel, options);
+            let contentPageSync = new sync(guid, syncKey, locale, channel, options, multibar);
 
             await contentPageSync.sync();
 
-            let multibar = createMultibar({name: 'Pull'});
+            
 
             let assetsSync = new asset(options, multibar);
 

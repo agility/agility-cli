@@ -40,7 +40,7 @@ export class fileOperations{
             const code = response.statusCode ?? 0
       
             if (code >= 400) {
-              return reject(new Error(response.statusMessage))
+               return reject(new Error(response.statusMessage))
             }
       
             if (code > 300 && code < 400 && !!response.headers.location) {
@@ -125,6 +125,13 @@ export class fileOperations{
     else{
       return false;
     }
+  }
+
+  fileExists(path: string){
+    if(fs.existsSync(path)){
+      return true;
+    }
+    return false;
   }
 
   cleanup(path: string) {
