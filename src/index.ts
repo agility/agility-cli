@@ -56,7 +56,6 @@ yargs.command({
         let codeFileStatus = code.codeFileExists();
         if(codeFileStatus){
             code.cleanup('.agility-files');
-            console.log(colors.yellow('Pulling your instance...'));
             
             let data = JSON.parse(code.readTempFile('code.json'));
         
@@ -73,27 +72,39 @@ yargs.command({
             options = new mgmtApi.Options();
             options.token = token.access_token;
 
-            let syncKey = await auth.getPreviewKey(guid);
-            let contentPageSync = new sync(guid, syncKey, locale, channel, options, multibar);
+            let user = await auth.getUser(guid, token.access_token);
 
-            await contentPageSync.sync();
-
-            
-
-            let assetsSync = new asset(options, multibar);
-
-            await assetsSync.getAssets(guid);
- 
-            let containerSync = new container(options, multibar);
-
-            await containerSync.getContainers(guid);
- 
-            let modelSync = new model(options, multibar);
-
-            await modelSync.getModels(guid);
+            if(user){
+                let syncKey = await auth.getPreviewKey(guid);
+                if(syncKey){
+                    console.log(colors.yellow('Pulling your instance...'));
+                    let contentPageSync = new sync(guid, syncKey, locale, channel, options, multibar);
+    
+                    await contentPageSync.sync();
+        
+                    let assetsSync = new asset(options, multibar);
+        
+                    await assetsSync.getAssets(guid);
+        
+                    let containerSync = new container(options, multibar);
+        
+                    await containerSync.getContainers(guid);
+        
+                    let modelSync = new model(options, multibar);
+        
+                    await modelSync.getModels(guid);
+                }
+                else{
+                    console.log(colors.red('Please add a preview key to your instance to perform pull operation.'));
+                }
+            }
+            else{
+                console.log(colors.red('Please authenticate first to perform the push operation.'));
+            }
+           
         }
         else{
-            console.log('Please authenticate first to perform the pull operation.');
+            console.log(colors.red('Please authenticate first to perform the push operation.'));
         }
     }
 })
@@ -123,7 +134,6 @@ yargs.command({
        if(codeFileStatus){
         let agilityFolder = code.cliFolderExists();
         if(agilityFolder){
-            console.log(colors.yellow('Pushing your instance...'));
             let data = JSON.parse(code.readTempFile('code.json'));
 
             let multibar = createMultibar({name: 'Push'});
@@ -135,8 +145,12 @@ yargs.command({
 
             options = new mgmtApi.Options();
             options.token = token.access_token;
-            
-            let pushSync = new push(options, multibar);
+
+            let user = await auth.getUser(guid, token.access_token);
+            if(user){
+                console.log(colors.yellow('Pushing your instance...'));
+                let pushSync = new push(options, multibar);
+
             /*
         TODO: Inquirer for Content and Pages.
             let modelSync = new model(options, multibar);
@@ -177,6 +191,10 @@ yargs.command({
                 })
             }*/
             await pushSync.pushInstance(guid, locale);
+            } else{
+                console.log(colors.red('Please authenticate first to perform the push operation.'));
+            }
+            
         }
         else{
             console.log(colors.red('Please pull an instance first to push an instance.'));
@@ -220,22 +238,36 @@ yargs.command({
        let locale: string = argv.locale as string;
        let channel: string = argv.channel as string;
        let code = new fileOperations();
+       auth = new Auth();
        let codeFileStatus = code.codeFileExists();
        if(codeFileStatus){
         code.cleanup('.agility-files');
-        console.log(colors.yellow('Cloning your instance...'));
-        let cloneSync = new clone(sourceGuid, targetGuid, locale, channel);
+        let data = JSON.parse(code.readTempFile('code.json'));
+        const form = new FormData();
+        form.append('cliCode', data.code);
 
-        console.log(colors.yellow('Pulling your instance...'));
-        await cloneSync.pull();
+        let token = await auth.cliPoll(form, sourceGuid);
 
-        let agilityFolder = code.cliFolderExists();
-        if(agilityFolder){
-            console.log(colors.yellow('Pushing your instance...'));
-            await cloneSync.push();
+        let user = await auth.getUser(sourceGuid, token.access_token);
+
+        if(user){
+            console.log(colors.yellow('Cloning your instance...'));
+            let cloneSync = new clone(sourceGuid, targetGuid, locale, channel);
+
+            console.log(colors.yellow('Pulling your instance...'));
+            await cloneSync.pull();
+
+            let agilityFolder = code.cliFolderExists();
+            if(agilityFolder){
+                console.log(colors.yellow('Pushing your instance...'));
+                await cloneSync.push();
+            }
+            else{
+                console.log(colors.red('Please pull an instance first to push an instance.'));
+            }
         }
         else{
-            console.log(colors.red('Please pull an instance first to push an instance.'));
+            console.log(colors.red('Please authenticate first to perform the clone operation.'));
         }
         
        }
