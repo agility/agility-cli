@@ -97,7 +97,6 @@ export class push{
             }
             return assets;
         } catch {
-
         }
     }
 
@@ -976,16 +975,33 @@ export class push{
         let defaultContainer = await apiClient.assetMethods.getDefaultContainer(guid);
         let fileOperation = new fileOperations();
 
+        let failedAssetsExists = fileOperation.fileExists('.agility-files/assets/failedAssets/unProcessedAssets.json');
+        let file = failedAssetsExists ? fileOperation.readFile('.agility-files/assets/failedAssets/unProcessedAssets.json'): null;
+
+        let unProcessedAssets = JSON.parse(file) as {};
+
         let assetMedias = this.createBaseAssets();
+
         let medias: mgmtApi.Media[] = [];
         for(let i = 0; i < assetMedias.length; i++){
             let assetMedia = assetMedias[i];
             for(let j = 0; j < assetMedia.assetMedias.length; j++){
                 let media = assetMedia.assetMedias[j];
-                medias.push(media);
+                if(unProcessedAssets){
+                    if(unProcessedAssets[media.mediaID]){
+                        fileOperation.appendLogFile(`\n Unable to process asset for mediaID ${media.mediaID} for fileName ${media.fileName}.`);
+                    } else{
+                        medias.push(media);
+                    }
+                }
+                else{
+                    medias.push(media);
+                }
+                
             }
         }
-        
+
+       
          let re = /(?:\.([^.]+))?$/;
          const progressBar2 = this._multibar.create(medias.length, 0);
          progressBar2.update(0, {name : 'Assets'});

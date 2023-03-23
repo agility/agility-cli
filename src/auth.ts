@@ -92,9 +92,13 @@ export class Auth{
 
     async getPreviewKey(guid: string){
         let apiPath = `GetPreviewKey?guid=${guid}`;
-
-        const response = await this.executeGet(apiPath, guid);
-        return response.data as string;
+        try{
+            const response = await this.executeGet(apiPath, guid);
+            return response.data as string;
+        }
+        catch{
+            return null;
+        }
     }
 
     async getUser(guid: string, token: string){
@@ -111,8 +115,8 @@ export class Auth{
                 }
               })
             return resp.data as serverUser;
-        } catch(err){
-           // throw err;
+        } catch{
+           return null;
         }
     }
 }

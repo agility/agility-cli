@@ -37,12 +37,14 @@ export class clone{
         this.options = new mgmtApi.Options();
         this.options.token = token.access_token;
 
+        let multibar = createMultibar({name: 'Instance'});
+
         let syncKey = await this.auth.getPreviewKey(this.sourceGuid);
-        let contentPageSync = new sync(this.sourceGuid, syncKey, this.locale, this.channel, this.options);
+        let contentPageSync = new sync(this.sourceGuid, syncKey, this.locale, this.channel, this.options, multibar);
 
         await contentPageSync.sync();
 
-        let multibar = createMultibar({name: 'Instance'});
+        
 
         let assetsSync = new asset(this.options, multibar);
 

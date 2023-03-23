@@ -5,10 +5,12 @@ import * as cliProgress from 'cli-progress';
 export class asset{
     _options : mgmtApi.Options;
     _multibar: cliProgress.MultiBar;
+    unProcessedAssets : {[key: number]: string;};
 
     constructor(options: mgmtApi.Options, multibar: cliProgress.MultiBar){
         this._options = options;
         this._multibar = multibar;
+        this.unProcessedAssets = {};
     }
 
     async getGalleries(guid: string){
@@ -85,6 +87,7 @@ export class asset{
 
         let totalRecords = initialRecords.totalCount;
         fileExport.createFolder('assets/json');
+        fileExport.createFolder('assets/failedAssets');
         fileExport.exportFiles('assets/json', index, initialRecords);
 
         let iterations = Math.round(totalRecords/pageSize);
@@ -142,10 +145,20 @@ export class asset{
                     let fileName = `${assets.assetMedias[j].fileName}`;
                     if(folderPath){ 
                         fileExport.createFolder(`assets/${folderPath}`);
-                        await fileExport.downloadFile(assets.assetMedias[j].originUrl, `.agility-files/assets/${folderPath}/${fileName}`);
+                        try{
+                            await fileExport.downloadFile(assets.assetMedias[j].originUrl, `.agility-files/assets/${folderPath}/${fileName}`);
+                        } catch{
+                            this.unProcessedAssets[assets.assetMedias[j].mediaID] = assets.assetMedias[j].fileName;
+                        }
+                        
                     }
                     else{
-                        await fileExport.downloadFile(assets.assetMedias[j].originUrl, `.agility-files/assets/${fileName}`);
+                        try{
+                            await fileExport.downloadFile(assets.assetMedias[j].originUrl, `.agility-files/assets/${fileName}`);
+                        } catch{
+                            this.unProcessedAssets[assets.assetMedias[j].mediaID] = assets.assetMedias[j].fileName;
+                        }
+                        
                     }
                 }
             }
@@ -154,6 +167,7 @@ export class asset{
             progressBar2.update(1);
         }
         
+        fileExport.exportFiles('assets/failedAssets', 'unProcessedAssets', this.unProcessedAssets);
 
         await this.getGalleries(guid);
     }
