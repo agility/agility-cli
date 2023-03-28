@@ -10,6 +10,15 @@
 ## Getting Started
 
 ### Prerequisites
+#### Using npm
+1. To install the cli locally using npm, open terminal and type: ```npm i @agility/cli```.
+2. For global installation using npm, open terminal and type: ```npm i @agility/cli -g```.
+
+#### Using yarn
+1. To install the cli locally using yarn, open terminal and type: ```yarn add @agility/cli```.
+2. For global installation using yarn, open terminal and type: ```yarn global add @agility/cli```.
+
+### How to Use
 1. Login to agility instance using command ```agility login```.
 2. Once authenticated use the following steps to perform operations on your instance.
 3. Should have an instance pulled first to push to a target instance.
