@@ -9,7 +9,7 @@
 
 ## Getting Started
 
-### Prerequisites
+### Installation
 #### Using npm
 1. To install the cli locally using npm, open terminal and type: ```npm i @agility/cli```.
 2. For global installation using npm, open terminal and type: ```npm i @agility/cli -g```.
@@ -18,18 +18,19 @@
 1. To install the cli locally using yarn, open terminal and type: ```yarn add @agility/cli```.
 2. For global installation using yarn, open terminal and type: ```yarn global add @agility/cli```.
 
-### How to Use
+### Using the CLI
+#### Athenticate first
 1. Login to agility instance using command ```agility login```.
-2. Once authenticated use the following steps to perform operations on your instance.
-3. Should have an instance pulled first to push to a target instance.
+2. A browser window will appear to perform the authentication process. You may have to authorize before proceeding.
+3. Once authenticated use the following steps to perform operations on your instance.
 
-### Steps
+#### Performing operations on CLI
 1. To pull an instance use the command ```agility pull --guid="<<Provide Guid of your Instance>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be pulled>>"``` to pull an instance.
 2. To push an instance use the command ```agility push --guid="<<Provide the target Instance guid>> --locale="<<Provide the locale of the Instance>>"```
 3. For instance cloning, this command is a mix of push and pull. Use the command ```agility clone --sourceGuid="<<Provide Guid of your source Instance>>" --targetGuid="<<Provide the target Instance guid>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be cloned>>"``` to perform cloning between instances.
 4. To access the error logs, navigate to .agility-files/logs/instancelog.txt
 
-## Folder Structure
+#### Folder Structure
 1. If a pull or clone instance is initiated, a local folder .agility-files is created.
 2. Assets are saved inside the assets folder which consists of a json folder which has the metadata of the assets downloaded. The folder structure is .agility-files/assets/json for metadata. Rest assets are present inside the assets folder.
 3. Galleries are saved inside the .agility-files/assets/galleries in a json format which is the metadata of the galleries of your source instance.
