@@ -184,6 +184,7 @@ export class push{
             let apiClient = new mgmtApi.ApiClient(this._options);
             let fileOperation = new fileOperations();
             if(fileOperation.folderExists(`${locale}/item`)){
+                
                 let files = fileOperation.readDirectory(`${locale}/item`);
 
                 const validBar1 = this._multibar.create(files.length, 0);
@@ -805,52 +806,57 @@ export class push{
 
     async pushContainers(containers: mgmtApi.Container[], models: mgmtApi.Model[], guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
-        const progressBar5 = this._multibar.create(containers.length, 0);
-        progressBar5.update(0, {name : 'Containers'});
+        try{
+            const progressBar5 = this._multibar.create(containers.length, 0);
+            progressBar5.update(0, {name : 'Containers'});
 
-        let modelRefs: { [key: number]: string; } = {};
+            let modelRefs: { [key: number]: string; } = {};
 
-        let index = 1;
-        for(let i = 0; i < containers.length; i++){
-            let container = containers[i];
-            try{
-                let referenceName = models.find(model => model.id === container.contentDefinitionID);
-                if(referenceName){
-                    if(!modelRefs[container.contentDefinitionID])
-                        modelRefs[container.contentDefinitionID] = referenceName.referenceName;
-                }
-            } catch {
-
-            }
-            
-        }
-        for(let i = 0; i < containers.length; i++){
-            let container = containers[i];
-            progressBar5.update(index);
-            index += 1;
-            let referenceName = modelRefs[container.contentDefinitionID];
-            if(referenceName){
-                let modelID = this.processedModels[referenceName];
-                if(modelID){
-                    container.contentDefinitionID = modelID;
-                    try{
-                        let existingContainer = await apiClient.containerMethods.getContainerByReferenceName(container.referenceName, guid);
-                        if(existingContainer){
-                            container.contentViewID = existingContainer.contentViewID;
-                        } else {
-                            container.contentViewID = -1;
-                        }
-                        await apiClient.containerMethods.saveContainer(container, guid);
-                    } catch{
-                        container.contentViewID = -1;
-                        await apiClient.containerMethods.saveContainer(container, guid);
+            let index = 1;
+            for(let i = 0; i < containers.length; i++){
+                let container = containers[i];
+                try{
+                    let referenceName = models.find(model => model.id === container.contentDefinitionID);
+                    if(referenceName){
+                        if(!modelRefs[container.contentDefinitionID])
+                            modelRefs[container.contentDefinitionID] = referenceName.referenceName;
                     }
+                } catch {
+
                 }
-                else{
-                }
-            } else{
+                
             }
+            for(let i = 0; i < containers.length; i++){
+                let container = containers[i];
+                progressBar5.update(index);
+                index += 1;
+                let referenceName = modelRefs[container.contentDefinitionID];
+                if(referenceName){
+                    let modelID = this.processedModels[referenceName];
+                    if(modelID){
+                        container.contentDefinitionID = modelID;
+                        try{
+                            let existingContainer = await apiClient.containerMethods.getContainerByReferenceName(container.referenceName, guid);
+                            if(existingContainer){
+                                container.contentViewID = existingContainer.contentViewID;
+                            } else {
+                                container.contentViewID = -1;
+                            }
+                            await apiClient.containerMethods.saveContainer(container, guid);
+                        } catch{
+                            container.contentViewID = -1;
+                            await apiClient.containerMethods.saveContainer(container, guid);
+                        }
+                    }
+                    else{
+                    }
+                } else{
+                }
+            }
+        } catch{
+
         }
+        
     }
 
     async pushLinkedModels(models: mgmtApi.Model[], guid: string){
