@@ -68,8 +68,9 @@ export class push{
     /////////////////////////////END: METHODS FOR DEBUG ONLY/////////////////////////////////////////////////////////////////
 
     createBaseModels(){
+        let fileOperation = new fileOperations();
         try{
-            let fileOperation = new fileOperations();
+            
             let files = fileOperation.readDirectory('models');
 
             let models : mgmtApi.Model[] = [];
@@ -80,13 +81,15 @@ export class push{
             }
             return models;
         } catch {
-
+            fileOperation.appendLogFile(`\n No Models were found in the source Instance to process.`);
+            return null;
         }
     }
 
     createBaseAssets(){
+        let fileOperation = new fileOperations();
         try{
-            let fileOperation = new fileOperations();
+            
             let files = fileOperation.readDirectory('assets/json');
 
             let assets: mgmtApi.AssetMediaList[] = [];
@@ -97,12 +100,14 @@ export class push{
             }
             return assets;
         } catch {
+            fileOperation.appendLogFile(`\n No Assets were found in the source Instance to process.`);
+            return null;
         }
     }
 
     createBaseGalleries(){
+        let fileOperation = new fileOperations();
         try{
-            let fileOperation = new fileOperations();
             let files = fileOperation.readDirectory('assets/galleries');
 
             let assetGalleries: mgmtApi.assetGalleries[] = [];
@@ -113,13 +118,15 @@ export class push{
             }
             return assetGalleries;
         } catch{
-
+            fileOperation.appendLogFile(`\n No Galleries were found in the source Instance to process.`);
+            return null;
         }
     }
 
     createBaseContainers(){
+        let fileOperation = new fileOperations();
         try{
-            let fileOperation = new fileOperations();
+            
             let files = fileOperation.readDirectory('containers');
 
             let containers : mgmtApi.Container[] = [];
@@ -130,13 +137,15 @@ export class push{
             }
            return containers;
         } catch{
-
+            fileOperation.appendLogFile(`\n No Containers were found in the source Instance to process.`);
+            return null;
         }
     }
 
     async createBaseTemplates(){
+        let fileOperation = new fileOperations();
         try{
-            let fileOperation = new fileOperations();
+            
             let files = fileOperation.readDirectory('templates');
 
             let pageModels : mgmtApi.PageModel[] = [];
@@ -147,13 +156,15 @@ export class push{
             }
             return pageModels;
         } catch {
-
+            fileOperation.appendLogFile(`\n No Page Templates were found in the source Instance to process.`);
+            return null;
         }
     }
 
     async createBasePages(locale: string){
+        let fileOperation = new fileOperations();
         try{
-            let fileOperation = new fileOperations();
+            
             let files = fileOperation.readDirectory(`${locale}/pages`);
 
             let pages : mgmtApi.PageItem[] = [];
@@ -164,38 +175,45 @@ export class push{
             }
             return pages;
         } catch{
-
+            fileOperation.appendLogFile(`\n No Pages were found in the source Instance to process.`);
+            return null;
         }
     }
 
     async createBaseContentItems(guid: string, locale: string){
             let apiClient = new mgmtApi.ApiClient(this._options);
             let fileOperation = new fileOperations();
-            let files = fileOperation.readDirectory(`${locale}/item`);
+            if(fileOperation.folderExists(`${locale}/item`)){
+                let files = fileOperation.readDirectory(`${locale}/item`);
 
-            const validBar1 = this._multibar.create(files.length, 0);
-            validBar1.update(0, {name : 'Content Items: Validation'});
+                const validBar1 = this._multibar.create(files.length, 0);
+                validBar1.update(0, {name : 'Content Items: Validation'});
 
-            let index = 1;
+                let index = 1;
 
-            let contentItems : mgmtApi.ContentItem[] = [];
+                let contentItems : mgmtApi.ContentItem[] = [];
 
-            for(let i = 0; i < files.length; i++){
-                let contentItem = JSON.parse(files[i]) as mgmtApi.ContentItem;
-                validBar1.update(index);
-                index += 1;
-                try{
-                    let container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
-                    if(container){
-                        contentItems.push(contentItem);
+                for(let i = 0; i < files.length; i++){
+                    let contentItem = JSON.parse(files[i]) as mgmtApi.ContentItem;
+                    validBar1.update(index);
+                    index += 1;
+                    try{
+                        let container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
+                        if(container){
+                            contentItems.push(contentItem);
+                        }
+                    } catch{
+                        this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName
+                        fileOperation.appendLogFile(`\n Unable to find a container for content item referenceName ${contentItem.properties.referenceName}`);
+                        continue;
                     }
-                } catch{
-                    this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName
-                    fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName}`);
-                    continue;
                 }
+                return contentItems;
             }
-            return contentItems;
+            else{
+                fileOperation.appendLogFile(`\n No Content Items were found in the source Instance to process.`);
+            }
+            
     }
 
     async getLinkedContent(guid: string, contentItems: mgmtApi.ContentItem[]){
@@ -303,7 +321,7 @@ export class push{
             index += 1;
             await this.processPage(childPages[j], guid, locale, true);
         }
-       this._multibar.stop();
+      // this._multibar.stop();
     }
 
     async processPage(page: mgmtApi.PageItem, guid: string, locale: string, isChildPage: boolean){
@@ -385,7 +403,7 @@ export class push{
                     container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
                 } catch {
                     this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                    fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
+                    fileOperation.appendLogFile(`\n Unable to find a container for content item referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                     continue;
                 }
             
@@ -478,7 +496,7 @@ export class push{
                         container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, guid);
                     } catch {
                         this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                        fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
+                        fileOperation.appendLogFile(`\n Unable to find a container for content item referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                         contentItem[i] = null;
                     }
                 
@@ -615,7 +633,7 @@ export class push{
                                              let container = await apiClient.containerMethods.getContainerByReferenceName(refName, guid);
                                              if(!container){
                                                  this.skippedContentItems[contentItem.contentID] = contentItem.properties.referenceName;
-                                                 fileOperation.appendLogFile(`\n Unable to find container for content item referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
+                                                 fileOperation.appendLogFile(`\n Unable to find a container for content item referenceName ${contentItem.properties.referenceName} with contentId ${contentItem.contentID}.`);
                                                  continue;
                                              }
                                              if('sortids' in fieldVal){
@@ -940,34 +958,37 @@ export class push{
         let apiClient = new mgmtApi.ApiClient(this._options);
 
         let assetGalleries = this.createBaseGalleries();
-        const progressBar1 = this._multibar.create(assetGalleries.length, 0);
-        progressBar1.update(0, {name : 'Galleries'});
-        let index = 1;
-        for(let i = 0; i < assetGalleries.length; i++){
-            let assetGallery = assetGalleries[i];
-
-            progressBar1.update(index);
-            index += 1;
-            for(let j = 0; j < assetGallery.assetMediaGroupings.length; j++){
-                let gallery = assetGallery.assetMediaGroupings[j];
-                const oldGalleryId = gallery.mediaGroupingID;
-                try{
-                    let existingGallery = await apiClient.assetMethods.getGalleryByName(guid, gallery.name);
-                    if(existingGallery){
-                        gallery.mediaGroupingID = existingGallery.mediaGroupingID;
-                    }
-                    else{
+        if(assetGalleries){
+            const progressBar1 = this._multibar.create(assetGalleries.length, 0);
+            progressBar1.update(0, {name : 'Galleries'});
+            let index = 1;
+            for(let i = 0; i < assetGalleries.length; i++){
+                let assetGallery = assetGalleries[i];
+    
+                progressBar1.update(index);
+                index += 1;
+                for(let j = 0; j < assetGallery.assetMediaGroupings.length; j++){
+                    let gallery = assetGallery.assetMediaGroupings[j];
+                    const oldGalleryId = gallery.mediaGroupingID;
+                    try{
+                        let existingGallery = await apiClient.assetMethods.getGalleryByName(guid, gallery.name);
+                        if(existingGallery){
+                            gallery.mediaGroupingID = existingGallery.mediaGroupingID;
+                        }
+                        else{
+                            gallery.mediaGroupingID = 0;
+                        }
+                     let createdGallery = await apiClient.assetMethods.saveGallery(guid, gallery);
+                     this.processedGalleries[oldGalleryId] = createdGallery.mediaGroupingID;
+                    } catch {
                         gallery.mediaGroupingID = 0;
+                        let createdGallery = await apiClient.assetMethods.saveGallery(guid, gallery);
+                        this.processedGalleries[oldGalleryId] = createdGallery.mediaGroupingID;
                     }
-                 let createdGallery = await apiClient.assetMethods.saveGallery(guid, gallery);
-                 this.processedGalleries[oldGalleryId] = createdGallery.mediaGroupingID;
-                } catch {
-                    gallery.mediaGroupingID = 0;
-                    let createdGallery = await apiClient.assetMethods.saveGallery(guid, gallery);
-                    this.processedGalleries[oldGalleryId] = createdGallery.mediaGroupingID;
                 }
             }
         }
+       
     }
 
     async pushAssets(guid: string){
@@ -982,71 +1003,72 @@ export class push{
 
         let assetMedias = this.createBaseAssets();
 
-        let medias: mgmtApi.Media[] = [];
-        for(let i = 0; i < assetMedias.length; i++){
-            let assetMedia = assetMedias[i];
-            for(let j = 0; j < assetMedia.assetMedias.length; j++){
-                let media = assetMedia.assetMedias[j];
-                if(unProcessedAssets){
-                    if(unProcessedAssets[media.mediaID]){
-                        fileOperation.appendLogFile(`\n Unable to process asset for mediaID ${media.mediaID} for fileName ${media.fileName}.`);
-                    } else{
+        if(assetMedias){
+            let medias: mgmtApi.Media[] = [];
+            for(let i = 0; i < assetMedias.length; i++){
+                let assetMedia = assetMedias[i];
+                for(let j = 0; j < assetMedia.assetMedias.length; j++){
+                    let media = assetMedia.assetMedias[j];
+                    if(unProcessedAssets){
+                        if(unProcessedAssets[media.mediaID]){
+                            fileOperation.appendLogFile(`\n Unable to process asset for mediaID ${media.mediaID} for fileName ${media.fileName}.`);
+                        } else{
+                            medias.push(media);
+                        }
+                    }
+                    else{
                         medias.push(media);
                     }
+                    
                 }
-                else{
-                    medias.push(media);
+            }
+
+        
+            let re = /(?:\.([^.]+))?$/;
+            const progressBar2 = this._multibar.create(medias.length, 0);
+            progressBar2.update(0, {name : 'Assets'});
+
+            let index = 1;
+            for(let i = 0; i < medias.length; i++){
+                let media = medias[i];
+                
+                progressBar2.update(index);
+                index += 1;
+
+                let filePath = this.getFilePath(media.originUrl);
+                filePath = filePath.replace(/%20/g, " ");
+                let folderPath = filePath.split("/").slice(0, -1).join("/");
+                if(!folderPath){
+                    folderPath = '/';
                 }
-                
-            }
-        }
-
-       
-         let re = /(?:\.([^.]+))?$/;
-         const progressBar2 = this._multibar.create(medias.length, 0);
-         progressBar2.update(0, {name : 'Assets'});
-
-         let index = 1;
-         for(let i = 0; i < medias.length; i++){
-            let media = medias[i];
-            
-            progressBar2.update(index);
-            index += 1;
-
-            let filePath = this.getFilePath(media.originUrl);
-            filePath = filePath.replace(/%20/g, " ");
-            let folderPath = filePath.split("/").slice(0, -1).join("/");
-            if(!folderPath){
-                folderPath = '/';
-            }
-            let orginUrl = `${defaultContainer.originUrl}/${filePath}`;
-            const form = new FormData();
-            const file = fs.readFileSync(`.agility-files/assets/${filePath}`, null);
-            form.append('files',file, media.fileName);
-            let mediaGroupingID = -1;
-            try{
-                let existingMedia = await apiClient.assetMethods.getAssetByUrl(orginUrl, guid);
-                
-                if(existingMedia){
+                let orginUrl = `${defaultContainer.originUrl}/${filePath}`;
+                const form = new FormData();
+                const file = fs.readFileSync(`.agility-files/assets/${filePath}`, null);
+                form.append('files',file, media.fileName);
+                let mediaGroupingID = -1;
+                try{
+                    let existingMedia = await apiClient.assetMethods.getAssetByUrl(orginUrl, guid);
+                    
+                    if(existingMedia){
+                        if(media.mediaGroupingID > 0){
+                            mediaGroupingID = await this.doesGalleryExists(guid, media.mediaGroupingName);
+                        }
+                    }
+                    else{
+                        if(media.mediaGroupingID > 0){
+                            mediaGroupingID = await this.doesGalleryExists(guid, media.mediaGroupingName);
+                        }
+                    }
+                    let uploadedMedia = await apiClient.assetMethods.upload(form, folderPath, guid,mediaGroupingID);
+                } catch {
                     if(media.mediaGroupingID > 0){
                         mediaGroupingID = await this.doesGalleryExists(guid, media.mediaGroupingName);
                     }
-                }
-                else{
-                    if(media.mediaGroupingID > 0){
-                        mediaGroupingID = await this.doesGalleryExists(guid, media.mediaGroupingName);
-                    }
-                }
                 let uploadedMedia = await apiClient.assetMethods.upload(form, folderPath, guid,mediaGroupingID);
-            } catch {
-                if(media.mediaGroupingID > 0){
-                    mediaGroupingID = await this.doesGalleryExists(guid, media.mediaGroupingName);
                 }
-               let uploadedMedia = await apiClient.assetMethods.upload(form, folderPath, guid,mediaGroupingID);
+                    
             }
-                
         }
-
     }
 
     async doesGalleryExists(guid: string, mediaGroupingName: string){
@@ -1081,39 +1103,55 @@ export class push{
             await this.pushGalleries(guid);
             await this.pushAssets(guid);
             let models = this.createBaseModels();
-            let containers = this.createBaseContainers();
+            if(models){
+                let containers = this.createBaseContainers();
             
-            let linkedModels = await this.getLinkedModels(models);
-            let normalModels = await this.getNormalModels(models, linkedModels);
-            const progressBar3 = this._multibar.create(normalModels.length, 0);
-            progressBar3.update(0, {name : 'Models: Non Linked'});
-            let index = 1;
-             for(let i = 0; i < normalModels.length; i++){
-                let normalModel = normalModels[i];
-                await this.pushNormalModels(normalModel, guid);
-                progressBar3.update(index);
-                index += 1;
-             }
-             
-            await this.pushLinkedModels(linkedModels, guid);
-            let containerModels = this.createBaseModels();
-            await this.pushContainers(containers, containerModels, guid);
+                let linkedModels = await this.getLinkedModels(models);
+                let normalModels = await this.getNormalModels(models, linkedModels);
+                const progressBar3 = this._multibar.create(normalModels.length, 0);
+                progressBar3.update(0, {name : 'Models: Non Linked'});
+                let index = 1;
+                for(let i = 0; i < normalModels.length; i++){
+                    let normalModel = normalModels[i];
+                    await this.pushNormalModels(normalModel, guid);
+                    progressBar3.update(index);
+                    index += 1;
+                }
+                
+                await this.pushLinkedModels(linkedModels, guid);
+                let containerModels = this.createBaseModels();
+                if(containers){
+                    await this.pushContainers(containers, containerModels, guid);
 
-            let contentItems = await this.createBaseContentItems(guid, locale);
+                    let contentItems = await this.createBaseContentItems(guid, locale);
 
-            let linkedContentItems = await this.getLinkedContent(guid, contentItems);
+                    if(contentItems){
+                        let linkedContentItems = await this.getLinkedContent(guid, contentItems);
 
-            let normalContentItems = await this.getNormalContent(guid, contentItems, linkedContentItems);
-            await this.pusNormalContentItems(guid, locale, normalContentItems);
+                        let normalContentItems = await this.getNormalContent(guid, contentItems, linkedContentItems);
+                        await this.pusNormalContentItems(guid, locale, normalContentItems);
 
-            await this.pushLinkedContentItems(guid, locale, linkedContentItems);
+                        await this.pushLinkedContentItems(guid, locale, linkedContentItems);
+                    }
+                    let pageTemplates = await this.createBaseTemplates();
 
-            let pageTemplates = await this.createBaseTemplates();
-
-            await this.pushTemplates(pageTemplates, guid, locale);
-
-            let pages = await this.createBasePages(locale);
-            await this.pushPages(guid, locale, pages);
+                    if(pageTemplates){
+                        await this.pushTemplates(pageTemplates, guid, locale);
+                        if(contentItems){
+                            let pages = await this.createBasePages(locale);
+                            if(pages){
+                                await this.pushPages(guid, locale, pages);
+                            }
+                        }
+                    }
+                }
+                this._multibar.stop();
+            }
+            else{
+                fileOperation.appendLogFile(`\n Nothing else to clone/push to the target instance as there are no Models present in the source Instance.`);
+                this._multibar.stop();
+            }
+            
         } catch {
 
         }

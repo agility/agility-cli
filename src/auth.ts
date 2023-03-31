@@ -42,6 +42,14 @@ export class Auth{
          return instance;
      }
 
+     getInstancePoll() : AxiosInstance{
+        let baseURL = "https://mgmt.aglty.io";
+        let instance =  axios.create({
+            baseURL: `${baseURL}/oauth`
+        })
+        return instance;
+     }
+
      async executeGet(apiPath: string, guid: string){
         let instance = this.getInstance(guid);
         try{
@@ -59,7 +67,7 @@ export class Auth{
     }
 
     async executePost(apiPath: string, guid: string, data: any){
-        let instance = this.getInstance(guid);
+        let instance = this.getInstancePoll();
         try{
             const resp = await instance.post(apiPath,data, {
                 headers: {
@@ -85,7 +93,6 @@ export class Auth{
 
     async cliPoll(formData: FormData, guid: string = 'blank-d'){
         let apiPath = `CliPoll`;
-
         const response = await this.executePost(apiPath, guid, formData);
         return response.data as cliToken;
     }

@@ -58,7 +58,7 @@ yargs.command({
             code.cleanup('.agility-files');
             
             let data = JSON.parse(code.readTempFile('code.json'));
-        
+            
             const form = new FormData();
             form.append('cliCode', data.code);
             let guid: string = argv.guid as string;
@@ -99,12 +99,12 @@ yargs.command({
                 }
             }
             else{
-                console.log(colors.red('Please authenticate first to perform the push operation.'));
+                console.log(colors.red('Please authenticate first to perform the pull operation.'));
             }
            
         }
         else{
-            console.log(colors.red('Please authenticate first to perform the push operation.'));
+            console.log(colors.red('Please authenticate first to perform the pull operation.'));
         }
     }
 })

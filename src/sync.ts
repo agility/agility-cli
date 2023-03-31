@@ -60,25 +60,28 @@ export class sync{
       let apiClient = new mgmtApi.ApiClient(this._options);
 
       let fileOperation = new fileOperations();
-      let files = fileOperation.readDirectory(`${this._locale}/page`);
+      if(fileOperation.folderExists(`${this._locale}/page`)){
+         let files = fileOperation.readDirectory(`${this._locale}/page`);
 
-      const progressBar01 = this._multibar.create(files.length, 0);
-      progressBar01.update(0, {name : 'Modifying Page Object'});
-      let index = 1;
+         const progressBar01 = this._multibar.create(files.length, 0);
+         progressBar01.update(0, {name : 'Modifying Page Object'});
+         let index = 1;
 
-      for(let i = 0; i < files.length; i++){
-         let pageItem = JSON.parse(files[i]) as mgmtApi.PageItem;
+         for(let i = 0; i < files.length; i++){
+            let pageItem = JSON.parse(files[i]) as mgmtApi.PageItem;
 
-         progressBar01.update(index);
-         index += 1;
+            progressBar01.update(index);
+            index += 1;
 
-         try{
-            let page = await apiClient.pageMethods.getPage(pageItem.pageID, this._guid, this._locale);
+            try{
+               let page = await apiClient.pageMethods.getPage(pageItem.pageID, this._guid, this._locale);
 
-            fileOperation.exportFiles(`${this._locale}/pages`, page.pageID, page);
-         } catch{
+               fileOperation.exportFiles(`${this._locale}/pages`, page.pageID, page);
+            } catch{
 
+            }
          }
       }
+      
      }
 }
