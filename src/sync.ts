@@ -39,21 +39,25 @@ export class sync{
 
      async getPageTemplates(){
       let apiClient = new mgmtApi.ApiClient(this._options);
+      try{
+         let pageTemplates = await apiClient.pageMethods.getPageTemplates(this._guid, this._locale, true);
 
-      let pageTemplates = await apiClient.pageMethods.getPageTemplates(this._guid, this._locale, true);
+         const progressBar0 = this._multibar.create(pageTemplates.length, 0);
+         progressBar0.update(0, {name : 'Templates'});
+         let index = 1;
 
-      const progressBar0 = this._multibar.create(pageTemplates.length, 0);
-      progressBar0.update(0, {name : 'Templates'});
-      let index = 1;
+         let fileExport = new fileOperations();
 
-      let fileExport = new fileOperations();
+         for(let i = 0; i < pageTemplates.length; i++){
+            let template = pageTemplates[i];
+            progressBar0.update(index);
+            index += 1;
+            fileExport.exportFiles('templates', template.pageTemplateID, template);
+         }
+      } catch{
 
-      for(let i = 0; i < pageTemplates.length; i++){
-         let template = pageTemplates[i];
-         progressBar0.update(index);
-         index += 1;
-         fileExport.exportFiles('templates', template.pageTemplateID, template);
       }
+      
      }
 
      async getPages(){
