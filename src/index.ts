@@ -31,6 +31,54 @@ yargs.command({
 })
 
 yargs.command({
+    command: 'sync-models',
+    describe: 'Sync Models locally.',
+    builder: {
+        guid: {
+            describe: 'Provide guid to pull your instance.',
+            demandOption: true,
+            type: 'string'
+        }
+    },
+    handler: async function(argv) {
+        auth = new Auth();
+        let code = new fileOperations();
+        let codeFileStatus = code.codeFileExists();
+        if(codeFileStatus){
+            code.cleanup('.agility-files');
+            code.createBaseFolder();
+            let data = JSON.parse(code.readTempFile('code.json'));
+            
+            const form = new FormData();
+            form.append('cliCode', data.code);
+            let guid: string = argv.guid as string;
+
+            let token = await auth.cliPoll(form, guid);
+
+            let multibar = createMultibar({name: 'Sync Models'});
+
+            options = new mgmtApi.Options();
+            options.token = token.access_token;
+
+            let user = await auth.getUser(guid, token.access_token);
+
+            if(user){
+                console.log(colors.yellow('Syncing Models from your instance...'));
+                let modelSync = new model(options, multibar);
+        
+                await modelSync.getModels(guid);
+            }
+            else{
+                console.log(colors.red('Please authenticate first to perform the pull operation.'));
+            }
+        }
+        else{
+            console.log(colors.red('Please authenticate first to perform the pull operation.'));
+        }
+    }
+})
+
+yargs.command({
     command: 'pull',
     describe: 'Pull your Instance',
     builder: {

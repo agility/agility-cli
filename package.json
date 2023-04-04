@@ -1,6 +1,6 @@
 {
   "name": "@agility/cli",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "description": "Agility CLI for working with your content.",
   "repository": {
     "type": "git",
