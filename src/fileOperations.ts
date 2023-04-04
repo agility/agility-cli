@@ -115,6 +115,16 @@ export class fileOperations{
     return files;
   }
 
+  folderExists(folderName: string){
+    let directory = `.agility-files/${folderName}`;
+    if(fs.existsSync(directory)){
+      return true;
+    }
+    else{
+      return false;
+    }
+  }
+
   codeFileExists(){
     let appName = 'mgmt-cli-code';
     let tmpFolder = os.tmpDir();

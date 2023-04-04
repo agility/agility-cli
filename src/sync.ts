@@ -39,46 +39,53 @@ export class sync{
 
      async getPageTemplates(){
       let apiClient = new mgmtApi.ApiClient(this._options);
+      try{
+         let pageTemplates = await apiClient.pageMethods.getPageTemplates(this._guid, this._locale, true);
 
-      let pageTemplates = await apiClient.pageMethods.getPageTemplates(this._guid, this._locale, true);
+         const progressBar0 = this._multibar.create(pageTemplates.length, 0);
+         progressBar0.update(0, {name : 'Templates'});
+         let index = 1;
 
-      const progressBar0 = this._multibar.create(pageTemplates.length, 0);
-      progressBar0.update(0, {name : 'Templates'});
-      let index = 1;
+         let fileExport = new fileOperations();
 
-      let fileExport = new fileOperations();
+         for(let i = 0; i < pageTemplates.length; i++){
+            let template = pageTemplates[i];
+            progressBar0.update(index);
+            index += 1;
+            fileExport.exportFiles('templates', template.pageTemplateID, template);
+         }
+      } catch{
 
-      for(let i = 0; i < pageTemplates.length; i++){
-         let template = pageTemplates[i];
-         progressBar0.update(index);
-         index += 1;
-         fileExport.exportFiles('templates', template.pageTemplateID, template);
       }
+      
      }
 
      async getPages(){
       let apiClient = new mgmtApi.ApiClient(this._options);
 
       let fileOperation = new fileOperations();
-      let files = fileOperation.readDirectory(`${this._locale}/page`);
+      if(fileOperation.folderExists(`${this._locale}/page`)){
+         let files = fileOperation.readDirectory(`${this._locale}/page`);
 
-      const progressBar01 = this._multibar.create(files.length, 0);
-      progressBar01.update(0, {name : 'Modifying Page Object'});
-      let index = 1;
+         const progressBar01 = this._multibar.create(files.length, 0);
+         progressBar01.update(0, {name : 'Modifying Page Object'});
+         let index = 1;
 
-      for(let i = 0; i < files.length; i++){
-         let pageItem = JSON.parse(files[i]) as mgmtApi.PageItem;
+         for(let i = 0; i < files.length; i++){
+            let pageItem = JSON.parse(files[i]) as mgmtApi.PageItem;
 
-         progressBar01.update(index);
-         index += 1;
+            progressBar01.update(index);
+            index += 1;
 
-         try{
-            let page = await apiClient.pageMethods.getPage(pageItem.pageID, this._guid, this._locale);
+            try{
+               let page = await apiClient.pageMethods.getPage(pageItem.pageID, this._guid, this._locale);
 
-            fileOperation.exportFiles(`${this._locale}/pages`, page.pageID, page);
-         } catch{
+               fileOperation.exportFiles(`${this._locale}/pages`, page.pageID, page);
+            } catch{
 
+            }
          }
       }
+      
      }
 }

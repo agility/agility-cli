@@ -13,39 +13,42 @@ export class model{
 
     async getModels(guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
+        try{
+            let contentModules = await apiClient.modelMethods.getContentModules(true, guid, false);
 
-        let contentModules = await apiClient.modelMethods.getContentModules(true, guid, false);
+            let pageModules = await apiClient.modelMethods.getPageModules(true, guid);
 
-        let pageModules = await apiClient.modelMethods.getPageModules(true, guid);
+            let models : mgmtApi.Model[] = [];
 
-        let models : mgmtApi.Model[] = [];
+            let fileExport = new fileOperations();
 
-        let fileExport = new fileOperations();
+            let totalLength = contentModules.length + pageModules.length;
 
-        let totalLength = contentModules.length + pageModules.length;
+            const progressBar4 = this._multibar.create(totalLength, 0);
+            progressBar4.update(0, {name : 'Models'});
 
-        const progressBar4 = this._multibar.create(totalLength, 0);
-        progressBar4.update(0, {name : 'Models'});
-
-        for(let i = 0; i < contentModules.length; i++){
-            models.push(contentModules[i]);
-        }
-
-        for(let i = 0; i < pageModules.length; i++){
-            models.push(pageModules[i]);
-        }
-
-        let index = 1;
-        for(let i = 0; i < models.length; i++){
-            let model = await apiClient.modelMethods.getContentModel(models[i].id, guid);
-            fileExport.exportFiles('models', model.id, model);
-            if(index === 1){
-                progressBar4.update(1);
+            for(let i = 0; i < contentModules.length; i++){
+                models.push(contentModules[i]);
             }
-            else{
-                progressBar4.update(index);
+
+            for(let i = 0; i < pageModules.length; i++){
+                models.push(pageModules[i]);
             }
-            index += 1;
+
+            let index = 1;
+            for(let i = 0; i < models.length; i++){
+                let model = await apiClient.modelMethods.getContentModel(models[i].id, guid);
+                fileExport.exportFiles('models', model.id, model);
+                if(index === 1){
+                    progressBar4.update(1);
+                }
+                else{
+                    progressBar4.update(index);
+                }
+                index += 1;
+            }
+        } catch{
+
         }
         this._multibar.stop();
     }
