@@ -34,8 +34,13 @@ yargs.command({
     command: 'sync-models',
     describe: 'Sync Models locally.',
     builder: {
-        guid: {
-            describe: 'Provide guid to pull your instance.',
+        sourceGuid: {
+            describe: 'Provide the source guid to pull models from your source instance.',
+            demandOption: true,
+            type: 'string'
+        },
+        targetGuid: {
+            describe: 'Provide the target guid to push models to your destination instance.',
             demandOption: true,
             type: 'string'
         }
@@ -51,8 +56,7 @@ yargs.command({
             
             const form = new FormData();
             form.append('cliCode', data.code);
-            let guid: string = argv.guid as string;
-
+            let guid: string = argv.sourceGuid as string;
             let token = await auth.cliPoll(form, guid);
 
             let multibar = createMultibar({name: 'Sync Models'});
@@ -65,12 +69,17 @@ yargs.command({
             if(user){
                 console.log(colors.yellow('Syncing Models from your instance...'));
                 let modelSync = new model(options, multibar);
+
+                let templatesSync = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
         
                 await modelSync.getModels(guid);
+                await templatesSync.getPageTemplates();
             }
             else{
                 console.log(colors.red('Please authenticate first to perform the pull operation.'));
             }
+
+            multibar.stop();
         }
         else{
             console.log(colors.red('Please authenticate first to perform the pull operation.'));
