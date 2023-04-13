@@ -15,6 +15,7 @@ const cliProgress = require('cli-progress');
 const colors = require('ansi-colors');
 const inquirer = require('inquirer');
 import { createMultibar } from './multibar';
+import { modelSync } from './modelSync';
 
 let auth: Auth
 let options: mgmtApi.Options;
@@ -43,6 +44,11 @@ yargs.command({
             describe: 'Provide the target guid to push models to your destination instance.',
             demandOption: true,
             type: 'string'
+        },
+        locale: {
+            describe: 'Provide the locale to sync templates to your destination instance.',
+            demandOption: true,
+            type: 'string'
         }
     },
     handler: async function(argv) {
@@ -57,6 +63,8 @@ yargs.command({
             const form = new FormData();
             form.append('cliCode', data.code);
             let guid: string = argv.sourceGuid as string;
+            let targetGuid: string = argv.targetGuid as string;
+            let locale: string = argv.locale as string; 
             let token = await auth.cliPoll(form, guid);
 
             let multibar = createMultibar({name: 'Sync Models'});
@@ -68,18 +76,40 @@ yargs.command({
 
             if(user){
                 console.log(colors.yellow('Syncing Models from your instance...'));
-                let modelSync = new model(options, multibar);
+                let modelPull = new model(options, multibar);
 
-                let templatesSync = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
+                let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
         
-                await modelSync.getModels(guid);
-                await templatesSync.getPageTemplates();
+                await modelPull.getModels(guid);
+                await templatesPull.getPageTemplates();
+                multibar.stop();
+
+                let modelPush = new modelSync(options, multibar);
+
+                let containerRefs =  await modelPush.logContainers();
+                if(containerRefs){
+                    if(containerRefs.length > 0){
+                        await inquirer.prompt([
+                            {
+                                type: 'confirm',
+                                name: 'containers',
+                                message: 'Please review the content containers in the instancelog.txt file. They should be present in the target instance. '
+                            }
+                        ]).then(async (answers: { containers: boolean; })=> {
+        
+                            if(answers.containers){
+                                multibar = createMultibar({name: 'Sync Models'});
+                                await modelPush.syncProcess(targetGuid, locale);
+                                }
+                        })
+                    }
+                }
             }
             else{
                 console.log(colors.red('Please authenticate first to perform the pull operation.'));
             }
 
-            multibar.stop();
+           
         }
         else{
             console.log(colors.red('Please authenticate first to perform the pull operation.'));

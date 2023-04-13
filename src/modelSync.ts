@@ -1,12 +1,15 @@
 import * as mgmtApi  from '@agility/management-sdk';
 import { fileOperations } from './fileOperations';
-
+import * as cliProgress from 'cli-progress';
+import { push } from './push';
 
 export class modelSync{
     _options : mgmtApi.Options;
+    _multibar: cliProgress.MultiBar;
 
-    constructor(options: mgmtApi.Options){
+    constructor(options: mgmtApi.Options, multibar: cliProgress.MultiBar){
         this._options = options;
+        this._multibar = multibar;
     }
 
     createModelObject(){
@@ -28,12 +31,12 @@ export class modelSync{
         }
     }
 
-    async logContainers(guid: string){
-        let apiClient = new mgmtApi.ApiClient(this._options);
+    async logContainers(){
         let fileOperation = new fileOperations();
         try{
             let models = this.createModelObject();
-            
+            fileOperation.createLogFile('logs', 'instancelog');
+            let containerRefs : string [] = []
             for(let i = 0; i < models.length; i++){
                 let sourceModel = models[i];
 
@@ -41,30 +44,45 @@ export class modelSync{
                     let field = sourceModel.fields[j];
                     if(field){
                         if(field.type === 'Content'){
-                            //if(file)
+                            if(field.settings.hasOwnProperty("ContentView")){
+                                if(field.settings['ContentView']){
+                                    let containerRef = field.settings['ContentView'];
+                                    fileOperation.appendLogFile(`\n Please ensure the content container with reference name ${containerRef} exists.`);
+                                    containerRefs.push(containerRef);
+                                }
+                            }
                         }
                     }
                 }
-                // sourceModel.fields.flat().find((field) => {
-                //     if(field.type === 'Content'){
-
-                //     }
-                // })              
-
-                // let model = await apiClient.modelMethods.getModelByReferenceName(sourceModel.referenceName, guid);
-                // if(model){
-                //     let containers = await apiClient.containerMethods.getContainersByModel(model.id, guid);
-                //     if(containers){
-                //         for(let j = 0; j < containers.length; j++){
-                //             fileOperation.appendLogFile(`\n Please ensure the content container with reference name ${containers[j].referenceName} exists.`);
-                //         }
-                        
-                //     }
-                // }
             }
-
+            return containerRefs;
         } catch{
-
         }
+    }
+
+    async syncProcess(guid: string, locale: string){
+        let pushOperation = new push(this._options, this._multibar);
+
+        let models = pushOperation.createBaseModels();
+        if(models){
+            let linkedModels = await pushOperation.getLinkedModels(models);
+            let normalModels = await pushOperation.getNormalModels(models, linkedModels);
+            const progressBar3 = this._multibar.create(normalModels.length, 0);
+                progressBar3.update(0, {name : 'Models: Non Linked'});
+                let index = 1;
+                for(let i = 0; i < normalModels.length; i++){
+                    let normalModel = normalModels[i];
+                    await pushOperation.pushNormalModels(normalModel, guid);
+                    progressBar3.update(index);
+                    index += 1;
+                }
+            await pushOperation.pushLinkedModels(linkedModels, guid);
+            let pageTemplates = await pushOperation.createBaseTemplates();
+            if(pageTemplates){
+                await pushOperation.pushTemplates(pageTemplates, guid, locale);
+            }
+        }
+
+        this._multibar.stop();
     }
 }
