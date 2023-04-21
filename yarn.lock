@@ -10,19 +10,19 @@
     "axios" "^0.21.1"
     "axios-cache-adapter" "^2.4.1"
 
-"@agility/content-sync@^1.1.4":
-  "integrity" "sha512-IzA29S/s+WWbUd55OTfSGBm6uyr6nOrHveauy75DYmX1TkS+egLDZx1Vh3gUt+nlotxJlvoZzsdDgiKTLtiG7A=="
-  "resolved" "https://registry.npmjs.org/@agility/content-sync/-/content-sync-1.1.4.tgz"
-  "version" "1.1.4"
+"@agility/content-sync@^1.1.5":
+  "integrity" "sha512-O1e3pWZCBCQhz5Qnqq8aJixJpS6FAGtR/HnaAAlvHi792tn6j1Xk5K6xtYLNvvy1J7IouqMZz+so/NLp3hLyrA=="
+  "resolved" "https://registry.npmjs.org/@agility/content-sync/-/content-sync-1.1.5.tgz"
+  "version" "1.1.5"
   dependencies:
     "@agility/content-fetch" "^1.0.0"
     "dotenv" "^8.2.0"
     "proper-lockfile" "^4.1.2"
 
-"@agility/management-sdk@^0.1.13":
-  "integrity" "sha512-R2FBkoJzHtYSzgD1nWcdtxCT7vbzUCbsuppHIOk1aKP0sWav6kS3i/m3MffFZBZ+qIfx2BE/LVO2QUdYoy72fQ=="
-  "resolved" "https://registry.npmjs.org/@agility/management-sdk/-/management-sdk-0.1.13.tgz"
-  "version" "0.1.13"
+"@agility/management-sdk@^0.1.14":
+  "integrity" "sha512-mriSXmSJKsOns8jH6CEbAdKEYjFH058bU22nZ5fqI8+fYwrKph1c2PiqaB5r6SfXHRDUUWwXiSdk1DDNh3TOog=="
+  "resolved" "https://registry.npmjs.org/@agility/management-sdk/-/management-sdk-0.1.14.tgz"
+  "version" "0.1.14"
   dependencies:
     "axios" "^0.27.2"
 

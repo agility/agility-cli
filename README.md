@@ -6,6 +6,7 @@
 - Provides features to perform operations to login to agility instance, pull the instance, push the instance and clone the instance (coupling of push and pull operations).
 - Provides logs on failed records for content and pages.
 - Ability to generate Content and Pages in bulk for a Website.
+- Deleted Content, Pages, Models, Containers and Assets were not processed from the CLI.
 
 ## Getting Started
 
@@ -28,7 +29,8 @@
 1. To pull an instance use the command ```agility pull --guid="<<Provide Guid of your Instance>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be pulled>>"``` to pull an instance.
 2. To push an instance use the command ```agility push --guid="<<Provide the target Instance guid>> --locale="<<Provide the locale of the Instance>>"```
 3. For instance cloning, this command is a mix of push and pull. Use the command ```agility clone --sourceGuid="<<Provide Guid of your source Instance>>" --targetGuid="<<Provide the target Instance guid>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be cloned>>"``` to perform cloning between instances.
-4. To access the error logs, navigate to .agility-files/logs/instancelog.txt
+4. To sync Models use the command ```agility sync-models --sourceGuid="<<Guid of your source instance>>" --targetGuid="<<Guid of your target Instance>>"```
+5. To access the error logs, navigate to .agility-files/logs/instancelog.txt
 
 #### Folder Structure
 1. If a pull or clone instance is initiated, a local folder .agility-files is created.

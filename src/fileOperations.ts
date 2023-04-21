@@ -34,6 +34,12 @@ export class fileOperations{
       }
     }
 
+    createBaseFolder(){
+      if(!fs.existsSync(`.agility-files`)){
+        fs.mkdirSync(`.agility-files`);
+      }
+    }
+
     async downloadFile (url: string, targetFile: string) {  
         return await new Promise((resolve, reject) => {
           Https.get(url, response => {
