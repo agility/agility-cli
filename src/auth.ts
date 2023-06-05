@@ -2,6 +2,7 @@ import axios, { AxiosInstance } from 'axios';
 import { cliToken } from './models/cliToken';
 import { fileOperations } from './fileOperations';
 import { serverUser } from './models/serverUser';
+import { WebsiteUser } from './models/websiteUser';
 const open = require('open');
 
 
@@ -106,6 +107,42 @@ export class Auth{
         catch{
             return null;
         }
+    }
+
+    async checkUserRole(guid: string, token: string){
+        let baseUrl = this.determineBaseUrl(guid);
+        let access = false;
+        let instance =  axios.create({
+            baseURL: `${baseUrl}/api/v1/`
+        })
+        let apiPath = `/instance/${guid}/user`;
+        
+        try{
+            const resp = await instance.get(apiPath, {
+                headers: {
+                  'Authorization': `Bearer ${token}`,
+                  'Cache-Control': 'no-cache'
+                }
+              })
+            
+            let webSiteUser = resp.data as WebsiteUser
+            
+            if(webSiteUser.isOrgAdmin){
+                access = true;
+            }
+            else{
+                for(let i = 0; i < webSiteUser.userRoles.length; i++){
+                    let role = webSiteUser.userRoles[i];
+                    if(role.name === 'Manager'){
+                        access = true;
+                    }
+                }
+            }
+        } catch{
+            return false;
+        }
+
+        return access;
     }
 
     async getUser(guid: string, token: string){
