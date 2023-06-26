@@ -75,35 +75,44 @@ yargs.command({
             let user = await auth.getUser(guid, token.access_token);
 
             if(user){
-                console.log(colors.yellow('Syncing Models from your instance...'));
-                let modelPull = new model(options, multibar);
+                let sourcePermitted = await auth.checkUserRole(guid, token.access_token);
+                let targetPermitted = await auth.checkUserRole(targetGuid, token.access_token);
 
-                let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
-        
-                await modelPull.getModels(guid);
-                await templatesPull.getPageTemplates();
-                multibar.stop();
+                if(sourcePermitted && targetPermitted){
+                    console.log(colors.yellow('Syncing Models from your instance...'));
+                    let modelPull = new model(options, multibar);
 
-                let modelPush = new modelSync(options, multibar);
+                    let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
+            
+                    await modelPull.getModels(guid);
+                    await templatesPull.getPageTemplates();
+                    multibar.stop();
 
-                let containerRefs =  await modelPush.logContainers();
-                if(containerRefs){
-                    if(containerRefs.length > 0){
-                        await inquirer.prompt([
-                            {
-                                type: 'confirm',
-                                name: 'containers',
-                                message: 'Please review the content containers in the instancelog.txt file. They should be present in the target instance. '
-                            }
-                        ]).then(async (answers: { containers: boolean; })=> {
-        
-                            if(answers.containers){
-                                multibar = createMultibar({name: 'Sync Models'});
-                                await modelPush.syncProcess(targetGuid, locale);
+                    let modelPush = new modelSync(options, multibar);
+
+                    let containerRefs =  await modelPush.logContainers();
+                    if(containerRefs){
+                        if(containerRefs.length > 0){
+                            await inquirer.prompt([
+                                {
+                                    type: 'confirm',
+                                    name: 'containers',
+                                    message: 'Please review the content containers in the instancelog.txt file. They should be present in the target instance. '
                                 }
-                        })
+                            ]).then(async (answers: { containers: boolean; })=> {
+            
+                                if(answers.containers){
+                                    multibar = createMultibar({name: 'Sync Models'});
+                                    await modelPush.syncProcess(targetGuid, locale);
+                                    }
+                            })
+                        }
                     }
                 }
+                else{
+                    console.log(colors.red('You do not have the required permissions to perform the model sync operation.'));
+                }
+                
             }
             else{
                 console.log(colors.red('Please authenticate first to perform the pull operation.'));
@@ -162,28 +171,35 @@ yargs.command({
             let user = await auth.getUser(guid, token.access_token);
 
             if(user){
-                let syncKey = await auth.getPreviewKey(guid);
-                if(syncKey){
-                    console.log(colors.yellow('Pulling your instance...'));
-                    let contentPageSync = new sync(guid, syncKey, locale, channel, options, multibar);
-    
-                    await contentPageSync.sync();
+                let permitted = await auth.checkUserRole(guid, token.access_token);
+                if(permitted){
+                    let syncKey = await auth.getPreviewKey(guid);
+                    if(syncKey){
+                        console.log(colors.yellow('Pulling your instance...'));
+                        let contentPageSync = new sync(guid, syncKey, locale, channel, options, multibar);
         
-                    let assetsSync = new asset(options, multibar);
-        
-                    await assetsSync.getAssets(guid);
-        
-                    let containerSync = new container(options, multibar);
-        
-                    await containerSync.getContainers(guid);
-        
-                    let modelSync = new model(options, multibar);
-        
-                    await modelSync.getModels(guid);
+                        await contentPageSync.sync();
+            
+                        let assetsSync = new asset(options, multibar);
+            
+                        await assetsSync.getAssets(guid);
+            
+                        let containerSync = new container(options, multibar);
+            
+                        await containerSync.getContainers(guid);
+            
+                        let modelSync = new model(options, multibar);
+            
+                        await modelSync.getModels(guid);
+                    }
+                    else{
+                        console.log(colors.red('Please add a preview key to your instance to perform pull operation.'));
+                    }
                 }
                 else{
-                    console.log(colors.red('Please add a preview key to your instance to perform pull operation.'));
+                    console.log(colors.red('You do not have required permissions on the instance to perform the pull operation.'));
                 }
+                
             }
             else{
                 console.log(colors.red('Please authenticate first to perform the pull operation.'));
@@ -235,49 +251,56 @@ yargs.command({
 
             let user = await auth.getUser(guid, token.access_token);
             if(user){
-                console.log(colors.yellow('Pushing your instance...'));
-                let pushSync = new push(options, multibar);
+                let permitted = await auth.checkUserRole(guid, token.access_token);
+                if(permitted){
+                    console.log(colors.yellow('Pushing your instance...'));
+                    let pushSync = new push(options, multibar);
 
-            /*
-        TODO: Inquirer for Content and Pages.
-            let modelSync = new model(options, multibar);
-            let existingModels = await modelSync.validateModels(guid);
+                /*
+                TODO: Inquirer for Content and Pages.
+                    let modelSync = new model(options, multibar);
+                    let existingModels = await modelSync.validateModels(guid);
 
-            let containerSync = new container(options, multibar);
-            let existingContainers = await containerSync.validateContainers(guid);
+                    let containerSync = new container(options, multibar);
+                    let existingContainers = await containerSync.validateContainers(guid);
 
-            let duplicates: string[] = [];
+                    let duplicates: string[] = [];
 
-            if(existingModels){
-                    for(let i = 0; i < existingModels.length; i++){
-                        duplicates.push(existingModels[i]);
+                    if(existingModels){
+                            for(let i = 0; i < existingModels.length; i++){
+                                duplicates.push(existingModels[i]);
+                            }
                     }
-            }
-            if(existingContainers){
-                    for(let i = 0; i < existingContainers.length; i++){
-                        duplicates.push(existingContainers[i]);
+                    if(existingContainers){
+                            for(let i = 0; i < existingContainers.length; i++){
+                                duplicates.push(existingContainers[i]);
+                            }
                     }
-            }
 
-        
-            if(duplicates.length > 0){
-            await inquirer.prompt([
-                    {
-                        type: 'confirm',
-                        name: 'duplicates',
-                        message: 'Found duplicate(s) Models and Containers. Overwrite the models and containers? '
-                    }
-                ]).then((answers: { duplicates: boolean; })=> {
+                
+                    if(duplicates.length > 0){
+                    await inquirer.prompt([
+                            {
+                                type: 'confirm',
+                                name: 'duplicates',
+                                message: 'Found duplicate(s) Models and Containers. Overwrite the models and containers? '
+                            }
+                        ]).then((answers: { duplicates: boolean; })=> {
 
-                    if(!answers.duplicates){
-                            if(existingContainers)
-                                containerSync.deleteContainerFiles(existingContainers);
-                            if(existingModels)
-                                modelSync.deleteModelFiles(existingModels);
-                        }
-                })
-            }*/
-            await pushSync.pushInstance(guid, locale);
+                            if(!answers.duplicates){
+                                    if(existingContainers)
+                                        containerSync.deleteContainerFiles(existingContainers);
+                                    if(existingModels)
+                                        modelSync.deleteModelFiles(existingModels);
+                                }
+                        })
+                    }*/
+                     await pushSync.pushInstance(guid, locale);
+                }
+                else{
+                    console.log(colors.red('You do not have required permissions on the instance to perform the push operation.'));
+                }
+                
             } else{
                 console.log(colors.red('Please authenticate first to perform the push operation.'));
             }
@@ -338,19 +361,28 @@ yargs.command({
         let user = await auth.getUser(sourceGuid, token.access_token);
 
         if(user){
-            console.log(colors.yellow('Cloning your instance...'));
-            let cloneSync = new clone(sourceGuid, targetGuid, locale, channel);
 
-            console.log(colors.yellow('Pulling your instance...'));
-            await cloneSync.pull();
+            let sourcePermitted = await auth.checkUserRole(sourceGuid, token.access_token);
+            let targetPermitted = await auth.checkUserRole(targetGuid, token.access_token);
 
-            let agilityFolder = code.cliFolderExists();
-            if(agilityFolder){
-                console.log(colors.yellow('Pushing your instance...'));
-                await cloneSync.push();
+            if(sourcePermitted && targetPermitted){
+                console.log(colors.yellow('Cloning your instance...'));
+                let cloneSync = new clone(sourceGuid, targetGuid, locale, channel);
+
+                console.log(colors.yellow('Pulling your instance...'));
+                await cloneSync.pull();
+
+                let agilityFolder = code.cliFolderExists();
+                if(agilityFolder){
+                    console.log(colors.yellow('Pushing your instance...'));
+                    await cloneSync.push();
+                }
+                else{
+                    console.log(colors.red('Please pull an instance first to push an instance.'));
+                }
             }
             else{
-                console.log(colors.red('Please pull an instance first to push an instance.'));
+                console.log(colors.red('You do not have the required permissions to perform the clone operation.'));
             }
         }
         else{

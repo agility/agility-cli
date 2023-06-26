@@ -24,6 +24,7 @@
 1. Login to agility instance using command ```agility login```.
 2. A browser window will appear to perform the authentication process. You may have to authorize before proceeding.
 3. Once authenticated use the following steps to perform operations on your instance.
+4. You should be a Org Admin or have a Manager Role in an instance to perform operations in the CLI. 
 
 #### Performing operations on CLI
 1. To pull an instance use the command ```agility pull --guid="<<Provide Guid of your Instance>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be pulled>>"``` to pull an instance.
