@@ -25,7 +25,7 @@ export class container{
             let index = 1;
             for(let i = 0; i < containers.length; i++){
                 let container = await apiClient.containerMethods.getContainerByID(containers[i].contentViewID, guid);
-                let referenceName = container.referenceName.replace(/[^a-zA-Z ]/g, "");;
+                let referenceName = container.referenceName.replace(/[^a-zA-Z0-9_ ]/g, "");
                 fileExport.exportFiles('containers', referenceName,container);
                 let progressCount = i + 1;
                 if(index === 1){
