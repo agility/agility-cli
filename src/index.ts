@@ -127,6 +127,73 @@ yargs.command({
 })
 
 yargs.command({
+    command: 'model-pull',
+    describe: 'Pull models locally.',
+    builder: {
+        sourceGuid: {
+            describe: 'Provide the source guid to pull models from your source instance.',
+            demandOption: true,
+            type: 'string'
+        },
+        locale: {
+            describe: 'Provide the locale to sync templates to your destination instance.',
+            demandOption: true,
+            type: 'string'
+        }
+    },
+    handler: async function(argv) {
+        auth = new Auth();
+        let code = new fileOperations();
+        let codeFileStatus = code.codeFileExists();
+        if(codeFileStatus){
+            code.cleanup('.agility-files');
+            code.createBaseFolder();
+            let data = JSON.parse(code.readTempFile('code.json'));
+            
+            const form = new FormData();
+            form.append('cliCode', data.code);
+            let guid: string = argv.sourceGuid as string;
+            let locale: string = argv.locale as string; 
+            let token = await auth.cliPoll(form, guid);
+            let multibar = createMultibar({name: 'Model Pull'});
+
+            options = new mgmtApi.Options();
+            options.token = token.access_token;
+
+            let user = await auth.getUser(guid, token.access_token);
+
+            if(user){
+                let sourcePermitted = await auth.checkUserRole(guid, token.access_token);
+
+                if(sourcePermitted){
+                    console.log(colors.yellow('Pulling Models from your instance...'));
+                    let modelPull = new model(options, multibar);
+
+                    let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
+            
+                    await modelPull.getModels(guid);
+                    await templatesPull.getPageTemplates();
+                    multibar.stop();
+
+                }
+                else{
+                    console.log(colors.red('You do not have the required permissions to perform the model pull operation.'));
+                }
+                
+            }
+            else{
+                console.log(colors.red('Please authenticate first to perform the pull operation.'));
+            }
+
+           
+        }
+        else{
+            console.log(colors.red('Please authenticate first to perform the pull operation.'));
+        }
+    }
+})
+
+yargs.command({
     command: 'pull',
     describe: 'Pull your Instance',
     builder: {
