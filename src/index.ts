@@ -97,7 +97,26 @@ yargs.command({
                         if(code.folderExists('models/json')){
                             code.cleanup('.agility-files/models/json');
                         }
-                        await modelPush.dryRun(guid, locale);
+
+                        let containerRefs =  await modelPush.logContainers();
+                        if(containerRefs){
+                            if(containerRefs.length > 0){
+                                await inquirer.prompt([
+                                    {
+                                        type: 'confirm',
+                                        name: 'containers',
+                                        message: 'Please review the content containers in the instancelog.txt file. They should be present in the target instance. '
+                                    }
+                                ]).then(async (answers: { containers: boolean; })=> {
+                
+                                    if(answers.containers){
+                                    //    multibar = createMultibar({name: 'Sync Models'});
+                                        await modelPush.dryRun(guid, locale);
+                                        }
+                                })
+                            }
+                        }
+                       
                     }
                     else{
                         console.log(colors.yellow('Syncing Models from your instance...'));
