@@ -47,8 +47,11 @@ export class modelSync{
                             if(field.settings.hasOwnProperty("ContentView")){
                                 if(field.settings['ContentView']){
                                     let containerRef = field.settings['ContentView'];
-                                    fileOperation.appendLogFile(`\n Please ensure the content container with reference name ${containerRef} exists.`);
-                                    containerRefs.push(containerRef);
+                                    if(!containerRefs.includes(containerRef)){
+                                        fileOperation.appendLogFile(`\n Please ensure the content container with reference name ${containerRef} exists.`);
+                                        containerRefs.push(containerRef);
+                                    }
+                                    
                                 }
                             }
                         }
@@ -83,6 +86,46 @@ export class modelSync{
             }
         }
 
+        this._multibar.stop();
+    }
+
+    async dryRun(guid: string, locale: string){
+        let pushOperation = new push(this._options, this._multibar);
+        let fileOperation = new fileOperations();
+        let models = pushOperation.createBaseModels();
+        let dryRunModels: mgmtApi.Model[] = []
+        let dryRunTemplates: mgmtApi.PageModel[] = [];
+        if(models){
+            let linkedModels = await pushOperation.getLinkedModels(models);
+            let normalModels = await pushOperation.getNormalModels(models, linkedModels);
+            const progressBar4 = this._multibar.create(normalModels.length, 0);
+
+            progressBar4.update(0, {name : 'Models Dry Run: Non Linked'});
+            let index = 1;
+            for(let i = 0; i < normalModels.length; i++){
+                let normalModel = normalModels[i];
+                let dryRunModel = await pushOperation.validateDryRun(normalModel, guid);
+                dryRunModels.push(dryRunModel);
+                progressBar4.update(index);
+                index += 1;
+            }
+            const progressBar5 = this._multibar.create(linkedModels.length, 0);
+            progressBar5.update(0, {name : 'Models Dry Run: Linked'});
+            index = 1;
+            for(let i = 0; i < linkedModels.length; i++){
+                let linkedModel = linkedModels[i];
+                dryRunModels.push(linkedModel);
+                progressBar5.update(index);
+                index += 1;
+            }
+
+            let pageTemplates = await pushOperation.createBaseTemplates();
+            if(pageTemplates){
+                dryRunTemplates = await pushOperation.dryRunTemplates(pageTemplates, guid, locale);
+            }
+        }
+        fileOperation.exportFiles('models/json','modelsDryRun', dryRunModels);
+        fileOperation.exportFiles('models/json','templatesDryRun', dryRunTemplates);
         this._multibar.stop();
     }
 }

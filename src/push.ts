@@ -299,6 +299,60 @@ export class push{
        }
     }
 
+    async dryRunTemplates(templates: mgmtApi.PageModel[], guid: string, locale: string){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        const progressBar8 = this._multibar.create(templates.length, 0);
+        progressBar8.update(0, {name : 'Page Templates'});
+        let dryRunTemplates: mgmtApi.PageModel[] = [];
+        let index = 1;
+        for(let i = 0; i < templates.length; i++){
+            let template = templates[i];
+            progressBar8.update(index);
+            index += 1;
+            try{
+                let existingTemplate = await apiClient.pageMethods.getPageTemplateName(guid, locale, template.pageTemplateName);
+
+                if(existingTemplate){
+                    template.pageTemplateID = existingTemplate.pageTemplateID;
+                    let existingDefinitions = await apiClient.pageMethods.getPageItemTemplates(guid, locale, existingTemplate.pageTemplateID);
+
+                    if(existingDefinitions){
+                        for(const sourceDef of template.contentSectionDefinitions){
+                            for(const targetDef of existingDefinitions){
+                                if(sourceDef.pageItemTemplateReferenceName !== targetDef.pageItemTemplateReferenceName){
+                                    sourceDef.pageItemTemplateID = -1;
+                                    sourceDef.pageTemplateID = -1;
+                                    sourceDef.contentViewID = 0;
+                                    sourceDef.contentReferenceName = null;
+                                    sourceDef.contentDefinitionID = 0;
+                                    sourceDef.itemContainerID = 0;
+                                    sourceDef.publishContentItemID = 0;
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch{
+                template.pageTemplateID = -1;
+                for(let j = 0; j < template.contentSectionDefinitions.length; j++){
+                    template.contentSectionDefinitions[j].pageItemTemplateID = -1;
+                    template.contentSectionDefinitions[j].pageTemplateID = -1;
+                    template.contentSectionDefinitions[j].contentViewID = 0;
+                    template.contentSectionDefinitions[j].contentReferenceName = null;
+                    template.contentSectionDefinitions[j].contentDefinitionID = 0;
+                    template.contentSectionDefinitions[j].itemContainerID = 0;
+                    template.contentSectionDefinitions[j].publishContentItemID = 0;
+                }
+            }
+            try{
+                dryRunTemplates.push(template);
+            } catch{
+            }
+       }
+
+       return dryRunTemplates;
+    }
+
     async pushPages(guid: string, locale: string, pages: mgmtApi.PageItem[]){
         const progressBar9 = this._multibar.create(pages.length, 0);
         let code = new fileOperations();
@@ -958,6 +1012,28 @@ export class push{
             let newModel =  await apiClient.modelMethods.saveModel(model,guid);
             this.processedModels[newModel.referenceName] = newModel.id;
         }
+    }
+
+    async validateDryRun(model: mgmtApi.Model, guid: string){
+        let dryRunModel = await this.createDryRunModel(model, guid);
+        return dryRunModel;
+    }
+
+    async createDryRunModel(model: mgmtApi.Model, guid: string){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        try{
+            let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
+            let oldModelId = model.id;
+            if(existing){
+                model.id = existing.id;
+            } else{
+                model.id = 0;
+            }
+        }
+        catch{
+            model.id = 0;
+        }
+        return model;
     }
 
     async pushGalleries(guid: string){

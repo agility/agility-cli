@@ -49,6 +49,16 @@ yargs.command({
             describe: 'Provide the locale to sync templates to your destination instance.',
             demandOption: true,
             type: 'string'
+        },
+        instancePull: {
+            describe: 'Provide the value as true or false to perform an instance pull to sync models.',
+            demandOption: true,
+            type: 'boolean'
+        },
+        dryRun: {
+            describe: 'Provide the value as true or false to perform a dry run for model sync.',
+            demandOption: false,
+            type: 'boolean'
         }
     },
     handler: async function(argv) {
@@ -56,8 +66,6 @@ yargs.command({
         let code = new fileOperations();
         let codeFileStatus = code.codeFileExists();
         if(codeFileStatus){
-            code.cleanup('.agility-files');
-            code.createBaseFolder();
             let data = JSON.parse(code.readTempFile('code.json'));
             
             const form = new FormData();
@@ -65,49 +73,67 @@ yargs.command({
             let guid: string = argv.sourceGuid as string;
             let targetGuid: string = argv.targetGuid as string;
             let locale: string = argv.locale as string; 
+            let instancePull: boolean = argv.instancePull as boolean;
+            let dryRun: boolean = argv.dryRun as boolean;
             let token = await auth.cliPoll(form, guid);
 
             let multibar = createMultibar({name: 'Sync Models'});
 
             options = new mgmtApi.Options();
             options.token = token.access_token;
-
+            if(dryRun === undefined){
+                dryRun = false;
+            }
             let user = await auth.getUser(guid, token.access_token);
 
             if(user){
                 let sourcePermitted = await auth.checkUserRole(guid, token.access_token);
                 let targetPermitted = await auth.checkUserRole(targetGuid, token.access_token);
 
+                let modelPush = new modelSync(options, multibar);
                 if(sourcePermitted && targetPermitted){
-                    console.log(colors.yellow('Syncing Models from your instance...'));
-                    let modelPull = new model(options, multibar);
-
-                    let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
-            
-                    await modelPull.getModels(guid);
-                    await templatesPull.getPageTemplates();
-                    multibar.stop();
-
-                    let modelPush = new modelSync(options, multibar);
-
-                    let containerRefs =  await modelPush.logContainers();
-                    if(containerRefs){
-                        if(containerRefs.length > 0){
-                            await inquirer.prompt([
-                                {
-                                    type: 'confirm',
-                                    name: 'containers',
-                                    message: 'Please review the content containers in the instancelog.txt file. They should be present in the target instance. '
-                                }
-                            ]).then(async (answers: { containers: boolean; })=> {
-            
-                                if(answers.containers){
-                                    multibar = createMultibar({name: 'Sync Models'});
-                                    await modelPush.syncProcess(targetGuid, locale);
+                    if(dryRun){
+                        console.log(colors.yellow('Running a dry run on models, please wait...'));
+                        if(code.folderExists('models/json')){
+                            code.cleanup('.agility-files/models/json');
+                        }
+                        await modelPush.dryRun(guid, locale);
+                    }
+                    else{
+                        console.log(colors.yellow('Syncing Models from your instance...'));
+                        if(instancePull){
+                            code.cleanup('.agility-files');
+                            code.createBaseFolder();
+                            let modelPull = new model(options, multibar);
+    
+                            let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
+                    
+                            await modelPull.getModels(guid);
+                            await templatesPull.getPageTemplates();
+                            multibar.stop();
+                        }
+                        
+    
+                        let containerRefs =  await modelPush.logContainers();
+                        if(containerRefs){
+                            if(containerRefs.length > 0){
+                                await inquirer.prompt([
+                                    {
+                                        type: 'confirm',
+                                        name: 'containers',
+                                        message: 'Please review the content containers in the instancelog.txt file. They should be present in the target instance. '
                                     }
-                            })
+                                ]).then(async (answers: { containers: boolean; })=> {
+                
+                                    if(answers.containers){
+                                        multibar = createMultibar({name: 'Sync Models'});
+                                      //  await modelPush.syncProcess(targetGuid, locale);
+                                        }
+                                })
+                            }
                         }
                     }
+                    
                 }
                 else{
                     console.log(colors.red('You do not have the required permissions to perform the model sync operation.'));
