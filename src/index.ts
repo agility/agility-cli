@@ -127,7 +127,7 @@ yargs.command({
                 
                                     if(answers.containers){
                                         multibar = createMultibar({name: 'Sync Models'});
-                                      //  await modelPush.syncProcess(targetGuid, locale);
+                                        await modelPush.syncProcess(targetGuid, locale);
                                         }
                                 })
                             }
