@@ -982,6 +982,55 @@ export class push{
         return differences;
     }
 
+    async validateDryRunLinkedModels(model: mgmtApi.Model, guid: string){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        let differences: any = {};
+        let fileOperation = new fileOperations();
+        for(let j = 0; j < model.fields.length; j++){
+            let field = model.fields[j];
+            if(field.settings['ContentDefinition']){
+                let modelRef = field.settings['ContentDefinition'];
+                try{
+                    let existingLinked = await apiClient.modelMethods.getModelByReferenceName(modelRef, guid);
+                    if(existingLinked){
+                        if(fileOperation.checkFileExists(`.agility-files/models/${existingLinked.id}.json`)){
+                            let file = fileOperation.readFile(`.agility-files/models/${existingLinked.id}.json`);
+                            const modelData = JSON.parse(file) as mgmtApi.Model;
+                            differences =  await this.compareModelObjects(existingLinked, modelData, existingLinked.referenceName);
+                        }
+                        else{
+                            fileOperation.appendLogFile(`\n Unable to find model for referenceName ${existingLinked.referenceName} in the dry run for linked models.`);
+                        }
+                       
+                    }
+                }
+                catch{
+                    differences['referenceName'] = {
+                        referenceName : 'Model with referenceName ' + modelRef + ' will be added.'
+                    }
+                }
+                
+            }
+        }
+        try{
+            let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
+            if(existing){
+                differences =  await this.compareModelObjects(existing, model, existing.referenceName);
+              }
+              else{
+                  differences['referenceName'] = {
+                      referenceName : 'Model with referenceName ' + model.referenceName + ' will be added.'
+                  }
+              }
+        }
+        catch{
+            differences['referenceName'] = {
+                referenceName : 'Model with referenceName ' + model.referenceName + ' will be added.'
+            }
+        }
+        return differences;
+    }
+
     async validateDryRunTemplates(template: mgmtApi.PageModel, guid: string, locale: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
         let differences: any = {};

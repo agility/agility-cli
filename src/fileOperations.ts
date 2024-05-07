@@ -86,6 +86,15 @@ export class fileOperations{
         return file;
     }
 
+    checkFileExists(filePath: string): boolean {
+      try {
+        fs.accessSync(filePath, fs.constants.F_OK);
+        return true;
+      } catch (err) {
+        return false;
+      }
+    }
+
     deleteFile(fileName: string) {
       fs.unlinkSync(fileName);
   }

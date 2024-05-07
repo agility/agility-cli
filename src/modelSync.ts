@@ -115,15 +115,20 @@ export class modelSync{
                 progressBar4.update(index);
                 index += 1;
             }
-            // const progressBar5 = this._multibar.create(linkedModels.length, 0);
-            // progressBar5.update(0, {name : 'Models Dry Run: Linked'});
-            // index = 1;
-            // for(let i = 0; i < linkedModels.length; i++){
-            //     let linkedModel = linkedModels[i];
-            //     dryRunModels.push(linkedModel);
-            //     progressBar5.update(index);
-            //     index += 1;
-            // }
+             const progressBar5 = this._multibar.create(linkedModels.length, 0);
+             progressBar5.update(0, {name : 'Models Dry Run: Linked'});
+             index = 1;
+            for(let i = 0; i < linkedModels.length; i++){
+                let linkedModel = linkedModels[i];
+                let difference = await pushOperation.validateDryRunLinkedModels(linkedModel, targetGuid);
+                if(difference){
+                    if (Object.keys(difference).length > 0){
+                        modelDifferences.push(difference);
+                    }
+                }
+                progressBar5.update(index);
+                index += 1;
+            }
 
             let pageTemplates = await pushOperation.createBaseTemplates();
             const progressBar6 = this._multibar.create(pageTemplates.length, 0);
