@@ -15,6 +15,15 @@ export class fileOperations{
       
     }
 
+    appendFiles(folder: string, fileIdentifier: any, extractedObject: any){
+      if(!fs.existsSync(`.agility-files/${folder}`)){
+        fs.mkdirSync(`.agility-files/${folder}`);
+      }
+
+      let fileName =  `.agility-files/${folder}/${fileIdentifier}.json`;
+      fs.appendFileSync(fileName,JSON.stringify(extractedObject));
+    }
+
     createLogFile(folder: string, fileIdentifier: any){
       if(!fs.existsSync(`.agility-files/${folder}`)){
           fs.mkdirSync(`.agility-files/${folder}`);

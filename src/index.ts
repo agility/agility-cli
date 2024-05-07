@@ -111,7 +111,7 @@ yargs.command({
                 
                                     if(answers.containers){
                                     //    multibar = createMultibar({name: 'Sync Models'});
-                                        await modelPush.dryRun(guid, locale);
+                                        await modelPush.dryRun(guid, locale, targetGuid);
                                         }
                                 })
                             }
@@ -160,13 +160,13 @@ yargs.command({
                 
             }
             else{
-                console.log(colors.red('Please authenticate first to perform the pull operation.'));
+                console.log(colors.red('Please authenticate first to perform the sync models operation.'));
             }
 
            
         }
         else{
-            console.log(colors.red('Please authenticate first to perform the pull operation.'));
+            console.log(colors.red('Please authenticate first to perform the sync models operation.'));
         }
     }
 })

@@ -1015,26 +1015,49 @@ export class push{
     }
 
     async validateDryRun(model: mgmtApi.Model, guid: string){
-        let dryRunModel = await this.createDryRunModel(model, guid);
-        return dryRunModel;
-    }
-
-    async createDryRunModel(model: mgmtApi.Model, guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
+        let differences: any = {};
         try{
             let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
-            let oldModelId = model.id;
             if(existing){
-                model.id = existing.id;
-            } else{
-                model.id = 0;
+              differences =  await this.compareModelObjects(model, existing, existing.referenceName);
+            }
+            else{
+                differences['referenceName'] = {
+                    referenceName : 'Model with referenceName ' + model.referenceName + ' will be added.'
+                }
+            }
+        } catch{
+            differences['referenceName'] = {
+                referenceName : 'Model with referenceName ' + model.referenceName + ' will be added.'
             }
         }
-        catch{
-            model.id = 0;
-        }
-        return model;
+        return differences;
     }
+
+    async compareModelObjects(obj1: any, obj2: any, referenceName: string) {
+        const differences: any = {};
+        const ignoreFields = ['lastModifiedDate', 'fieldID', 'id'];
+        const compareProps = (obj1: any, obj2: any, path: string = '') => {
+          for (const key in obj1) {
+            if (obj1.hasOwnProperty(key) && !ignoreFields.includes(key)) {
+              const newPath = path ? `${path}.${key}` : key;
+              if (typeof obj1[key] === 'object' && obj1[key] !== null && typeof obj2[key] === 'object' && obj2[key] !== null) {
+                compareProps(obj1[key], obj2[key], newPath);
+              } else if (obj1[key] !== obj2[key]) {
+                differences[newPath] = {
+                  oldValue: obj1[key],
+                  newValue: obj2[key],
+                  referenceName: referenceName
+                };
+              }
+            }
+          }
+        };
+      
+        compareProps(obj1, obj2);
+        return differences;
+      }
 
     async pushGalleries(guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
