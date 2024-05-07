@@ -48,8 +48,8 @@ export class modelSync{
                                 if(field.settings['ContentView']){
                                     let containerRef = field.settings['ContentView'];
                                     if(!containerRefs.includes(containerRef)){
-                                        fileOperation.appendLogFile(`\n Please ensure the content container with reference name ${containerRef} exists.`);
-                                        containerRefs.push(containerRef);
+                                       // fileOperation.appendLogFile(`\n Please ensure the content container with reference name ${containerRef} exists.`);
+                                       containerRefs.push(containerRef);
                                     }
                                     
                                 }
@@ -58,6 +58,7 @@ export class modelSync{
                     }
                 }
             }
+            fileOperation.exportFiles('logs','containerReferenceNames', containerRefs);
             return containerRefs;
         } catch{
         }
@@ -95,7 +96,7 @@ export class modelSync{
         let models = pushOperation.createBaseModels();
         const modelDifferences: any = [] = [];
         //let dryRunModels: mgmtApi.Model[] = []
-        //let dryRunTemplates: mgmtApi.PageModel[] = [];
+        const dryRunTemplates: any = [] = [];
         if(models){
             let linkedModels = await pushOperation.getLinkedModels(models);
             let normalModels = await pushOperation.getNormalModels(models, linkedModels);
@@ -124,13 +125,26 @@ export class modelSync{
             //     index += 1;
             // }
 
-            // let pageTemplates = await pushOperation.createBaseTemplates();
-            // if(pageTemplates){
-            //     dryRunTemplates = await pushOperation.dryRunTemplates(pageTemplates, guid, locale);
-            // }
+            let pageTemplates = await pushOperation.createBaseTemplates();
+            const progressBar6 = this._multibar.create(pageTemplates.length, 0);
+            progressBar6.update(0, {name : 'Templates Dry Run'});
+            index = 1;
+            if(pageTemplates){
+                for(let i = 0; i < pageTemplates.length; i++){
+                    let template = pageTemplates[i];
+                    let difference = await pushOperation.validateDryRunTemplates(template, guid, locale);
+                    if(difference){
+                        if (Object.keys(difference).length > 0){
+                            dryRunTemplates.push(difference);
+                        }
+                    }
+                    progressBar6.update(index);
+                    index += 1;
+                }
+            }
         }
         fileOperation.exportFiles('models/json','modelsDryRun', modelDifferences);
-        //fileOperation.exportFiles('models/json','templatesDryRun', dryRunTemplates);
+        fileOperation.exportFiles('models/json','templatesDryRun', dryRunTemplates);
         this._multibar.stop();
     }
 }

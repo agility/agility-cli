@@ -105,7 +105,7 @@ yargs.command({
                                     {
                                         type: 'confirm',
                                         name: 'containers',
-                                        message: 'Please review the content containers in the instancelog.txt file. They should be present in the target instance. '
+                                        message: 'Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance. '
                                     }
                                 ]).then(async (answers: { containers: boolean; })=> {
                 
@@ -140,7 +140,7 @@ yargs.command({
                                     {
                                         type: 'confirm',
                                         name: 'containers',
-                                        message: 'Please review the content containers in the instancelog.txt file. They should be present in the target instance. '
+                                        message: 'Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance. '
                                     }
                                 ]).then(async (answers: { containers: boolean; })=> {
                 

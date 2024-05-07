@@ -299,60 +299,7 @@ export class push{
        }
     }
 
-    async dryRunTemplates(templates: mgmtApi.PageModel[], guid: string, locale: string){
-        let apiClient = new mgmtApi.ApiClient(this._options);
-        const progressBar8 = this._multibar.create(templates.length, 0);
-        progressBar8.update(0, {name : 'Page Templates'});
-        let dryRunTemplates: mgmtApi.PageModel[] = [];
-        let index = 1;
-        for(let i = 0; i < templates.length; i++){
-            let template = templates[i];
-            progressBar8.update(index);
-            index += 1;
-            try{
-                let existingTemplate = await apiClient.pageMethods.getPageTemplateName(guid, locale, template.pageTemplateName);
-
-                if(existingTemplate){
-                    template.pageTemplateID = existingTemplate.pageTemplateID;
-                    let existingDefinitions = await apiClient.pageMethods.getPageItemTemplates(guid, locale, existingTemplate.pageTemplateID);
-
-                    if(existingDefinitions){
-                        for(const sourceDef of template.contentSectionDefinitions){
-                            for(const targetDef of existingDefinitions){
-                                if(sourceDef.pageItemTemplateReferenceName !== targetDef.pageItemTemplateReferenceName){
-                                    sourceDef.pageItemTemplateID = -1;
-                                    sourceDef.pageTemplateID = -1;
-                                    sourceDef.contentViewID = 0;
-                                    sourceDef.contentReferenceName = null;
-                                    sourceDef.contentDefinitionID = 0;
-                                    sourceDef.itemContainerID = 0;
-                                    sourceDef.publishContentItemID = 0;
-                                }
-                            }
-                        }
-                    }
-                }
-            } catch{
-                template.pageTemplateID = -1;
-                for(let j = 0; j < template.contentSectionDefinitions.length; j++){
-                    template.contentSectionDefinitions[j].pageItemTemplateID = -1;
-                    template.contentSectionDefinitions[j].pageTemplateID = -1;
-                    template.contentSectionDefinitions[j].contentViewID = 0;
-                    template.contentSectionDefinitions[j].contentReferenceName = null;
-                    template.contentSectionDefinitions[j].contentDefinitionID = 0;
-                    template.contentSectionDefinitions[j].itemContainerID = 0;
-                    template.contentSectionDefinitions[j].publishContentItemID = 0;
-                }
-            }
-            try{
-                dryRunTemplates.push(template);
-            } catch{
-            }
-       }
-
-       return dryRunTemplates;
-    }
-
+    
     async pushPages(guid: string, locale: string, pages: mgmtApi.PageItem[]){
         const progressBar9 = this._multibar.create(pages.length, 0);
         let code = new fileOperations();
@@ -1020,7 +967,7 @@ export class push{
         try{
             let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
             if(existing){
-              differences =  await this.compareModelObjects(model, existing, existing.referenceName);
+              differences =  await this.compareModelObjects(existing, model, existing.referenceName);
             }
             else{
                 differences['referenceName'] = {
@@ -1034,6 +981,53 @@ export class push{
         }
         return differences;
     }
+
+    async validateDryRunTemplates(template: mgmtApi.PageModel, guid: string, locale: string){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        let differences: any = {};
+        try{
+            let existingTemplate = await apiClient.pageMethods.getPageTemplateName(guid, locale, template.pageTemplateName);
+            if(existingTemplate){
+                differences = await this.compareTemplateObjects(existingTemplate, template, existingTemplate.pageTemplateName);
+            }
+            else{
+                differences['templateName'] = {
+                    templateName : 'Page Template with templateName ' + template.pageTemplateName + ' will be added.'
+                }
+            }
+        }
+        catch{
+            differences['templateName'] = {
+                templateName : 'Page Template with templateName ' + template.pageTemplateName + ' will be added.'
+            }
+        }
+
+        return differences;
+    }
+
+    async compareTemplateObjects(obj1: any, obj2: any, templateName: string) {
+        const differences: any = {};
+        const ignoreFields = ['pageTemplateID', 'releaseDate', 'pullDate'];
+        const compareProps = (obj1: any, obj2: any, path: string = '') => {
+          for (const key in obj1) {
+            if (obj1.hasOwnProperty(key) && !ignoreFields.includes(key)) {
+              const newPath = path ? `${path}.${key}` : key;
+              if (typeof obj1[key] === 'object' && obj1[key] !== null && typeof obj2[key] === 'object' && obj2[key] !== null) {
+                compareProps(obj1[key], obj2[key], newPath);
+              } else if (obj1[key] !== obj2[key]) {
+                differences[newPath] = {
+                  oldValue: obj1[key],
+                  newValue: obj2[key],
+                  templateName: templateName
+                };
+              }
+            }
+          }
+        };
+      
+        compareProps(obj1, obj2);
+        return differences;
+      }
 
     async compareModelObjects(obj1: any, obj2: any, referenceName: string) {
         const differences: any = {};
