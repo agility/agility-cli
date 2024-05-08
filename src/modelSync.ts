@@ -31,10 +31,16 @@ export class modelSync{
         }
     }
 
-    async logContainers(){
+    async logContainers(filterModel?: mgmtApi.Model[]){
         let fileOperation = new fileOperations();
         try{
-            let models = this.createModelObject();
+            let models: mgmtApi.Model[] = [];
+            if(filterModel.length > 0){
+                models = filterModel;
+            }
+            else{
+                models = this.createModelObject();
+            }
             fileOperation.createLogFile('logs', 'instancelog');
             let containerRefs : string [] = []
             for(let i = 0; i < models.length; i++){
@@ -64,10 +70,16 @@ export class modelSync{
         }
     }
 
-    async syncProcess(guid: string, locale: string){
+    async syncProcess(guid: string, locale: string, filterModels?: mgmtApi.Model[]){
         let pushOperation = new push(this._options, this._multibar);
 
-        let models = pushOperation.createBaseModels();
+        let models: mgmtApi.Model[] = [];
+        if(filterModels.length > 0){
+            models = filterModels
+        }
+        else{
+            models = pushOperation.createBaseModels();
+        }
         if(models){
             let linkedModels = await pushOperation.getLinkedModels(models);
             let normalModels = await pushOperation.getNormalModels(models, linkedModels);
@@ -90,13 +102,41 @@ export class modelSync{
         this._multibar.stop();
     }
 
-    async dryRun(guid: string, locale: string, targetGuid: string){
+    async validateAndCreateFilterModels(referenceNames: string[], guid: string){
         let pushOperation = new push(this._options, this._multibar);
         let fileOperation = new fileOperations();
-        let models = pushOperation.createBaseModels();
+        const progressBar = this._multibar.create(referenceNames.length, 0);
+        let models: mgmtApi.Model[] = [];
+        progressBar.update(0, {name : 'Validating and Creating Model Object for model filter.'});
+        let index = 1;
+        for(let i = 0; i < referenceNames.length; i++){
+            let referenceName = referenceNames[i];
+            let model = await pushOperation.createModelsForFilter(referenceName, guid);
+            if(model){
+                models.push(model);
+            }
+            else{
+                fileOperation.appendLogFile(`\n Unable to find model for referenceName: ${referenceName}`);
+            }
+            progressBar.update(index);
+            index += 1;
+        }
+        this._multibar.stop();
+        return models;
+    }
+
+    async dryRun(guid: string, locale: string, targetGuid: string, filterModels?: mgmtApi.Model[]){
+        let pushOperation = new push(this._options, this._multibar);
+        let fileOperation = new fileOperations();
+        let models: mgmtApi.Model[] = [];
+        if(filterModels.length > 0){
+            models = filterModels;
+        }
+        else{
+            models = pushOperation.createBaseModels();
+        }
         const modelDifferences: any = [] = [];
         //let dryRunModels: mgmtApi.Model[] = []
-        const dryRunTemplates: any = [] = [];
         if(models){
             let linkedModels = await pushOperation.getLinkedModels(models);
             let normalModels = await pushOperation.getNormalModels(models, linkedModels);
@@ -140,7 +180,7 @@ export class modelSync{
                     let difference = await pushOperation.validateDryRunTemplates(template, guid, locale);
                     if(difference){
                         if (Object.keys(difference).length > 0){
-                            dryRunTemplates.push(difference);
+                            modelDifferences.push(difference);
                         }
                     }
                     progressBar6.update(index);
@@ -149,7 +189,6 @@ export class modelSync{
             }
         }
         fileOperation.exportFiles('models/json','modelsDryRun', modelDifferences);
-        fileOperation.exportFiles('models/json','templatesDryRun', dryRunTemplates);
         this._multibar.stop();
     }
 }

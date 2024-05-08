@@ -59,6 +59,11 @@ yargs.command({
             describe: 'Provide the value as true or false to perform a dry run for model sync.',
             demandOption: false,
             type: 'boolean'
+        },
+        filterSync: {
+            describe: 'Provide the value as true or false to apply a filter on specific models.',
+            demandOption: false,
+            type: 'boolean'
         }
     },
     handler: async function(argv) {
@@ -75,7 +80,10 @@ yargs.command({
             let locale: string = argv.locale as string; 
             let instancePull: boolean = argv.instancePull as boolean;
             let dryRun: boolean = argv.dryRun as boolean;
+            let filterSync: boolean = argv.filterSync as boolean;
             let token = await auth.cliPoll(form, guid);
+
+            let models: mgmtApi.Model[] = [];
 
             let multibar = createMultibar({name: 'Sync Models'});
 
@@ -83,6 +91,9 @@ yargs.command({
             options.token = token.access_token;
             if(dryRun === undefined){
                 dryRun = false;
+            }
+            if(filterSync === undefined){
+                filterSync = false;
             }
             let user = await auth.getUser(guid, token.access_token);
 
@@ -92,13 +103,53 @@ yargs.command({
 
                 let modelPush = new modelSync(options, multibar);
                 if(sourcePermitted && targetPermitted){
+
+                    if(instancePull){
+                        console.log(colors.yellow('Pulling models from your instance. Please wait...'));
+                        code.cleanup('.agility-files');
+                        code.createBaseFolder();
+                        code.createLogFile('logs', 'instancelog');
+                        let modelPull = new model(options, multibar);
+
+                        let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
+                
+                        await modelPull.getModels(guid);
+                        await templatesPull.getPageTemplates();
+                        multibar.stop();
+                    }
+
+                    if(filterSync){
+                        if(instancePull){
+                                await inquirer.prompt([
+                                    {
+                                        type: 'confirm',
+                                        name: 'instancePull',
+                                        message: 'Since instancePull operation is applied, please place filterModels.json file in the .agility-files folder and then press Y to continue.'
+                                    }
+                                ]).then(async (answers: { instancePull: boolean; })=> {
+                
+                                    if(answers.instancePull){
+                                        }
+                                })
+                            
+                        }
+                        if(!code.checkFileExists(`.agility-files/filterModels.json`)){
+                            console.log(colors.red('Please provide the file filterModels.json with the reference names of models to be filtered in .agility-files folder.'));
+                            return;
+                        }
+                        else{
+                            let file = code.readFile(`.agility-files/filterModels.json`);
+                            const referenceNames = JSON.parse(file) as string[];
+                            models = await modelPush.validateAndCreateFilterModels(referenceNames, guid);
+                        }
+                    }
                     if(dryRun){
                         console.log(colors.yellow('Running a dry run on models, please wait...'));
                         if(code.folderExists('models/json')){
                             code.cleanup('.agility-files/models/json');
                         }
 
-                        let containerRefs =  await modelPush.logContainers();
+                        let containerRefs =  await modelPush.logContainers(models);
                         if(containerRefs){
                             if(containerRefs.length > 0){
                                 await inquirer.prompt([
@@ -111,7 +162,7 @@ yargs.command({
                 
                                     if(answers.containers){
                                     //    multibar = createMultibar({name: 'Sync Models'});
-                                        await modelPush.dryRun(guid, locale, targetGuid);
+                                        await modelPush.dryRun(guid, locale, targetGuid, models);
                                         }
                                 })
                             }
@@ -120,18 +171,6 @@ yargs.command({
                     }
                     else{
                         console.log(colors.yellow('Syncing Models from your instance...'));
-                        if(instancePull){
-                            code.cleanup('.agility-files');
-                            code.createBaseFolder();
-                            let modelPull = new model(options, multibar);
-    
-                            let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
-                    
-                            await modelPull.getModels(guid);
-                            await templatesPull.getPageTemplates();
-                            multibar.stop();
-                        }
-                        
     
                         let containerRefs =  await modelPush.logContainers();
                         if(containerRefs){
@@ -146,7 +185,7 @@ yargs.command({
                 
                                     if(answers.containers){
                                         multibar = createMultibar({name: 'Sync Models'});
-                                        await modelPush.syncProcess(targetGuid, locale);
+                                        await modelPush.syncProcess(targetGuid, locale, models);
                                         }
                                 })
                             }

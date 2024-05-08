@@ -982,6 +982,21 @@ export class push{
         return differences;
     }
 
+    async createModelsForFilter(referenceName: string, guid: string){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+      
+        let model: mgmtApi.Model;
+
+        try{
+            model = await apiClient.modelMethods.getModelByReferenceName(referenceName, guid);
+        }
+        catch{
+            
+        }
+    
+       return model;
+    }
+
     async validateDryRunLinkedModels(model: mgmtApi.Model, guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
         let differences: any = {};
