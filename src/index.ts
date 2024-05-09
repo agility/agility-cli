@@ -61,9 +61,9 @@ yargs.command({
             type: 'boolean'
         },
         filterSync: {
-            describe: 'Provide the value as true or false to apply a filter on specific models.',
+            describe: 'Specify the folder where filterModels.json is placed.',
             demandOption: false,
-            type: 'boolean'
+            type: 'string'
         }
     },
     handler: async function(argv) {
@@ -80,7 +80,7 @@ yargs.command({
             let locale: string = argv.locale as string; 
             let instancePull: boolean = argv.instancePull as boolean;
             let dryRun: boolean = argv.dryRun as boolean;
-            let filterSync: boolean = argv.filterSync as boolean;
+            let filterSync: string = argv.filterSync as string;
             let token = await auth.cliPoll(form, guid);
 
             let models: mgmtApi.Model[] = [];
@@ -93,7 +93,7 @@ yargs.command({
                 dryRun = false;
             }
             if(filterSync === undefined){
-                filterSync = false;
+                filterSync = '';
             }
             let user = await auth.getUser(guid, token.access_token);
 
@@ -117,7 +117,6 @@ yargs.command({
                         await templatesPull.getPageTemplates();
                         multibar.stop();
                     }
-
                     if(filterSync){
                         if(instancePull){
                                 // await inquirer.prompt([
@@ -133,12 +132,12 @@ yargs.command({
                                 // })
                             
                         }
-                        if(!code.checkFileExists(`.agility-files/filterModels.json`)){
-                            console.log(colors.red('Please provide the file filterModels.json with the reference names of models to be filtered in .agility-files folder.'));
+                        if(!code.checkFileExists(filterSync)){
+                            console.log(colors.red(`Please provide the file filterModels.json with the reference names of models to be filtered in folder ${filterSync}.`));
                             return;
                         }
                         else{
-                            let file = code.readFile(`.agility-files/filterModels.json`);
+                            let file = code.readFile(`${filterSync}/filterModels.json`);
                             const referenceNames = JSON.parse(file) as string[];
                             models = await modelPush.validateAndCreateFilterModels(referenceNames, guid);
                         }
@@ -155,7 +154,7 @@ yargs.command({
                                 console.log(colors.yellow('Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance.'));
                             }
                         }
-                       
+                        await modelPush.dryRun(guid, locale, targetGuid, models);
                     }
                     else{
                         console.log(colors.yellow('Syncing Models from your instance...'));
