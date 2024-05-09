@@ -92,7 +92,7 @@ export class modelSync{
                     progressBar3.update(index);
                     index += 1;
                 }
-            await pushOperation.pushLinkedModels(linkedModels, guid);
+           await pushOperation.pushLinkedModels(linkedModels, guid);
             let pageTemplates = await pushOperation.createBaseTemplates();
             if(pageTemplates){
                 await pushOperation.pushTemplates(pageTemplates, guid, locale);

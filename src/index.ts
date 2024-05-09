@@ -120,17 +120,17 @@ yargs.command({
 
                     if(filterSync){
                         if(instancePull){
-                                await inquirer.prompt([
-                                    {
-                                        type: 'confirm',
-                                        name: 'instancePull',
-                                        message: 'Since instancePull operation is applied, please place filterModels.json file in the .agility-files folder and then press Y to continue.'
-                                    }
-                                ]).then(async (answers: { instancePull: boolean; })=> {
+                                // await inquirer.prompt([
+                                //     {
+                                //         type: 'confirm',
+                                //         name: 'instancePull',
+                                //         message: 'Since instancePull operation is applied, please place filterModels.json file in the .agility-files folder and then press Y to continue.'
+                                //     }
+                                // ]).then(async (answers: { instancePull: boolean; })=> {
                 
-                                    if(answers.instancePull){
-                                        }
-                                })
+                                //     if(answers.instancePull){
+                                //         }
+                                // })
                             
                         }
                         if(!code.checkFileExists(`.agility-files/filterModels.json`)){
@@ -152,44 +152,39 @@ yargs.command({
                         let containerRefs =  await modelPush.logContainers(models);
                         if(containerRefs){
                             if(containerRefs.length > 0){
-                                await inquirer.prompt([
-                                    {
-                                        type: 'confirm',
-                                        name: 'containers',
-                                        message: 'Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance. '
-                                    }
-                                ]).then(async (answers: { containers: boolean; })=> {
-                
-                                    if(answers.containers){
-                                    //    multibar = createMultibar({name: 'Sync Models'});
-                                        await modelPush.dryRun(guid, locale, targetGuid, models);
-                                        }
-                                })
+                                console.log(colors.yellow('Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance.'));
                             }
                         }
                        
                     }
                     else{
                         console.log(colors.yellow('Syncing Models from your instance...'));
-    
-                        let containerRefs =  await modelPush.logContainers();
+                        multibar = createMultibar({name: 'Sync Models'});
+                        let containerRefs =  await modelPush.logContainers(models);
                         if(containerRefs){
                             if(containerRefs.length > 0){
-                                await inquirer.prompt([
-                                    {
-                                        type: 'confirm',
-                                        name: 'containers',
-                                        message: 'Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance. '
-                                    }
-                                ]).then(async (answers: { containers: boolean; })=> {
-                
-                                    if(answers.containers){
-                                        multibar = createMultibar({name: 'Sync Models'});
-                                        await modelPush.syncProcess(targetGuid, locale, models);
-                                        }
-                                })
+                                console.log(colors.yellow('Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance.'));
                             }
                         }
+                        await modelPush.syncProcess(targetGuid, locale, models);
+                        // let containerRefs =  await modelPush.logContainers();
+                        // if(containerRefs){
+                        //     if(containerRefs.length > 0){
+                        //         await inquirer.prompt([
+                        //             {
+                        //                 type: 'confirm',
+                        //                 name: 'containers',
+                        //                 message: 'Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance. '
+                        //             }
+                        //         ]).then(async (answers: { containers: boolean; })=> {
+                
+                        //             if(answers.containers){
+                        //                 multibar = createMultibar({name: 'Sync Models'});
+                        //                 await modelPush.syncProcess(targetGuid, locale, models);
+                        //                 }
+                        //         })
+                        //     }
+                        // }
                     }
                     
                 }
@@ -232,6 +227,7 @@ yargs.command({
         if(codeFileStatus){
             code.cleanup('.agility-files');
             code.createBaseFolder();
+            code.createLogFile('logs', 'instancelog');
             let data = JSON.parse(code.readTempFile('code.json'));
             
             const form = new FormData();

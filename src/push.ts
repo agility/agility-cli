@@ -878,8 +878,9 @@ export class push{
                 try{
                     let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
                     if(existing){
-                        model.id = existing.id;
-                        let updatedModel = await apiClient.modelMethods.saveModel(model, guid);
+                        let updatesToModel = this.updateModel(existing, model);
+                        updatesToModel.id = existing.id;
+                        let updatedModel = await apiClient.modelMethods.saveModel(updatesToModel, guid);
                         this.processedModels[updatedModel.referenceName] = updatedModel.id;
                         models[i] = null;
                     }
@@ -945,8 +946,9 @@ export class push{
             let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
             let oldModelId = model.id;
             if(existing){
-                model.id = existing.id;
-                let updatedModel = await apiClient.modelMethods.saveModel(model,guid);
+                let updatesToModel = this.updateModel(existing, model);
+                updatesToModel.id = existing.id;
+                let updatedModel = await apiClient.modelMethods.saveModel(updatesToModel,guid);
                 this.processedModels[updatedModel.referenceName] = updatedModel.id;
             } else{
                 model.id = 0;
@@ -960,6 +962,56 @@ export class push{
             this.processedModels[newModel.referenceName] = newModel.id;
         }
     }
+
+    updateFields(obj1: mgmtApi.Model, obj2: mgmtApi.Model): mgmtApi.ModelField[] {
+        const updatedFields: mgmtApi.ModelField[] = [];
+      
+        obj1.fields.forEach((field1) => {
+            const field2Index = obj2.fields.findIndex((field2) => field2.name === field1.name);
+      
+            if (field2Index !== -1) {
+                field1.settings = { ...field1.settings, ...obj2.fields[field2Index].settings };
+                updatedFields.push(field1);
+            } else {
+                updatedFields.push(field1);
+            }
+        });
+      
+        obj2.fields.forEach((field2) => {
+            const field1Index = obj1.fields.findIndex((field1) => field1.name === field2.name);
+      
+            if (field1Index === -1) {
+                updatedFields.push(field2);
+            }
+        });
+      
+        return updatedFields;
+      }
+      
+      updateModel(obj1: mgmtApi.Model, obj2: mgmtApi.Model): mgmtApi.Model {
+        const updatedObj: mgmtApi.Model = {
+            ...obj1,
+            id: obj1.id,
+            lastModifiedDate: obj1.lastModifiedDate,
+        };
+      
+        // Update other properties from obj2
+        updatedObj.displayName = obj2.displayName;
+        updatedObj.referenceName = obj2.referenceName;
+        updatedObj.lastModifiedBy = obj2.lastModifiedBy;
+        updatedObj.lastModifiedAuthorID = obj2.lastModifiedAuthorID;
+        updatedObj.description = obj2.description;
+        updatedObj.allowTagging = obj2.allowTagging;
+        updatedObj.contentDefinitionTypeName = obj2.contentDefinitionTypeName;
+        updatedObj.isPublished = obj2.isPublished;
+        updatedObj.wasUnpublished = obj2.wasUnpublished;
+      
+        // Update fields based on rules
+        updatedObj.fields = this.updateFields(updatedObj, obj2);
+      
+        return updatedObj;
+      }
+      
 
     async validateDryRun(model: mgmtApi.Model, guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
