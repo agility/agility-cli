@@ -248,6 +248,7 @@ export class push{
 
     async pushTemplates(templates: mgmtApi.PageModel[], guid: string, locale: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
+        let createdTemplates: mgmtApi.PageModel[] = [];
         const progressBar8 = this._multibar.create(templates.length, 0);
         progressBar8.update(0, {name : 'Page Templates'});
 
@@ -293,10 +294,13 @@ export class push{
             }
             try{
                 let createdTemplate =  await apiClient.pageMethods.savePageTemplate(guid, locale, template);
+                createdTemplates.push(createdTemplate);
                 this.processedTemplates[createdTemplate.pageTemplateName] = createdTemplate.pageTemplateID;
             } catch{
             }
        }
+
+       return createdTemplates;
     }
 
     
@@ -802,7 +806,8 @@ export class push{
     }
 
     async pushNormalModels(model: mgmtApi.Model, guid: string){
-        await this.createModel(model, guid);
+        let procesedModel = await this.createModel(model, guid);
+        return procesedModel;
     }
 
     async pushContainers(containers: mgmtApi.Container[], models: mgmtApi.Model[], guid: string){
@@ -863,6 +868,7 @@ export class push{
     async pushLinkedModels(models: mgmtApi.Model[], guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
         let fileOperation = new fileOperations();
+        let processedModels: mgmtApi.Model[] = [];
         const progressBar4 = this._multibar.create(models.length, 0);
         progressBar4.update(0, {name : 'Models: Linked'});
         let index = 1;
@@ -881,6 +887,7 @@ export class push{
                         let updatesToModel = this.updateModel(existing, model);
                         updatesToModel.id = existing.id;
                         let updatedModel = await apiClient.modelMethods.saveModel(updatesToModel, guid);
+                        processedModels.push(updatedModel);
                         this.processedModels[updatedModel.referenceName] = updatedModel.id;
                         models[i] = null;
                     }
@@ -894,6 +901,7 @@ export class push{
                                     model.id = 0;
                                     try{
                                         let createdModel = await apiClient.modelMethods.saveModel(model, guid);
+                                        processedModels.push(createdModel);
                                         this.processedModels[createdModel.referenceName] = createdModel.id;
                                         models[i] = null;
                                     } catch{
@@ -907,6 +915,7 @@ export class push{
                                 model.id = 0;
                                 try{
                                     let createdModel = await apiClient.modelMethods.saveModel(model, guid);
+                                    processedModels.push(createdModel);
                                     this.processedModels[createdModel.referenceName] = createdModel.id;
                                     models[i] = null;
                                 } catch{
@@ -923,6 +932,7 @@ export class push{
                             model.id = 0;
                                 try{
                                     let createdModel = await apiClient.modelMethods.saveModel(model, guid);
+                                    processedModels.push(createdModel);
                                     this.processedModels[createdModel.referenceName] = createdModel.id;
                                     models[i] = null;
                                 } catch (err){
@@ -936,7 +946,7 @@ export class push{
 
             }
         } while(models.filter(m => m !== null).length !== 0)
-
+        return processedModels;
     }
 
 
@@ -950,16 +960,19 @@ export class push{
                 updatesToModel.id = existing.id;
                 let updatedModel = await apiClient.modelMethods.saveModel(updatesToModel,guid);
                 this.processedModels[updatedModel.referenceName] = updatedModel.id;
+                return updatedModel;
             } else{
                 model.id = 0;
                 let newModel =  await apiClient.modelMethods.saveModel(model,guid);
                 this.processedModels[newModel.referenceName] = newModel.id;
+                return newModel;
             }
         }
         catch{
             model.id = 0;
             let newModel =  await apiClient.modelMethods.saveModel(model,guid);
             this.processedModels[newModel.referenceName] = newModel.id;
+            return newModel;
         }
     }
 

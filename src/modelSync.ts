@@ -72,8 +72,9 @@ export class modelSync{
 
     async syncProcess(guid: string, locale: string, filterModels?: mgmtApi.Model[]){
         let pushOperation = new push(this._options, this._multibar);
-
+        let fileOperation = new fileOperations();
         let models: mgmtApi.Model[] = [];
+        let processedModels: mgmtApi.Model[] = [];
         if(filterModels.length > 0){
             models = filterModels
         }
@@ -88,14 +89,18 @@ export class modelSync{
                 let index = 1;
                 for(let i = 0; i < normalModels.length; i++){
                     let normalModel = normalModels[i];
-                    await pushOperation.pushNormalModels(normalModel, guid);
+                    let model = await pushOperation.pushNormalModels(normalModel, guid);
+                    processedModels.push(model);
                     progressBar3.update(index);
                     index += 1;
                 }
-           await pushOperation.pushLinkedModels(linkedModels, guid);
+            let processedLinkedModels =  await pushOperation.pushLinkedModels(linkedModels, guid);
+            const finalModels: mgmtApi.Model[] = [...processedModels, ...processedLinkedModels];
+            fileOperation.exportFiles('models','createdModels', finalModels);
             let pageTemplates = await pushOperation.createBaseTemplates();
             if(pageTemplates){
-                await pushOperation.pushTemplates(pageTemplates, guid, locale);
+               let createdTemplates =  await pushOperation.pushTemplates(pageTemplates, guid, locale);
+               fileOperation.exportFiles('templates','createdTemplates', createdTemplates);
             }
         }
 
