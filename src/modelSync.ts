@@ -70,7 +70,7 @@ export class modelSync{
         }
     }
 
-    async syncProcess(guid: string, locale: string, filterModels?: mgmtApi.Model[]){
+    async syncProcess(guid: string, locale: string, filterModels?: mgmtApi.Model[], filterTemplates?: mgmtApi.PageModel[]){
         let pushOperation = new push(this._options, this._multibar);
         let fileOperation = new fileOperations();
         let models: mgmtApi.Model[] = [];
@@ -97,7 +97,23 @@ export class modelSync{
             let processedLinkedModels =  await pushOperation.pushLinkedModels(linkedModels, guid);
             const finalModels: mgmtApi.Model[] = [...processedModels, ...processedLinkedModels];
             fileOperation.exportFiles('models','createdModels', finalModels);
-            let pageTemplates = await pushOperation.createBaseTemplates();
+            let pageTemplates: mgmtApi.PageModel[] = [];
+
+            
+            if(filterTemplates.length > 0){
+                for(let i = 0; i < filterTemplates.length; i++){
+                    let filterTemplate = filterTemplates[i];
+                    //pageTemplateID
+                    if(fileOperation.checkFileExists(`.agility-files/templates/${filterTemplate.pageTemplateID}.json`)){
+                        let file = fileOperation.readFile(`.agility-files/templates/${filterTemplate.pageTemplateID}.json`);
+                        const template = JSON.parse(file) as mgmtApi.PageModel;
+                        pageTemplates.push(template);
+                    }
+                }
+            }
+            else{
+                pageTemplates = await pushOperation.createBaseTemplates();
+            }
             if(pageTemplates){
                let createdTemplates =  await pushOperation.pushTemplates(pageTemplates, guid, locale);
                fileOperation.exportFiles('templates','createdTemplates', createdTemplates);
@@ -130,7 +146,30 @@ export class modelSync{
         return models;
     }
 
-    async dryRun(guid: string, locale: string, targetGuid: string, filterModels?: mgmtApi.Model[]){
+    async validateAndCreateFilterTemplates(pageTemplateNames: string[], guid: string, locale: string){
+        let pushOperation = new push(this._options, this._multibar);
+        let fileOperation = new fileOperations();
+        const progressBar2 = this._multibar.create(pageTemplateNames.length, 0);
+        let templates: mgmtApi.PageModel[] = [];
+        progressBar2.update(0, {name : 'Validating and Creating Page Template Object for model filter.'});
+        let index = 1;
+        for(let i = 0; i < pageTemplateNames.length; i++){
+            let pageTemplateName = pageTemplateNames[i];
+            let template = await pushOperation.createTempllateForFilter(pageTemplateName, guid, locale);
+            if(template){
+                templates.push(template);
+            }
+            else{
+                fileOperation.appendLogFile(`\n Unable to find page template for template name: ${pageTemplateName}`);
+            }
+            progressBar2.update(index);
+            index += 1;
+        }
+        this._multibar.stop();
+        return templates;
+    }
+
+    async dryRun(guid: string, locale: string, targetGuid: string, filterModels?: mgmtApi.Model[], filterTemplates?: mgmtApi.PageModel[]){
         let pushOperation = new push(this._options, this._multibar);
         let fileOperation = new fileOperations();
         let models: mgmtApi.Model[] = [];
@@ -174,8 +213,16 @@ export class modelSync{
                 progressBar5.update(index);
                 index += 1;
             }
-
-            let pageTemplates = await pushOperation.createBaseTemplates();
+            let pageTemplates: mgmtApi.PageModel[] = []
+            if(filterTemplates.length > 0){
+                console.log('filter');
+                pageTemplates = filterTemplates
+            }
+            else{
+                console.log('base');
+                pageTemplates = await pushOperation.createBaseTemplates();
+            }
+            
             const progressBar6 = this._multibar.create(pageTemplates.length, 0);
             progressBar6.update(0, {name : 'Templates Dry Run'});
             index = 1;

@@ -1062,6 +1062,18 @@ export class push{
        return model;
     }
 
+    async createTempllateForFilter(pageTemplateName: string, guid: string, locale: string){
+        let apiClient = new mgmtApi.ApiClient(this._options);
+        let template: mgmtApi.PageModel
+        try{
+            template = await apiClient.pageMethods.getPageTemplateName(guid, locale, pageTemplateName);
+        }
+        catch{
+
+        }
+        return template;
+    }
+
     async validateDryRunLinkedModels(model: mgmtApi.Model, guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
         let differences: any = {};

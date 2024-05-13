@@ -16,6 +16,7 @@ const colors = require('ansi-colors');
 const inquirer = require('inquirer');
 import { createMultibar } from './multibar';
 import { modelSync } from './modelSync';
+import { FilterData, ModelFilter } from "./models/modelFilter";
 
 let auth: Auth
 let options: mgmtApi.Options;
@@ -85,6 +86,8 @@ yargs.command({
 
             let models: mgmtApi.Model[] = [];
 
+            let templates: mgmtApi.PageModel[] = [];
+
             let multibar = createMultibar({name: 'Sync Models'});
 
             options = new mgmtApi.Options();
@@ -138,8 +141,10 @@ yargs.command({
                         }
                         else{
                             let file = code.readFile(`${filterSync}/filterModels.json`);
-                            const referenceNames = JSON.parse(file) as string[];
-                            models = await modelPush.validateAndCreateFilterModels(referenceNames, guid);
+                            const jsonData: FilterData = JSON.parse(file);
+                            const modelFilter = new ModelFilter(jsonData);
+                            models = await modelPush.validateAndCreateFilterModels(modelFilter.filter.Models, guid);
+                            templates = await modelPush.validateAndCreateFilterTemplates(modelFilter.filter.Templates, guid, locale);
                         }
                     }
                     if(dryRun){
@@ -154,7 +159,7 @@ yargs.command({
                                 console.log(colors.yellow('Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance.'));
                             }
                         }
-                        await modelPush.dryRun(guid, locale, targetGuid, models);
+                        await modelPush.dryRun(guid, locale, targetGuid, models, templates);
                     }
                     else{
                         console.log(colors.yellow('Syncing Models from your instance...'));
@@ -165,7 +170,7 @@ yargs.command({
                                 console.log(colors.yellow('Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance.'));
                             }
                         }
-                        await modelPush.syncProcess(targetGuid, locale, models);
+                        await modelPush.syncProcess(targetGuid, locale, models, templates);
                         // let containerRefs =  await modelPush.logContainers();
                         // if(containerRefs){
                         //     if(containerRefs.length > 0){
