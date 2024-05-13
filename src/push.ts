@@ -1032,7 +1032,7 @@ export class push{
         try{
             let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
             if(existing){
-              differences =  await this.compareModelObjects(existing, model, existing.referenceName);
+              differences =  await this.compareObjects(existing, model, model.referenceName);
             }
             else{
                 differences['referenceName'] = {
@@ -1076,7 +1076,7 @@ export class push{
                         if(fileOperation.checkFileExists(`.agility-files/models/${existingLinked.id}.json`)){
                             let file = fileOperation.readFile(`.agility-files/models/${existingLinked.id}.json`);
                             const modelData = JSON.parse(file) as mgmtApi.Model;
-                            differences =  await this.compareModelObjects(existingLinked, modelData, existingLinked.referenceName);
+                            differences =  await this.compareObjects(existingLinked, modelData, model.referenceName);
                         }
                         else{
                             fileOperation.appendLogFile(`\n Unable to find model for referenceName ${existingLinked.referenceName} in the dry run for linked models.`);
@@ -1095,7 +1095,7 @@ export class push{
         try{
             let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
             if(existing){
-                differences =  await this.compareModelObjects(existing, model, existing.referenceName);
+                differences =  await this.compareObjects(existing, model, model.referenceName);
               }
               else{
                   differences['referenceName'] = {
@@ -1157,6 +1157,67 @@ export class push{
         compareProps(obj1, obj2);
         return differences;
       }
+
+      compareObjects = (obj1: any, obj2: any, referenceName: string): string => {
+        const result: ComparisonResult = {};
+        const data: any = {};
+    
+        const compareProperties = (field1: mgmtApi.ModelField, field2: mgmtApi.ModelField) => {
+            const fieldChanges: ComparisonResult = {};
+    
+            for (const key in field1) {
+                if (key !== "id" && key !== "lastModifiedDate" && field1[key as keyof mgmtApi.ModelField] !== field2[key as keyof mgmtApi.ModelField]) {
+                    fieldChanges[key] = {
+                        oldValue: field1[key as keyof mgmtApi.ModelField],
+                        newValue: field2[key as keyof mgmtApi.ModelField]
+                    };
+                }
+            }
+    
+            return fieldChanges;
+        };
+    
+        // Compare top-level properties
+        const topLevelChanges = compareProperties(obj1, obj2);
+        Object.assign(result, topLevelChanges);
+    
+        // Compare fields
+        const fieldsChanges: ComparisonResult = {
+            oldValue: [],
+            newValue: []
+        };
+    
+        for (const field1 of obj1.fields) {
+            const field2 = obj2.fields.find((f: mgmtApi.ModelField) => f.name === field1.name);
+            if (!field2) {
+                fieldsChanges.oldValue.push(field1);
+                fieldsChanges.newValue.push(field1); // Add null for missing field in newValue
+            } else {
+                const fieldChanges = compareProperties(field1, field2);
+                if (Object.keys(fieldChanges).length > 0) {
+                    fieldsChanges.oldValue.push(field1);
+                    fieldsChanges.newValue.push(field2);
+                }
+            }
+        }
+    
+        for (const field2 of obj2.fields) {
+            const field1 = obj1.fields.find((f: mgmtApi.ModelField) => f.name === field2.name);
+            if (!field1) {
+                fieldsChanges.newValue.push(field2);
+                //fieldsChanges.oldValue.push(null); // Add null for missing field in oldValue
+            }
+        }
+    
+        if (fieldsChanges.oldValue.length > 0 || fieldsChanges.newValue.length > 0) {
+            result.fields = fieldsChanges;
+        }
+    
+        data[referenceName] = {
+            result
+        } 
+        return data;
+    };
 
     async compareModelObjects(obj1: any, obj2: any, referenceName: string) {
         const differences: any = {};
