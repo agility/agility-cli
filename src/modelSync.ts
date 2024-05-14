@@ -215,11 +215,17 @@ export class modelSync{
             }
             let pageTemplates: mgmtApi.PageModel[] = []
             if(filterTemplates.length > 0){
-                console.log('filter');
-                pageTemplates = filterTemplates
+                for(let i = 0; i < filterTemplates.length; i++){
+                    let filterTemplate = filterTemplates[i];
+                    //pageTemplateID
+                    if(fileOperation.checkFileExists(`.agility-files/templates/${filterTemplate.pageTemplateID}.json`)){
+                        let file = fileOperation.readFile(`.agility-files/templates/${filterTemplate.pageTemplateID}.json`);
+                        const template = JSON.parse(file) as mgmtApi.PageModel;
+                        pageTemplates.push(template);
+                    }
+                }
             }
             else{
-                console.log('base');
                 pageTemplates = await pushOperation.createBaseTemplates();
             }
             
