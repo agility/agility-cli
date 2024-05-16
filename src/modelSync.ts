@@ -76,7 +76,7 @@ export class modelSync{
         let models: mgmtApi.Model[] = [];
         let processedModels: mgmtApi.Model[] = [];
         if(filterModels.length > 0){
-            models = filterModels
+            models = filterModels;
         }
         else{
             models = pushOperation.createBaseModels();

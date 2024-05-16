@@ -869,6 +869,8 @@ export class push{
         let apiClient = new mgmtApi.ApiClient(this._options);
         let fileOperation = new fileOperations();
         let processedModels: mgmtApi.Model[] = [];
+        let completedModels: string[] = [];
+        let unprocessedModels: string[] = [];
         const progressBar4 = this._multibar.create(models.length, 0);
         progressBar4.update(0, {name : 'Models: Linked'});
         let index = 1;
@@ -889,6 +891,7 @@ export class push{
                         let updatedModel = await apiClient.modelMethods.saveModel(updatesToModel, guid);
                         processedModels.push(updatedModel);
                         this.processedModels[updatedModel.referenceName] = updatedModel.id;
+                        completedModels.push(updatedModel.referenceName);
                         models[i] = null;
                     }
                 } catch{
@@ -903,9 +906,11 @@ export class push{
                                         let createdModel = await apiClient.modelMethods.saveModel(model, guid);
                                         processedModels.push(createdModel);
                                         this.processedModels[createdModel.referenceName] = createdModel.id;
+                                        completedModels.push(createdModel.referenceName);
                                         models[i] = null;
                                     } catch{
-                                        fileOperation.appendLogFile(`\n Unable to process model for referenceName ${model.referenceName} with modelId ${model.id}.`);
+                                        unprocessedModels.push(model.referenceName);
+                                        //fileOperation.appendLogFile(`\n Unable to process model for referenceName ${model.referenceName} with modelId ${model.id}.`);
                                         models[i] = null;
                                         continue;
                                     }
@@ -917,9 +922,11 @@ export class push{
                                     let createdModel = await apiClient.modelMethods.saveModel(model, guid);
                                     processedModels.push(createdModel);
                                     this.processedModels[createdModel.referenceName] = createdModel.id;
+                                    completedModels.push(createdModel.referenceName);
                                     models[i] = null;
                                 } catch{
-                                    fileOperation.appendLogFile(`\n Unable to process model for referenceName ${model.referenceName} with modelId ${oldModelId}.`);
+                                    unprocessedModels.push(model.referenceName);
+                                    //fileOperation.appendLogFile(`\n Unable to process model for referenceName ${model.referenceName} with modelId ${oldModelId}.`);
                                     models[i] = null;
                                     continue;
                                 }
@@ -934,9 +941,11 @@ export class push{
                                     let createdModel = await apiClient.modelMethods.saveModel(model, guid);
                                     processedModels.push(createdModel);
                                     this.processedModels[createdModel.referenceName] = createdModel.id;
+                                    completedModels.push(createdModel.referenceName);
                                     models[i] = null;
                                 } catch (err){
-                                    fileOperation.appendLogFile(`\n Unable to process model for referenceName ${model.referenceName} with modelId ${oldModelId}.`);
+                                    unprocessedModels.push(model.referenceName);
+                                    //fileOperation.appendLogFile(`\n Unable to process model for referenceName ${model.referenceName} with modelId ${oldModelId}.`);
                                     models[i] = null;
                                     continue;
                                 }
@@ -946,6 +955,12 @@ export class push{
 
             }
         } while(models.filter(m => m !== null).length !== 0)
+        
+        let unprocessed = unprocessedModels.filter((x) => !completedModels.includes(x));
+
+        for(let i = 0; i < unprocessed.length; i++){
+            fileOperation.appendLogFile(`\n Unable to process model for referenceName ${unprocessed[i]}.`);
+        }
         return processedModels;
     }
 
@@ -1032,7 +1047,7 @@ export class push{
         try{
             let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
             if(existing){
-              differences =  await this.compareObjects(existing, model, model.referenceName);
+              differences =  await this.findModelDifferences(model, existing, model.referenceName);
             }
             else{
                 differences['referenceName'] = {
@@ -1088,7 +1103,7 @@ export class push{
                         if(fileOperation.checkFileExists(`.agility-files/models/${existingLinked.id}.json`)){
                             let file = fileOperation.readFile(`.agility-files/models/${existingLinked.id}.json`);
                             const modelData = JSON.parse(file) as mgmtApi.Model;
-                            differences =  await this.compareObjects(existingLinked, modelData, model.referenceName);
+                            differences =  await this.findModelDifferences(modelData, existingLinked, model.referenceName);
                         }
                         else{
                             fileOperation.appendLogFile(`\n Unable to find model for referenceName ${existingLinked.referenceName} in the dry run for linked models.`);
@@ -1107,7 +1122,7 @@ export class push{
         try{
             let existing = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
             if(existing){
-                differences =  await this.compareObjects(existing, model, model.referenceName);
+                differences =  await this.findModelDifferences(model, existing, model.referenceName);
               }
               else{
                   differences['referenceName'] = {
@@ -1129,7 +1144,7 @@ export class push{
         try{
             let existingTemplate = await apiClient.pageMethods.getPageTemplateName(guid, locale, template.pageTemplateName);
             if(existingTemplate){
-                differences = await this.compareTemplateObjects(existingTemplate, template, existingTemplate.pageTemplateName);
+                differences = await this.findTemplateDifferences(template, existingTemplate, existingTemplate.pageTemplateName);
             }
             else{
                 differences['templateName'] = {
@@ -1146,90 +1161,263 @@ export class push{
         return differences;
     }
 
-    async compareTemplateObjects(obj1: any, obj2: any, templateName: string) {
-        const differences: any = {};
-        const ignoreFields = ['pageTemplateID', 'releaseDate', 'pullDate'];
-        const compareProps = (obj1: any, obj2: any, path: string = '') => {
-          for (const key in obj1) {
-            if (obj1.hasOwnProperty(key) && !ignoreFields.includes(key)) {
-              const newPath = path ? `${path}.${key}` : key;
-              if (typeof obj1[key] === 'object' && obj1[key] !== null && typeof obj2[key] === 'object' && obj2[key] !== null) {
-                compareProps(obj1[key], obj2[key], newPath);
-              } else if (obj1[key] !== obj2[key]) {
-                differences[newPath] = {
-                  oldValue: obj1[key],
-                  newValue: obj2[key],
-                  templateName: templateName
-                };
-              }
-            }
-          }
-        };
+    // async compareTemplateObjects(obj1: any, obj2: any, templateName: string) {
+    //     const differences: any = {};
+    //     const ignoreFields = ['pageTemplateID', 'releaseDate', 'pullDate'];
+    //     const compareProps = (obj1: any, obj2: any, path: string = '') => {
+    //       for (const key in obj1) {
+    //         if (obj1.hasOwnProperty(key) && !ignoreFields.includes(key)) {
+    //           const newPath = path ? `${path}.${key}` : key;
+    //           if (typeof obj1[key] === 'object' && obj1[key] !== null && typeof obj2[key] === 'object' && obj2[key] !== null) {
+    //             compareProps(obj1[key], obj2[key], newPath);
+    //           } else if (obj1[key] !== obj2[key]) {
+    //             differences[newPath] = {
+    //               oldValue: obj1[key],
+    //               newValue: obj2[key],
+    //               templateName: templateName
+    //             };
+    //           }
+    //         }
+    //       }
+    //     };
       
-        compareProps(obj1, obj2);
-        return differences;
-      }
+    //     compareProps(obj1, obj2);
+    //     return differences;
+    //   }
 
-      compareObjects = (obj1: any, obj2: any, referenceName: string): string => {
-        const result: ComparisonResult = {};
+      findModelDifferences(obj1: any, obj2: any, referenceName: string): { added: any; updated: any } {
+        const added: any = {};
+        const updated: any = {};
         const data: any = {};
     
-        const compareProperties = (field1: mgmtApi.ModelField, field2: mgmtApi.ModelField) => {
-            const fieldChanges: ComparisonResult = {};
-    
-            for (const key in field1) {
-                if (key !== "id" && key !== "lastModifiedDate" && field1[key as keyof mgmtApi.ModelField] !== field2[key as keyof mgmtApi.ModelField]) {
-                    fieldChanges[key] = {
-                        oldValue: field1[key as keyof mgmtApi.ModelField],
-                        newValue: field2[key as keyof mgmtApi.ModelField]
-                    };
-                }
-            }
-    
-            return fieldChanges;
-        };
-    
-        // Compare top-level properties
-        const topLevelChanges = compareProperties(obj1, obj2);
-        Object.assign(result, topLevelChanges);
-    
-        // Compare fields
-        const fieldsChanges: ComparisonResult = {
-            oldValue: [],
-            newValue: []
-        };
-    
-        for (const field1 of obj1.fields) {
-            const field2 = obj2.fields.find((f: mgmtApi.ModelField) => f.name === field1.name);
-            if (!field2) {
-                fieldsChanges.oldValue.push(field1);
-                fieldsChanges.newValue.push(field1); // Add null for missing field in newValue
-            } else {
-                const fieldChanges = compareProperties(field1, field2);
-                if (Object.keys(fieldChanges).length > 0) {
-                    fieldsChanges.oldValue.push(field1);
-                    fieldsChanges.newValue.push(field2);
-                }
-            }
+        if (obj1.displayName !== obj2.displayName) {
+          updated.displayName = obj1.displayName;
         }
-    
-        for (const field2 of obj2.fields) {
-            const field1 = obj1.fields.find((f: mgmtApi.ModelField) => f.name === field2.name);
-            if (!field1) {
-                fieldsChanges.newValue.push(field2);
-                //fieldsChanges.oldValue.push(null); // Add null for missing field in oldValue
+         
+        obj1.fields.forEach((field1) => {
+          const field2 = obj2.fields.find((f) => f.name === field1.name);
+      
+          if (!field2) {
+            added[field1.name] = field1;
+          } else {
+            const updatedProps: any = {};
+      
+            if (field1.label !== field2.label) {
+              updatedProps.label = field2.label;
             }
+            if (field1.labelHelpDescription !== field2.labelHelpDescription) {
+              updatedProps.labelHelpDescription = field1.labelHelpDescription;
+            }
+            if (field1.designerOnly !== field2.designerOnly) {
+              updatedProps.designerOnly = field1.designerOnly;
+            }
+            if (field1.isDataField !== field2.isDataField) {
+              updatedProps.isDataField = field1.isDataField;
+            }
+            if (field1.editable !== field2.editable) {
+              updatedProps.editable = field1.editable;
+            }
+            if (field1.hiddenField !== field2.hiddenField) {
+              updatedProps.hiddenField = field1.hiddenField;
+            }
+            if (field1.description !== field2.description) {
+              updatedProps.description = field1.description;
+            }
+      
+            const settings1 = field1.settings;
+            const settings2 = field2.settings;
+            const settingsDiff: any = {};
+      
+            Object.keys(settings1).forEach((key) => {
+              if (settings1[key] !== settings2[key]) {
+                settingsDiff[key] = settings1[key];
+              }
+            });
+      
+            if (Object.keys(settingsDiff).length > 0) {
+              updatedProps.settings = settingsDiff;
+            }
+      
+            if (Object.keys(updatedProps).length > 0) {
+              updated[field1.name] = updatedProps;
+            }
+          }
+        });
+        let result = { added, updated };
+        data[referenceName]= { result }
+         return data;
+      }
+
+      findTemplateDifferences(obj1: mgmtApi.PageModel, obj2: mgmtApi.PageModel, pageTemplateName: string): { added: any; updated: any } {
+        const added: any = {};
+        const updated: any = {};
+        const data: any = {};
+        
+        if(obj1.doesPageTemplateHavePages !== obj2.doesPageTemplateHavePages){
+            updated.doesPageTemplateHavePages = obj2.doesPageTemplateHavePages;
         }
-    
-        if (fieldsChanges.oldValue.length > 0 || fieldsChanges.newValue.length > 0) {
-            result.fields = fieldsChanges;
+
+        if(obj1.digitalChannelTypeName !== obj2.digitalChannelTypeName){
+            updated.digitalChannelTypeName = obj2.digitalChannelTypeName;
         }
-    
-        data[referenceName] = {
-            result
-        } 
+        if(obj1.agilityCode !== obj2.agilityCode){
+            updated.agilityCode = obj2.agilityCode;
+        }
+        if(obj1.relativeURL !== obj2.relativeURL){
+            updated.relativeURL = obj2.relativeURL;
+        }
+        if(obj1.previewUrl !== obj2.previewUrl){
+            updated.previewUrl = obj2.previewUrl;
+        }
+
+        // for (const key in obj1) {
+        //   if (obj1.hasOwnProperty(key) && obj2.hasOwnProperty(key)) {
+        //     if (obj1[key] !== obj2[key]) {
+        //       updated[key] = obj2[key];
+        //     }
+        //   }
+        // }
+      
+        // for (const key in obj2) {
+        //   if (obj2.hasOwnProperty(key) && !obj1.hasOwnProperty(key)) {
+        //     added[key] = obj2[key];
+        //   }
+        // }
+      
+        // Compare contentSectionDefinitions
+        const csd1 = obj1.contentSectionDefinitions || [];
+        const csd2 = obj2.contentSectionDefinitions || [];
+      
+        csd1.forEach((csd1Item) => {
+          const csd2Item = csd2.find((item) => item?.pageItemTemplateReferenceName === csd1Item?.pageItemTemplateReferenceName);
+          if (!csd2Item) {
+            added.contentSectionDefinitions = added.contentSectionDefinitions || [];
+            added.contentSectionDefinitions.push(csd1Item);
+          } else {
+            const diff = this.compareObjects(csd1Item, csd2Item);
+            if (Object.keys(diff).length > 0) {
+              updated.contentSectionDefinitions = updated.contentSectionDefinitions || [];
+              updated.contentSectionDefinitions.push(diff);
+            }
+          }
+        });
+      
+        // Compare sharedModules
+        const sharedModules1 = obj1.contentSectionDefinitions?.flatMap((csd) => csd?.sharedModules || []) || [];
+        const sharedModules2 = obj2.contentSectionDefinitions?.flatMap((csd) => csd?.sharedModules || []) || [];
+      
+        sharedModules1.forEach((sm1) => {
+          const sm2 = sharedModules2.find((item) => item?.name === sm1?.name);
+          if (!sm2) {
+            added.sharedModules = added.sharedModules || [];
+            added.sharedModules.push(sm1);
+          } else {
+            const diff = this.compareObjects(sm1, sm2);
+            if (Object.keys(diff).length > 0) {
+              updated.sharedModules = updated.sharedModules || [];
+              updated.sharedModules.push(diff);
+            }
+          }
+        });
+      
+        // Compare defaultModules
+        const defaultModules1 = obj1.contentSectionDefinitions?.flatMap((csd) => csd?.defaultModules || []) || [];
+        const defaultModules2 = obj2.contentSectionDefinitions?.flatMap((csd) => csd?.defaultModules || []) || [];
+      
+        defaultModules1.forEach((dm1) => {
+          const dm2 = defaultModules2.find((item) => item?.title === dm1?.title);
+          if (!dm2) {
+            added.defaultModules = added.defaultModules || [];
+            added.defaultModules.push(dm1);
+          } else {
+            const diff = this.compareObjects(dm1, dm2);
+            if (Object.keys(diff).length > 0) {
+              updated.defaultModules = updated.defaultModules || [];
+              updated.defaultModules.push(diff);
+            }
+          }
+        });
+      
+        let result = { added, updated };
+        data[pageTemplateName]= { result }
         return data;
-    };
+      }
+
+      compareObjects(obj1: any, obj2: any): any {
+        const diff: any = {};
+      
+        for (const key in obj1) {
+          if (obj1.hasOwnProperty(key) && obj2.hasOwnProperty(key)) {
+            if (obj1[key] !== obj2[key]) {
+              diff[key] = obj2[key];
+            }
+          }
+        }
+      
+        return diff;
+      }
+      
+
+    //   compareModelObjects = (obj1: any, obj2: any, referenceName: string): string => {
+    //     const result: ComparisonResult = {};
+    //     const data: any = {};
+    
+    //     const compareProperties = (field1: mgmtApi.ModelField, field2: mgmtApi.ModelField) => {
+    //         const fieldChanges: ComparisonResult = {};
+    
+    //         for (const key in field1) {
+    //             if (key !== "id" && key !== "lastModifiedDate" && field1[key as keyof mgmtApi.ModelField] !== field2[key as keyof mgmtApi.ModelField]) {
+    //                 fieldChanges[key] = {
+    //                     oldValue: field1[key as keyof mgmtApi.ModelField],
+    //                     newValue: field2[key as keyof mgmtApi.ModelField]
+    //                 };
+    //             }
+    //         }
+    
+    //         return fieldChanges;
+    //     };
+    
+    //     // Compare top-level properties
+    //     const topLevelChanges = compareProperties(obj1, obj2);
+    //     Object.assign(result, topLevelChanges);
+    
+    //     // Compare fields
+    //     const fieldsChanges: ComparisonResult = {
+    //         oldValue: [],
+    //         newValue: []
+    //     };
+    
+    //     for (const field1 of obj1.fields) {
+    //         const field2 = obj2.fields.find((f: mgmtApi.ModelField) => f.name === field1.name);
+    //         if (!field2) {
+    //             fieldsChanges.oldValue.push(field1);
+    //             fieldsChanges.newValue.push(field1); // Add null for missing field in newValue
+    //         } else {
+    //             const fieldChanges = compareProperties(field1, field2);
+    //             if (Object.keys(fieldChanges).length > 0) {
+    //                 fieldsChanges.oldValue.push(field1);
+    //                 fieldsChanges.newValue.push(field2);
+    //             }
+    //         }
+    //     }
+    
+    //     for (const field2 of obj2.fields) {
+    //         const field1 = obj1.fields.find((f: mgmtApi.ModelField) => f.name === field2.name);
+    //         if (!field1) {
+    //             fieldsChanges.newValue.push(field2);
+    //             //fieldsChanges.oldValue.push(null); // Add null for missing field in oldValue
+    //         }
+    //     }
+    
+    //     if (fieldsChanges.oldValue.length > 0 || fieldsChanges.newValue.length > 0) {
+    //         result.fields = fieldsChanges;
+    //     }
+    
+    //     data[referenceName] = {
+    //         result
+    //     } 
+    //     return data;
+    // };
 
     async compareModelObjects(obj1: any, obj2: any, referenceName: string) {
         const differences: any = {};
