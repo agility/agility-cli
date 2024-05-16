@@ -246,7 +246,7 @@ export class modelSync{
                 }
             }
         }
-        fileOperation.exportFiles('models/json','modelsDryRun', modelDifferences);
+        fileOperation.exportFiles('models-sync','modelsDryRun', modelDifferences);
         this._multibar.stop();
     }
 }

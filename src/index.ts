@@ -149,8 +149,8 @@ yargs.command({
                     }
                     if(dryRun){
                         console.log(colors.yellow('Running a dry run on models, please wait...'));
-                        if(code.folderExists('models/json')){
-                            code.cleanup('.agility-files/models/json');
+                        if(code.folderExists('models-sync')){
+                            code.cleanup('.agility-files/models-sync');
                         }
 
                         let containerRefs =  await modelPush.logContainers(models);
