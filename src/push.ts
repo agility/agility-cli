@@ -1243,9 +1243,14 @@ export class push{
             }
           }
         });
-        let result = { added, updated };
-        data[referenceName]= { result }
-         return data;
+        if(Object.keys(added).length > 0 || Object.keys(updated).length > 0){
+            let result = { added, updated };
+            data[referenceName]= { result }
+            return data;
+        }
+        else{
+            return null;
+        }
       }
 
       findTemplateDifferences(obj1: mgmtApi.PageModel, obj2: mgmtApi.PageModel, pageTemplateName: string): { added: any; updated: any } {
@@ -1338,9 +1343,14 @@ export class push{
           }
         });
       
-        let result = { added, updated };
-        data[pageTemplateName]= { result }
-        return data;
+        if(Object.keys(added).length > 0 || Object.keys(updated).length > 0){
+            let result = { added, updated };
+            data[pageTemplateName]= { result }
+            return data;
+        }
+        else{
+            return null;
+        }
       }
 
       compareObjects(obj1: any, obj2: any): any {
