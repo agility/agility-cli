@@ -96,7 +96,7 @@ export class modelSync{
                 }
             let processedLinkedModels =  await pushOperation.pushLinkedModels(linkedModels, guid);
             const finalModels: mgmtApi.Model[] = [...processedModels, ...processedLinkedModels];
-            fileOperation.exportFiles('models','createdModels', finalModels);
+            fileOperation.exportFiles('models-sync','createdModels', finalModels);
             let pageTemplates: mgmtApi.PageModel[] = [];
 
             
@@ -116,7 +116,7 @@ export class modelSync{
             }
             if(pageTemplates){
                let createdTemplates =  await pushOperation.pushTemplates(pageTemplates, guid, locale);
-               fileOperation.exportFiles('templates','createdTemplates', createdTemplates);
+               fileOperation.exportFiles('models-sync','createdTemplates', createdTemplates);
             }
         }
 

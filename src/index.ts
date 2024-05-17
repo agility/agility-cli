@@ -53,7 +53,7 @@ yargs.command({
         },
         instancePull: {
             describe: 'Provide the value as true or false to perform an instance pull to sync models.',
-            demandOption: true,
+            demandOption: false,
             type: 'boolean'
         },
         dryRun: {
@@ -94,6 +94,9 @@ yargs.command({
             options.token = token.access_token;
             if(dryRun === undefined){
                 dryRun = false;
+            }
+            if(instancePull === undefined){
+                instancePull = false;
             }
             if(filterSync === undefined){
                 filterSync = '';
