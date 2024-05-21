@@ -30,7 +30,7 @@
 1. To pull an instance use the command ```agility pull --guid="<<Provide Guid of your Instance>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be pulled>>"``` to pull an instance.
 2. To push an instance use the command ```agility push --guid="<<Provide the target Instance guid>> --locale="<<Provide the locale of the Instance>>"```
 3. For instance cloning, this command is a mix of push and pull. Use the command ```agility clone --sourceGuid="<<Provide Guid of your source Instance>>" --targetGuid="<<Provide the target Instance guid>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be cloned>>"``` to perform cloning between instances.
-4. To sync Models use the command ```agility sync-models --sourceGuid="<<Guid of your source instance>>" --targetGuid="<<Guid of your target Instance>>"```
+4. To sync Models use the command ```agility sync-models --sourceGuid="<<Guid of your source instance>>" --targetGuid="<<Guid of your target Instance>>" --locale=<<Provide the locale of the Instance" --instancePull="<<Optional Parameter value true/false>>" --dryRun="<<Optional Parameter value true/false>>" --filterSync="<<Optional Paramter folder path where filterModels.json file is present. Ex: - C:\Agility"```
 5. To access the error logs, navigate to .agility-files/logs/instancelog.txt
 
 #### Folder Structure
