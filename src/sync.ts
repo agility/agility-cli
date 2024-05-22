@@ -37,7 +37,10 @@ export class sync{
         await this.getPages();
      }
 
-     async getPageTemplates(){
+     async getPageTemplates(baseFolder?: string){
+      if(baseFolder === undefined || baseFolder === ''){
+         baseFolder = '.agility-files';
+      }
       let apiClient = new mgmtApi.ApiClient(this._options);
       try{
          let pageTemplates = await apiClient.pageMethods.getPageTemplates(this._guid, this._locale, true);
@@ -52,7 +55,7 @@ export class sync{
             let template = pageTemplates[i];
             progressBar0.update(index);
             index += 1;
-            fileExport.exportFiles('templates', template.pageTemplateID, template);
+            fileExport.exportFiles('templates', template.pageTemplateID, template, baseFolder);
          }
       } catch{
 

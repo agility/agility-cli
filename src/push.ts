@@ -67,11 +67,14 @@ export class push{
     }
     /////////////////////////////END: METHODS FOR DEBUG ONLY/////////////////////////////////////////////////////////////////
 
-    createBaseModels(){
+    createBaseModels(baseFolder?: string){
+        if(baseFolder === undefined || baseFolder === ''){
+            baseFolder = '.agility-files';
+          }
         let fileOperation = new fileOperations();
         try{
             
-            let files = fileOperation.readDirectory('models');
+            let files = fileOperation.readDirectory('models', baseFolder);
 
             let models : mgmtApi.Model[] = [];
 
@@ -142,11 +145,14 @@ export class push{
         }
     }
 
-    async createBaseTemplates(){
+    async createBaseTemplates(baseFolder?: string){
+        if(baseFolder === undefined || baseFolder === ''){
+            baseFolder = '.agility-files';
+        }
         let fileOperation = new fileOperations();
         try{
             
-            let files = fileOperation.readDirectory('templates');
+            let files = fileOperation.readDirectory('templates', baseFolder);
 
             let pageModels : mgmtApi.PageModel[] = [];
 

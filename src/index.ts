@@ -38,12 +38,12 @@ yargs.command({
     builder: {
         sourceGuid: {
             describe: 'Provide the source guid to pull models from your source instance.',
-            demandOption: true,
+            demandOption: false,
             type: 'string'
         },
         targetGuid: {
             describe: 'Provide the target guid to push models to your destination instance.',
-            demandOption: true,
+            demandOption: false,
             type: 'string'
         },
         locale: {
@@ -51,17 +51,22 @@ yargs.command({
             demandOption: true,
             type: 'string'
         },
-        instancePull: {
+        pull: {
             describe: 'Provide the value as true or false to perform an instance pull to sync models.',
             demandOption: false,
             type: 'boolean'
+        },
+        folder: {
+            describe: 'Specify the path of the folder where models and template folders are present for model sync.',
+            demandOption: false,
+            type: 'string'
         },
         dryRun: {
             describe: 'Provide the value as true or false to perform a dry run for model sync.',
             demandOption: false,
             type: 'boolean'
         },
-        filterSync: {
+        filter: {
             describe: 'Specify the folder where filterModels.json is placed.',
             demandOption: false,
             type: 'string'
@@ -79,9 +84,10 @@ yargs.command({
             let guid: string = argv.sourceGuid as string;
             let targetGuid: string = argv.targetGuid as string;
             let locale: string = argv.locale as string; 
-            let instancePull: boolean = argv.instancePull as boolean;
+            let instancePull: boolean = argv.pull as boolean;
             let dryRun: boolean = argv.dryRun as boolean;
-            let filterSync: string = argv.filterSync as string;
+            let filterSync: string = argv.filter as string;
+            let folder: string = argv.folder as string;
             let token = await auth.cliPoll(form, guid);
 
             let models: mgmtApi.Model[] = [];
@@ -92,6 +98,10 @@ yargs.command({
 
             options = new mgmtApi.Options();
             options.token = token.access_token;
+            if(guid === undefined && targetGuid === undefined){
+                console.log(colors.red('Please provide a source guid or target guid to perform the operation.'));
+                return;
+            }
             if(dryRun === undefined){
                 dryRun = false;
             }
@@ -101,43 +111,44 @@ yargs.command({
             if(filterSync === undefined){
                 filterSync = '';
             }
+            if(folder === undefined){
+                folder = '.agility-files';
+            }
             let user = await auth.getUser(guid, token.access_token);
 
             if(user){
+                if(guid === undefined){
+                    guid = '';
+                }
+                if(targetGuid === undefined){
+                    targetGuid = '';
+                }
                 let sourcePermitted = await auth.checkUserRole(guid, token.access_token);
                 let targetPermitted = await auth.checkUserRole(targetGuid, token.access_token);
 
+                if(guid === ''){
+                    sourcePermitted = true;
+                }
+                if(targetGuid === ''){
+                    targetPermitted = true;
+                }
                 let modelPush = new modelSync(options, multibar);
                 if(sourcePermitted && targetPermitted){
 
                     if(instancePull){
                         console.log(colors.yellow('Pulling models from your instance. Please wait...'));
-                        code.cleanup('.agility-files');
-                        code.createBaseFolder();
-                        code.createLogFile('logs', 'instancelog');
+                        code.cleanup(folder);
+                        code.createBaseFolder(folder);
+                        code.createLogFile('logs', 'instancelog', folder);
                         let modelPull = new model(options, multibar);
 
                         let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
                 
-                        await modelPull.getModels(guid);
-                        await templatesPull.getPageTemplates();
+                        await modelPull.getModels(guid, folder);
+                        await templatesPull.getPageTemplates(folder);
                         multibar.stop();
                     }
                     if(filterSync){
-                        if(instancePull){
-                                // await inquirer.prompt([
-                                //     {
-                                //         type: 'confirm',
-                                //         name: 'instancePull',
-                                //         message: 'Since instancePull operation is applied, please place filterModels.json file in the .agility-files folder and then press Y to continue.'
-                                //     }
-                                // ]).then(async (answers: { instancePull: boolean; })=> {
-                
-                                //     if(answers.instancePull){
-                                //         }
-                                // })
-                            
-                        }
                         if(!code.checkFileExists(filterSync)){
                             console.log(colors.red(`Please provide the file filterModels.json with the reference names of models to be filtered in folder ${filterSync}.`));
                             return;
@@ -151,9 +162,13 @@ yargs.command({
                         }
                     }
                     if(dryRun){
+                        if(targetGuid === ''){
+                            console.log(colors.red('Please provide the targetGuid parameter a valid instance guid to perform the dry run operation.'));
+                            return;
+                        }
                         console.log(colors.yellow('Running a dry run on models, please wait...'));
                         if(code.folderExists('models-sync')){
-                            code.cleanup('.agility-files/models-sync');
+                            code.cleanup(`${folder}/models-sync`);
                         }
 
                         let containerRefs =  await modelPush.logContainers(models);
@@ -162,9 +177,13 @@ yargs.command({
                                 console.log(colors.yellow('Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance.'));
                             }
                         }
-                        await modelPush.dryRun(guid, locale, targetGuid, models, templates);
+                        await modelPush.dryRun(guid, locale, targetGuid, models, templates, folder);
                     }
                     else{
+                        if(targetGuid === ''){
+                            console.log(colors.red('Please provide the targetGuid parameter a valid instance guid to perform the model sync operation.'));
+                            return;
+                        }
                         console.log(colors.yellow('Syncing Models from your instance...'));
                         multibar = createMultibar({name: 'Sync Models'});
                         let containerRefs =  await modelPush.logContainers(models);
@@ -173,25 +192,7 @@ yargs.command({
                                 console.log(colors.yellow('Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance.'));
                             }
                         }
-                        await modelPush.syncProcess(targetGuid, locale, models, templates);
-                        // let containerRefs =  await modelPush.logContainers();
-                        // if(containerRefs){
-                        //     if(containerRefs.length > 0){
-                        //         await inquirer.prompt([
-                        //             {
-                        //                 type: 'confirm',
-                        //                 name: 'containers',
-                        //                 message: 'Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance. '
-                        //             }
-                        //         ]).then(async (answers: { containers: boolean; })=> {
-                
-                        //             if(answers.containers){
-                        //                 multibar = createMultibar({name: 'Sync Models'});
-                        //                 await modelPush.syncProcess(targetGuid, locale, models);
-                        //                 }
-                        //         })
-                        //     }
-                        // }
+                        await modelPush.syncProcess(targetGuid, locale, models, templates, folder);
                     }
                     
                 }
@@ -221,9 +222,9 @@ yargs.command({
             demandOption: true,
             type: 'string'
         },
-        locale: {
-            describe: 'Provide the locale to sync templates to your destination instance.',
-            demandOption: true,
+        folder: {
+            describe: 'Specify the path of the folder where models and template folders are present for model pull.',
+            demandOption: false,
             type: 'string'
         }
     },
@@ -232,20 +233,21 @@ yargs.command({
         let code = new fileOperations();
         let codeFileStatus = code.codeFileExists();
         if(codeFileStatus){
-            code.cleanup('.agility-files');
-            code.createBaseFolder();
-            code.createLogFile('logs', 'instancelog');
             let data = JSON.parse(code.readTempFile('code.json'));
             
             const form = new FormData();
             form.append('cliCode', data.code);
             let guid: string = argv.sourceGuid as string;
-            let locale: string = argv.locale as string; 
+            let folder: string = argv.folder as string;
             let token = await auth.cliPoll(form, guid);
             let multibar = createMultibar({name: 'Model Pull'});
 
             options = new mgmtApi.Options();
             options.token = token.access_token;
+
+            if(folder === undefined){
+                folder = '.agility-files';
+            }
 
             let user = await auth.getUser(guid, token.access_token);
 
@@ -253,13 +255,16 @@ yargs.command({
                 let sourcePermitted = await auth.checkUserRole(guid, token.access_token);
 
                 if(sourcePermitted){
+                    code.cleanup(folder);
+                    code.createBaseFolder(folder);
+                    code.createLogFile('logs', 'instancelog', folder);
                     console.log(colors.yellow('Pulling Models from your instance...'));
                     let modelPull = new model(options, multibar);
 
                     let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
             
-                    await modelPull.getModels(guid);
-                    await templatesPull.getPageTemplates();
+                    await modelPull.getModels(guid, folder);
+                    await templatesPull.getPageTemplates(folder);
                     multibar.stop();
 
                 }

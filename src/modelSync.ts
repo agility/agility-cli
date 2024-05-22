@@ -70,7 +70,7 @@ export class modelSync{
         }
     }
 
-    async syncProcess(guid: string, locale: string, filterModels?: mgmtApi.Model[], filterTemplates?: mgmtApi.PageModel[]){
+    async syncProcess(guid: string, locale: string, filterModels?: mgmtApi.Model[], filterTemplates?: mgmtApi.PageModel[], baseFolder?:string){
         let pushOperation = new push(this._options, this._multibar);
         let fileOperation = new fileOperations();
         let models: mgmtApi.Model[] = [];
@@ -79,7 +79,7 @@ export class modelSync{
             models = filterModels;
         }
         else{
-            models = pushOperation.createBaseModels();
+            models = pushOperation.createBaseModels(baseFolder);
         }
         if(models){
             let linkedModels = await pushOperation.getLinkedModels(models);
@@ -96,7 +96,7 @@ export class modelSync{
                 }
             let processedLinkedModels =  await pushOperation.pushLinkedModels(linkedModels, guid);
             const finalModels: mgmtApi.Model[] = [...processedModels, ...processedLinkedModels];
-            fileOperation.exportFiles('models-sync','createdModels', finalModels);
+            fileOperation.exportFiles('models-sync','createdModels', finalModels, baseFolder);
             let pageTemplates: mgmtApi.PageModel[] = [];
 
             
@@ -104,19 +104,19 @@ export class modelSync{
                 for(let i = 0; i < filterTemplates.length; i++){
                     let filterTemplate = filterTemplates[i];
                     //pageTemplateID
-                    if(fileOperation.checkFileExists(`.agility-files/templates/${filterTemplate.pageTemplateID}.json`)){
-                        let file = fileOperation.readFile(`.agility-files/templates/${filterTemplate.pageTemplateID}.json`);
+                    if(fileOperation.checkFileExists(`${baseFolder}/templates/${filterTemplate.pageTemplateID}.json`)){
+                        let file = fileOperation.readFile(`${baseFolder}/templates/${filterTemplate.pageTemplateID}.json`);
                         const template = JSON.parse(file) as mgmtApi.PageModel;
                         pageTemplates.push(template);
                     }
                 }
             }
             else{
-                pageTemplates = await pushOperation.createBaseTemplates();
+                pageTemplates = await pushOperation.createBaseTemplates(baseFolder);
             }
             if(pageTemplates){
                let createdTemplates =  await pushOperation.pushTemplates(pageTemplates, guid, locale);
-               fileOperation.exportFiles('models-sync','createdTemplates', createdTemplates);
+               fileOperation.exportFiles('models-sync','createdTemplates', createdTemplates, baseFolder);
             }
         }
 
@@ -169,7 +169,7 @@ export class modelSync{
         return templates;
     }
 
-    async dryRun(guid: string, locale: string, targetGuid: string, filterModels?: mgmtApi.Model[], filterTemplates?: mgmtApi.PageModel[]){
+    async dryRun(guid: string, locale: string, targetGuid: string, filterModels?: mgmtApi.Model[], filterTemplates?: mgmtApi.PageModel[], baseFolder?: string){
         let pushOperation = new push(this._options, this._multibar);
         let fileOperation = new fileOperations();
         let models: mgmtApi.Model[] = [];
@@ -177,7 +177,7 @@ export class modelSync{
             models = filterModels;
         }
         else{
-            models = pushOperation.createBaseModels();
+            models = pushOperation.createBaseModels(baseFolder);
         }
         const modelDifferences: any = [] = [];
         //let dryRunModels: mgmtApi.Model[] = []
@@ -218,15 +218,15 @@ export class modelSync{
                 for(let i = 0; i < filterTemplates.length; i++){
                     let filterTemplate = filterTemplates[i];
                     //pageTemplateID
-                    if(fileOperation.checkFileExists(`.agility-files/templates/${filterTemplate.pageTemplateID}.json`)){
-                        let file = fileOperation.readFile(`.agility-files/templates/${filterTemplate.pageTemplateID}.json`);
+                    if(fileOperation.checkFileExists(`${baseFolder}/templates/${filterTemplate.pageTemplateID}.json`)){
+                        let file = fileOperation.readFile(`${baseFolder}/templates/${filterTemplate.pageTemplateID}.json`);
                         const template = JSON.parse(file) as mgmtApi.PageModel;
                         pageTemplates.push(template);
                     }
                 }
             }
             else{
-                pageTemplates = await pushOperation.createBaseTemplates();
+                pageTemplates = await pushOperation.createBaseTemplates(baseFolder);
             }
             
             const progressBar6 = this._multibar.create(pageTemplates.length, 0);
@@ -246,7 +246,7 @@ export class modelSync{
                 }
             }
         }
-        fileOperation.exportFiles('models-sync','modelsDryRun', modelDifferences);
+        fileOperation.exportFiles('models-sync','modelsDryRun', modelDifferences, baseFolder);
         this._multibar.stop();
     }
 }
