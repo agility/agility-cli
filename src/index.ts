@@ -67,7 +67,7 @@ yargs.command({
             type: 'boolean'
         },
         filter: {
-            describe: 'Specify the folder where filterModels.json is placed.',
+            describe: 'Specify the path of the filter file. Ex: C:\Agility\myFilter.json.',
             demandOption: false,
             type: 'string'
         }
@@ -173,11 +173,15 @@ yargs.command({
                     }
                     if(filterSync){
                         if(!code.checkFileExists(filterSync)){
-                            console.log(colors.red(`Please provide the file filterModels.json with the reference names of models to be filtered in folder ${filterSync}.`));
+                            console.log(colors.red(`Please check the filter file is present at ${filterSync}.`));
                             return;
                         }
                         else{
-                            let file = code.readFile(`${filterSync}/filterModels.json`);
+                            if(guid === ''){
+                                console.log(colors.red('Please provide the sourceGuid for the filter operation'));
+                                return;
+                            }
+                            let file = code.readFile(`${filterSync}`);
                             const jsonData: FilterData = JSON.parse(file);
                             const modelFilter = new ModelFilter(jsonData);
                             models = await modelPush.validateAndCreateFilterModels(modelFilter.filter.Models, guid);
