@@ -57,7 +57,7 @@ yargs.command({
             type: 'boolean'
         },
         folder: {
-            describe: 'Specify the path of the folder where models and template folders are present for model sync.',
+            describe: 'Specify the path of the folder where models and template folders are present for model sync. If no value provided, the default folder will be .agility-files.',
             demandOption: false,
             type: 'string'
         },
@@ -88,7 +88,22 @@ yargs.command({
             let dryRun: boolean = argv.dryRun as boolean;
             let filterSync: string = argv.filter as string;
             let folder: string = argv.folder as string;
-            let token = await auth.cliPoll(form, guid);
+
+            if(guid === undefined && targetGuid === undefined){
+                console.log(colors.red('Please provide a source guid or target guid to perform the operation.'));
+                return;
+            }
+
+            let authGuid: string = '';
+
+            if(guid !== undefined){
+                authGuid = guid;
+            }
+            else{
+                authGuid = targetGuid;
+            }
+            
+            let token = await auth.cliPoll(form, authGuid);
 
             let models: mgmtApi.Model[] = [];
 
@@ -98,10 +113,7 @@ yargs.command({
 
             options = new mgmtApi.Options();
             options.token = token.access_token;
-            if(guid === undefined && targetGuid === undefined){
-                console.log(colors.red('Please provide a source guid or target guid to perform the operation.'));
-                return;
-            }
+            
             if(dryRun === undefined){
                 dryRun = false;
             }
@@ -114,7 +126,14 @@ yargs.command({
             if(folder === undefined){
                 folder = '.agility-files';
             }
-            let user = await auth.getUser(guid, token.access_token);
+            let user = await auth.getUser(authGuid, token.access_token);
+
+            if(!instancePull){
+                if(!code.checkBaseFolderExists(folder)){
+                    console.log(colors.red(`To proceed with the command the folder ${folder} should exist.`));
+                    return;
+                }
+            }
 
             if(user){
                 if(guid === undefined){
@@ -136,6 +155,10 @@ yargs.command({
                 if(sourcePermitted && targetPermitted){
 
                     if(instancePull){
+                        if(guid === ''){
+                            console.log(colors.red('Please provide the sourceGuid of the instance for pull operation.'));
+                            return;
+                        }
                         console.log(colors.yellow('Pulling models from your instance. Please wait...'));
                         code.cleanup(folder);
                         code.createBaseFolder(folder);

@@ -57,6 +57,13 @@ export class fileOperations{
       }
     }
 
+    checkBaseFolderExists(folder: string){
+      if(!fs.existsSync(folder)){
+        return false;
+      }
+      return true;
+    }
+
     async downloadFile (url: string, targetFile: string) {  
         return await new Promise((resolve, reject) => {
           Https.get(url, response => {
