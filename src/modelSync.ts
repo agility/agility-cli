@@ -123,16 +123,17 @@ export class modelSync{
         this._multibar.stop();
     }
 
-    async validateAndCreateFilterModels(referenceNames: string[], guid: string){
+    async validateAndCreateFilterModels(referenceNames: string[], baseFolder?:string){
         let pushOperation = new push(this._options, this._multibar);
         let fileOperation = new fileOperations();
         const progressBar = this._multibar.create(referenceNames.length, 0);
         let models: mgmtApi.Model[] = [];
         progressBar.update(0, {name : 'Validating and Creating Model Object for model filter.'});
         let index = 1;
+        let sourceModels = pushOperation.createBaseModels(baseFolder);
         for(let i = 0; i < referenceNames.length; i++){
             let referenceName = referenceNames[i];
-            let model = await pushOperation.createModelsForFilter(referenceName, guid);
+            let model = sourceModels.find(x=> x.referenceName = referenceName);
             if(model){
                 models.push(model);
             }
@@ -146,16 +147,17 @@ export class modelSync{
         return models;
     }
 
-    async validateAndCreateFilterTemplates(pageTemplateNames: string[], guid: string, locale: string){
+    async validateAndCreateFilterTemplates(pageTemplateNames: string[], locale: string, baseFolder?:string){
         let pushOperation = new push(this._options, this._multibar);
         let fileOperation = new fileOperations();
         const progressBar2 = this._multibar.create(pageTemplateNames.length, 0);
         let templates: mgmtApi.PageModel[] = [];
+        let sourceTemplates = await pushOperation.createBaseTemplates(baseFolder);
         progressBar2.update(0, {name : 'Validating and Creating Page Template Object for model filter.'});
         let index = 1;
         for(let i = 0; i < pageTemplateNames.length; i++){
             let pageTemplateName = pageTemplateNames[i];
-            let template = await pushOperation.createTempllateForFilter(pageTemplateName, guid, locale);
+            let template = sourceTemplates.find(x => x.pageTemplateName = pageTemplateName);
             if(template){
                 templates.push(template);
             }

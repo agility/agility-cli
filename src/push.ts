@@ -1068,33 +1068,6 @@ export class push{
         return differences;
     }
 
-    async createModelsForFilter(referenceName: string, guid: string){
-        let apiClient = new mgmtApi.ApiClient(this._options);
-      
-        let model: mgmtApi.Model;
-
-        try{
-            model = await apiClient.modelMethods.getModelByReferenceName(referenceName, guid);
-        }
-        catch{
-            
-        }
-    
-       return model;
-    }
-
-    async createTempllateForFilter(pageTemplateName: string, guid: string, locale: string){
-        let apiClient = new mgmtApi.ApiClient(this._options);
-        let template: mgmtApi.PageModel
-        try{
-            template = await apiClient.pageMethods.getPageTemplateName(guid, locale, pageTemplateName);
-        }
-        catch{
-
-        }
-        return template;
-    }
-
     async validateDryRunLinkedModels(model: mgmtApi.Model, guid: string){
         let apiClient = new mgmtApi.ApiClient(this._options);
         let differences: any = {};

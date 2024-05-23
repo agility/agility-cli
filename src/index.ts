@@ -46,11 +46,6 @@ yargs.command({
             demandOption: false,
             type: 'string'
         },
-        locale: {
-            describe: 'Provide the locale to sync templates to your destination instance.',
-            demandOption: true,
-            type: 'string'
-        },
         pull: {
             describe: 'Provide the value as true or false to perform an instance pull to sync models.',
             demandOption: false,
@@ -83,7 +78,7 @@ yargs.command({
             form.append('cliCode', data.code);
             let guid: string = argv.sourceGuid as string;
             let targetGuid: string = argv.targetGuid as string;
-            let locale: string = argv.locale as string; 
+       //     let locale: string = argv.locale as string; 
             let instancePull: boolean = argv.pull as boolean;
             let dryRun: boolean = argv.dryRun as boolean;
             let filterSync: string = argv.filter as string;
@@ -170,6 +165,10 @@ yargs.command({
                         await modelPull.getModels(guid, folder);
                         await templatesPull.getPageTemplates(folder);
                         multibar.stop();
+
+                        if(targetGuid === ''){
+                            return;
+                        }
                     }
                     if(filterSync){
                         if(!code.checkFileExists(filterSync)){
@@ -177,15 +176,11 @@ yargs.command({
                             return;
                         }
                         else{
-                            if(guid === ''){
-                                console.log(colors.red('Please provide the sourceGuid for the filter operation'));
-                                return;
-                            }
                             let file = code.readFile(`${filterSync}`);
                             const jsonData: FilterData = JSON.parse(file);
                             const modelFilter = new ModelFilter(jsonData);
-                            models = await modelPush.validateAndCreateFilterModels(modelFilter.filter.Models, guid);
-                            templates = await modelPush.validateAndCreateFilterTemplates(modelFilter.filter.Templates, guid, locale);
+                            models = await modelPush.validateAndCreateFilterModels(modelFilter.filter.Models, folder);
+                            templates = await modelPush.validateAndCreateFilterTemplates(modelFilter.filter.Templates, 'locale', folder);
                         }
                     }
                     if(dryRun){
@@ -204,7 +199,7 @@ yargs.command({
                                 console.log(colors.yellow('Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance.'));
                             }
                         }
-                        await modelPush.dryRun(guid, locale, targetGuid, models, templates, folder);
+                        await modelPush.dryRun(guid, 'locale', targetGuid, models, templates, folder);
                     }
                     else{
                         if(targetGuid === ''){
@@ -219,7 +214,7 @@ yargs.command({
                                 console.log(colors.yellow('Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance.'));
                             }
                         }
-                        await modelPush.syncProcess(targetGuid, locale, models, templates, folder);
+                        await modelPush.syncProcess(targetGuid, 'locale', models, templates, folder);
                     }
                     
                 }
