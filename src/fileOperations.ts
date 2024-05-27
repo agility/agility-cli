@@ -5,21 +5,35 @@ os.tmpDir = os.tmpdir;
 
 export class fileOperations{
 
-    exportFiles(folder: string, fileIdentifier: any, extractedObject: any){
-
-        if(!fs.existsSync(`.agility-files/${folder}`)){
-            fs.mkdirSync(`.agility-files/${folder}`);
+    exportFiles(folder: string, fileIdentifier: any, extractedObject: any, baseFolder?: string){
+      if(baseFolder === undefined || baseFolder === ''){
+             baseFolder = '.agility-files';
         }
-        let fileName =  `.agility-files/${folder}/${fileIdentifier}.json`;
+        if(!fs.existsSync(`${baseFolder}/${folder}`)){
+            fs.mkdirSync(`${baseFolder}/${folder}`);
+        }
+        let fileName =  `${baseFolder}/${folder}/${fileIdentifier}.json`;
         fs.writeFileSync(fileName,JSON.stringify(extractedObject));
       
     }
 
-    createLogFile(folder: string, fileIdentifier: any){
+    appendFiles(folder: string, fileIdentifier: any, extractedObject: any){
       if(!fs.existsSync(`.agility-files/${folder}`)){
-          fs.mkdirSync(`.agility-files/${folder}`);
+        fs.mkdirSync(`.agility-files/${folder}`);
       }
-      let fileName =  `.agility-files/${folder}/${fileIdentifier}.txt`;
+
+      let fileName =  `.agility-files/${folder}/${fileIdentifier}.json`;
+      fs.appendFileSync(fileName,JSON.stringify(extractedObject));
+    }
+
+    createLogFile(folder: string, fileIdentifier: any, baseFolder?: string){
+      if(baseFolder === undefined || baseFolder === ''){
+        baseFolder = `.agility-files`;
+      }
+      if(!fs.existsSync(`${baseFolder}/${folder}`)){
+          fs.mkdirSync(`${baseFolder}/${folder}`);
+      }
+      let fileName =  `${baseFolder}/${folder}/${fileIdentifier}.txt`;
       fs.closeSync(fs.openSync(fileName, 'w'))
     }
 
@@ -34,10 +48,20 @@ export class fileOperations{
       }
     }
 
-    createBaseFolder(){
-      if(!fs.existsSync(`.agility-files`)){
-        fs.mkdirSync(`.agility-files`);
+    createBaseFolder(folder?: string){
+      if(folder === undefined || folder === ''){
+        folder = `.agility-files`;
       }
+      if(!fs.existsSync(folder)){
+        fs.mkdirSync(folder);
+      }
+    }
+
+    checkBaseFolderExists(folder: string){
+      if(!fs.existsSync(folder)){
+        return false;
+      }
+      return true;
     }
 
     async downloadFile (url: string, targetFile: string) {  
@@ -77,6 +101,15 @@ export class fileOperations{
         return file;
     }
 
+    checkFileExists(filePath: string): boolean {
+      try {
+        fs.accessSync(filePath, fs.constants.F_OK);
+        return true;
+      } catch (err) {
+        return false;
+      }
+    }
+
     deleteFile(fileName: string) {
       fs.unlinkSync(fileName);
   }
@@ -110,8 +143,11 @@ export class fileOperations{
       fs.renameSync(oldFile, newFile);
   }
 
-  readDirectory(folderName: string){
-    let directory = `.agility-files/${folderName}`;
+  readDirectory(folderName: string, baseFolder?: string){
+    if(baseFolder === undefined || baseFolder === ''){
+      baseFolder = '.agility-files';
+    }
+    let directory = `${baseFolder}/${folderName}`;
     let files : string[] = [];
     fs.readdirSync(directory).forEach(file => {
       let readFile = this.readFile(`${directory}/${file}`);
@@ -121,8 +157,11 @@ export class fileOperations{
     return files;
   }
 
-  folderExists(folderName: string){
-    let directory = `.agility-files/${folderName}`;
+  folderExists(folderName: string, baseFolder?: string){
+    if(baseFolder === undefined || baseFolder === ''){
+      baseFolder = '.agility-files';
+    }
+    let directory = `${baseFolder}/${folderName}`;
     if(fs.existsSync(directory)){
       return true;
     }

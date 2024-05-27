@@ -16,6 +16,7 @@ const colors = require('ansi-colors');
 const inquirer = require('inquirer');
 import { createMultibar } from './multibar';
 import { modelSync } from './modelSync';
+import { FilterData, ModelFilter } from "./models/modelFilter";
 
 let auth: Auth
 let options: mgmtApi.Options;
@@ -37,17 +38,32 @@ yargs.command({
     builder: {
         sourceGuid: {
             describe: 'Provide the source guid to pull models from your source instance.',
-            demandOption: true,
+            demandOption: false,
             type: 'string'
         },
         targetGuid: {
             describe: 'Provide the target guid to push models to your destination instance.',
-            demandOption: true,
+            demandOption: false,
             type: 'string'
         },
-        locale: {
-            describe: 'Provide the locale to sync templates to your destination instance.',
-            demandOption: true,
+        pull: {
+            describe: 'Provide the value as true or false to perform an instance pull to sync models.',
+            demandOption: false,
+            type: 'boolean'
+        },
+        folder: {
+            describe: 'Specify the path of the folder where models and template folders are present for model sync. If no value provided, the default folder will be .agility-files.',
+            demandOption: false,
+            type: 'string'
+        },
+        dryRun: {
+            describe: 'Provide the value as true or false to perform a dry run for model sync.',
+            demandOption: false,
+            type: 'boolean'
+        },
+        filter: {
+            describe: 'Specify the path of the filter file. Ex: C:\Agility\myFilter.json.',
+            demandOption: false,
             type: 'string'
         }
     },
@@ -56,61 +72,226 @@ yargs.command({
         let code = new fileOperations();
         let codeFileStatus = code.codeFileExists();
         if(codeFileStatus){
-            code.cleanup('.agility-files');
-            code.createBaseFolder();
             let data = JSON.parse(code.readTempFile('code.json'));
             
             const form = new FormData();
             form.append('cliCode', data.code);
             let guid: string = argv.sourceGuid as string;
             let targetGuid: string = argv.targetGuid as string;
-            let locale: string = argv.locale as string; 
-            let token = await auth.cliPoll(form, guid);
+       //     let locale: string = argv.locale as string; 
+            let instancePull: boolean = argv.pull as boolean;
+            let dryRun: boolean = argv.dryRun as boolean;
+            let filterSync: string = argv.filter as string;
+            let folder: string = argv.folder as string;
+
+            if(guid === undefined && targetGuid === undefined){
+                console.log(colors.red('Please provide a source guid or target guid to perform the operation.'));
+                return;
+            }
+
+            let authGuid: string = '';
+
+            if(guid !== undefined){
+                authGuid = guid;
+            }
+            else{
+                authGuid = targetGuid;
+            }
+            
+            let token = await auth.cliPoll(form, authGuid);
+
+            let models: mgmtApi.Model[] = [];
+
+            let templates: mgmtApi.PageModel[] = [];
 
             let multibar = createMultibar({name: 'Sync Models'});
 
             options = new mgmtApi.Options();
             options.token = token.access_token;
+            
+            if(dryRun === undefined){
+                dryRun = false;
+            }
+            if(instancePull === undefined){
+                instancePull = false;
+            }
+            if(filterSync === undefined){
+                filterSync = '';
+            }
+            if(folder === undefined){
+                folder = '.agility-files';
+            }
+            let user = await auth.getUser(authGuid, token.access_token);
+
+            if(!instancePull){
+                if(!code.checkBaseFolderExists(folder)){
+                    console.log(colors.red(`To proceed with the command the folder ${folder} should exist.`));
+                    return;
+                }
+            }
+
+            if(user){
+                if(guid === undefined){
+                    guid = '';
+                }
+                if(targetGuid === undefined){
+                    targetGuid = '';
+                }
+                let sourcePermitted = await auth.checkUserRole(guid, token.access_token);
+                let targetPermitted = await auth.checkUserRole(targetGuid, token.access_token);
+
+                if(guid === ''){
+                    sourcePermitted = true;
+                }
+                if(targetGuid === ''){
+                    targetPermitted = true;
+                }
+                let modelPush = new modelSync(options, multibar);
+                if(sourcePermitted && targetPermitted){
+
+                    if(instancePull){
+                        if(guid === ''){
+                            console.log(colors.red('Please provide the sourceGuid of the instance for pull operation.'));
+                            return;
+                        }
+                        console.log(colors.yellow('Pulling models from your instance. Please wait...'));
+                        code.cleanup(folder);
+                        code.createBaseFolder(folder);
+                        code.createLogFile('logs', 'instancelog', folder);
+                        let modelPull = new model(options, multibar);
+
+                        let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
+                
+                        await modelPull.getModels(guid, folder);
+                        await templatesPull.getPageTemplates(folder);
+                        multibar.stop();
+
+                        if(targetGuid === ''){
+                            return;
+                        }
+                    }
+                    if(filterSync){
+                        if(!code.checkFileExists(filterSync)){
+                            console.log(colors.red(`Please check the filter file is present at ${filterSync}.`));
+                            return;
+                        }
+                        else{
+                            let file = code.readFile(`${filterSync}`);
+                            const jsonData: FilterData = JSON.parse(file);
+                            const modelFilter = new ModelFilter(jsonData);
+                            models = await modelPush.validateAndCreateFilterModels(modelFilter.filter.Models, folder);
+                            templates = await modelPush.validateAndCreateFilterTemplates(modelFilter.filter.Templates, 'locale', folder);
+                        }
+                    }
+                    if(dryRun){
+                        if(targetGuid === ''){
+                            console.log(colors.red('Please provide the targetGuid parameter a valid instance guid to perform the dry run operation.'));
+                            return;
+                        }
+                        console.log(colors.yellow('Running a dry run on models, please wait...'));
+                        if(code.folderExists('models-sync')){
+                            code.cleanup(`${folder}/models-sync`);
+                        }
+
+                        let containerRefs =  await modelPush.logContainers(models);
+                        if(containerRefs){
+                            if(containerRefs.length > 0){
+                                console.log(colors.yellow('Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance.'));
+                            }
+                        }
+                        await modelPush.dryRun(guid, 'locale', targetGuid, models, templates, folder);
+                    }
+                    else{
+                        if(targetGuid === ''){
+                            console.log(colors.red('Please provide the targetGuid parameter a valid instance guid to perform the model sync operation.'));
+                            return;
+                        }
+                        console.log(colors.yellow('Syncing Models from your instance...'));
+                        multibar = createMultibar({name: 'Sync Models'});
+                        let containerRefs =  await modelPush.logContainers(models);
+                        if(containerRefs){
+                            if(containerRefs.length > 0){
+                                console.log(colors.yellow('Please review the content containers in the containerReferenceNames.json file in the logs folder. They should be present in the target instance.'));
+                            }
+                        }
+                        await modelPush.syncProcess(targetGuid, 'locale', models, templates, folder);
+                    }
+                    
+                }
+                else{
+                    console.log(colors.red('You do not have the required permissions to perform the model sync operation.'));
+                }
+                
+            }
+            else{
+                console.log(colors.red('Please authenticate first to perform the sync models operation.'));
+            }
+
+           
+        }
+        else{
+            console.log(colors.red('Please authenticate first to perform the sync models operation.'));
+        }
+    }
+})
+
+yargs.command({
+    command: 'model-pull',
+    describe: 'Pull models locally.',
+    builder: {
+        sourceGuid: {
+            describe: 'Provide the source guid to pull models from your source instance.',
+            demandOption: true,
+            type: 'string'
+        },
+        folder: {
+            describe: 'Specify the path of the folder where models and template folders are present for model pull.',
+            demandOption: false,
+            type: 'string'
+        }
+    },
+    handler: async function(argv) {
+        auth = new Auth();
+        let code = new fileOperations();
+        let codeFileStatus = code.codeFileExists();
+        if(codeFileStatus){
+            let data = JSON.parse(code.readTempFile('code.json'));
+            
+            const form = new FormData();
+            form.append('cliCode', data.code);
+            let guid: string = argv.sourceGuid as string;
+            let folder: string = argv.folder as string;
+            let token = await auth.cliPoll(form, guid);
+            let multibar = createMultibar({name: 'Model Pull'});
+
+            options = new mgmtApi.Options();
+            options.token = token.access_token;
+
+            if(folder === undefined){
+                folder = '.agility-files';
+            }
 
             let user = await auth.getUser(guid, token.access_token);
 
             if(user){
                 let sourcePermitted = await auth.checkUserRole(guid, token.access_token);
-                let targetPermitted = await auth.checkUserRole(targetGuid, token.access_token);
 
-                if(sourcePermitted && targetPermitted){
-                    console.log(colors.yellow('Syncing Models from your instance...'));
+                if(sourcePermitted){
+                    code.cleanup(folder);
+                    code.createBaseFolder(folder);
+                    code.createLogFile('logs', 'instancelog', folder);
+                    console.log(colors.yellow('Pulling Models from your instance...'));
                     let modelPull = new model(options, multibar);
 
                     let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
             
-                    await modelPull.getModels(guid);
-                    await templatesPull.getPageTemplates();
+                    await modelPull.getModels(guid, folder);
+                    await templatesPull.getPageTemplates(folder);
                     multibar.stop();
 
-                    let modelPush = new modelSync(options, multibar);
-
-                    let containerRefs =  await modelPush.logContainers();
-                    if(containerRefs){
-                        if(containerRefs.length > 0){
-                            await inquirer.prompt([
-                                {
-                                    type: 'confirm',
-                                    name: 'containers',
-                                    message: 'Please review the content containers in the instancelog.txt file. They should be present in the target instance. '
-                                }
-                            ]).then(async (answers: { containers: boolean; })=> {
-            
-                                if(answers.containers){
-                                    multibar = createMultibar({name: 'Sync Models'});
-                                    await modelPush.syncProcess(targetGuid, locale);
-                                    }
-                            })
-                        }
-                    }
                 }
                 else{
-                    console.log(colors.red('You do not have the required permissions to perform the model sync operation.'));
+                    console.log(colors.red('You do not have the required permissions to perform the model pull operation.'));
                 }
                 
             }

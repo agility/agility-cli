@@ -11,7 +11,10 @@ export class model{
         this._multibar = multibar;
     }
 
-    async getModels(guid: string){
+    async getModels(guid: string, baseFolder?: string){
+        if(baseFolder === undefined || baseFolder === ''){
+            baseFolder = '.agility-files';
+        }
         let apiClient = new mgmtApi.ApiClient(this._options);
         try{
             let contentModules = await apiClient.modelMethods.getContentModules(true, guid, false);
@@ -38,7 +41,7 @@ export class model{
             let index = 1;
             for(let i = 0; i < models.length; i++){
                 let model = await apiClient.modelMethods.getContentModel(models[i].id, guid);
-                fileExport.exportFiles('models', model.id, model);
+                fileExport.exportFiles('models', model.id, model, baseFolder);
                 if(index === 1){
                     progressBar4.update(1);
                 }

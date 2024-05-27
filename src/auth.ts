@@ -133,7 +133,7 @@ export class Auth{
             else{
                 for(let i = 0; i < webSiteUser.userRoles.length; i++){
                     let role = webSiteUser.userRoles[i];
-                    if(role.name === 'Manager'){
+                    if(role.name === 'Manager' || role.name === 'Administrator'){
                         access = true;
                     }
                 }
