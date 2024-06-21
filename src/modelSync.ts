@@ -2,6 +2,7 @@ import * as mgmtApi  from '@agility/management-sdk';
 import { fileOperations } from './fileOperations';
 import * as cliProgress from 'cli-progress';
 import { push } from './push';
+const colors = require('ansi-colors');
 
 export class modelSync{
     _options : mgmtApi.Options;
@@ -118,6 +119,9 @@ export class modelSync{
                let createdTemplates =  await pushOperation.pushTemplates(pageTemplates, guid, locale);
                fileOperation.exportFiles('models-sync','createdTemplates', createdTemplates, baseFolder);
             }
+        }
+        else{
+            console.log(colors.red('There are no models to process your request. Either the models does not exist in the source instance which you have provided for the filter operation or perform a pull operation on models of the source instance.'))
         }
 
         this._multibar.stop();
