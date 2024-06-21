@@ -137,7 +137,7 @@ export class modelSync{
         let sourceModels = pushOperation.createBaseModels(baseFolder);
         for(let i = 0; i < referenceNames.length; i++){
             let referenceName = referenceNames[i];
-            let model = sourceModels.find(x=> x.referenceName = referenceName);
+            let model = sourceModels.find(x=> x.referenceName === referenceName);
             if(model){
                 models.push(model);
             }
