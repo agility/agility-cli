@@ -16,7 +16,10 @@ export class Auth{
         return firstString + secondString;
     }
 
-    determineBaseUrl(guid: string): string{
+    determineBaseUrl(guid: string, userBaseUrl: string = null): string{
+        if(userBaseUrl){
+            return userBaseUrl;
+        }
         if(guid.endsWith('d')){
             return "https://mgmt-dev.aglty.io";
         }
@@ -35,8 +38,8 @@ export class Auth{
         return "https://mgmt.aglty.io";
     }
 
-    getInstance(guid: string) : AxiosInstance{
-        let baseUrl = this.determineBaseUrl(guid);
+    getInstance(guid: string, userBaseUrl: string = null) : AxiosInstance{
+        let baseUrl = this.determineBaseUrl(guid, userBaseUrl);
         let instance =  axios.create({
              baseURL: `${baseUrl}/oauth`
          })
@@ -51,8 +54,8 @@ export class Auth{
         return instance;
      }
 
-     async executeGet(apiPath: string, guid: string){
-        let instance = this.getInstance(guid);
+     async executeGet(apiPath: string, guid: string, userBaseUrl: string = null){
+        let instance = this.getInstance(guid, userBaseUrl);
         try{
             const resp = await instance.get(apiPath, {
                 headers: {
@@ -98,10 +101,10 @@ export class Auth{
         return response.data as cliToken;
     }
 
-    async getPreviewKey(guid: string){
+    async getPreviewKey(guid: string, userBaseUrl: string = null){
         let apiPath = `GetPreviewKey?guid=${guid}`;
         try{
-            const response = await this.executeGet(apiPath, guid);
+            const response = await this.executeGet(apiPath, guid, userBaseUrl);
             return response.data as string;
         }
         catch{
@@ -116,7 +119,6 @@ export class Auth{
             baseURL: `${baseUrl}/api/v1/`
         })
         let apiPath = `/instance/${guid}/user`;
-        
         try{
             const resp = await instance.get(apiPath, {
                 headers: {
@@ -126,7 +128,6 @@ export class Auth{
               })
             
             let webSiteUser = resp.data as WebsiteUser
-            
             if(webSiteUser.isOrgAdmin){
                 access = true;
             }

@@ -78,7 +78,6 @@ yargs.command({
             form.append('cliCode', data.code);
             let guid: string = argv.sourceGuid as string;
             let targetGuid: string = argv.targetGuid as string;
-       //     let locale: string = argv.locale as string; 
             let instancePull: boolean = argv.pull as boolean;
             let dryRun: boolean = argv.dryRun as boolean;
             let filterSync: string = argv.filter as string;
@@ -139,7 +138,6 @@ yargs.command({
                 }
                 let sourcePermitted = await auth.checkUserRole(guid, token.access_token);
                 let targetPermitted = await auth.checkUserRole(targetGuid, token.access_token);
-
                 if(guid === ''){
                     sourcePermitted = true;
                 }
@@ -325,6 +323,11 @@ yargs.command({
             describe: 'Provide the channel to pull your instance.',
             demandOption: true,
             type: 'string'
+        },
+        baseUrl: {
+            describe: 'Specify the base url of your instance.',
+            demandOption: false,
+            type: 'string'
         }
     },
     handler: async function(argv) {
@@ -341,6 +344,7 @@ yargs.command({
             let guid: string = argv.guid as string;
             let locale: string = argv.locale as string;
             let channel: string = argv.channel as string;
+            let userBaseUrl: string = argv.baseUrl as string;
 
             let token = await auth.cliPoll(form, guid);
 
@@ -354,7 +358,7 @@ yargs.command({
             if(user){
                 let permitted = await auth.checkUserRole(guid, token.access_token);
                 if(permitted){
-                    let syncKey = await auth.getPreviewKey(guid);
+                    let syncKey = await auth.getPreviewKey(guid, userBaseUrl);
                     if(syncKey){
                         console.log(colors.yellow('Pulling your instance...'));
                         let contentPageSync = new sync(guid, syncKey, locale, channel, options, multibar);
@@ -374,7 +378,7 @@ yargs.command({
                         await modelSync.getModels(guid);
                     }
                     else{
-                        console.log(colors.red('Please add a preview key to your instance to perform pull operation.'));
+                        console.log(colors.red('Either the preview key is not present in your instance or you need to specify the baseUrl parameter as an input based on the location. Please refer the docs for the Base Url.'));
                     }
                 }
                 else{
