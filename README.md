@@ -27,7 +27,7 @@
 4. You should be a Org Admin, Instance Admin or have a Manager Role in an instance to perform operations in the CLI. 
 
 #### Performing operations on CLI
-1. To pull an instance use the command ```agility pull --guid="<<Provide Guid of your Instance>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be pulled>>"``` to pull an instance.
+1. To pull an instance use the command ```agility pull --guid="<<Provide Guid of your Instance>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be pulled>>" --baseUrl="<<Optional Parameter to provide the base URL if the pull operation doesn't work. Refer the section "Base URL's".>>"``` to pull an instance.
 2. To push an instance use the command ```agility push --guid="<<Provide the target Instance guid>> --locale="<<Provide the locale of the Instance>>"```
 3. For instance cloning, this command is a mix of push and pull. Use the command ```agility clone --sourceGuid="<<Provide Guid of your source Instance>>" --targetGuid="<<Provide the target Instance guid>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be cloned>>"``` to perform cloning between instances.
 4. To sync Models use the command ```agility sync-models --sourceGuid="<<Optional Parameter Guid of your source instance>>" --targetGuid="<<Optional Parameter Guid of your target Instance>>" --pull="<<Optional Parameter value true/false>>" --dryRun="<<Optional Parameter value true/false>>" --filter="<<Optional Parameter folder path where filter file is present. Ex: - C:\Agility\filterModels.json" --folder="<<Optional Parameter name of the folder where files to be exported. If no value is provided, files will be exported to .agility-files folder>>"```.
@@ -85,6 +85,13 @@ The file is generated at ```<Folder Name>\models-sync\modelsDryRun.json``` (wher
 5. For example, if the locale is en-us, then the Pages and Content metadata is present inside the folder .agility-files/en-us/item for Content and  .agility-files/en-us/pages. These are the base folders to create Content and Pages to perform CLI push/clone. There are other folders created i.e. list, nestedsitemap, page, sitemap, state and urlredirections, which are not used by the CLI but are part of pull operation.
 6. Models metadata is present inside .agility-files/models folder.
 7. Templates metadata is present inside .agility-files/templates folder.
+#### Base URL's
+In some cases when the pull operation fails to fetch the preview key, you need to override the baseUrl for the CLI to perform the pull operation. Following is the list of Base URL's for different locations. Depeneding on the location of the instance use the Base URL value for the pull operation:
+
+1. USA: https://mgmt.aglty.io
+2. Canada: https://mgmt-ca.aglty.io
+3. Europe: https://mgmt-eu.aglty.io
+4. Australia: https://mgmt-aus.aglty.io
 
 ## Resources
 
