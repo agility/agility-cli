@@ -106,27 +106,30 @@ export class asset{
 
         for(let i = 0; i < initialRecords.assetMedias.length; i++){
 
-            let filePath = this.getFilePath(initialRecords.assetMedias[i].originUrl);
-            let folderPath = filePath.split("/").slice(0, -1).join("/");
-            let fileName = `${initialRecords.assetMedias[i].fileName}`;
-            if(fileName.includes('%')){
-                this.unProcessedAssets[initialRecords.assetMedias[i].mediaID] = initialRecords.assetMedias[i].fileName;
+            const originUrl = initialRecords.assetMedias[i].originUrl;
+            const assetMediaID = initialRecords.assetMedias[i].mediaID;
+            const filePath = this.getFilePath(originUrl);
+            const folderPath = filePath.split("/").slice(0, -1).join("/");
+            const fileName = `${initialRecords.assetMedias[i].fileName}`;
+
+            if(this.isUrlProperlyEncoded(originUrl)){
+                this.unProcessedAssets[assetMediaID] = fileName;
                 progressBar2.update(i+1)
                 continue
             }
             if(folderPath){ 
                 fileExport.createFolder(`assets/${folderPath}`);
                 try{
-                    await fileExport.downloadFile(initialRecords.assetMedias[i].originUrl, `.agility-files/assets/${folderPath}/${fileName}`);
+                    await fileExport.downloadFile(originUrl, `.agility-files/assets/${folderPath}/${fileName}`);
                 } catch{
-                    this.unProcessedAssets[initialRecords.assetMedias[i].mediaID] = initialRecords.assetMedias[i].fileName;
+                    this.unProcessedAssets[assetMediaID] = fileName;
                 }
             }
             else{
                 try{
-                    await fileExport.downloadFile(initialRecords.assetMedias[i].originUrl, `.agility-files/assets/${fileName}`);
+                    await fileExport.downloadFile(originUrl, `.agility-files/assets/${fileName}`);
                 } catch{
-                    this.unProcessedAssets[initialRecords.assetMedias[i].mediaID] = initialRecords.assetMedias[i].fileName;
+                    this.unProcessedAssets[assetMediaID] = fileName;
                 }
             }
             progressBar2.update(i+1)
@@ -140,29 +143,33 @@ export class asset{
                 fileExport.exportFiles('assets/json', i + 1, assets);
     
                 for(let j = 0; j < assets.assetMedias.length; j++){
+
+                    const originUrl = assets.assetMedias[j].originUrl
+                    const mediaID = assets.assetMedias[j].mediaID
                   
-                    let filePath = this.getFilePath(assets.assetMedias[j].originUrl);
-                    let folderPath = filePath.split("/").slice(0, -1).join("/");
-                    let fileName = `${assets.assetMedias[j].fileName}`;
-                    if(fileName.includes('%')){
-                        this.unProcessedAssets[assets.assetMedias[j].mediaID] = assets.assetMedias[j].fileName;
+                    const filePath = this.getFilePath(originUrl);
+                    const folderPath = filePath.split("/").slice(0, -1).join("/");
+                    const fileName = `${assets.assetMedias[j].fileName}`;
+
+                    if(this.isUrlProperlyEncoded(originUrl)){
+                        this.unProcessedAssets[mediaID] = fileName;
                         progressBar2.update(recordOffset +  j + 1)
                         continue
                     }
                     if(folderPath){ 
                         fileExport.createFolder(`assets/${folderPath}`);
                         try{
-                            await fileExport.downloadFile(assets.assetMedias[j].originUrl, `.agility-files/assets/${folderPath}/${fileName}`);
+                            await fileExport.downloadFile(originUrl, `.agility-files/assets/${folderPath}/${fileName}`);
                         } catch{
-                            this.unProcessedAssets[assets.assetMedias[j].mediaID] = assets.assetMedias[j].fileName;
+                            this.unProcessedAssets[mediaID] = fileName;
                         }
                         
                     }
                     else{
                         try{
-                            await fileExport.downloadFile(assets.assetMedias[j].originUrl, `.agility-files/assets/${fileName}`);
+                            await fileExport.downloadFile(originUrl, `.agility-files/assets/${fileName}`);
                         } catch{
-                            this.unProcessedAssets[assets.assetMedias[j].mediaID] = assets.assetMedias[j].fileName;
+                            this.unProcessedAssets[mediaID] = fileName;
                         }
                         
                     }
@@ -177,5 +184,19 @@ export class asset{
         fileExport.exportFiles('assets/failedAssets', 'unProcessedAssets', this.unProcessedAssets);
 
         await this.getGalleries(guid);
+    }
+
+    isUrlProperlyEncoded(url: string) {
+        try {
+            // Decode and re-encode the URL to compare with the original
+            const decoded = decodeURIComponent(url);
+            const reEncoded = encodeURIComponent(decoded);
+
+            // Check if the encoded version matches the input
+            return url === reEncoded;
+        } catch (e) {
+            // If decoding throws an error, the URL is not properly encoded
+            return false;
+        }
     }
 }
