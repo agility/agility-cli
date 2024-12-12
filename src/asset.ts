@@ -100,49 +100,55 @@ export class asset{
             iterations = 1;
         }
 
-        const progressBar2 = this._multibar.create(iterations, 0);
+        const progressBar2 = this._multibar.create(totalRecords, 0);
 
         progressBar2.update(0, {name : 'Assets'});
 
         for(let i = 0; i < initialRecords.assetMedias.length; i++){
 
-            let extension = initialRecords.assetMedias[i].fileName.substring(initialRecords.assetMedias[i].fileName.lastIndexOf(".")+1);
             let filePath = this.getFilePath(initialRecords.assetMedias[i].originUrl);
-
             let folderPath = filePath.split("/").slice(0, -1).join("/");
             let fileName = `${initialRecords.assetMedias[i].fileName}`;
+            if(fileName.includes('%')){
+                this.unProcessedAssets[initialRecords.assetMedias[i].mediaID] = initialRecords.assetMedias[i].fileName;
+                progressBar2.update(i+1)
+                continue
+            }
             if(folderPath){ 
                 fileExport.createFolder(`assets/${folderPath}`);
-                await fileExport.downloadFile(initialRecords.assetMedias[i].originUrl, `.agility-files/assets/${folderPath}/${fileName}`);
+                try{
+                    await fileExport.downloadFile(initialRecords.assetMedias[i].originUrl, `.agility-files/assets/${folderPath}/${fileName}`);
+                } catch{
+                    this.unProcessedAssets[initialRecords.assetMedias[i].mediaID] = initialRecords.assetMedias[i].fileName;
+                }
             }
             else{
-                await fileExport.downloadFile(initialRecords.assetMedias[i].originUrl, `.agility-files/assets/${fileName}`);
+                try{
+                    await fileExport.downloadFile(initialRecords.assetMedias[i].originUrl, `.agility-files/assets/${fileName}`);
+                } catch{
+                    this.unProcessedAssets[initialRecords.assetMedias[i].mediaID] = initialRecords.assetMedias[i].fileName;
+                }
             }
-
+            progressBar2.update(i+1)
         }
 
         if(multiExport){
             for(let i = 0; i < iterations; i++){
                 recordOffset += pageSize;
     
-                if(index === 1){
-                    progressBar2.update(1);
-                }
-                else{
-                    progressBar2.update(index);
-                }
-                index += 1;
-    
                 let assets = await apiClient.assetMethods.getMediaList(pageSize, recordOffset, guid);
-                fileExport.exportFiles('assets/json', index, assets);
+                fileExport.exportFiles('assets/json', i + 1, assets);
     
                 for(let j = 0; j < assets.assetMedias.length; j++){
                   
-                    let extension = assets.assetMedias[j].fileName.substring(assets.assetMedias[j].fileName.lastIndexOf(".")+1);
                     let filePath = this.getFilePath(assets.assetMedias[j].originUrl);
-    
                     let folderPath = filePath.split("/").slice(0, -1).join("/");
                     let fileName = `${assets.assetMedias[j].fileName}`;
+                    if(fileName.includes('%')){
+                        this.unProcessedAssets[assets.assetMedias[j].mediaID] = assets.assetMedias[j].fileName;
+                        progressBar2.update(recordOffset +  j + 1)
+                        continue
+                    }
                     if(folderPath){ 
                         fileExport.createFolder(`assets/${folderPath}`);
                         try{
@@ -160,6 +166,7 @@ export class asset{
                         }
                         
                     }
+                    progressBar2.update(recordOffset +  j + 1)
                 }
             }
         }
