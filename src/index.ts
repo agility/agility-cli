@@ -65,7 +65,13 @@ yargs.command({
             describe: 'Specify the path of the filter file. Ex: C:\Agility\myFilter.json.',
             demandOption: false,
             type: 'string'
+        },
+        region:{
+            describe: 'If needed, pass in a region to override the baseURL',
+            demandOption: false,
+            type: 'string'
         }
+
     },
     handler: async function(argv) {
         auth = new Auth();
@@ -82,6 +88,7 @@ yargs.command({
             let dryRun: boolean = argv.dryRun as boolean;
             let filterSync: string = argv.filter as string;
             let folder: string = argv.folder as string;
+            let region: string | undefined = argv.region as string;
 
             if(guid === undefined && targetGuid === undefined){
                 console.log(colors.red('Please provide a source guid or target guid to perform the operation.'));
@@ -158,7 +165,7 @@ yargs.command({
                         code.createLogFile('logs', 'instancelog', folder);
                         let modelPull = new model(options, multibar);
 
-                        let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar);
+                        let templatesPull = new sync(guid, 'syncKey', 'locale', 'channel', options, multibar, region);
                 
                         await modelPull.getModels(guid, folder);
                         await templatesPull.getPageTemplates(folder);
@@ -357,8 +364,10 @@ yargs.command({
 
             if(user){
                 let permitted = await auth.checkUserRole(guid, token.access_token);
+                console.log('permitted', permitted)
                 if(permitted){
                     let syncKey = await auth.getPreviewKey(guid, userBaseUrl);
+                    console.log('synckey', syncKey)
                     if(syncKey){
                         console.log(colors.yellow('Pulling your instance...'));
                         let contentPageSync = new sync(guid, syncKey, locale, channel, options, multibar);

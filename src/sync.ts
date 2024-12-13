@@ -11,14 +11,16 @@ export class sync{
      _channel: string;
      _options : mgmtApi.Options;
      _multibar: cliProgress.MultiBar;
+     _region?: string;
 
-     constructor(guid: string, apiKey: string, locale: string, channel: string, options: mgmtApi.Options, multibar: cliProgress.MultiBar){
+     constructor(guid: string, apiKey: string, locale: string, channel: string, options: mgmtApi.Options, multibar: cliProgress.MultiBar, region?: string){
         this._guid = guid;
         this._apiKey = apiKey;
         this._locale = locale;
         this._channel = channel;
         this._options = options;
         this._multibar = multibar;
+        this._region = region;
      }
 
      async sync(){
@@ -27,7 +29,8 @@ export class sync{
             apiKey: this._apiKey,
             languages: [`${this._locale}`],
             channels: [`${this._channel}`],
-            isPreview: true
+            isPreview: true,
+            region: this._region
         })
 
         await syncClient.runSync();
