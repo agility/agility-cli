@@ -177,9 +177,6 @@ export class asset{
                 }
             }
         }
-        else{
-            progressBar2.update(1);
-        }
         
         fileExport.exportFiles('assets/failedAssets', 'unProcessedAssets', this.unProcessedAssets);
 
