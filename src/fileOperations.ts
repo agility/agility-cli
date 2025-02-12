@@ -182,6 +182,24 @@ export class fileOperations{
     }
   }
 
+
+  deleteCodeFile(){
+    let appName = 'mgmt-cli-code';
+    let tmpFolder = os.tmpDir();
+    let tmpDir = `${tmpFolder}/${appName}/code.json`;
+   
+    if(fs.existsSync(tmpDir)){
+   
+      fs.rmSync(tmpDir);
+
+      console.log('Logged out successfully');
+      return true;
+    } 
+    else{
+      return false;
+    }
+  }
+
   fileExists(path: string){
     if(fs.existsSync(path)){
       return true;

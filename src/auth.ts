@@ -20,19 +20,19 @@ export class Auth{
         if(userBaseUrl){
             return userBaseUrl;
         }
-        if(guid.endsWith('d')){
+        if(guid?.endsWith('d')){
             return "https://mgmt-dev.aglty.io";
         }
-        else if(guid.endsWith('u')){
+        else if(guid?.endsWith('u')){
             return "https://mgmt.aglty.io";
         }
-        else if(guid.endsWith('c')){
+        else if(guid?.endsWith('c')){
             return "https://mgmt-ca.aglty.io";
         }
-        else if(guid.endsWith('e')){
+        else if(guid?.endsWith('e')){
             return "https://mgmt-eu.aglty.io";
         }
-        else if(guid.endsWith('a')){
+        else if(guid?.endsWith('a')){
             return "https://mgmt-aus.aglty.io";
         }
         return "https://mgmt.aglty.io";
@@ -85,6 +85,24 @@ export class Auth{
         }
     }
 
+    async checkAuthorization() {
+        return new Promise((resolve, reject) => {
+            const interval = setInterval(() => {
+                console.log('Checking for code file');
+                let code = new fileOperations();
+                if (code.codeFileExists()) {
+                    clearInterval(interval);
+                    resolve(true);
+                }
+            }, 1000); // Check every second
+    
+            // Optional: Add a timeout to reject the promise if not authenticated within a certain period
+            setTimeout(() => {
+                clearInterval(interval);
+                reject(new Error('Authorization check timed out'));
+            }, 60000); // Timeout after 60 seconds
+        });
+    }
     async authorize(){
         let code = await this.generateCode();
         //let url = `https://mgmt-dev.aglty.io/oauth/Authorize?response_type=code&redirect_uri=https://mgmt-dev.aglty.io/oauth/CliAuth&state=cli-code%2e${code}`;
@@ -146,8 +164,12 @@ export class Auth{
         return access;
     }
 
+
     async getUser(guid: string, token: string){
+        
         let baseUrl = this.determineBaseUrl(guid);
+
+
         let instance =  axios.create({
             baseURL: `${baseUrl}/api/v1/`
         })
