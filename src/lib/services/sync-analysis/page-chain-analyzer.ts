@@ -72,45 +72,6 @@ export class PageChainAnalyzer implements ChainAnalysisService {
     }
 
     /**
-     * Show complete dependency hierarchy for a single page
-     */
-    showPageDependencyHierarchy(page: any, sourceEntities: SourceEntities, indent: string): void {
-        // Handle folder pages
-        if (page.pageType === 'folder') {
-            console.log(ansiColors.blue(`${indent}├─ ${ansiColors.cyan('Folder page')} (no template/content dependencies)`));
-            return;
-        }
-
-        // Handle null template
-        if (!page.templateName || page.templateName === null) {
-            console.log(ansiColors.yellow(`${indent}├─ ${ansiColors.yellow('No template assigned')} (page.templateName is null)`));
-            return;
-        }
-
-        // Find template
-        const template = sourceEntities.templates?.find((t: any) => t.pageTemplateName === page.templateName);
-        if (!template) {
-            console.log(ansiColors.red(`${indent}├─ ${ansiColors.red(`Template:${page.templateName}`)} - MISSING IN SOURCE DATA`));
-            return;
-        }
-
-        // Show template dependency
-        console.log(ansiColors.magenta(`${indent}├─ Template:${template.pageTemplateName}`));
-        
-        // Show template's dependencies (containers, models, etc.)
-        if (template.contentSectionDefinitions) {
-            template.contentSectionDefinitions.forEach((section: any, sectionIndex: number) => {
-                this.showTemplateSectionDependencies(section, sourceEntities, `${indent}│  `);
-            });
-        }
-
-        // Show page zones (content in containers)
-        if (page.zones) {
-            this.showPageZoneDependencies(page.zones, sourceEntities, `${indent}│  `);
-        }
-    }
-
-    /**
      * Show dependencies for a template section
      */
     showTemplateSectionDependencies(section: any, sourceEntities: SourceEntities, indent: string): void {
@@ -186,13 +147,5 @@ export class PageChainAnalyzer implements ChainAnalysisService {
      */
     findMissingDependenciesForPage(page: any, sourceEntities: SourceEntities): string[] {
         return this.dependencyFinder.findMissingDependenciesForPage(page, sourceEntities);
-    }
-
-    /**
-     * Check if page has broken dependencies
-     */
-    isPageBroken(page: any, sourceEntities: SourceEntities): boolean {
-        const missing = this.findMissingDependenciesForPage(page, sourceEntities);
-        return missing.length > 0;
     }
 } 

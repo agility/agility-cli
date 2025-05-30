@@ -64,35 +64,4 @@ export class AnalysisStepCoordinator {
             }
         }
     }
-
-    /**
-     * Execute multiple steps in sequence
-     */
-    executeSteps(stepNames: string[], sourceEntities: SourceEntities): void {
-        stepNames.forEach(stepName => {
-            this.executeStep(stepName, sourceEntities);
-        });
-    }
-
-    /**
-     * Get all registered step names
-     */
-    getRegisteredSteps(): string[] {
-        return Array.from(this.services.keys());
-    }
-
-    /**
-     * Check if a step is registered
-     */
-    hasStep(stepName: string): boolean {
-        return this.services.has(stepName);
-    }
-
-    /**
-     * Execute all registered steps in registration order
-     */
-    executeAllSteps(sourceEntities: SourceEntities): void {
-        const stepNames = this.getRegisteredSteps();
-        this.executeSteps(stepNames, sourceEntities);
-    }
 } 

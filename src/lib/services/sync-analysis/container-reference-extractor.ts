@@ -93,32 +93,4 @@ export class ContainerReferenceExtractor implements ReferenceExtractionService {
             }
         }
     }
-
-    /**
-     * Get all container IDs from page zones
-     */
-    getContainerIdsFromPageZones(zones: any): number[] {
-        const containerIds = new Set<number>();
-        this.collectContainersFromPageZones(zones, containerIds);
-        return Array.from(containerIds);
-    }
-
-    /**
-     * Find missing container dependencies for content
-     */
-    findMissingContainerDependencies(content: any, sourceEntities: SourceEntities): string[] {
-        const missing: string[] = [];
-
-        if (!content.fields) return missing;
-
-        const nestedContent = this.extractNestedContainerReferences(content.fields);
-        nestedContent.forEach((nestedRef: ContainerReference) => {
-            const nestedContentItem = sourceEntities.content?.find((c: any) => c.contentID === nestedRef.contentID);
-            if (!nestedContentItem) {
-                missing.push(`Content:${nestedRef.contentID}`);
-            }
-        });
-
-        return missing;
-    }
 } 

@@ -103,31 +103,4 @@ export class ComprehensiveAnalysisRunner {
         console.log('==================================================');
         this.coordinator.executeStep('reconciliation', sourceEntities);
     }
-
-    /**
-     * Get the step coordinator for advanced usage
-     */
-    getCoordinator(): AnalysisStepCoordinator {
-        return this.coordinator;
-    }
-
-    /**
-     * Run a specific step by name
-     */
-    runStep(stepName: string, sourceEntities: SourceEntities): void {
-        if (!this.coordinator.hasStep(stepName)) {
-            console.error(ansiColors.red(`Error: Unknown analysis step "${stepName}"`));
-            console.log(ansiColors.gray('Available steps: ' + this.coordinator.getRegisteredSteps().join(', ')));
-            return;
-        }
-
-        this.coordinator.executeStep(stepName, sourceEntities);
-    }
-
-    /**
-     * Run multiple specific steps
-     */
-    runSteps(stepNames: string[], sourceEntities: SourceEntities): void {
-        this.coordinator.executeSteps(stepNames, sourceEntities);
-    }
 } 
