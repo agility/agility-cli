@@ -245,15 +245,15 @@ Break down the 1600+ line monolithic `two-pass-sync.ts` file into focused, manag
 
 ### **🏗️ DECOMPOSITION STRATEGY:**
 
-- [ ] **Task 18.1:** Create comprehensive backup strategy ⏳
-    - [ ] **Sub-task 18.1.1:** Create timestamped backup of entire `two-pass-sync.ts` 
-    - [ ] **Sub-task 18.1.2:** Backup related dependency files  
-    - [ ] **Sub-task 18.1.3:** Create git checkpoint before any changes
+- [x] **Task 18.1:** Create comprehensive backup strategy ✅ **COMPLETE**
+    - [x] **Sub-task 18.1.1:** Create timestamped backup of entire `two-pass-sync.ts` ✅
+    - [x] **Sub-task 18.1.2:** Backup related dependency files ✅
+    - [x] **Sub-task 18.1.3:** Create git checkpoint before any changes ✅
 
-- [ ] **Task 18.2:** Design new service architecture ⏳
-    - [ ] **Sub-task 18.2.1:** Define service directory structure
-    - [ ] **Sub-task 18.2.2:** Create shared types and interfaces
-    - [ ] **Sub-task 18.2.3:** Plan service dependencies and injection
+- [x] **Task 18.2:** Design new service architecture ✅ **COMPLETE**
+    - [x] **Sub-task 18.2.1:** Define service directory structure ✅
+    - [x] **Sub-task 18.2.2:** Create shared types and interfaces ✅
+    - [x] **Sub-task 18.2.3:** Plan service dependencies and injection ✅
 
 ### **📁 PROPOSED SERVICE STRUCTURE:**
 ```
@@ -274,14 +274,14 @@ src/lib/services/sync-analysis/
 
 ### **🔄 EXTRACTION WORKFLOW:**
 
-- [ ] **Task 18.3:** Extract utility functions (Phase 1) ⏳
-    - [ ] **Sub-task 18.3.1:** Create `asset-reference-extractor.ts`
-        - Methods: `extractAssetReferences()`, `showContentAssetDependencies()`
-    - [ ] **Sub-task 18.3.2:** Create `container-reference-extractor.ts`  
-        - Methods: `extractNestedContainerReferences()`, `collectContainersFromPageZones()`
-    - [ ] **Sub-task 18.3.3:** Create `dependency-finder.ts`
-        - Methods: `findMissingDependenciesForPage()`, `findMissingDependenciesForContent()`, etc.
-    - [ ] **Sub-task 18.3.4:** Test utility extractions independently
+- [x] **Task 18.3:** Extract utility functions (Phase 1) ✅ **COMPLETE**
+    - [x] **Sub-task 18.3.1:** Create `asset-reference-extractor.ts` ✅
+        - Methods: `extractAssetReferences()`, `showContentAssetDependencies()` ✅
+    - [x] **Sub-task 18.3.2:** Create `container-reference-extractor.ts` ✅
+        - Methods: `extractNestedContainerReferences()`, `collectContainersFromPageZones()` ✅
+    - [x] **Sub-task 18.3.3:** Create `dependency-finder.ts` ✅
+        - Methods: `findMissingDependenciesForPage()`, `findMissingDependenciesForContent()`, etc. ✅
+    - [x] **Sub-task 18.3.4:** Test utility extractions independently ✅
 
 - [ ] **Task 18.4:** Extract data loading services (Phase 2) ⏳
     - [ ] **Sub-task 18.4.1:** Create `source-data-loader.ts`
@@ -342,4 +342,4 @@ src/lib/services/sync-analysis/
 - ✅ All 6 analysis sections working correctly
 - ✅ No regression in existing functionality
 
-**Current Phase**: 🚧 **PLANNING COMPLETE** - Ready to begin Task 18.1 
+**Current Phase**: 🚧 **PLANNING COMPLETE** - Ready to begin Task 18.2 
