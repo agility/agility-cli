@@ -231,115 +231,110 @@ src/lib/services/dependency-analyzer/
 
 ---
 
-## Phase 18: Monolithic File Decomposition & Integration Strategy
+## Phase 18: Monolithic File Decomposition & Integration Strategy (REVISED)
 
-**Status**: 🚧 **PLANNING** - Comprehensive decomposition plan for `two-pass-sync.ts`
+**Status**: 🚧 **OPTIMIZED PLAN** - Revised decomposition strategy for maximum efficiency
 
 ### **🎯 STRATEGIC OBJECTIVE:**
 Break down the 1600+ line monolithic `two-pass-sync.ts` file into focused, manageable modules using `/services/function.ts` structure, then integrate hierarchical page display functionality.
 
 ### **📊 MONOLITHIC FILE ANALYSIS:**
-**File**: `src/lib/pushers/two-pass-sync.ts` (1621 lines)
+**File**: `src/lib/pushers/two-pass-sync.ts` (1620 lines) - unchanged
 **Methods Count**: 25 private methods + 1 public method
 **Core Problem**: File too large for safe surgical edits
 
-### **🏗️ DECOMPOSITION STRATEGY:**
+### **🚀 OPTIMIZATION INSIGHTS:**
+**Key Findings from Revisionary Analysis:**
+1. **Early Integration**: Hierarchical functionality should be integrated during extraction (Task 18.5.1) not delayed to Task 18.8
+2. **Parallel Opportunities**: Some services can be extracted in parallel since they don't depend on each other
+3. **Testing Efficiency**: Add intermediate integration tests after each major phase
+4. **Coordinator Simplification**: Break down the coordinator into smaller, focused coordinators
+5. **Method Dependencies**: Some methods are more tightly coupled than originally mapped
+
+### **🏗️ REVISED DECOMPOSITION STRATEGY:**
 
 - [x] **Task 18.1:** Create comprehensive backup strategy ✅ **COMPLETE**
-    - [x] **Sub-task 18.1.1:** Create timestamped backup of entire `two-pass-sync.ts` ✅
-    - [x] **Sub-task 18.1.2:** Backup related dependency files ✅
-    - [x] **Sub-task 18.1.3:** Create git checkpoint before any changes ✅
-
 - [x] **Task 18.2:** Design new service architecture ✅ **COMPLETE**
-    - [x] **Sub-task 18.2.1:** Define service directory structure ✅
-    - [x] **Sub-task 18.2.2:** Create shared types and interfaces ✅
-    - [x] **Sub-task 18.2.3:** Plan service dependencies and injection ✅
+- [x] **Task 18.3:** Extract utility functions (Phase 1) ✅ **COMPLETE**
+- [x] **Task 18.4:** Extract data loading services (Phase 2) ✅ **COMPLETE**
 
-### **📁 PROPOSED SERVICE STRUCTURE:**
+### **📁 OPTIMIZED SERVICE STRUCTURE:**
 ```
 src/lib/services/sync-analysis/
-├── types.ts                           - Shared interfaces
-├── source-data-loader.ts              - loadSourceData(), hasNoContent()
-├── page-chain-analyzer.ts             - showAllPageChains(), showPageDependencyHierarchy()
-├── container-chain-analyzer.ts        - showContainerChains(), showContainerDependencyHierarchy()
-├── model-chain-analyzer.ts            - showModelToModelChains(), showModelDependencyHierarchy()
-├── broken-chain-detector.ts           - showBrokenChains(), findAllBrokenItems()
-├── non-chained-items-analyzer.ts      - showNonChainedItems()
-├── reconciliation-reporter.ts         - showReconciliation()
-├── dependency-finder.ts               - findMissingDependencies*() methods
-├── asset-reference-extractor.ts       - extractAssetReferences(), showContentAssetDependencies()
-├── container-reference-extractor.ts   - extractNestedContainerReferences()
-└── comprehensive-analysis-coordinator.ts - showComprehensiveAnalysis() orchestrator
+├── types.ts                           ✅ Shared interfaces
+├── source-data-loader.ts              ✅ loadSourceData(), hasNoContent()
+├── asset-reference-extractor.ts       ✅ Asset URL scanning and validation
+├── container-reference-extractor.ts   ✅ Container reference extraction
+├── dependency-finder.ts               ✅ Missing dependency detection
+├── page-chain-analyzer.ts             🎯 showAllPageChains() + HIERARCHICAL INTEGRATION
+├── container-chain-analyzer.ts        📦 showContainerChains(), dependencies
+├── model-chain-analyzer.ts            📐 showModelToModelChains(), dependencies
+├── broken-chain-detector.ts           🔴 showBrokenChains(), validation
+├── non-chained-items-analyzer.ts      📊 showNonChainedItems(), collection
+├── reconciliation-reporter.ts         🔍 showReconciliation()
+├── analysis-step-coordinator.ts       🎭 Lightweight step coordinator
+└── comprehensive-analysis-runner.ts   🏃 Main orchestrator (replaces showComprehensiveAnalysis)
 ```
 
-### **🔄 EXTRACTION WORKFLOW:**
+### **🔄 OPTIMIZED EXTRACTION WORKFLOW:**
 
-- [x] **Task 18.3:** Extract utility functions (Phase 1) ✅ **COMPLETE**
-    - [x] **Sub-task 18.3.1:** Create `asset-reference-extractor.ts` ✅
-        - Methods: `extractAssetReferences()`, `showContentAssetDependencies()` ✅
-    - [x] **Sub-task 18.3.2:** Create `container-reference-extractor.ts` ✅
-        - Methods: `extractNestedContainerReferences()`, `collectContainersFromPageZones()` ✅
-    - [x] **Sub-task 18.3.3:** Create `dependency-finder.ts` ✅
-        - Methods: `findMissingDependenciesForPage()`, `findMissingDependenciesForContent()`, etc. ✅
-    - [x] **Sub-task 18.3.4:** Test utility extractions independently ✅
-
-- [x] **Task 18.4:** Extract data loading services (Phase 2) ✅ **COMPLETE**
-    - [x] **Sub-task 18.4.1:** Create `source-data-loader.ts` ✅
-        - Methods: `loadSourceData()`, `hasNoContent()` ✅
-    - [x] **Sub-task 18.4.2:** Create comprehensive type definitions in `types.ts` ✅
-    - [x] **Sub-task 18.4.3:** Test data loading service independently ✅
-
-- [ ] **Task 18.5:** Extract analysis services (Phase 3) ⏳
-    - [ ] **Sub-task 18.5.1:** Create `page-chain-analyzer.ts`
+- [ ] **Task 18.5:** Extract analysis services (Phase 3A) 🚧 **IN PROGRESS** 
+    - [ ] **Sub-task 18.5.1:** Create `page-chain-analyzer.ts` with **HIERARCHICAL INTEGRATION** ⚡
         - Methods: `showAllPageChains()`, `showPageDependencyHierarchy()`, `showPageZoneDependencies()`, `showTemplateSectionDependencies()`
-    - [ ] **Sub-task 18.5.2:** Create `container-chain-analyzer.ts`
+        - **🎯 INTEGRATION**: Replace flat `showAllPageChains()` with hierarchical version from Phase 17 
+        - **🧪 TEST**: Verify PageID:17 nests under PageID:16 immediately
+    - [ ] **Sub-task 18.5.2:** Create `container-chain-analyzer.ts` (parallel)
         - Methods: `showContainerChains()`, `showContainerDependencyHierarchy()`, `showContainerAssetDependencies()`
-    - [ ] **Sub-task 18.5.3:** Create `model-chain-analyzer.ts`
+    - [ ] **Sub-task 18.5.3:** Create `model-chain-analyzer.ts` (parallel)
         - Methods: `showModelToModelChains()`, `showModelDependencyHierarchy()`, `collectModelsFromPageChains()`, `findModelToModelChains()`, `modelHasModelDependencies()`
 
-- [ ] **Task 18.6:** Extract reporting services (Phase 4) ⏳
-    - [ ] **Sub-task 18.6.1:** Create `broken-chain-detector.ts`
-        - Methods: `showBrokenChains()`, `findAllBrokenItems()`
-    - [ ] **Sub-task 18.6.2:** Create `non-chained-items-analyzer.ts` 
+- [ ] **Task 18.6:** Extract reporting services (Phase 3B - parallel) ⚡
+    - [ ] **Sub-task 18.6.1:** Create `broken-chain-detector.ts` (parallel)
+        - Methods: `showBrokenChains()` (moves from dependency-finder)
+    - [ ] **Sub-task 18.6.2:** Create `non-chained-items-analyzer.ts` (parallel)
         - Methods: `showNonChainedItems()`, `collectAllEntitiesInChains()`, `collectModelsUsedInOtherChains()`
-    - [ ] **Sub-task 18.6.3:** Create `reconciliation-reporter.ts`
+    - [ ] **Sub-task 18.6.3:** Create `reconciliation-reporter.ts` (parallel)
         - Methods: `showReconciliation()`
 
-- [ ] **Task 18.7:** Create service coordinator (Phase 5) ⏳
-    - [ ] **Sub-task 18.7.1:** Create `comprehensive-analysis-coordinator.ts`
-        - Orchestrates all 6 analysis steps
-        - Injects all service dependencies
-    - [ ] **Sub-task 18.7.2:** Test complete analysis flow through coordinator
+- [ ] **Task 18.7:** Create lightweight coordinators (Phase 4) ⏳
+    - [ ] **Sub-task 18.7.1:** Create `analysis-step-coordinator.ts`
+        - Manages individual analysis steps with dependency injection
+    - [ ] **Sub-task 18.7.2:** Create `comprehensive-analysis-runner.ts`
+        - Replaces `showComprehensiveAnalysis()` method
+        - Uses step coordinator for each of the 6 analysis sections
+    - [ ] **Sub-task 18.7.3:** Integration testing after each coordinator
 
-- [ ] **Task 18.8:** Integration and hierarchical upgrade (Phase 6) ⏳
-    - [ ] **Sub-task 18.8.1:** Replace `showAllPageChains()` in `page-chain-analyzer.ts` with hierarchical version
-    - [ ] **Sub-task 18.8.2:** Update coordinator to use hierarchical page analyzer
-    - [ ] **Sub-task 18.8.3:** Update main `TwoPassSync` class to use coordinator
-    - [ ] **Sub-task 18.8.4:** Test complete sync flow with hierarchical display
+- [ ] **Task 18.8:** Main class integration (Phase 5) ⏳
+    - [ ] **Sub-task 18.8.1:** Update `TwoPassSync.syncInstance()` to use new runner
+    - [ ] **Sub-task 18.8.2:** Remove extracted methods from monolithic file
+    - [ ] **Sub-task 18.8.3:** Update imports and dependencies
+    - [ ] **Sub-task 18.8.4:** Full end-to-end sync testing
 
-- [ ] **Task 18.9:** Cleanup and validation (Phase 7) ⏳
-    - [ ] **Sub-task 18.9.1:** Remove old methods from `TwoPassSync` class
-    - [ ] **Sub-task 18.9.2:** Verify all functionality still works
-    - [ ] **Sub-task 18.9.3:** Run comprehensive sync test
-    - [ ] **Sub-task 18.9.4:** Update imports and dependencies
+- [ ] **Task 18.9:** Validation and cleanup (Phase 6) ⏳
+    - [ ] **Sub-task 18.9.1:** Verify all 6 analysis sections work correctly
+    - [ ] **Sub-task 18.9.2:** Confirm hierarchical display (PageID:17 under PageID:16)
+    - [ ] **Sub-task 18.9.3:** Performance testing - ensure no regression
+    - [ ] **Sub-task 18.9.4:** Final line count verification (target: <200 lines)
 
-### **🧪 TESTING STRATEGY:**
-- **Unit Testing**: Each extracted service tested independently
-- **Integration Testing**: Coordinator tested with all services
-- **Regression Testing**: Full sync command tested after each phase
-- **Hierarchical Testing**: Verify PageID:17 nests under PageID:16
+### **🚀 KEY OPTIMIZATIONS:**
 
-### **🛡️ SAFETY MEASURES:**
-- **Progressive Extraction**: One service at a time, test after each
-- **Backup Strategy**: Git checkpoints before every major change
-- **Rollback Plan**: Can revert to monolithic file if needed
-- **No Breaking Changes**: Maintain same external API
+1. **⚡ Early Hierarchical Integration**: Task 18.5.1 integrates hierarchical functionality immediately, not in Task 18.8
+2. **⚡ Parallel Extraction**: Tasks 18.5 and 18.6 can run in parallel (no dependencies between them)
+3. **⚡ Lightweight Coordinators**: Split coordinator into focused step coordinator + runner
+4. **⚡ Progressive Testing**: Test hierarchical functionality in Task 18.5.1, not waiting until end
+5. **⚡ Method Consolidation**: Move `showBrokenChains()` to broken-chain-detector for logical grouping
 
-### **📈 SUCCESS CRITERIA:**
-- ✅ `two-pass-sync.ts` reduced from 1600+ lines to < 200 lines
-- ✅ 25+ methods extracted into focused service modules
-- ✅ PageID:17 properly nests under PageID:16 in sync output
-- ✅ All 6 analysis sections working correctly
-- ✅ No regression in existing functionality
+### **🧪 ENHANCED TESTING STRATEGY:**
+- **Immediate Hierarchical Test**: Task 18.5.1 tests PageID:17 nesting
+- **Progressive Integration**: Test each service as extracted
+- **Coordinator Testing**: Test step coordinator + runner separately  
+- **End-to-End Validation**: Full sync command testing after integration
 
-**Current Phase**: 🚧 **Phase 3 IN PROGRESS** - Ready to begin Task 18.5 
+### **📈 OPTIMIZED SUCCESS CRITERIA:**
+- ✅ **Hierarchical functionality working by Task 18.5.1** (not delayed to Task 18.8)
+- ✅ **Parallel extraction reduces total time** by ~30-40%
+- ✅ **Lightweight coordinators easier to maintain** than monolithic coordinator
+- ✅ **Progressive testing catches issues early** vs waiting until end
+- ✅ **Same end goals**: <200 lines, PageID:17 nesting, no regressions
+
+**Current Phase**: 🚧 **OPTIMIZED PLAN READY** - Begin enhanced Task 18.5 with hierarchical integration
