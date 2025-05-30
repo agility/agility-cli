@@ -64,7 +64,7 @@ export class PageChainDisplay {
     }
 
     /**
-     * Display a hierarchical page group with proper nesting
+     * Display a hierarchical page group with proper unlimited nesting
      */
     private displayHierarchicalGroup(group: HierarchicalPageGroup, sourceEntities: SourceEntities, hierarchy: any): void {
         // Display root page
@@ -80,20 +80,49 @@ export class PageChainDisplay {
         // Show root page dependencies
         this.showPageDependencyHierarchy(group.rootPage, sourceEntities, '    ');
 
-        // Display child pages with proper indentation
-        group.childPages.forEach((childPage, index) => {
-            const isLast = index === group.childPages.length - 1;
+        // Display nested hierarchy with unlimited levels
+        this.displayNestedChildren(group.rootPage.pageID, group.childPages, sourceEntities, hierarchy, '    ');
+    }
+
+    /**
+     * Display nested children with unlimited hierarchy levels (recursive)
+     * This properly shows PageID:A → PageID:B → PageID:C structure
+     */
+    private displayNestedChildren(
+        parentPageId: number, 
+        allChildPages: any[], 
+        sourceEntities: SourceEntities, 
+        hierarchy: any, 
+        baseIndent: string
+    ): void {
+        // Find direct children of this parent
+        const directChildIds = hierarchy[parentPageId] || [];
+        const directChildren = allChildPages.filter(page => directChildIds.includes(page.pageID));
+
+        directChildren.forEach((childPage, index) => {
+            const isLast = index === directChildren.length - 1;
             const prefix = isLast ? '└─' : '├─';
             
             const childMissing = this.findMissingDependenciesForPage(childPage, sourceEntities);
             const childBroken = childMissing.length > 0;
             const childBrokenIndicator = childBroken ? ansiColors.red(' [BROKEN]') : '';
             
-            console.log(ansiColors.cyan(`    ${prefix} Child: PageID:${childPage.pageID} (${childPage.name || 'No Name'})${childBrokenIndicator}`));
+            // Handle folder pages differently - show as "Folder PageID:X (name)" 
+            if (childPage.pageType === 'folder') {
+                console.log(ansiColors.white(`${baseIndent}${prefix} Folder PageID:${childPage.pageID} (${childPage.name || 'No Name'})${childBrokenIndicator}`));
+            } else {
+                // Regular child pages - hierarchy makes parent-child relationship clear, no need for "Child:" prefix
+                console.log(ansiColors.white(`${baseIndent}${prefix} PageID:${childPage.pageID} (${childPage.name || 'No Name'})${childBrokenIndicator}`));
+            }
             
-            // Show child page dependencies with deeper indentation
-            const childIndent = isLast ? '        ' : '    │   ';
-            this.showPageDependencyHierarchy(childPage, sourceEntities, childIndent);
+            // Show child page dependencies (only for non-folder pages)
+            const childIndent = isLast ? `${baseIndent}    ` : `${baseIndent}│   `;
+            if (childPage.pageType !== 'folder') {
+                this.showPageDependencyHierarchy(childPage, sourceEntities, childIndent);
+            }
+
+            // Recursively display this child's children (unlimited nesting)
+            this.displayNestedChildren(childPage.pageID, allChildPages, sourceEntities, hierarchy, childIndent);
         });
     }
 
@@ -126,27 +155,26 @@ export class PageChainDisplay {
      * Enhanced to include all dependency details like the main system
      */
     private showPageDependencyHierarchy(page: any, sourceEntities: SourceEntities, indent: string): void {
-        // Handle folder pages
+        // Handle folder pages - don't show dependencies since they're now displayed as "Folder PageID:X"
         if (page.pageType === 'folder') {
-            console.log(`${indent}├─ Folder page (no template/content dependencies)`);
-            return;
+            return; // No dependencies to show for folder pages
         }
 
         // Handle null template
         if (!page.templateName || page.templateName === null) {
-            console.log(`${indent}├─ No template assigned (page.templateName is null)`);
+            console.log(ansiColors.yellow(`${indent}├─ ${ansiColors.yellow('No template assigned')} (page.templateName is null)`));
             return;
         }
 
         // Find template
         const template = sourceEntities.templates?.find((t: any) => t.pageTemplateName === page.templateName);
         if (!template) {
-            console.log(`${indent}├─ Template:${page.templateName} - MISSING IN SOURCE DATA`);
+            console.log(ansiColors.red(`${indent}├─ ${ansiColors.red(`Template:${page.templateName}`)} - MISSING IN SOURCE DATA`));
             return;
         }
 
         // Show template dependency
-        console.log(`${indent}├─ Template:${template.pageTemplateName}`);
+        console.log(ansiColors.magenta(`${indent}├─ Template:${template.pageTemplateName}`));
         
         // Show template's dependencies (containers, models, etc.)
         if (template.contentSectionDefinitions) {
@@ -169,19 +197,19 @@ export class PageChainDisplay {
         if (section.itemContainerID) {
             const container = sourceEntities.containers?.find((c: any) => c.contentViewID === section.itemContainerID);
             if (container) {
-                console.log(`${indent}├─ ContainerID:${container.contentViewID} (${container.referenceName || 'No Name'})`);
+                console.log(ansiColors.white(`${indent}├─ ContainerID:${container.contentViewID} (${container.referenceName || 'No Name'})`));
                 
                 // Show container's model dependency
                 if (container.contentDefinitionID) {
                     const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
                     if (model) {
-                        console.log(`${indent}│  ├─ Model:${model.referenceName} (${model.displayName || 'No Name'})`);
+                        console.log(ansiColors.green(`${indent}│  ├─ Model:${model.referenceName} (${model.displayName || 'No Name'})`));
                     } else {
-                        console.log(`${indent}│  ├─ Model:ID_${container.contentDefinitionID} - MISSING IN SOURCE DATA`);
+                        console.log(ansiColors.red(`${indent}│  ├─ Model:ID_${container.contentDefinitionID} - MISSING IN SOURCE DATA`));
                     }
                 }
             } else {
-                console.log(`${indent}├─ ContainerID:${section.itemContainerID} - MISSING IN SOURCE DATA`);
+                console.log(ansiColors.red(`${indent}├─ ContainerID:${section.itemContainerID} - MISSING IN SOURCE DATA`));
             }
         }
     }
@@ -192,7 +220,7 @@ export class PageChainDisplay {
     private showPageZoneDependencies(zones: any, sourceEntities: SourceEntities, indent: string): void {
         for (const [zoneName, zoneModules] of Object.entries(zones)) {
             if (Array.isArray(zoneModules) && zoneModules.length > 0) {
-                console.log(`${indent}├─ Zone: ${zoneName}`);
+                console.log(ansiColors.gray(`${indent}├─ Zone: ${zoneName}`));
                 
                 zoneModules.forEach((module: any, moduleIndex: number) => {
                     if (module?.item?.contentid || module?.item?.contentId) {
@@ -200,7 +228,7 @@ export class PageChainDisplay {
                         const content = sourceEntities.content?.find((c: any) => c.contentID === contentId);
                         
                         if (content) {
-                            console.log(`${indent}│  ├─ ContentID:${content.contentID} (${content.properties?.referenceName || 'No Name'})`);
+                            console.log(ansiColors.blue(`${indent}│  ├─ ContentID:${content.contentID} (${content.properties?.referenceName || 'No Name'})`));
                             
                             // Show content's model dependency
                             if (content.properties?.definitionName) {
@@ -214,9 +242,9 @@ export class PageChainDisplay {
                                 }
                                 
                                 if (model) {
-                                    console.log(`${indent}│  │  ├─ Model:${model.referenceName} (${model.displayName || 'No Name'})`);
+                                    console.log(ansiColors.green(`${indent}│  │  ├─ Model:${model.referenceName} (${model.displayName || 'No Name'})`));
                                 } else {
-                                    console.log(`${indent}│  │  ├─ Model:${content.properties.definitionName} - MISSING IN SOURCE DATA`);
+                                    console.log(ansiColors.red(`${indent}│  │  ├─ Model:${content.properties.definitionName} - MISSING IN SOURCE DATA`));
                                 }
                             }
                             
@@ -224,7 +252,7 @@ export class PageChainDisplay {
                             this.showContentAssetDependencies(content, sourceEntities, `${indent}│  │  `);
                             
                         } else {
-                            console.log(`${indent}│  ├─ ContentID:${contentId} - MISSING IN SOURCE DATA`);
+                            console.log(ansiColors.red(`${indent}│  ├─ ContentID:${contentId} - MISSING IN SOURCE DATA`));
                         }
                     }
                 });
@@ -246,16 +274,16 @@ export class PageChainDisplay {
                 a.edgeUrl === assetRef.url
             );
             if (asset) {
-                console.log(`${indent}├─ Asset:${asset.fileName || assetRef.url}`);
+                console.log(`${indent}├─ ${ansiColors.yellow(`Asset:${asset.fileName || assetRef.url}`)}`);
                 // Check gallery dependency if asset has one  
                 if (asset.mediaGroupingID) {
                     const gallery = sourceEntities.galleries?.find((g: any) => g.mediaGroupingID === asset.mediaGroupingID);
                     if (gallery) {
-                        console.log(`${indent}│  ├─ Gallery:${gallery.name || gallery.mediaGroupingID}`);
+                        console.log(`${indent}│  ├─ ${ansiColors.magenta(`Gallery:${gallery.name || gallery.mediaGroupingID}`)}`);
                     }
                 }
             } else {
-                console.log(`${indent}├─ Asset:${assetRef.url} - MISSING IN SOURCE DATA`);
+                console.log(`${indent}├─ ${ansiColors.red(`Asset:${assetRef.url} - MISSING IN SOURCE DATA`)}`);
             }
         });
     }

@@ -135,16 +135,17 @@ export class SitemapHierarchy {
         // Mark root as processed
         processedPages.add(rootPage.pageID);
 
-        // Collect ONLY direct children (not all descendants)
-        this.collectDirectChildren(rootPage.pageID, allPages, hierarchy, group, processedPages);
+        // Collect ALL descendants with unlimited nesting levels
+        this.collectAllDescendants(rootPage.pageID, allPages, hierarchy, group, processedPages);
 
         return group;
     }
 
     /**
-     * Collect only direct children (not recursive descendants)
+     * Collect all descendants with unlimited nesting levels (not just direct children)
+     * This enables proper display of deep hierarchies like PageID:A → PageID:B → PageID:C
      */
-    private collectDirectChildren(
+    private collectAllDescendants(
         parentPageId: number,
         allPages: any[],
         hierarchy: PageHierarchy,
@@ -156,38 +157,13 @@ export class SitemapHierarchy {
         directChildIds.forEach(childId => {
             const childPage = allPages.find(p => p.pageID === childId);
             if (childPage && !processedPages.has(childId)) {
+                // Add this child to the current level
                 group.childPages.push(childPage);
                 group.allPageIds.add(childId);
                 processedPages.add(childId);
                 
-                // Recursively mark all descendants as processed
-                // This ensures they don't show up as orphaned pages
-                this.markDescendantsAsProcessed(childId, allPages, hierarchy, group, processedPages);
-            }
-        });
-    }
-
-    /**
-     * Recursively mark all descendants as processed (but don't add them to current group)
-     */
-    private markDescendantsAsProcessed(
-        parentPageId: number,
-        allPages: any[],
-        hierarchy: PageHierarchy,
-        group: HierarchicalPageGroup,
-        processedPages: Set<number>
-    ): void {
-        const childIds = hierarchy[parentPageId] || [];
-        
-        childIds.forEach(childId => {
-            const childPage = allPages.find(p => p.pageID === childId);
-            if (childPage && !processedPages.has(childId)) {
-                // Mark as processed and add to group's allPageIds
-                group.allPageIds.add(childId);
-                processedPages.add(childId);
-                
-                // Recursively mark grandchildren
-                this.markDescendantsAsProcessed(childId, allPages, hierarchy, group, processedPages);
+                // Recursively collect ALL descendants (grandchildren, great-grandchildren, etc.)
+                this.collectAllDescendants(childId, allPages, hierarchy, group, processedPages);
             }
         });
     }
