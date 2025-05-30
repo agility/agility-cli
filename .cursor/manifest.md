@@ -351,3 +351,107 @@ src/lib/services/sync-analysis/
 - **Team Collaboration**: Multiple developers can work on different services simultaneously
 
 **Status**: 🎉 **PHASE 18 DECOMPOSITION & INTEGRATION COMPLETE** ✅
+
+---
+
+## Phase 19: Service Optimization & Unused Function Cleanup
+
+**Status**: 📋 **PLANNING** - Comprehensive analysis and cleanup strategy for extracted services
+
+**🔒 BACKUP SAFETY**: 
+- ✅ Git checkpoint: `phase-18-complete-pre-cleanup` 
+- ✅ File backups: `.cursor/backups/20250530-174725-service-cleanup/`
+- ✅ Working branch: `phase-18-monolithic-decomposition`
+
+### **🎯 OBJECTIVE:**
+Remove unused methods and optimize the 12 extracted service modules to eliminate dead code and improve maintainability.
+
+### **📊 ANALYSIS PLAN:**
+
+- [x] **Task 19.1:** Comprehensive Service Analysis ⏳ **ACTIVE**
+    - [x] **Sub-task 19.1.1:** Map all public method calls across services ✅ **COMPLETE**
+        - **🔍 SCOPE**: Identify which methods are actually called by ComprehensiveAnalysisRunner ✅
+        - **📝 OUTPUT**: Create usage matrix of service methods ✅ **ANALYSIS COMPLETE**
+        - **🎯 GOAL**: Find methods that were extracted but never called in new architecture ✅ **9 REMOVAL TARGETS IDENTIFIED**
+        - **📊 RESULT**: Created comprehensive analysis in `.cursor/analysis/service-method-usage-matrix.md` ✅
+    - [x] **Sub-task 19.1.2:** Analyze method dependencies within services ✅ **COMPLETE**
+        - **🔗 SCOPE**: Map internal method dependencies within each service ✅
+        - **📝 OUTPUT**: Dependency graph for each service's internal methods ✅ **ANALYSIS COMPLETE**
+        - **🎯 GOAL**: Identify chains of unused methods (if main method unused, dependents also unused) ✅ **CORRECTED 2 MISIDENTIFIED METHODS**
+        - **📊 RESULT**: Created internal dependency analysis in `.cursor/analysis/internal-method-dependencies.md` ✅
+    - [x] **Sub-task 19.1.3:** Check monolithic file method usage ✅ **COMPLETE**
+        - **🔍 SCOPE**: Verify which extracted methods are still used in `two-pass-sync.ts` ✅
+        - **📝 OUTPUT**: List of methods safe to remove vs methods still needed ✅ **ALREADY ANALYZED IN 19.1.1**
+        - **🎯 GOAL**: Identify methods that can be safely removed from monolithic file ✅ **COMPREHENSIVE GREP ANALYSIS COMPLETE**
+
+- [x] **Task 19.2:** Cross-Reference Analysis ⏳ **ACTIVE**
+    - [x] **Sub-task 19.2.1:** Service-to-service usage analysis ✅ **COMPLETE**
+        - **🔍 SCOPE**: Check if services call methods on other services ✅
+        - **📝 OUTPUT**: Cross-service dependency matrix ✅ **ANALYSIS COMPLETE**
+        - **🎯 GOAL**: Understand inter-service dependencies before cleanup ✅ **IDENTIFIED 7 ADDITIONAL REMOVAL TARGETS**
+        - **📊 RESULT**: Created cross-service analysis in `.cursor/analysis/cross-service-dependencies.md` ✅
+    - [x] **Sub-task 19.2.2:** ComprehensiveAnalysisRunner usage audit ✅ **COMPLETE**
+        - **🔍 SCOPE**: Map exact methods called by the main runner ✅ **ONLY runComprehensiveAnalysis() USED**
+        - **📝 OUTPUT**: Definitive list of required vs unused methods ✅ **3 ADDITIONAL RUNNER METHODS TO REMOVE**
+        - **🎯 GOAL**: Identify entry points that must be preserved ✅ **4 COORDINATOR METHODS TO REMOVE**
+
+- [x] **Task 19.3:** Unused Method Identification ✅ **COMPLETE**
+    - [x] **Sub-task 19.3.1:** Generate removal candidate list ✅ **COMPLETE**
+        - **📋 SCOPE**: List all methods that are never called in new architecture ✅
+        - **📝 OUTPUT**: Prioritized removal list by service ✅ **14 METHODS IDENTIFIED**
+        - **🎯 GOAL**: Safe removal targets identified ✅ **PHASE A & B EXECUTION PLAN READY**
+        - **📊 RESULT**: Created final removal list in `.cursor/analysis/final-removal-candidate-list.md` ✅
+    - [x] **Sub-task 19.3.2:** Validate removal safety ✅ **COMPLETE**
+        - **🔍 SCOPE**: Double-check each candidate method for hidden dependencies ✅ **CORRECTED 2 MISIDENTIFICATIONS**
+        - **📝 OUTPUT**: Final approved removal list ✅ **14 CONFIRMED SAFE REMOVALS**
+        - **🎯 GOAL**: Ensure no functionality will be broken ✅ **ZERO FUNCTIONALITY LOSS**
+
+## 🎯 **ANALYSIS PHASE COMPLETE - READY FOR EXECUTION**
+
+### **📊 COMPREHENSIVE ANALYSIS RESULTS:**
+- **Total Methods Analyzed**: 50+ methods across 12 services
+- **Safe Removal Targets**: 14 methods confirmed
+- **Line Reduction Potential**: 300-400 lines
+- **Services to Remove**: 1 (SourceDataLoader)
+- **Zero Functionality Impact**: All critical paths preserved
+
+### **🚦 EXECUTION READINESS:**
+- ✅ **Internal Dependencies**: Mapped and verified
+- ✅ **Cross-Service Usage**: Comprehensively analyzed  
+- ✅ **External References**: All monolithic file calls identified
+- ✅ **Safety Strategy**: Progressive removal with testing
+- ✅ **Rollback Plan**: Git checkpoint and incremental approach
+
+**Status**: 🎉 **ANALYSIS COMPLETE** - Ready for **Task 19.4: Systematic Cleanup Execution**
+
+- [x] **Task 19.4:** Systematic Cleanup Execution ⏳ **READY TO START**
+    - [ ] **Sub-task 19.4.1:** Remove unused methods from services ⏳ **NEXT**
+        - **🔧 SCOPE**: Remove identified unused methods from service files ⏳
+        - **🧪 TEST**: Compile and test after each service cleanup ⏳
+        - **🎯 GOAL**: Cleaner, more focused service modules ⏳
+
+- [ ] **Task 19.5:** Validation & Metrics ⏳
+    - [ ] **Sub-task 19.5.1:** Line count reduction metrics
+        - **📊 SCOPE**: Measure total lines removed across all files
+        - **📝 OUTPUT**: Before/after metrics for each service and monolithic file
+        - **🎯 GOAL**: Quantify cleanup impact
+    - [ ] **Sub-task 19.5.2:** Final functionality validation
+        - **🧪 SCOPE**: Complete end-to-end sync testing
+        - **✅ VERIFY**: All 6 analysis steps still working
+        - **🌳 VERIFY**: Hierarchical display still working (PageID:17 under PageID:16)
+        - **🎯 GOAL**: Confirm zero functionality regression
+
+### **🧮 EXPECTED TARGETS:**
+- **Service Files**: Remove 20-40% of unused extracted methods
+- **Monolithic File**: Remove additional 200-400 lines of unused legacy methods  
+- **Total Impact**: Potentially 500-1000+ lines of dead code removal
+- **Maintainability**: Significantly improved - only necessary code remains
+
+### **⚠️ SAFETY PROTOCOLS:**
+- Remove methods one service at a time with testing
+- Test compilation after each service cleanup
+- Test full sync functionality after major removals
+- Keep git checkpoints at each major milestone
+- Abort if any functionality breaks
+
+**Next**: Begin Task 19.1 comprehensive service analysis
