@@ -1,12 +1,8 @@
 import * as mgmtApi from '@agility/management-sdk';
 import ansiColors from 'ansi-colors';
-import { DependencyAnalyzer } from '../services/dependency-analyzer';
-import { TwoPassOrchestrator } from '../services/two-pass-orchestrator';
-import { EntityFactoryRegistry, EntityFactoryContext } from '../services/entity-factory';
-import { RelationshipLinker } from '../services/relationship-linker';
-import { CycleResolver, CycleResolutionStrategy } from '../services/cycle-resolver';
 import { fileOperations } from '../services/fileOperations';
-import { PageChainAnalyzer } from '../services/sync-analysis/page-chain-analyzer';
+import { ComprehensiveAnalysisRunner } from '../services/sync-analysis/comprehensive-analysis-runner';
+import { SyncAnalysisContext } from '../services/sync-analysis/types';
 
 export interface TwoPassSyncOptions {
     debug: boolean;
@@ -77,11 +73,22 @@ export class TwoPassSync {
                 return;
             }
 
-            // ANALYSIS PHASE ONLY: Build dependency chains and execution chains
-            const maxDepth = this.syncOptions.maxDepth || 10; // Default to 10 if not specified
+            // ANALYSIS PHASE ONLY: Use ComprehensiveAnalysisRunner for 6-step analysis
+            const analysisRunner = new ComprehensiveAnalysisRunner();
             
-            // Show ONLY Aaron's 6 required sections - no old analysis
-            this.showComprehensiveAnalysis(sourceEntities);
+            // Create analysis context
+            const context: SyncAnalysisContext = {
+                sourceGuid: this.sourceGuid,
+                locale: this.locale,
+                isPreview: this.isPreview,
+                rootPath: this.rootPath,
+                debug: this.syncOptions.debug,
+                elements: this.elements
+            };
+            
+            // Initialize and run analysis
+            analysisRunner.initialize(context);
+            analysisRunner.runComprehensiveAnalysis(sourceEntities);
 
             // COMMENTED OUT: 2-pass orchestrator - this is for PUSH phase, not analysis
             /*
@@ -188,67 +195,21 @@ export class TwoPassSync {
     }
 
     /**
-     * Show comprehensive analysis results in a single, clean report
-     * FIXED: Shows ONLY Aaron's 6 required sections - no other information
-     * 🎯 HIERARCHICAL INTEGRATION: Now uses PageChainAnalyzer for section 1
+     * Collect all container IDs from page zones
      */
-    private showComprehensiveAnalysis(sourceEntities: any): void {
-        console.log(ansiColors.cyan('\n📄 1. ALL PAGE CHAINS'));
-        console.log('==================================================');
-        
-        // 🎯 HIERARCHICAL INTEGRATION: Use new PageChainAnalyzer instead of flat display
-        const pageChainAnalyzer = new PageChainAnalyzer();
-        pageChainAnalyzer.initialize({
-            rootPath: this.rootPath,
-            sourceGuid: this.sourceGuid,
-            locale: this.locale,
-            isPreview: this.isPreview,
-            debug: this.syncOptions.debug,
-            elements: this.elements
-        });
-        pageChainAnalyzer.analyzeChains(sourceEntities);
+    private collectContainersFromPageZones(zones: any, containerIds: Set<number>): void {
+        if (!zones || typeof zones !== 'object') return;
 
-        console.log(ansiColors.cyan('\n📦 2. ALL CONTAINER CHAINS'));
-        console.log('==================================================');
-        this.showContainerChains(sourceEntities);
-
-        console.log(ansiColors.cyan('\n📐 3. ALL MODEL-TO-MODEL CHAINS'));
-        console.log('==================================================');
-        this.showModelToModelChains(sourceEntities);
-
-        this.showBrokenChains(sourceEntities);
-
-        console.log(ansiColors.yellow('\n📊 4. ITEMS OUTSIDE OF CHAINS'));
-        console.log('==================================================');
-        this.showNonChainedItems(sourceEntities);
-
-        console.log(ansiColors.green('\n🔍 5. RECONCILIATION SUMMARY'));
-        console.log('==================================================');
-        this.showReconciliation(sourceEntities);
-    }
-
-    /**
-     * STEP 1: Show all page chains with complete dependency hierarchy
-     */
-    private showAllPageChains(sourceEntities: any): void {
-        if (!sourceEntities.pages || sourceEntities.pages.length === 0) {
-            console.log(ansiColors.gray('  No pages found in source data'));
-            return;
+        for (const [zoneName, zoneModules] of Object.entries(zones)) {
+            if (Array.isArray(zoneModules)) {
+                zoneModules.forEach((module: any) => {
+                    if (module?.item?.contentid || module?.item?.contentId) {
+                        const contentId = module.item.contentid || module.item.contentId;
+                        containerIds.add(contentId);
+                    }
+                });
+            }
         }
-
-        const totalPages = sourceEntities.pages.length;
-        console.log(ansiColors.yellow(`Found ${totalPages} pages:`));
-        
-        sourceEntities.pages.forEach((page: any, index: number) => {
-            const missing = this.findMissingDependenciesForPage(page, sourceEntities);
-            const isBroken = missing.length > 0;
-            
-            const brokenIndicator = isBroken ? ansiColors.red(' [BROKEN]') : '';
-            console.log(ansiColors.white(`\n  PageID:${page.pageID} (${page.name || 'No Name'})${brokenIndicator}`));
-            
-            // Show complete dependency hierarchy for this page
-            this.showPageDependencyHierarchy(page, sourceEntities, '    ');
-        });
     }
 
     /**
@@ -291,24 +252,6 @@ export class TwoPassSync {
             // Show complete dependency hierarchy for this container
             this.showContainerDependencyHierarchy(container, sourceEntities, '    ');
         });
-    }
-
-    /**
-     * Collect all container IDs from page zones
-     */
-    private collectContainersFromPageZones(zones: any, containerIds: Set<number>): void {
-        if (!zones || typeof zones !== 'object') return;
-
-        for (const [zoneName, zoneModules] of Object.entries(zones)) {
-            if (Array.isArray(zoneModules)) {
-                zoneModules.forEach((module: any) => {
-                    if (module?.item?.contentid || module?.item?.contentId) {
-                        const contentId = module.item.contentid || module.item.contentId;
-                        containerIds.add(contentId);
-                    }
-                });
-            }
-        }
     }
 
     /**
@@ -417,7 +360,7 @@ export class TwoPassSync {
     }
 
     /**
-     * Extract nested container references from container fields
+     * Extract nested container references from content fields
      */
     private extractNestedContainerReferences(fields: any): Array<{ contentID: number; fieldPath: string }> {
         const references: Array<{ contentID: number; fieldPath: string }> = [];
@@ -1375,54 +1318,6 @@ export class TwoPassSync {
     }
 
     /**
-     * Extract asset references from content fields
-     */
-    private extractAssetReferences(fields: any): Array<{ url: string; fieldPath: string }> {
-        const references: Array<{ url: string; fieldPath: string }> = [];
-        
-        if (!fields || typeof fields !== 'object') {
-            return references;
-        }
-        
-        const scanForAssets = (obj: any, path: string) => {
-            if (typeof obj !== 'object' || obj === null) return;
-            
-            if (Array.isArray(obj)) {
-                obj.forEach((item, index) => {
-                    scanForAssets(item, `${path}[${index}]`);
-                });
-            } else {
-                // Check for asset URL references
-                if (typeof obj === 'string' && obj.includes('cdn.aglty.io')) {
-                    references.push({
-                        url: obj,
-                        fieldPath: path
-                    });
-                }
-                
-                // Check common asset fields
-                if (obj.url && typeof obj.url === 'string' && obj.url.includes('cdn.aglty.io')) {
-                    references.push({
-                        url: obj.url,
-                        fieldPath: `${path}.url`
-                    });
-                }
-                
-                // Recursively scan nested objects
-                for (const [key, value] of Object.entries(obj)) {
-                    scanForAssets(value, path ? `${path}.${key}` : key);
-                }
-            }
-        };
-        
-        for (const [fieldName, fieldValue] of Object.entries(fields)) {
-            scanForAssets(fieldValue, fieldName);
-        }
-        
-        return references;
-    }
-
-    /**
      * Find missing dependencies for a page
      */
     private findMissingDependenciesForPage(page: any, sourceEntities: any): string[] {
@@ -1630,5 +1525,53 @@ export class TwoPassSync {
         missing.push(...this.findMissingAssetsForContent(container, sourceEntities));
 
         return missing;
+    }
+
+    /**
+     * Extract asset references from content fields
+     */
+    private extractAssetReferences(fields: any): Array<{ url: string; fieldPath: string }> {
+        const references: Array<{ url: string; fieldPath: string }> = [];
+        
+        if (!fields || typeof fields !== 'object') {
+            return references;
+        }
+        
+        const scanForAssets = (obj: any, path: string) => {
+            if (typeof obj !== 'object' || obj === null) return;
+            
+            if (Array.isArray(obj)) {
+                obj.forEach((item, index) => {
+                    scanForAssets(item, `${path}[${index}]`);
+                });
+            } else {
+                // Check for asset URL references
+                if (typeof obj === 'string' && obj.includes('cdn.aglty.io')) {
+                    references.push({
+                        url: obj,
+                        fieldPath: path
+                    });
+                }
+                
+                // Check common asset fields
+                if (obj.url && typeof obj.url === 'string' && obj.url.includes('cdn.aglty.io')) {
+                    references.push({
+                        url: obj.url,
+                        fieldPath: `${path}.url`
+                    });
+                }
+                
+                // Recursively scan nested objects
+                for (const [key, value] of Object.entries(obj)) {
+                    scanForAssets(value, path ? `${path}.${key}` : key);
+                }
+            }
+        };
+        
+        for (const [fieldName, fieldValue] of Object.entries(fields)) {
+            scanForAssets(fieldValue, fieldName);
+        }
+        
+        return references;
     }
 }
