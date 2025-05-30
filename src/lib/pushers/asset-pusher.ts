@@ -1,83 +1,22 @@
 import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapper } from "../mapper"; // Assuming correct path
-import * as fs from 'fs'; // Use synchronous read for simplicity in this example, consider async if needed
+import { ReferenceMapper } from "../mapper";
+import * as fs from 'fs';
 import * as path from 'path';
-const FormData = require("form-data"); // Ensure FormData is available
-
-// Helper to get base file path (relative to assets folder)
-// Handles different URL structures:
-// 1. https://cdn.agilitycms.com/guid/assets/folder/file.jpg -> folder/file.jpg
-// 2. /instance-name/folder/file.jpg -> folder/file.jpg
-// 3. /instance-name/file.jpg -> file.jpg
-function getAssetFilePath(originUrl: string): string {
-    try {
-        if (!originUrl) {
-            console.warn('Empty originUrl provided to getAssetFilePath');
-            return 'unknown-asset';
-        }
-
-        let pathname: string;
-        try {
-            // Try parsing as a full URL first
-            const url = new URL(originUrl);
-            pathname = url.pathname;
-        } catch (e) {
-            // If not a full URL, assume it's a path like /instance-name/folder/file.jpg
-             if (typeof originUrl === 'string' && originUrl.startsWith('/')) {
-                 pathname = originUrl.split('?')[0]; // Use the path directly, remove query params
-             } else {
-                 console.error(`Cannot parse originUrl: ${originUrl}`);
-                 return 'error-parsing-asset-path';
-             }
-        }
-        
-        const assetsMarker = '/assets/';
-        const assetsIndex = pathname.indexOf(assetsMarker);
-
-        let relativePath: string;
-
-        if (assetsIndex !== -1) {
-            // Case 1: Found "/assets/", extract path after it
-            relativePath = pathname.substring(assetsIndex + assetsMarker.length);
-        } else if (pathname.startsWith('/')) {
-            // Case 2 & 3: Path starts with '/', assume /instance-name/... structure
-            const pathParts = pathname.split('/').filter(part => part !== ''); // Split and remove empty parts
-            if (pathParts.length > 1) {
-                // Remove the first part (instance-name) and join the rest
-                relativePath = pathParts.slice(1).join('/'); 
-            } else if (pathParts.length === 1) {
-                 // Only one part after splitting, likely just the filename at the root level of the implicit container
-                 relativePath = pathParts[0];
-            } else {
-                 console.warn(`Could not determine relative path from pathname: ${pathname}`);
-                 relativePath = 'unknown-asset';
-            }
-        } else {
-             console.warn(`Unexpected pathname format: ${pathname}. Using it directly.`);
-             relativePath = pathname; // Fallback
-        }
-
-        // Decode URI components and remove potential leading/trailing slashes
-        return decodeURIComponent(relativePath.replace(/^\/+|\/+$/g, ''));
-
-    } catch (e: any) {
-        console.error(`Error parsing originUrl: ${originUrl}`, e);
-        return 'error-parsing-asset-path';
-    }
-}
+import { getAssetFilePath } from "../utilities/asset-utils"; // Import the utility
+const FormData = require("form-data");
 
 export async function pushAssets(
     assets: mgmtApi.AssetMediaList[], 
-    allGalleriesInput: mgmtApi.assetGalleries[], // Added galleries list for mapping context
-    sourceGuid: string, // Need source GUID for file path
+    allGalleriesInput: mgmtApi.assetGalleries[],
+    sourceGuid: string, 
     targetGuid: string, 
-    locale: string, // Need locale for file path
-    isPreview: boolean, // Need isPreview for file path
-    apiClient: mgmtApi.ApiClient, // Added apiClient
-    referenceMapper: ReferenceMapper, // Added referenceMapper
+    locale: string, 
+    isPreview: boolean, 
+    apiClient: mgmtApi.ApiClient, 
+    referenceMapper: ReferenceMapper, 
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
-): Promise<{ status: 'success' | 'error', successfulAssets: number, failedAssets: number }> { // Added return type
+): Promise<{ status: 'success' | 'error', successfulAssets: number, failedAssets: number }> {
     
     if (!assets || assets.length === 0) {
         console.log('No assets found to process.');
@@ -86,11 +25,9 @@ export async function pushAssets(
 
     let defaultContainer: mgmtApi.assetContainer | null = null;
     try {
-         // Use passed apiClient
         defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid);
     } catch (err: any) {
         console.error("✗ Error fetching default asset container:", err.message);
-        // Decide how to handle - maybe return error or try to continue without default URL
         return { status: 'error', successfulAssets: 0, failedAssets: 0 }; 
     }
     
@@ -100,7 +37,6 @@ export async function pushAssets(
     let processedAssetsCount = 0;
     let overallStatus: 'success' | 'error' = 'success';
     
-    // First calculate total assets
     for (const assetList of assets) {
         totalAssets += assetList.assetMedias.length;
     }
@@ -112,23 +48,26 @@ export async function pushAssets(
             for (const media of assetList.assetMedias) {
                  let currentStatus: 'success' | 'error' = 'success';
                 try {
-                    // Construct proper file path and target origin URL
-                    const relativeFilePath = getAssetFilePath(media.originUrl).replace(/%20/g, " ");
+                    const relativeFilePath = getAssetFilePath(media.originUrl).replace(/%20/g, " "); // Uses imported util
                     const absoluteLocalFilePath = path.join(basePath, relativeFilePath);
-                    const folderPath = path.dirname(relativeFilePath) === '.' ? '/' : path.dirname(relativeFilePath); // Use / for root
-                    const targetOriginUrl = defaultContainer ? `${defaultContainer.originUrl}/${relativeFilePath}` : 'unknown-origin-url';
+                    const folderPath = path.dirname(relativeFilePath) === '.' ? '/' : path.dirname(relativeFilePath);
 
-                    // Check if asset exists by URL using the reference mapper's checkExistingAsset method
-                    // Pass targetGuid and apiClient to the check method
-                    const existingMedia = await referenceMapper.checkExistingAsset(targetOriginUrl, apiClient, targetGuid);
+                    const existingMedia = await referenceMapper.checkExistingAsset(
+                        media, 
+                        apiClient, 
+                        targetGuid,
+                        defaultContainer?.originUrl || '' // Pass default container origin URL
+                        // DO NOT pass getAssetFilePath here, it's used internally by checkExistingAsset
+                    );
 
                     if (existingMedia) {
-                        referenceMapper.addRecord('asset', media, existingMedia); // Use passed referenceMapper
+                        // If checkExistingAsset found it via API and cached it, this addRecord might be redundant if keys are identical
+                        // but it's safer to ensure the mapping uses the exact `media` object from the input array as the source key.
+                        referenceMapper.addRecord('asset', media, existingMedia); 
                         const sourceFileName = media.originUrl.split('/').pop()?.split('?')[0];
                         const targetFileName = existingMedia.originUrl.split('/').pop()?.split('?')[0];
-                        console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists')} - ${ansiColors.green('Target')}: mediaID:${existingMedia.mediaID} (${targetFileName})`);
+                        console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: mediaID:${existingMedia.mediaID} (${targetFileName})`);
                         successfulAssets++; // Count existing as success for progress
-                        // continue; // Don't continue, need to update progress
                     } else {
                          // Handle gallery if present
                          let targetMediaGroupingID = -1;
@@ -182,9 +121,9 @@ export async function pushAssets(
                         const uploadedMedia = uploadedMediaArray[0]; // Assuming the first item corresponds to our upload
                         
                         referenceMapper.addRecord('asset', media, uploadedMedia); // Use passed referenceMapper
-                        console.log(`✓ Asset uploaded: ${media.fileName} to ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green('Target')}: ${uploadedMedia.mediaID}`);
+                        console.log(`✓ Asset uploaded: ${media.fileName} to ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`);
                         successfulAssets++;
-                    }
+                    } // End of else block
                 } catch (error: any) {
                     console.error(`✗ Error processing asset ${media.fileName || media.originUrl}:`, error.message);
                     failedAssets++;

@@ -1,155 +1,125 @@
-# Project Refactoring: Centralize Pull Logic
+# Agility CLI - Active Development Manifest
 
-**Objective:** Refactor instance data pulling logic to be centralized, modular, and proactive in fetching data if local copies are missing.
-
----
-
-## Phase 1: Establish Central Pull Service (`pull.ts`)
-
-- [x] **Task 1.1:** Create `src/lib/services/pull.ts`.
-    - [x] **Sub-task 1.1.1:** Define a `Pull` class within `pull.ts`.
-    - [x] **Sub-task 1.1.2:** Define a `pullInstance(guid, apiKey, locale, channel, isPreview, rootPath, options, multibar)` method in the `Pull` class. This will be the main entry point for pulling an entire instance.
-- [x] **Task 1.2:** Identify core pulling logic.
-    - [x] **Sub-task 1.2.1:** Read `src/lib/prompts/push-prompt.ts` to understand the `downloadFiles` function's logic. (Noted: `push-prompt.ts` contains `pushFiles`, primary pull logic seems to be in `sync.ts`)
-    - [x] **Sub-task 1.2.2:** Read `src/index.ts` to understand its instance pulling logic. (Noted: `index.ts` orchestrates calls, `sync.ts` contains pull methods)
-    - [x] **Sub-task 1.2.3:** Consolidate the general structure of instance pulling (e.g., initial sync, then fetching specific items) into a high-level flow within `pullInstance`. (High-level flow defined based on `sync.ts`'s `pullFiles`, `getPages`, `getPageTemplates`)
+This file tracks current and upcoming development tasks.
 
 ---
 
-## Phase 2: Modularize Item-Specific Download Logic
+## Current Status: ✅ Phase 16 Complete - Clean 6-Step Analysis System
 
-- [ ] **Task 2.1: Refactor `sync.ts` for Templates & Pages**
-    - [x] **Sub-task 2.1.1:** Create `src/lib/downloaders/download-templates.ts`.
-        - [x] Move `getPageTemplates` logic from `src/lib/services/sync.ts` here.
-        - [x] Rename/refactor it to a function like `downloadAllTemplates(guid, locale, isPreview, options, multibar, basePath)`.
-        - [x] Implement a check: if the target template folder is empty, then execute the download.
-    - [x] **Sub-task 2.1.2:** Create `src/lib/downloaders/download-pages.ts`.
-        - [x] Move `getPages` logic from `src/lib/services/sync.ts` here.
-        - [x] Rename/refactor it to a function like `downloadAllPages(guid, locale, isPreview, options, multibar, basePath)`.
-        - [x] Implement a check: if the target page folder is empty, then execute the download.
-    - [x] **Sub-task 2.1.3:** Modify `src/lib/services/sync.ts`'s `sync` method. It should still perform the `agilitySync.runSync()`. The calls to `this.getPages()` and `this.getPageTemplates()` have been removed. The `pullFiles` method has been refactored, its dependencies on getPages/Templates removed, and its file operations simplified/commented for future refactoring by the Pull service.
-
-- [ ] **Task 2.2: Create/Update Downloaders for Assets, Containers, Content, Models**
-    - **Assets:**
-        - [x] **Sub-task 2.2.A.1:** Create `src/lib/downloaders/download-assets.ts`. (Now split into galleries and asset-files)
-        - [x] **Sub-task 2.2.A.2:** Reviewed `src/lib/services/assets.ts`; it contains rich logic for fetching and saving (getAssets, getGalleries).
-        - [x] **Sub-task 2.2.A.3:** `downloadAllAssets` uses the existing service methods from `assets.ts`. (Now split)
-        - [x] **Sub-task 2.2.A.4:** Implemented folder check in `downloadAllAssets` before calling service methods. (Now split)
-    - **Galleries (from Assets):**
-        - [x] **Sub-task 2.2.G.1:** Create `src/lib/downloaders/download-galleries.ts`.
-        - [x] **Sub-task 2.2.G.2:** Uses `AssetsService.getGalleries`.
-        - [x] **Sub-task 2.2.G.3:** Implemented folder check for `assets/galleries`.
-    - **Asset Files (from Assets):**
-        - [x] **Sub-task 2.2.AF.1:** Create `src/lib/downloaders/download-asset-files.ts`.
-        - [x] **Sub-task 2.2.AF.2:** Uses `AssetsService.getAssets`.
-        - [x] **Sub-task 2.2.AF.3:** Implemented folder check for `assets/json` or general asset content.
-    - **Containers:**
-        - [x] **Sub-task 2.2.C.1:** Create `src/lib/downloaders/download-containers.ts`.
-        - [x] **Sub-task 2.2.C.2:** Reviewed `src/lib/services/containers.ts`; it contains `getContainers` for fetching and saving.
-        - [x] **Sub-task 2.2.C.3:** `downloadAllContainers` uses the existing `getContainers` method from `containers.ts`.
-        - [x] **Sub-task 2.2.C.4:** Implemented folder check in `downloadAllContainers` before calling `getContainers`.
-    - **Content Items:**
-        - [x] **Sub-task 2.2.CI.1:** Create `src/lib/downloaders/download-content.ts`.
-        - [x] **Sub-task 2.2.CI.2:** Reviewed `src/lib/services/content.ts`; it lacks a "download all" method. Assumed syncSDK handles raw content file downloads.
-        - [x] **Sub-task 2.2.CI.3:** `downloadAllContent` checks for pre-existing content folders (e.g., `content`, `items`) populated by the main sync process. It does not make new API calls for content.
-        - [x] **Sub-task 2.2.CI.4:** Implemented folder check in `downloadAllContent` and reports status.
-    - **Models:**
-        - [x] **Sub-task 2.2.M.1:** Create `src/lib/downloaders/download-models.ts`.
-        - [x] **Sub-task 2.2.M.2:** Reviewed `src/lib/services/models.ts`; it contains `getModels` for fetching and saving content and page models.
-        - [x] **Sub-task 2.2.M.3:** `downloadAllModels` uses the existing `getModels` method from `models.ts`, passing `basePath` as `baseFolder`.
-        - [x] **Sub-task 2.2.M.4:** Implemented folder check in `downloadAllModels` before calling `getModels`.
+Successfully cleaned up mixed analysis systems! Removed all old analysis output (green emojis, chain statistics, execution analysis) while preserving the production-ready 6-step dependency analysis system:
+- Clean professional output with only 6 required sections
+- No duplicate page chains or confusing mixed output
+- Page hierarchy visualization working correctly
+- 100% entity reconciliation maintained (6,064 entities, 5,784 ready to sync)
 
 ---
 
-## Phase 3: Integrate Downloaders into `Pull` Service
+## Next Development Phase: TBD
 
-- [x] **Task 3.1:** Update `pullInstance` in `src/lib/services/pull.ts`.
-    - [x] **Sub-task 3.1.1:** Call `agilitySync.getSyncClient(...).runSync()` as the first step. Relies on `storeInterfaceFileSystem` for correct file placement, omitting previous complex file move/delete logic from `sync.ts`.
-    - [x] **Sub-task 3.1.2:** After the base sync, call the respective `downloadAll[ItemType]s` functions from each of the `src/lib/downloaders/` modules.
+Ready for next phase of development. Previous work archived in `changelog.md`.
+
+## Phase 16: Cleanup Mixed Analysis Systems
+
+**Status**: ✅ **COMPLETE** - Successfully removed old analysis output, clean 6-step system working
+**Achievement**: Clean output with only the 6 required sections - no duplicate page chains, no green emoji analysis, no old chain statistics
+
+**Current Output Analysis:**
+- ❌ **OLD STUFF** (successfully removed):
+  - ~~"📊 DEPENDENCY CHAIN ANALYSIS" section with chain statistics~~ ✅
+  - ~~"📈 CHAIN STATISTICS" with total chains, content chains, page chains~~ ✅
+  - ~~"📋 ENTITY TYPE BREAKDOWN" with galleries, assets, models breakdown~~ ✅
+  - ~~"📄 CONTENT CHAINS (showing first 3)" with green emojis~~ ✅
+  - ~~"📃 PAGE CHAINS (showing first 3)" with green emojis~~ ✅
+  - ~~"🔗 EXECUTION CHAIN ANALYSIS" section~~ ✅
+  - ~~"📏 DEPENDENCY CHAINS BY DEPTH"~~ ✅
+
+- ✅ **GOOD STUFF** (preserved and working):
+  - "📄 1. ALL PAGE CHAINS" - proper 6-step format ✅
+  - "📦 2. ALL CONTAINER CHAINS" ✅
+  - "📐 3. ALL MODEL-TO-MODEL CHAINS" ✅
+  - "📊 4. ITEMS OUTSIDE OF CHAINS" ✅
+  - "🔍 5. RECONCILIATION SUMMARY" ✅
+
+- [x] **Task 16.1:** Identify source of old analysis output ✅ **COMPLETE**
+    - [x] **Sub-task 16.1.1:** Check where `buildDependencyChains()` and `buildExecutionChains()` outputs are being displayed ✅
+    - [x] **Sub-task 16.1.2:** Locate the old analysis methods that need to be removed ✅
+    - [x] **Sub-task 16.1.3:** Verify the 6-step analysis (`showComprehensiveAnalysis`) is working correctly ✅
+
+**Root Cause Found**: Lines 84-85 in `two-pass-sync.ts` call `buildDependencyChains()` and `buildExecutionChains()` which automatically output their own analysis via `reportDependencyChains()` and `visualizeExecutionChains()` methods.
+
+- [x] **Task 16.2:** Remove old analysis output from `showComprehensiveAnalysis` ✅ **COMPLETE**
+    - [x] **Sub-task 16.2.1:** Remove `buildDependencyChains()` call and output (lines 84-85) ✅
+    - [x] **Sub-task 16.2.2:** Remove `buildExecutionChains()` call and output (lines 84-85) ✅
+    - [x] **Sub-task 16.2.3:** Keep only the 6-step analysis methods in `showComprehensiveAnalysis` ✅
+    - [x] **Sub-task 16.2.4:** Remove unused `chainAnalysis` and `executionAnalysis` parameters ✅
+
+- [x] **Task 16.3:** Test and verify clean output ✅ **COMPLETE**
+    - [x] **Sub-task 16.3.1:** Run analysis and verify only 6-step sections appear ✅
+    - [x] **Sub-task 16.3.2:** Ensure no duplicate page chain sections ✅
+    - [x] **Sub-task 16.3.3:** Verify page hierarchy still works correctly ✅
+
+**Final Result**: Clean, professional output showing only the 6 required analysis sections. Page hierarchy preserved and displaying correctly. No more confusion from mixed old/new analysis systems.
+
+## Phase 13: Template Loading Investigation
+
+**Status**: ✅ **COMPLETE**  
+**Resolution**: Template download issue resolved! RightSideBarTemplate (ID 13) and LeftSideBarTemplate (ID 12) now properly loaded. Broken chains reduced to only 5 items (missing models, not templates).  
+**Achievement**: Clean dependency analysis with 100% entity reconciliation maintained.
+
+- [x] **Task 13.1:** Investigate template loading discrepancy ✅ **COMPLETE**
+    - [x] **Sub-task 13.1.1:** Check how templates are loaded in dependency analyzer ✅
+    - [x] **Sub-task 13.1.2:** Verify template files exist in downloaded data ✅
+    - [x] **Sub-task 13.1.3:** Compare template references (ID vs name vs referenceName) ✅
+    - [x] **Sub-task 13.1.4:** Fix template matching logic if needed ✅ **RESOLVED**
+
+## Phase 14: Missing Model Investigation 
+
+**Status**: ✅ **COMPLETE**  
+**Resolution**: Case-insensitive model lookup implemented! Fixed mismatch between content references (`EInstantRecentWinners`) and model files (`EinstantRecentWinners`). PageID:24 now syncable.  
+**Achievement**: Reduced broken items from 5 to 4, increased syncable items from 5779 to 5780.
+
+- [x] **Task 14.1:** Investigate EInstantRecentWinners model download discrepancy ✅ **COMPLETE**
+    - [x] **Sub-task 14.1.1:** Check downloaded model files for ID 53 ✅
+    - [x] **Sub-task 14.1.2:** Verify model exists in API vs local files ✅
+    - [x] **Sub-task 14.1.3:** Check model name matching logic (referenceName vs displayName) ✅
+    - [x] **Sub-task 14.1.4:** Implement case-insensitive model lookup in all methods ✅ **RESOLVED**
+
+**Technical Fix**: Updated `findEntityData()`, `showPageZoneDependencies()`, and `findMissingDependenciesForPage()` methods to handle case-insensitive model matching.
+
+**Next**: Ready for next development phase - dependency analysis system now 100% accurate.
+
+## Phase 15: Missing SideNavigation Model Investigation 
+
+**Status**: ✅ **COMPLETE**  
+**Resolution**: SideNavigation model (ID 86) successfully downloaded. 4 pages using SideNavigation content now properly resolved. Sync readiness increased from 5,780 to 5,784 items (+4 improvement). Also cleaned up output to completely hide the red "BROKEN CHAINS" header when there are no issues, preventing unnecessary panic.  
+**Achievement**: Dependency analysis now shows clean model references and completely clean output formatting when everything is working correctly.
+
+- [x] **Task 15.1:** Investigate SideNavigation model download issue ✅ **COMPLETE**
+    - [x] **Sub-task 15.1.1:** Re-download models to get missing SideNavigation (ID 86) ✅
+    - [x] **Sub-task 15.1.2:** Verify content items can now find their SideNavigation model ✅
+    - [x] **Sub-task 15.1.3:** Test dependency analysis with complete model data ✅
+    - [x] **Sub-task 15.1.4:** Hide red broken chains header when no issues exist ✅ **COMPLETE**
+
+**Next**: Investigate why some models weren't downloaded in initial pull operation
 
 ---
 
-## Phase 4: Update Call Sites & Cleanup
+## Quick Reference
 
-- [x] **Task 4.1:** Refactor `src/lib/prompts/push-prompt.ts`.
-    - No direct pull logic was found in `push-prompt.ts` that required replacement. It instructs the user to pull if needed.
-- [x] **Task 4.2:** Refactor `src/index.ts` & other pull initiation points.
-    - Refactored `src/lib/prompts/pull-prompt.ts` (downloadFiles function) to use `new Pull().pullInstance()`.
-    - Refactored the `pull` command handler in `src/index.ts` to use `new Pull().pullInstance()`.
-- [x] **Task 4.3:** Remove redundant/old pulling logic from `sync.ts` (`getPages`, `getPageTemplates`, parts of `pullFiles` if fully superseded).
-    - `getPages` and `getPageTemplates` methods were removed from `sync.ts` in Phase 2.
-    - `sync.pullFiles()` was heavily simplified to be a thin wrapper around `sync.sync()` with a deprecation note; its complex pulling logic is superseded by the `Pull` service.
+### Current Architecture Status
+- ✅ Pull System: Centralized, modular downloaders
+- ✅ Analysis System: 6-step dependency chain analysis  
+- ❓ Push System: Ready for 2-pass implementation
+- ❓ User Prompts: Ready for enhancement
+
+### Development Conventions
+- Use `changelog.md` for completed work documentation
+- Use this manifest for active task tracking
+- Follow TypeScript strict typing (no `any`)
+- Test with real instance data (13a8b394-u)
 
 ---
 
-## Phase 5: Testing and Conventions
+## DX Upgrades & Notes
 
-- [ ] **Task 5.1:** Test the new `pullInstance` functionality thoroughly for different scenarios (new instance, existing instance, preview/live).
-- [ ] **Task 5.2:** Ensure all file paths use the `agility-files/{guid}/{locale}/${isPreview ? 'preview':'live'}` structure consistently (or user-defined main directory name).
-- [ ] **Task 5.3:** Verify strong typing, no `any` types in new interfaces (especially in new code), and `keytar` usage for tokens (via Auth service).
-- [ ] **Task 5.4:** Review and ensure all `cliProgress` multibar instances are correctly passed and utilized by downloaders and services. Ensure the top-level `multibar` instance created by prompts/commands is stopped after the entire pull operation completes.
-
-# Pull Command UI and Progress Callback Implementation
-
-## Phase 1: Blessed UI Setup for Pull Command (Completed)
-
-- [x] Import `blessed` and `blessed-contrib` in `src/lib/services/pull.ts`.
-- [x] Add `_useBlessedUI` parameter to `Pull` class constructor.
-- [x] Initialize Blessed screen, grid, header, progress container, and log container in `pullInstance`.
-- [x] Redirect `console.log` and `console.error` to the Blessed log container.
-- [x] Implement `restoreConsole` and screen cleanup.
-- [x] Add progress bars shell in `progressContainerBox` based on selected elements.
-- [x] Implement `updateProgress` function in `pull.ts` to manage progress bar state (percentage, color, label).
-
-## Phase 2: Integrate Progress Callbacks
-
-- [x] Define `ProgressCallbackType` in `src/lib/services/pull.ts`.
-- [x] For each `downloadAll...` function call in `pull.ts`:
-    - [x] Create a specific `progressCallback` instance.
-    - [x] Wrap the `downloadAll...` call in a `try/catch` block for granular error reporting to the UI.
-    - [x] Pass the `progressCallback` as the new last argument to the `downloadAll...` function.
-- **Update Downloader Signatures and Implement Callback Logic**:
-    - For each downloader file in `src/lib/downloaders/`:
-        - `download-all-templates.ts`
-            - [x] Modify function signature to accept `progressCallback?: ProgressCallbackType`.
-            - [x] Call `progressCallback` incrementally after each template is processed.
-            - [x] Log start, each item processed, and completion/error.
-            - [x] Call `progressCallback` with `(total, total, 'success')` on successful completion or `(processedAtError, total, 'error')` on error.
-        - `download-all-pages.ts`
-            - [x] Modify function signature to accept `progressCallback?: ProgressCallbackType`.
-            - [x] Call `progressCallback` incrementally after each page reference is processed.
-            - [x] Log start, each item processed, and completion/error.
-            - [x] Call `progressCallback` with `(total, total, 'success')` on successful completion or `(processedAtError, total, 'error')` on error.
-        - `download-all-galleries.ts`
-            - [x] Modify function signature to accept `progressCallback?: ProgressCallbackType`.
-            - [x] Call `progressCallback` at start (0%) and end (100% or error) of `AssetsService.getGalleries()` call.
-            - [x] Log start and completion/error of the overall gallery download operation.
-            - [ ] *Further item-by-item progress/logging requires `AssetsService.getGalleries` refactor.*
-        - `download-all-assets.ts`
-            - [x] Modify function signature to accept `progressCallback?: ProgressCallbackType`.
-            - [x] Call `progressCallback` at start (0%) and end (100% or error) of `AssetsService.getAssets()` call.
-            - [x] Log start and completion/error of the overall asset download operation.
-            - [ ] *Further item-by-item progress/logging requires `AssetsService.getAssets` refactor.*
-        - `download-all-containers.ts`
-            - [x] Modify function signature to accept `progressCallback?: ProgressCallbackType`.
-            - [x] Call `progressCallback` at start (0%) and end (100% or error) of `ContainersService.getContainers()` call.
-            - [x] Log start and completion/error of the overall container download operation.
-            - [ ] *Further item-by-item progress/logging requires `ContainersService.getContainers` refactor.*
-        - `download-all-content.ts`
-            - [x] Modify function signature to accept `progressCallback?: ProgressCallbackType`.
-            - [x] Call `progressCallback` to indicate completion (this step checks for existing content, doesn't loop items).
-            - [x] Log the outcome of the content check.
-        - `download-all-models.ts`
-            - [x] Modify function signature to accept `progressCallback?: ProgressCallbackType`.
-            - [x] Call `progressCallback` at start (0%) and end (100% or error) of `ModelsService.getModels()` call.
-            - [x] Log start and completion/error of the overall model download operation.
-            - [ ] *Further item-by-item progress/logging requires `ModelsService.getModels` refactor.*
-- [x] Verify linter errors in `pull.ts` are resolved.
-- [x] Test pull functionality with the Blessed UI and ensure progress bars update correctly.
-- [x] Ensure Blessed UI remains open after completion until manually closed (Ctrl+C).
-
-## Phase 3: Refinements (Future)
-- [ ] Consider replacing `cli-progress` (`this._multibar`) entirely with Blessed UI logging.
-- [ ] Implement item-by-item progress and logging in service methods (Assets, Containers, Models services) if desired.
-- [ ] More granular error reporting within downloaders and services.
-- [ ] UI styling improvements.
+*Track any development experience improvements or technical debt here* 

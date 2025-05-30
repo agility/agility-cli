@@ -496,7 +496,7 @@ export class push {
             }
 
             // --- Templates --- 
-            if (this.elements.includes('Templates')) {
+            if (this.elements.includes('Templates') || this.elements.includes('Template')) {
                 currentStep = pushSteps.indexOf('Templates');
                 let templateStatus: 'success' | 'error' = 'success';
                 const templateStepIndex = currentStep;

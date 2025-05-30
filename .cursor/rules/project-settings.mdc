@@ -7,6 +7,8 @@ alwaysApply: true
 
 This CLI project interfaces with Agility CMS using the Management and Sync SDKs. It provides developers with tooling to pull, map, and push content between instances, as well as generate code artifacts for local development.
 
+**Current Status**: Production-ready dependency chain analysis system completed. All 6,046 entities analyzed with 100% reconciliation. Ready for next development phase.
+
 ---
 
 ## 🧰 SDK & Workspace
@@ -20,16 +22,60 @@ Ensure this is linked in your `tsconfig` or `package.json` paths for type resolu
 
 ---
 
-## 📌 Project Status
+## 📈 Manifest-Driven Development
 
-We are modernizing the CLI:
+**CRITICAL**: All development work must be tracked through `.cursor/manifest.md`. This is not optional.
 
-- ✅ Replace legacy `src/index.ts` commands with prompt-driven interactions
-- 🔄 Migrate legacy commands to use the updated file and folder structure
-- ❗ Enforce strong typing and user-friendly developer experience via Inquirer
-- 🔍 Audit and deprecate custom logic that bypasses orchestration layer
+### **Cursor AI Behavior Rules** ⚠️ **MANDATORY**
+- **🔴 REQUIRED**: Check `.cursor/manifest.md` at the start of every development session
+- **🔴 REQUIRED**: Reference manifest when asked about project status or next steps  
+- **🔴 REQUIRED**: Update manifest when adding new tasks or changing scope
+- **🔴 REQUIRED**: Use manifest task IDs and structure when planning work
+- **🔴 REQUIRED**: Move completed work to `changelog.md` when phases finish
 
-> Note: Some legacy commands may not fully use `.cursor/manifest.md`—this must be addressed.
+### **When to Use the Manifest**
+- **✅ ALWAYS** check manifest at start of any development session
+- **✅ ALWAYS** update manifest before starting new features/phases
+- **✅ ALWAYS** track progress in manifest during multi-step work
+- **✅ ALWAYS** mark tasks complete in manifest when finished
+- **✅ ALWAYS** add new tasks to manifest when scope expands
+
+### **Manifest-First Workflow**
+1. **Read** current manifest to understand active work
+2. **Plan** new work by adding tasks to manifest 
+3. **Execute** tasks in the order defined in manifest
+4. **Update** progress markers as work completes
+5. **Archive** completed phases to `changelog.md`
+
+### **Development Session Protocol**
+Every development session must:
+1. Start with: "Checking `.cursor/manifest.md` for current status..."
+2. Reference active tasks from manifest
+3. Update progress in manifest as work proceeds  
+4. End with manifest status update
+
+### **Manifest Structure Requirements**
+```markdown
+## Phase N: [Phase Name]
+- [ ] **Task N.1:** [Task Description]
+    - [ ] **Sub-task N.1.1:** [Detailed sub-task]
+    - [x] **Sub-task N.1.2:** [Completed sub-task] ✅
+- [x] **Task N.2:** [Completed Task] ✅ **COMPLETE**
+
+**Status**: [In Progress/Complete/Blocked]
+**Next**: [Next immediate action]
+```
+
+### **Supporting Files**
+- `.cursor/gotchas.md`: Document technical quirks or confusing edge cases
+- `.cursor/failed-approaches.md`: Log ideas or implementations that didn't work—avoid retesting  
+- `.cursor/rules/project-settings.mdc`: This file—used to define expectations, architecture, and standards
+
+### **Enforcement Rules**
+- No feature work without corresponding manifest entry
+- No "quick fixes" that bypass manifest tracking
+- No phase completion without updating manifest status
+- Archive to `changelog.md` only when phase is 100% complete
 
 ---
 
@@ -72,22 +118,20 @@ When working with older code:
 
 ---
 
-## 📈 Planning, Tracking, and Execution
+## 🎯 Project Status & Achievements
 
-Use the following files in `.cursor/` to track development progress:
+### Completed Systems ✅
+- **Pull System**: Centralized, modular downloaders with progress tracking
+- **Dependency Analysis**: 6-step chain analysis for 6,000+ entities
+- **Entity Reconciliation**: 100% entity accounting and sync readiness
+- **Asset Resolution**: Complete URL matching (originUrl, url, edgeUrl)
+- **Gallery Integration**: Proper assetMediaGroupings handling
+- **Broken Chain Detection**: User-friendly missing dependency reporting
 
-- `.cursor/manifest.md`:  
-  Plan features, break work into tasks, track progress  
-  → Use `resume generating` to continue an interrupted flow
-
-- `.cursor/gotchas.md`:  
-  Document technical quirks or confusing edge cases
-
-- `.cursor/failed-approaches.md`:  
-  Log ideas or implementations that didn’t work—avoid retesting
-
-- `.cursor/rules/project-settings.mdc`:  
-  This file—used to define expectations, architecture, and standards
+### Ready for Implementation
+- **2-Pass Sync**: Framework established, execution pending
+- **User Prompts**: Enhanced Inquirer-based workflows
+- **Strong Typing**: No `any` types throughout codebase
 
 ---
 
@@ -141,12 +185,131 @@ If applicable:
 
 ---
 
+## 🧪 Critical Agility CMS Entity Handling Rules
+
+Based on production analysis of 6,000+ entity instances, these rules must be followed:
+
+### **Asset URL Resolution** ⚠️ **CRITICAL**
+Agility assets can have multiple URL properties. **Always check all three**:
+```typescript
+const asset = assets?.find((a: any) => 
+    a.originUrl === targetUrl || 
+    a.url === targetUrl ||
+    a.edgeUrl === targetUrl
+);
+```
+- `originUrl`: Origin server URL
+- `url`: Standard CDN URL  
+- `edgeUrl`: Edge CDN URL (most common in content)
+
+### **Gallery Data Structure** ⚠️ **CRITICAL**
+Gallery JSON files contain `assetMediaGroupings` arrays, not direct gallery objects:
+```typescript
+// CORRECT: Extract from assetMediaGroupings array
+const galleryLists = loadJsonFiles('assets/galleries');
+sourceEntities.galleries = galleryLists.flatMap((galleryList: any) => 
+    galleryList.assetMediaGroupings || []
+);
+
+// WRONG: Loading files directly
+sourceEntities.galleries = loadJsonFiles('assets/galleries');
+```
+
+### **Template Display Convention**
+Templates should display cleanly without redundant naming:
+```typescript
+// CORRECT: Clean display
+console.log(`Template:${template.pageTemplateName}`);
+
+// WRONG: Redundant naming  
+console.log(`Template:${template.pageTemplateName} (${template.name || 'No Name'})`);
+```
+
+### **Page Classification for Sync Operations**
+- **Content-bearing pages**: Have templates and actual content dependencies
+- **Structural pages**: Folder pages, pages without templates (`pageType === 'folder'` or `templateName === null`)
+- **All pages sync**: Content-bearing via dependency chains, structural via simple threads
+
+### **Broken Chain Root Cause Analysis**
+Broken chains are typically caused by:
+1. **Missing Templates**: User deleted templates from source instance
+2. **Missing Models**: User deleted content models
+3. **Missing Assets**: User deleted asset files
+4. **NOT System Errors**: Usually result of content management operations
+
+These should be reported as "Will be skipped" rather than system failures.
+
+### **Entity Dependency Patterns**
+**6-Step Analysis Framework**:
+1. **Page Chains**: Template → Container → Model → Content → Asset → Gallery
+2. **Container Chains**: Independent containers not in page chains  
+3. **Model-to-Model Chains**: Content Definition field relationships
+4. **Broken Chains**: Missing source data validation
+5. **Items Outside Chains**: Non-chained entities by type
+6. **Reconciliation**: Entity accounting and sync readiness
+
+### **Asset Reference Extraction**
+Content fields may contain asset URLs in various formats:
+```typescript
+// Scan for CDN URLs in content fields
+if (typeof obj === 'string' && obj.includes('cdn.aglty.io')) {
+    references.push({ url: obj, fieldPath: path });
+}
+
+// Check common asset field structures
+if (obj.url && typeof obj.url === 'string' && obj.url.includes('cdn.aglty.io')) {
+    references.push({ url: obj.url, fieldPath: `${path}.url` });
+}
+```
+
+---
+
+## 📚 SDK Reference Documentation
+
+This project integrates with two primary Agility CMS SDKs. For comprehensive understanding and proper implementation, refer to these detailed reference guides:
+
+### **Management SDK Reference**
+📖 **File**: `.cursor/rules/agility-management-sdk.md`
+
+**Covers**: Entity management, API operations, CRUD methods, authentication, error handling, and type safety guidelines.
+
+**Key Areas**:
+- Model, Content, Container, Asset, Page, and Template operations
+- API client initialization and configuration
+- Error handling patterns and recovery strategies  
+- Type definitions and interface usage
+- Best practices for entity dependencies and relationships
+
+### **Content Sync SDK Reference**  
+📖 **File**: `.cursor/rules/agility-content-sync-sdk.md`
+
+**Covers**: Content synchronization, file system integration, store interfaces, and performance optimization.
+
+**Key Areas**:
+- Sync client configuration and initialization
+- Store interface implementation and customization
+- File system organization and caching strategies
+- Incremental vs full sync capabilities
+- Concurrency control and thread safety
+- Integration patterns with Management SDK
+
+### **SDK Integration Guidelines**
+- **Sequential Operations**: Use Content Sync SDK first to download content, then Management SDK to modify and upload
+- **Coordinated Authentication**: Different API keys for sync vs management operations
+- **File System Coordination**: Maintain consistent directory structures between SDKs
+- **Error Resilience**: Implement proper retry logic and error recovery for both SDKs
+- **Performance**: Leverage incremental sync capabilities and parallel processing where appropriate
+
+**Always consult these references when implementing new features or debugging SDK-related issues.**
+
+---
+
 ## 🛠 Self-Improvement & Guardrails
 
 If you discover improvements to these settings, update this file:
 
 `.cursor/rules/project-settings.mdc`
 
-📌 And optionally log suggestions in `.cursor/manifest.md` as “DX Upgrades”.
+📌 And optionally log suggestions in `.cursor/manifest.md` as "DX Upgrades".
 
 ---

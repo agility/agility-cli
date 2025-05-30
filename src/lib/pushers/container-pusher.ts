@@ -32,6 +32,8 @@ export class pushContainers {
       let existingTargetContainer: mgmtApi.Container | null = null;
       let mappedSourceContainer: mgmtApi.Container | null = null;
 
+      console.log(ansiColors.yellow(`[Container Pusher] Processing container: ${container.referenceName} (Source ID: ${container.contentViewID})`));
+
       existingTargetContainer = await findContainerInTargetInstance(
         container,
         this.apiClient,
@@ -45,10 +47,15 @@ export class pushContainers {
         );
         this.referenceMapper.addRecord("container", container, existingTargetContainer);
         containerProcessedSuccessfully = true;
+        processedCount++;
+        if (onProgress) {
+          onProgress(processedCount, totalContainers, 'success');
+        }
         continue;
       } 
 
       // if we don't find a mapping for the target container
+      console.log(ansiColors.yellow(`[Container Pusher] Mapping source container to target models...`));
 
       mappedSourceContainer = await this.containerMapper.mapModels(container);
       if (!mappedSourceContainer) {
@@ -56,45 +63,68 @@ export class pushContainers {
           `✗ No processed model found for container ${container.referenceName} (looking for model ID ${container.contentDefinitionID})`
         );
         failedContainers++;
+        processedCount++;
+        if (onProgress) {
+          onProgress(processedCount, totalContainers, 'error');
+        }
         continue;
       }
 
-    //   console.log('mapped version', mappedSourceContainer);
-
-    //   const payload = this.containerMapper.mapContainerProperties(container, mappedSourceContainer, existingTargetContainer);
+      console.log(ansiColors.yellow(`[Container Pusher] Creating payload for container save...`));
 
       const payload = {
         ...(existingTargetContainer ? existingTargetContainer : mappedSourceContainer),
         contentViewID: existingTargetContainer ? existingTargetContainer.contentViewID : -1,
       };
 
-    //   console.log('payload', payload);
       // Create new container
+      let savedContainer: mgmtApi.Container | null = null;
       try {
-        const savedContainer = await this.apiClient.containerMethods.saveContainer(
+        console.log(ansiColors.yellow(`[Container Pusher] Saving container with payload referenceName: ${payload.referenceName}`));
+        
+        savedContainer = await this.apiClient.containerMethods.saveContainer(
           payload as mgmtApi.Container,
           this.targetGuid,
-          true
-          // true // force the reference name to maintain the original name
+          true // Force use of provided reference name
         );
 
-        this.referenceMapper.addRecord("container", container, savedContainer);
-        console.log(
-          `✓ Container ${ansiColors.underline(container.referenceName)} ${ansiColors.bold.cyan('created')} - ${ansiColors.green("Source")}: ${container.contentViewID} ${ansiColors.green("Target")} referenceName: ${
-            savedContainer.referenceName
-          } contentViewID: ${
-            savedContainer.contentViewID
-          }`
-        );
-        containerProcessedSuccessfully = true;
+        console.log(ansiColors.green(`[Container Pusher] Container saved with referenceName: ${savedContainer.referenceName}`));
+
+        // Check if the reference name was changed (hashed) by Agility
+        if (savedContainer.referenceName !== container.referenceName) {
+          console.log(ansiColors.yellow(`[Container Pusher] Reference name was hashed: ${container.referenceName} -> ${savedContainer.referenceName}`));
+          
+          // Add a reference name mapping for future lookups
+          this.referenceMapper.addRecord('container-name', 
+            { originalName: container.referenceName }, 
+            { hashedName: savedContainer.referenceName }
+          );
+        }
+
       } catch (error) {
-        console.error(`Error creating container ${container.referenceName}:`);
+        console.error(`✗ Error creating container ${container.referenceName}:`);
+        console.error(error);
         if (error.response) {
           console.error("API Response:", error.response.data);
         }
         failedContainers++;
+        processedCount++;
+        if (onProgress) {
+          onProgress(processedCount, totalContainers, 'error');
+        }
+        continue;
       }
 
+      this.referenceMapper.addRecord("container", container, savedContainer);
+      console.log(
+        `✓ Container ${ansiColors.underline(container.referenceName)} ${ansiColors.bold.cyan('created')} - ${ansiColors.green("Source")}: ${container.contentViewID} ${ansiColors.green("Target")} referenceName: ${
+          savedContainer.referenceName
+        } contentViewID: ${
+          savedContainer.contentViewID
+        }`
+      );
+      containerProcessedSuccessfully = true;
+      
       // Increment processed count and call callback regardless of success/fail
       processedCount++;
       if (onProgress) {

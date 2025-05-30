@@ -354,9 +354,10 @@ export async function pushModels(
     const nonCircularModels = models.filter(m => !circularModelsSet.has(m.referenceName));
 
     const nonCircularNotLinkedModels = nonCircularModels.filter(m => !isLinkedModel(m));
-    const nonCircularLinkedModels = nonCircularModels.filter(m => isLinkedModel(m));
+    const nonCircularLinkedModels = nonCircularModels.filter(m => isLinkedModel(m)).reverse();
+    // I reversed the order of this because of logical creation order by the user
 
-    const processedModels = new Set<string>(); // Keep track of processed models by original reference name (lowercase)
+    const processedModels = new Set<number>(); // Keep track of processed models by ID instead of reference name
 
     // Helper to process a model (create or update as needed)
     const processModel = async (model: mgmtApi.Model, isNormal: boolean, overrideFields?: any[], passDescription?: string): Promise<boolean> => {
@@ -377,7 +378,7 @@ export async function pushModels(
                     // If the intent was to create a stub (empty fields) and the model already exists,
                     // skip comparison and update for this step. Step 4 will handle the full comparison.
                     // console.log(ansiColors.gray(`  [INFO] ${modelType} ${ansiColors.underline(originalModelReferenceName)} already exists. Full field comparison will occur in the next phase.`));
-                    processedModels.add(originalModelReferenceName.toLowerCase()); // Add to processed set on successful stub creation
+                    processedModels.add(model.id); // Add to processed set using model ID
                     return true; // Successfully handled for the stub creation phase
                 }
 
@@ -405,7 +406,7 @@ export async function pushModels(
                         const updatedModel = await apiClient.modelMethods.saveModel(modelPayload, targetGuid);
                         referenceMapper.addRecord('model', model, updatedModel); // Update mapping with newly updated model
                         console.log(`✓ ${modelType} ${ansiColors.bold.cyan('updated')} ${ansiColors.underline(originalModelReferenceName)} (ID: ${existingModel.id}) on target.`);
-                        processedModels.add(originalModelReferenceName.toLowerCase()); // Add to processed set on successful update
+                        processedModels.add(model.id); // Add to processed set using model ID
                         return true;
                     } catch (error: any) {
                         console.error(
@@ -430,8 +431,8 @@ export async function pushModels(
                         return false;
                     }
                 } else {
-                    console.log(`✓ ${modelType} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.gray('exists and is identical')} - Skipping update.`);
-                    processedModels.add(originalModelReferenceName.toLowerCase()); // Add to processed set on skipped update
+                    console.log(`✓ ${modelType} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.gray('exists and is identical')} - Skipping update. ${ansiColors.green(targetGuid)}: ${ansiColors.green(String(existingModel.id))}`);
+                    processedModels.add(model.id); // Add to processed set using model ID
                     return true;
                 }
             }
@@ -468,11 +469,10 @@ export async function pushModels(
             delete modelPayload.lastModifiedBy;   // Not needed for create
             delete modelPayload.lastModifiedAuthorID; // Not needed for create
 
-            // console.log(ansiColors.magenta(`[DEBUG] Create payload for ${originalModelReferenceName}:`), JSON.stringify(modelPayload, null, 2));
             const savedModel = await apiClient.modelMethods.saveModel(modelPayload, targetGuid);
             referenceMapper.addRecord('model', model, savedModel);
             console.log(`✓ ${modelType} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.cyan('created')} (New ID: ${savedModel.id}) on target.`);
-            processedModels.add(originalModelReferenceName.toLowerCase()); // Add to processed set on successful creation
+            processedModels.add(model.id); // Add to processed set using model ID
             return true;
         } catch (error: any) {
             console.error(
@@ -500,7 +500,7 @@ export async function pushModels(
 
     // 1. Process non-circular, non-linked models
     for (const model of nonCircularNotLinkedModels) {
-        if (processedModels.has(model.referenceName.toLowerCase())) continue; // Skip if already processed
+        if (processedModels.has(model.id)) continue; // Skip if already processed
         const isNormal = !isLinkedModel(model);
         const success = await processModel(model, isNormal, undefined, 'Normal Model');
         if (success) successfulModels++; else failedModels++;
@@ -509,7 +509,7 @@ export async function pushModels(
 
     // 2. Create circular models with empty fields first (ensures all stubs exist for linking)
     for (const model of circularModels) {
-        if (processedModels.has(model.referenceName.toLowerCase())) continue; // Skip if already processed
+        if (processedModels.has(model.id)) continue; // Skip if already processed
         const isNormal = !isLinkedModel(model); // isLinkedModel is true for circular
         // Pass undefined for overrideFields to let processModel determine if it needs to be a stub
         const success = await processModel(model, isNormal, [], 'Circular Linked Model (empty fields phase)');
@@ -528,7 +528,7 @@ export async function pushModels(
 
     // 4. Process non-circular, linked models (these can now safely link to fully defined circular models)
     for (const model of nonCircularLinkedModels) {
-        if (processedModels.has(model.referenceName.toLowerCase())) continue; // Skip if already processed
+        if (processedModels.has(model.id)) continue; // Skip if already processed
         const isNormal = !isLinkedModel(model); // This will be true if it wasn't in circularModels
         const success = await processModel(model, isNormal, undefined, 'Linked Model');
         if (success) successfulModels++; else failedModels++;

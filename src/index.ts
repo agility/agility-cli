@@ -714,6 +714,12 @@ yargs.command({
       type: "string",
       default: "Galleries,Assets,,Models,Containers,Content,Templates,Pages",
     },
+    local: {
+      describe: "Switch to local management API mode..",
+      demandOption: false,
+      type: "boolean",
+      default: false,
+    },
     headless: {
       describe: "Turn off the experimental Blessed UI for push/sync operations.",
       type: "boolean",
@@ -755,11 +761,18 @@ yargs.command({
     }
   },
   handler: async function (argv) {
-    const { headless, verbose } = argv;
+    const { headless, verbose, local } = argv;
     const useBlessed = !headless && !verbose;
     blessedUIEnabled = useBlessed;
 
+    if (local) {
+      forceLocalMode = true;
+    }
+
+    configureSSL();
+
     let auth = new Auth();
+    
     const isAuthorized = await auth.checkAuthorization();
     if (!isAuthorized) {
       return;
@@ -848,6 +861,215 @@ Pushing elements from ${sourceGuid} (${isPreview ? "preview" : "live"}) to ${tar
     } catch (error) {
       multibar.stop();
       console.error(colors.red(`An error occurred during the push operation: ${error.message}`));
+      console.error(error);
+      process.exit(1);
+    }
+  }
+})
+
+
+// New 2-Pass Sync Command using the enhanced dependency system
+yargs.command({
+  command: "sync",
+  describe: "Sync your instance using the new 2-pass dependency system.",
+  builder: {
+    sourceGuid: {
+      describe: "Provide the source guid to sync from. If not provided, will use AGILITY_GUID from .env file if available.",
+      demandOption: false,
+      type: "string",
+    },
+    targetGuid: {
+      describe: "Provide the target guid to sync your instance to.",
+      demandOption: true,
+      type: "string",
+    },
+    locale: {
+      describe: "Provide the locale to sync your instance. If not provided, will use AGILITY_LOCALES from .env file if available.",
+      demandOption: false,
+      type: "string",
+    },
+    preview: {
+      describe: "Whether to sync to preview or live environment data from source.",
+      demandOption: false,
+      type: "boolean",
+      default: true,
+    },
+    elements: {
+      describe: "Comma-separated list of elements to sync (Galleries,Assets,Models,Containers,Content,Templates,Pages)",
+      demandOption: false,
+      type: "string",
+      default: "Galleries,Assets,Models,Containers,Content,Templates,Pages",
+    },
+    local: {
+      describe: "Switch to local management API mode.",
+      demandOption: false,
+      type: "boolean",
+      default: false,
+    },
+    headless: {
+      describe: "Turn off the experimental Blessed UI for sync operations.",
+      type: "boolean",
+      default: false,
+    },
+    verbose: {
+      describe: "Run in verbose mode: all logs to console, no UI elements. Overridden by headless.",
+      type: "boolean",
+      default: false,
+    },
+    rootPath: {
+      describe: "Specify the root path for the sync operation.",
+      demandOption: false,
+      default: "agility-files",
+      type: "string",
+    },
+    legacyFolders: {
+      describe: "Use a flat folder structure directly under the root path for local files.",
+      demandOption: false,
+      type: "boolean",
+      default: false,
+    },
+    dryRun: {
+      describe: "Dry run the sync operation if able.",
+      demandOption: false,
+      type: "boolean",
+      default: false,
+    },
+    debug: {
+      describe: "Enable debug logging for dependency analysis.",
+      demandOption: false,
+      type: "boolean",
+      default: false,
+    },
+    maxDepth: {
+      describe: "Maximum recursion depth for dependency analysis (prevents infinite loops).",
+      demandOption: false,
+      type: "number",
+      default: 10,
+    },
+    test: {
+      describe: "Test mode - bypasses authentication for local testing.",
+      demandOption: false,
+      type: "boolean",
+      default: false,
+    }
+  },
+  handler: async function (argv) {
+    const { headless, verbose, local, debug, test, maxDepth } = argv;
+    const useBlessed = !headless && !verbose;
+    blessedUIEnabled = useBlessed;
+
+    if (local) {
+      forceLocalMode = true;
+    }
+
+    configureSSL();
+
+    let auth = new Auth();
+    
+    if (!test) {
+      const isAuthorized = await auth.checkAuthorization();
+      if (!isAuthorized) {
+        return;
+      }
+
+      // Get token and set up options
+      const token = await auth.getToken();
+      options = new mgmtApi.Options();
+      options.token = token;
+    } else {
+      console.log(colors.yellow("🧪 TEST MODE: Bypassing authentication..."));
+      options = new mgmtApi.Options();
+      options.token = "test-token";
+    }
+
+    let sourceGuid: string = argv.sourceGuid as string;
+    const targetGuid: string = argv.targetGuid as string;
+    let locale: string = argv.locale as string;
+    const isPreview: boolean = argv.preview as boolean;
+    const elements: string[] = (argv.elements as string).split(",");
+    const rootPath: string = argv.rootPath as string;
+    const legacyFolders: boolean = argv.legacyFolders as boolean;
+    const dryRun: boolean = argv.dryRun as boolean;
+
+    // Check for .env file values
+    const envCheck = auth.checkForEnvFile();
+    if (envCheck.hasEnvFile) {
+      if (!sourceGuid && envCheck.guid) {
+        sourceGuid = envCheck.guid;
+      }
+      if (!locale && envCheck.locales) {
+        locale = envCheck.locales[0];
+      }
+    }
+
+    // Validate required parameters
+    if (!sourceGuid) {
+      console.log(
+        colors.red("Please provide a sourceGuid or ensure you are in a directory with a valid .env file containing a GUID.")
+      );
+      return;
+    }
+
+    if (!targetGuid) {
+      console.log(colors.red("Please provide a targetGuid."));
+      return;
+    }
+
+    if (!locale) {
+      console.log(
+        colors.red("Please provide a locale or ensure AGILITY_LOCALES is in your .env file.")
+      );
+      return;
+    }
+
+    let multibar = createMultibar({ name: "Sync (2-Pass)" });
+
+    try {
+      if (!test) {
+        const userOnSource = await auth.getUser(sourceGuid);
+        const userOnTarget = await auth.getUser(targetGuid);
+
+        if (!userOnSource) {
+          console.log(colors.red(`Could not retrieve user details for source instance ${sourceGuid}. Please ensure it's a valid GUID and you have access.`));
+          return;
+        }
+        if (!userOnTarget) {
+          console.log(colors.red(`Could not retrieve user details for target instance ${targetGuid}. Please ensure it's a valid GUID and you have access.`));
+          return;
+        }
+
+        const sourcePermitted = await auth.checkUserRole(sourceGuid);
+        const targetPermitted = await auth.checkUserRole(targetGuid);
+
+        if (!sourcePermitted) {
+          console.log(colors.red(`You do not have the required permissions on the source instance ${sourceGuid}.`));
+          return;
+        }
+        if (!targetPermitted) {
+          console.log(colors.red(`You do not have the required permissions on the target instance ${targetGuid}.`));
+          return;
+        }
+      } else {
+        console.log(colors.yellow("🧪 TEST MODE: Bypassing permission checks..."));
+      }
+      
+      // Import and use the new 2-pass sync system
+      const { TwoPassSync } = await import('./lib/pushers/two-pass-sync');
+      
+      const syncOperation = new TwoPassSync(options, multibar, sourceGuid, targetGuid, locale, isPreview, blessedUIEnabled, elements, rootPath, legacyFolders, dryRun, {
+        debug,
+        maxDepth: maxDepth
+      });
+      
+      await syncOperation.syncInstance();
+      
+      // Clean up and exit successfully
+      multibar.stop();
+      console.log(colors.green('\n✅ Sync operation completed successfully!'));
+
+    } catch (error) {
+      multibar.stop();
+      console.error(colors.red(`An error occurred during the sync operation: ${error.message}`));
       console.error(error);
       process.exit(1);
     }
@@ -1124,6 +1346,6 @@ yargs.command({
 
 yargs.parse();
 
-// Prevent the script from exiting
-setInterval(() => {}, 1000);
+// Note: Removed setInterval that was preventing script exit
+// Individual commands should handle their own lifecycle
 

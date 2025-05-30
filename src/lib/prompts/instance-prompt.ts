@@ -36,9 +36,9 @@ export async function instancesPrompt(selectedInstance: AgilityInstance, keys: a
   ];
 
 
-    choices.push(  new inquirer.Separator() )
-    choices.push({ name: "Generate TypeScript interfaces (beta)", value: "types" });
-    choices.push({ name: "Generate React Components (beta)", value: "reactcomponents" });
+    // choices.push(  new inquirer.Separator() )
+    // choices.push({ name: "Generate TypeScript interfaces (beta)", value: "types" });
+    // choices.push({ name: "Generate React Components (beta)", value: "reactcomponents" });
     choices.push(  new inquirer.Separator() )
     choices.push({ name: "Clean instance (warning: data loss)", value: "clean" })
     

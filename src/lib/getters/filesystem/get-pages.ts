@@ -15,13 +15,13 @@ export async function getPagesFromFileSystem(
     let dirPath: string;
 
     if (legacyFolders) {
-        dirPath = `${baseFolder}/pages`;
+        dirPath = `pages`;
     } else {
-        dirPath = `${baseFolder}/${guid}/${classLocale}/${isPreview ? 'preview':'live'}/pages`;
+        dirPath = `${guid}/${classLocale}/${isPreview ? 'preview':'live'}/pages`;
     }
 
     try{
-        let files = fileOperation.readDirectory(dirPath); // Pass full path
+        let files = fileOperation.readDirectory(dirPath, baseFolder); // Pass full path
 
         let pages : mgmtApi.PageItem[] = [];
 
@@ -29,6 +29,11 @@ export async function getPagesFromFileSystem(
             let page = JSON.parse(files[i]) as mgmtApi.PageItem;
             referenceMapper.addRecord('page', page, null);
             pages.push(page);
+            
+            // Debug: Log each page being loaded
+            if (page.name === 'winning-numbers' || page.pageID === 28 || page.pageID === 25) {
+                console.log(`[Page Debug] Loading page: ${page.name} (ID: ${page.pageID}, Type: ${page.pageType}) from file ${i}`);
+            }
         }
         return pages;
     } catch (e){

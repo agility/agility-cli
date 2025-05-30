@@ -11,6 +11,7 @@ export class pushContentItems {
     private locale: string;
     private successfulItems: number = 0;
     private failedItems: number = 0;
+    private defaultTargetAssetContainerOriginUrl: string | null = null;
 
     constructor(apiClient: mgmtApi.ApiClient, referenceMapper: ReferenceMapper, targetGuid: string, locale: string) {
         this.apiClient = apiClient;
@@ -21,13 +22,44 @@ export class pushContentItems {
         this.failedItems = 0;
     }
 
+    private async initialize(): Promise<void> {
+        try {
+            const defaultContainer = await this.apiClient.assetMethods.getDefaultContainer(this.targetGuid);
+            this.defaultTargetAssetContainerOriginUrl = defaultContainer?.originUrl || null;
+            if (!this.defaultTargetAssetContainerOriginUrl) {
+                console.warn(ansiColors.yellow(`[Content Item Pusher] Could not retrieve default asset container origin URL for target GUID ${this.targetGuid}. Asset URL mapping might be incomplete.`));
+            }
+        } catch (err: any) {
+            console.error(ansiColors.red(`[Content Item Pusher] Error fetching default asset container for target GUID ${this.targetGuid}: ${err.message}`));
+            this.defaultTargetAssetContainerOriginUrl = null; 
+        }
+    }
+
     async pushContentItems(contentItems: mgmtApi.ContentItem[], onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void): Promise<{ successfulItems: number, failedItems: number }> {
-        const totalItemCount = contentItems.length;
+        const originalItemCount = contentItems.length;
         let processedItemCount = 0;
         let lastItemStatus: 'success' | 'error' = 'success'; // Track status of the *last* item attempt
 
+        await this.initialize();
+
+        // Filter out i18 content items to speed up testing
+        const nonI18ContentItems = contentItems.filter(item => {
+            const referenceName = item.properties.referenceName?.toLowerCase() || '';
+            const definitionName = item.properties.definitionName?.toLowerCase() || '';
+            
+            // Skip i18 content items (internationalization/localization items)
+            if (referenceName.includes('i18') || definitionName.includes('i18')) {
+                return false;
+            }
+            
+            return true;
+        });
+
+        const totalItemCount = nonI18ContentItems.length; // Update total to reflect filtered items
+        console.log(ansiColors.cyan(`[Content Pusher] Processing ${totalItemCount} content items (filtered ${originalItemCount - totalItemCount} i18 items)`));
+
         // First, process content items without nested content references
-        const normalContentItems = contentItems.filter(item => {
+        const normalContentItems = nonI18ContentItems.filter(item => {
             const definitionName = item.properties.definitionName; // Get definition name
             // Check if any field contains a nested content reference, EXCLUDING known list refs
             const isNested = Object.entries(item.fields).some(([key, field]) => {
@@ -48,29 +80,37 @@ export class pushContentItems {
         });
 
         // Then process content items with nested content references
-        const nestedContentItems = contentItems.filter(item => !normalContentItems.includes(item));
+        const nestedContentItems = nonI18ContentItems.filter(item => !normalContentItems.includes(item)).reverse();
 
-     
+        console.log(ansiColors.cyan(`[Content Pusher] Categorization: ${normalContentItems.length} normal + ${nestedContentItems.length} nested items`));
 
         // Process normal content items first
-        for (const contentItem of normalContentItems) {
+        for (let i = 0; i < normalContentItems.length; i++) {
+            const contentItem = normalContentItems[i];
+            
             let existingContentItem = null;
             let mappedContentItem = null;
             let payload = null;
             lastItemStatus = 'success'; // Assume success initially
             try {
-                 existingContentItem = await findContentInTargetInstance(contentItem, this.apiClient, this.targetGuid, this.locale, this.referenceMapper);
+                existingContentItem = await findContentInTargetInstance(contentItem, this.apiClient, this.targetGuid, this.locale, this.referenceMapper);
 
                 // *** Map the content item JUST BEFORE saving ***
-                 mappedContentItem = mapContentItem(contentItem, this.referenceMapper);
+                mappedContentItem = await mapContentItem(
+                    contentItem, 
+                    this.referenceMapper,
+                    this.apiClient,
+                    this.targetGuid,
+                    this.defaultTargetAssetContainerOriginUrl || ''
+                );
 
                 // Define default SEO and Scripts
                 const defaultSeo: mgmtApi.SeoProperties = { metaDescription: null, metaKeywords: null, metaHTML: null, menuVisible: null, sitemapVisible: null };
                 const defaultScripts: mgmtApi.ContentScripts = { top: null, bottom: null };
 
-                 payload = {
+                payload = {
                     ...mappedContentItem, // Spread the mapped item first
-                    contentID: -1, // ALWAYS set to -1 for create/update
+                    contentID: existingContentItem ? existingContentItem.contentID : -1, // ALWAYS set to -1 for create/update
                     properties: {
                         ...mappedContentItem.properties,
                         // Ensure definitionName and referenceName are present
@@ -84,82 +124,151 @@ export class pushContentItems {
                 }
 
                 // Restore 4th argument to true
-                const saveContentItemResponse:any = await this.apiClient.contentMethods.saveContentItem(payload, this.targetGuid, this.locale);
+                const targetContentId = await this.apiClient.contentMethods.saveContentItem(payload, this.targetGuid, this.locale);
                 
+                if(typeof targetContentId !== 'object'){
+                    console.log('targetContentId', targetContentId);
+                }
+                
+                // Enhanced error analysis for content item failures
+                if (!targetContentId) {
+                    console.log(`✗ Content item ${contentItem.properties.referenceName} (${contentItem.properties.definitionName}) failed - API returned null/undefined`);
+                    console.log(`[Debug] Payload fields:`, Object.keys(payload.fields).join(', '));
+                    
+                    // Add to mapper with -1 to track the failure
+                    const failedContentItem: mgmtApi.ContentItem = {
+                        ...payload,
+                        contentID: -1
+                    };
+                    this.referenceMapper.addRecord('content', contentItem, failedContentItem);
+                    this.failedItems++;
+                    lastItemStatus = 'error';
+                    continue;
+                }
                 
                 // Check for API error data primarily
-                if (Array.isArray(saveContentItemResponse)) { 
-    
-            
-                    // Determine the target ID from the batch response itemID or existing item
-                    let targetContentId: number | undefined | null = null;
-                    if (saveContentItemResponse && saveContentItemResponse.length > 0) { // Use itemID
-                        targetContentId = saveContentItemResponse[0]; // Use itemID
-                    } else {
-                        // Fallback for updates or unexpected response structure
-                        targetContentId = existingContentItem?.contentID;
-                    }
-    
-                    if (targetContentId) { // Ensure we have a target ID
-                        // Construct the target item for the mapper
-                        const newContentItem: mgmtApi.ContentItem = {
-                            ...payload, // Use the payload we sent
-                            contentID: targetContentId // Update with the target ID
-                        };
-                        this.referenceMapper.addRecord('content', contentItem, newContentItem); // Use addRecord
-                        // const action = existingContentItem ? 'updated':'created';
-                        console.log(`✓ Content item ${ansiColors.underline(contentItem.properties.referenceName)} ${ansiColors.bold.cyan('created')} ${ansiColors.green('Source:')} ${contentItem.contentID} ${ansiColors.green(this.targetGuid)}: contentID:${targetContentId}`);
-                        this.successfulItems++;
-                    } else {
-                        // This case might happen if creating failed silently or response is unexpected
-                         console.log(`✗ Content item save reported success by API, but no target ID found.`,ansiColors.red('Source:'), contentItem.properties.referenceName , '(ID:', contentItem.contentID, ')');
-                        this.failedItems++;
-                        lastItemStatus = 'error'; // Mark as error
-                    }
-                } else {
-                    console.log(`✗ Failed to ${existingContentItem ? 'update':'create'} content item (API Error)`,ansiColors.red('Source:'), contentItem.properties.referenceName , '(ID:', contentItem.contentID, ')');
-                   
+                if (targetContentId && (typeof targetContentId === 'object' && 'errorData' in targetContentId)) {
+                    console.log(`✗ Content item ${contentItem.properties.referenceName} (${contentItem.properties.definitionName}) failed with API error:`);
+                    console.log(`[Debug] Error:`, (targetContentId as any).errorData);
+                    console.log(`[Debug] Payload fields:`, Object.keys(payload.fields).join(', '));
+                    
+                    // Add to mapper with -1 to track the failure
+                    const failedContentItem: mgmtApi.ContentItem = {
+                        ...payload,
+                        contentID: -1
+                    };
+                    this.referenceMapper.addRecord('content', contentItem, failedContentItem);
                     this.failedItems++;
-                    lastItemStatus = 'error'; 
-                   const wrapped = this.wrapLines(saveContentItemResponse.errorData, 80);
-                   console.log(ansiColors.red(`API Error: ${wrapped}`)); // Log errorDataa
-                   console.log('payload', JSON.stringify(payload, null, 2));
-                // Log statusMessage
+                    lastItemStatus = 'error';
+                    continue;
+                }
+                
+                if (targetContentId) { 
+                    // Extract the actual content ID - it might be a number or a batch response object
+                    let actualContentId: number;
+                    
+                    if (typeof targetContentId === 'number') {
+                        actualContentId = targetContentId;
+                    } else if (typeof targetContentId === 'object' && Array.isArray(targetContentId)) {
+                        // Handle array response - use the first item
+                        actualContentId = targetContentId[0];
+                    } else if (typeof targetContentId === 'object' && 'items' in targetContentId && Array.isArray((targetContentId as any).items) && (targetContentId as any).items[0]) {
+                        // Handle batch response - extract the itemID from the first item
+                        actualContentId = (targetContentId as any).items[0].itemID;
+                    } else {
+                        console.log(`✗ Unexpected targetContentId format for ${contentItem.properties.referenceName}:`, targetContentId);
+                        console.log(`[Debug] Content type: ${contentItem.properties.definitionName}`);
+                        this.failedItems++;
+                        lastItemStatus = 'error';
+                        continue;
+                    }
+
+                    // Validate that we got a valid content ID
+                    if (!actualContentId || actualContentId <= 0) {
+                        console.log(`✗ Content item ${contentItem.properties.referenceName} (${contentItem.properties.definitionName}) creation failed - received invalid contentID: ${actualContentId}`);
+                        console.log(`[Debug] Response type: ${typeof targetContentId}, Response:`, JSON.stringify(targetContentId, null, 2));
+                        console.log(`[Debug] Payload fields with potential issues:`, Object.entries(payload.fields).filter(([key, value]) => {
+                            // Check for asset URLs, content references, etc.
+                            const valueStr = JSON.stringify(value).toLowerCase();
+                            return valueStr.includes('http') || valueStr.includes('contentid') || valueStr.includes('referencename');
+                        }).map(([key, value]) => `${key}: ${JSON.stringify(value)}`));
+                        
+                        // Add to mapper with -1 to track the failure
+                        const failedContentItem: mgmtApi.ContentItem = {
+                            ...payload,
+                            contentID: -1
+                        };
+                        this.referenceMapper.addRecord('content', contentItem, failedContentItem);
+                        this.failedItems++;
+                        lastItemStatus = 'error';
+                        continue;
+                    }
+
+                    // Construct the target item for the mapper
+                    const newContentItem: mgmtApi.ContentItem = {
+                        ...payload, // Use the payload we sent
+                        contentID: actualContentId // Update with the actual numeric target ID
+                    };
+                    
+                    this.referenceMapper.addRecord('content', contentItem, newContentItem); // Use addRecord
+                    // const action = existingContentItem ? 'updated':'created';
+                    console.log(`✓ Content item ${ansiColors.underline(contentItem.properties.referenceName)} ${ansiColors.bold.cyan(existingContentItem ? 'updated' : 'created')} ${ansiColors.green('Source:')} ${contentItem.contentID} ${ansiColors.green(this.targetGuid)}  contentID:${actualContentId}`);
+                    this.successfulItems++;
+                } else {
+                    // This case might happen if creating failed silently or response is unexpected
+                    console.log(`✗ Content item save reported success by API, but no target ID found.`,ansiColors.red('Source:'), contentItem.properties.referenceName , '(ID:', contentItem.contentID, ')');
+                    this.failedItems++;
+                    lastItemStatus = 'error'; // Mark as error
                 }
             } catch (error) {
-                 console.error(`✗ Error during processing/saving normal content item ${contentItem?.properties?.referenceName} (ID: ${contentItem?.contentID}):`, error);
-                 // Optionally log payload if available
-                 if (payload) console.error('Payload at time of error:', JSON.stringify(payload, null, 2));
-                 this.failedItems++;
-                 lastItemStatus = 'error'; // Mark as error
+                console.error(`✗ Error during processing/saving normal content item ${contentItem?.properties?.referenceName} (ID: ${contentItem?.contentID}):`, error);
+                // Optionally log payload if available
+                if (payload) console.error('Payload at time of error:', JSON.stringify(payload, null, 2));
+                this.failedItems++;
+                lastItemStatus = 'error'; // Mark as error
             }
-             // Increment count and call callback after each item attempt
-             processedItemCount++;
-             if (onProgress) {
-                 onProgress(processedItemCount, totalItemCount, lastItemStatus);
-             }
+            // Increment count and call callback after each item attempt
+            processedItemCount++;
+            if (onProgress) {
+                onProgress(processedItemCount, totalItemCount, lastItemStatus);
+            }
         }
 
-      
-        // Then process nested content items
-        for (const contentItem of nestedContentItems) {
+        // Process nested content items with multi-pass logic for complex dependencies
+        let remainingNestedItems = [...nestedContentItems];
+        let passNumber = 1;
+        const maxPasses = 3; // Limit passes to prevent infinite loops
+        
+        while (remainingNestedItems.length > 0 && passNumber <= maxPasses) {
+            console.log(ansiColors.cyan(`[Content Pusher] Nested content pass ${passNumber}: ${remainingNestedItems.length} items remaining`));
+            const itemsToRetry: mgmtApi.ContentItem[] = [];
+            
+                         for (let i = 0; i < remainingNestedItems.length; i++) {
+                const contentItem = remainingNestedItems[i];
+            
             let existingContentItem = null;
             let mappedContentItem = null;
             let payload = null;
-             lastItemStatus = 'success'; // Assume success initially
-             try {
-                 existingContentItem = await findContentInTargetInstance(contentItem, this.apiClient, this.targetGuid, this.locale, this.referenceMapper);
+            lastItemStatus = 'success'; // Assume success initially
+            try {
+                existingContentItem = await findContentInTargetInstance(contentItem, this.apiClient, this.targetGuid, this.locale, this.referenceMapper);
 
                 // *** Map the content item JUST BEFORE saving ***
-                 mappedContentItem = mapContentItem(contentItem, this.referenceMapper);
+                mappedContentItem = await mapContentItem(
+                    contentItem, 
+                    this.referenceMapper,
+                    this.apiClient,
+                    this.targetGuid,
+                    this.defaultTargetAssetContainerOriginUrl || ''
+                );
 
                 // Define default SEO and Scripts
                 const defaultSeo: mgmtApi.SeoProperties = { metaDescription: null, metaKeywords: null, metaHTML: null, menuVisible: null, sitemapVisible: null };
                 const defaultScripts: mgmtApi.ContentScripts = { top: null, bottom: null };
                 
-                 payload = {
+                payload = {
                     ...mappedContentItem, // Spread the mapped item first
-                    contentID: -1, // ALWAYS set to -1 for create/update
+                    contentID: existingContentItem ? existingContentItem.contentID : -1, // ALWAYS set to -1 for create/update
                     properties: {
                         ...mappedContentItem.properties,
                         // Ensure definitionName and referenceName are present
@@ -173,65 +282,152 @@ export class pushContentItems {
                 }
 
                 // Use 4 args for detailed response
-                const saveContentItemResponse: any = await this.apiClient.contentMethods.saveContentItem(payload, this.targetGuid, this.locale);
+                const targetContentId = await this.apiClient.contentMethods.saveContentItem(payload, this.targetGuid, this.locale);
 
-                // Check for API error data primarily
-                if (Array.isArray(saveContentItemResponse)) {
-    
-                    // if(contentItem.properties.definitionName === 'FeaturedPost') { // Added check FeaturedPost items
-                    //     console.log(ansiColors.yellow('--- DEBUG: Response for FeaturedPost Item ---'));
-                    //     console.log('Raw Response:', JSON.stringify(saveContentItemResponse, null, 2));
-                    //     console.log('Existing Item ID:', existingContentItem?.contentID);
-                    // }
-    
-                    // Determine the target ID from the batch response itemID or existing item
-                    let targetContentId: number | undefined | null = null;
-                     if (saveContentItemResponse && saveContentItemResponse.length > 0) { // Use itemID
-                        targetContentId = saveContentItemResponse[0]; // Use itemID
-                        // if(contentItem.properties.definitionName === 'FeaturedPost') console.log(ansiColors.yellow('Target ID from items[0].itemID:'), targetContentId);
+                // Enhanced error analysis for nested content item failures
+                if (!targetContentId) {
+                    console.log(`✗ Nested content item ${contentItem.properties.referenceName} (${contentItem.properties.definitionName}) failed - API returned null/undefined (Pass ${passNumber})`);
+                    console.log(`[Debug] Payload fields:`, Object.keys(payload.fields).join(', '));
+                    
+                    // Add to retry list for potential dependency issues
+                    if (passNumber < maxPasses) {
+                        itemsToRetry.push(contentItem);
                     } else {
-                        // Fallback for updates or unexpected response structure
-                        targetContentId = existingContentItem?.contentID;
-                        // if(contentItem.properties.definitionName === 'FeaturedPost') console.log(ansiColors.yellow('Target ID from fallback existingContentItem?.contentID:'), targetContentId);
-                    }
-    
-                    if (targetContentId) { // Ensure we have a target ID
-                        // Construct the target item for the mapper
-                        const newContentItem: mgmtApi.ContentItem = {
-                            ...payload, // Use the payload we sent
-                            contentID: targetContentId // Update with the target ID
+                        // Add to mapper with -1 to track the final failure
+                        const failedContentItem: mgmtApi.ContentItem = {
+                            ...payload,
+                            contentID: -1
                         };
-                        this.referenceMapper.addRecord('content', contentItem, newContentItem); // Use addRecord
-                        // const action = existingContentItem ? 'updated':'created';
-                        console.log(`✓ Nested Content item ${ansiColors.underline(contentItem.properties.referenceName)} ${ansiColors.bold.cyan('created')} ${ansiColors.green('Source:')} ${contentItem.contentID} ${ansiColors.green(this.targetGuid)} contentID:${targetContentId}`);
-                        this.successfulItems++;
+                        this.referenceMapper.addRecord('content', contentItem, failedContentItem);
+                        this.failedItems++;
+                        lastItemStatus = 'error';
+                    }
+                    continue;
+                }
+                
+                // Check for API error data primarily
+                if (targetContentId && (typeof targetContentId === 'object' && 'errorData' in targetContentId)) {
+                    console.log(`✗ Nested content item ${contentItem.properties.referenceName} (${contentItem.properties.definitionName}) failed with API error (Pass ${passNumber}):`);
+                    console.log(`[Debug] Error:`, (targetContentId as any).errorData);
+                    console.log(`[Debug] Payload fields:`, Object.keys(payload.fields).join(', '));
+                    
+                    // Add to retry list for potential dependency issues
+                    if (passNumber < maxPasses) {
+                        itemsToRetry.push(contentItem);
                     } else {
-                        // This case might happen if creating failed silently or response is unexpected
-                         console.log(`✗ Nested content item save reported success by API, but no target ID found.`,ansiColors.red('Source:'), contentItem.properties.referenceName , '(ID:', contentItem.contentID, ')');
+                        // Add to mapper with -1 to track the final failure
+                        const failedContentItem: mgmtApi.ContentItem = {
+                            ...payload,
+                            contentID: -1
+                        };
+                        this.referenceMapper.addRecord('content', contentItem, failedContentItem);
+                        this.failedItems++;
+                        lastItemStatus = 'error';
+                    }
+                    continue;
+                }
+                
+                if (targetContentId) {
+                    // Extract the actual content ID - it might be a number or a batch response object
+                    let actualContentId: number;
+                    
+                    if (typeof targetContentId === 'number') {
+                        actualContentId = targetContentId;
+                    } else if (typeof targetContentId === 'object' && Array.isArray(targetContentId)) {
+                        // Handle array response - use the first item
+                        actualContentId = targetContentId[0];
+                    } else if (typeof targetContentId === 'object' && 'items' in targetContentId && Array.isArray((targetContentId as any).items) && (targetContentId as any).items[0]) {
+                        // Handle batch response - extract the itemID from the first item
+                        actualContentId = (targetContentId as any).items[0].itemID;
+                    } else {
+                        console.log(`✗ Unexpected nested targetContentId format for ${contentItem.properties.referenceName}:`, targetContentId);
+                        console.log(`[Debug] Content type: ${contentItem.properties.definitionName}`);
+                        this.failedItems++;
+                        lastItemStatus = 'error';
+                        continue;
+                    }
+
+                    // Validate that we got a valid content ID
+                    if (!actualContentId || actualContentId <= 0) {
+                        console.log(`✗ Nested content item ${contentItem.properties.referenceName} (${contentItem.properties.definitionName}) creation failed - received invalid contentID: ${actualContentId} (Pass ${passNumber})`);
+                        console.log(`[Debug] Response type: ${typeof targetContentId}, Response:`, JSON.stringify(targetContentId, null, 2));
+                        console.log(`[Debug] Payload fields with potential issues:`, Object.entries(payload.fields).filter(([key, value]) => {
+                            // Check for asset URLs, content references, etc.
+                            const valueStr = JSON.stringify(value).toLowerCase();
+                            return valueStr.includes('http') || valueStr.includes('contentid') || valueStr.includes('referencename');
+                        }).map(([key, value]) => `${key}: ${JSON.stringify(value)}`));
+                        
+                        // Add to retry list for potential dependency issues
+                        if (passNumber < maxPasses) {
+                            itemsToRetry.push(contentItem);
+                        } else {
+                            // Add to mapper with -1 to track the final failure
+                            const failedContentItem: mgmtApi.ContentItem = {
+                                ...payload,
+                                contentID: -1
+                            };
+                            this.referenceMapper.addRecord('content', contentItem, failedContentItem);
+                            this.failedItems++;
+                            lastItemStatus = 'error';
+                        }
+                        continue;
+                    }
+
+                    // Construct the target item for the mapper
+                    const newContentItem: mgmtApi.ContentItem = {
+                        ...payload, // Use the payload we sent
+                        contentID: actualContentId // Update with the actual numeric target ID
+                    };
+                    
+                    this.referenceMapper.addRecord('content', contentItem, newContentItem); // Use addRecord
+                    // const action = existingContentItem ? 'updated':'created';
+                    console.log(`✓ Nested Content item ${ansiColors.underline(contentItem.properties.referenceName)} ${ansiColors.bold.cyan(existingContentItem ? 'updated' : 'created')} ${ansiColors.green('Source:')} ${contentItem.contentID} ${ansiColors.green(this.targetGuid)} contentID:${actualContentId}`);
+                    this.successfulItems++;
+                } else {
+                    // This case might happen if creating failed silently or response is unexpected
+                    console.log(`✗ Nested content item save reported success by API, but no target ID found (Pass ${passNumber}).`,ansiColors.red('Source:'), contentItem.properties.referenceName , '(ID:', contentItem.contentID, ')');
+                    
+                    // Add to retry list for potential dependency issues
+                    if (passNumber < maxPasses) {
+                        itemsToRetry.push(contentItem);
+                    } else {
                         this.failedItems++;
                         lastItemStatus = 'error'; // Mark as error
                     }
-                } else {
-                    console.log(`✗ Failed to ${existingContentItem ? 'update':'create'} nested content item (API Error)`,ansiColors.red('Source:'), contentItem.properties.referenceName , '(ID:', contentItem.contentID, ')');
-                    console.log('API Error Data:', saveContentItemResponse.errorData); // Log errorData
-                    console.log('API Status Message:', saveContentItemResponse.statusMessage); // Log statusMessage
-                    this.failedItems++;
-                    lastItemStatus = 'error'; // Mark as error
                 }
             } catch (error) {
                 console.error(`✗ Error during processing/saving nested content item ${contentItem?.properties?.referenceName} (ID: ${contentItem?.contentID}):`, error);
-                 // Optionally log payload if available
-                 if (payload) console.error('Payload at time of error:', JSON.stringify(payload, null, 2));
-                 this.failedItems++;
-                 lastItemStatus = 'error'; // Mark as error
+                // Optionally log payload if available
+                if (payload) console.error('Payload at time of error:', JSON.stringify(payload, null, 2));
+                
+                // Add to retry list for potential dependency issues
+                if (passNumber < maxPasses) {
+                    itemsToRetry.push(contentItem);
+                } else {
+                    this.failedItems++;
+                    lastItemStatus = 'error'; // Mark as error
+                }
             }
-             // Increment count and call callback after each item attempt
-             processedItemCount++;
-             if (onProgress) {
-                 onProgress(processedItemCount, totalItemCount, lastItemStatus);
-             }
+            // Increment count and call callback after each item attempt
+            processedItemCount++;
+            if (onProgress) {
+                onProgress(processedItemCount, totalItemCount, lastItemStatus);
+            }
         }
-     
+        
+        // Prepare for next pass
+        remainingNestedItems = itemsToRetry;
+        passNumber++;
+        
+        // If we have items to retry but made no progress this pass, break to avoid infinite loop
+        if (itemsToRetry.length === remainingNestedItems.length && passNumber > 1) {
+            console.warn(ansiColors.yellow(`[Content Pusher] No progress made in nested content pass ${passNumber - 1}. Stopping retries.`));
+            this.failedItems += remainingNestedItems.length;
+            break;
+        }
+    }
+
+        console.log(ansiColors.cyan(`[Content Pusher] ✓ Completed: ${this.successfulItems} successful, ${this.failedItems} failed`));
         return { successfulItems: this.successfulItems, failedItems: this.failedItems };
     }
 

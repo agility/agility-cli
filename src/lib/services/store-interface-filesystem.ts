@@ -227,6 +227,13 @@ const getFilePath = ({ options, itemType, languageCode, itemID }) => {
 		if(typeof itemID === 'string' || itemID instanceof String){
 			itemID = itemID.replace(/[`!@#$%^&*()+\=\[\]{};':"\\|,.<>\/?~]/g, "");
 		}
+		
+		// Fix inconsistency: Convert "page" (singular) to "pages" (plural) 
+		// to match where get-pages.ts expects to find them
+		// if (itemType === 'page') {
+		// 	itemType = 'pages';
+		// }
+		
 		const fileName = `${itemID}.json`;
 		return path.join(options.rootPath, itemType, fileName);
 }

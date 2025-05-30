@@ -14,7 +14,7 @@ export async function instanceSelector() {
 
   
   const instanceChoices = instances.map((instance: any) => ({
-    name: `${instance.displayName} (${instance.guid})`,
+    name: `${instance.displayName || instance.websiteName} (${instance.guid})`,
     value: instance.guid,
     ...instance,
   }));
@@ -36,7 +36,7 @@ export async function instanceSelector() {
 
   const { guid, websiteName, displayName } = website;
   console.log('------------------------------------------------');
-  console.log(colors.green('●'), colors.green(` ${displayName}`), colors.white(`${guid}`));
+  console.log(colors.green('●'), colors.green(` ${displayName || websiteName}`), colors.white(`${guid}`));
   console.log('------------------------------------------------');
 
   return website;

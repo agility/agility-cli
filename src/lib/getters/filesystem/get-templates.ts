@@ -16,18 +16,21 @@ export async function getTemplatesFromFileSystem(
     let dirPath: string;
 
     if (legacyFolders) {
-        dirPath = `${baseFolder}/templates`;
+        dirPath = `templates`;
     } else {
-        dirPath = `${baseFolder}/${guid}/${locale}/${isPreview ? 'preview':'live'}/templates`;
+        dirPath = `${guid}/${locale}/${isPreview ? 'preview':'live'}/templates`;
     }
 
     try{
-        let files = fileOperation.readDirectory(dirPath); // Pass full path
+        let files = fileOperation.readDirectory(dirPath, baseFolder); // Pass full path
+
+        console.log(`[Template Debug] Found ${files.length} template files in ${dirPath}`);
 
         let pageModels : mgmtApi.PageModel[] = [];
 
         for(let i = 0; i < files.length; i++){
             let pageModel = JSON.parse(files[i]) as mgmtApi.PageModel;
+            console.log(`[Template Debug] Loaded template: ${pageModel.pageTemplateName} (ID: ${pageModel.pageTemplateID})`);
             // The original code had this commented out, maintaining that for now.
             // referenceMapper.addRecord('template', pageModel, null);
             pageModels.push(pageModel);

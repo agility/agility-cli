@@ -40,14 +40,14 @@ export async function pushGalleries(
                 if (existingGallery) {
                     // Gallery exists, just map the reference
                     referenceMapper.addRecord('gallery', mediaGrouping, existingGallery);
-                    console.log(`✓ Gallery ${ansiColors.underline(mediaGrouping.name)} ${ansiColors.bold.gray('exists')} - ${ansiColors.green('Target')}: ${existingGallery.mediaGroupingID}`);
+                    console.log(`✓ Gallery ${ansiColors.underline(mediaGrouping.name)} ${ansiColors.bold.gray('exists')} - ${ansiColors.green(targetGuid)}: ${existingGallery.mediaGroupingID}`);
                     successfulGroupings++;
                 } else {
                     // Create new gallery
                     const payload = { ...mediaGrouping, mediaGroupingID: 0 };
                     const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
                     referenceMapper.addRecord('gallery', mediaGrouping, savedGallery);
-                    console.log(`✓ Gallery created: ${mediaGrouping.name} - ${ansiColors.green('Source')}: ${mediaGrouping.mediaGroupingID} ${ansiColors.green('Target')}: ${savedGallery.mediaGroupingID}`);
+                    console.log(`✓ Gallery created: ${mediaGrouping.name} - ${ansiColors.green('Source')}: ${mediaGrouping.mediaGroupingID} ${ansiColors.green(targetGuid)}: ${savedGallery.mediaGroupingID}`);
                     successfulGroupings++;
                 }
             } catch (error: any) {

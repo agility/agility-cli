@@ -2,15 +2,6 @@ import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapper } from "../mapper";
 import ansiColors from "ansi-colors";
 
-function handleImage(value: any, referenceMapper: ReferenceMapper): any {
-  const assetRef = referenceMapper.getMapping<mgmtApi.Media>("asset", "originUrl", value);
-  if (assetRef?.target) {
-    return assetRef.target.originUrl;
-  } else {
-    return null;
-  }
-}
-
 function handleContentId(fieldName: string, value: any, referenceMapper: ReferenceMapper): any {
 
   const contentRef = referenceMapper.getContentMappingById<mgmtApi.ContentItem>(value);
@@ -109,123 +100,92 @@ function processValue(value: any, referenceMapper: ReferenceMapper, fieldName?: 
 
   // 2. Handle arrays
   if (Array.isArray(value)) {
-    // Recursively process each item in the array
-    return value.map((item) => processValue(item, referenceMapper, fieldName)); // Pass fieldName for context if needed
+    return value.map((item) => processValue(item, referenceMapper, fieldName));
   }
 
   // 3. Handle objects (Recursive Step + Final Handling)
-  const processedObj = { ...value }; // Work on a shallow copy
-
-  // Recursively process all child properties first
+  const processedObj = { ...value };
   for (const key in processedObj) {
       if (Object.prototype.hasOwnProperty.call(processedObj, key)) {
-          // Pass the key as the fieldName for the recursive call
           processedObj[key] = processValue(processedObj[key], referenceMapper, key); 
       }
   }
-
-  // After recursion, let handleSpecialFields process the object itself
   return handleSpecialFields(processedObj, referenceMapper, fieldName);
 }
 
-// handleSpecialFields now handles primitives AND checks/modifies objects AFTER recursion
 function handleSpecialFields(value: any, referenceMapper: ReferenceMapper, fieldName?: string): any {
-
-    // Handle null values immediately
     if (value === null) {
         return null;
     }
 
-    // Handle known primitive fields first
     if (typeof value !== 'object') { 
-        if (fieldName === "url") {
-            const image = handleImage(value, referenceMapper);
-            return image;
-        }
-        // Handle string categoryID (like in Post items)
         if((fieldName === "categoryid" || fieldName === "categoryID") && typeof value === 'string') {
             const originalId = parseInt(value, 10);
             if (!isNaN(originalId)) {
                 const targetId = handleContentId(fieldName, originalId, referenceMapper);
                  if (targetId !== originalId) {
-                     return targetId.toString(); // Return target ID as string
+                     return targetId.toString();
                  }
             }
-            return value; // Return original if not mapped
+            return value;
          }
-         // Handle fields like featuredPost_ValueField
          if(fieldName === 'featuredPost_ValueField' && typeof value === 'string') {
              const originalId = parseInt(value, 10);
              if (!isNaN(originalId)) {
                 const targetId = handleContentId(fieldName, originalId, referenceMapper);
                  if (targetId !== originalId) {
-                    //  console.log(ansiColors.magenta(`Mapping value field ${fieldName}: ${originalId} -> ${targetId}`));
-                     return targetId.toString(); // Return target ID as string
+                     return targetId.toString();
                  }
              }
-             return value; // Return original if not mapped
+             return value;
          }
-         // Handle comma-separated ID lists (like for dropdowns/sortids)
          if ((fieldName === "linkedContentDropdownValueField" || fieldName === "sortIds") && typeof value === 'string') {
-             // Assuming handleLinkedContentDropdownValue/handleSortIds return the mapped string
              console.log(ansiColors.blue(`MAP COMMA-SEP ${fieldName}`));
-             return handleLinkedContentDropdownValue(value, referenceMapper); // Reuse this logic for now
+             return handleLinkedContentDropdownValue(value, referenceMapper);
          }
 
-        return value; // Return unmodified primitive if no rule matches
+        return value;
     }
 
-    // Handle objects AFTER their children have been processed by processValue
     if (typeof value === 'object') {
-
-        // *** Specific Handling for PostsListing.posts START ***
-        // Check if we are processing the 'fields' object of a 'PostsListing'
-        // Note: Need context about the parent object/definitionName here.
-        // We'll assume `fieldName` holds the key ('posts') and we need a way to check
-        // if the *parent* object being processed is a PostsListing's `fields`.
-        // THIS IS DIFFICULT WITHOUT PARENT CONTEXT.
-        // --- A SIMPLER, LESS SAFE APPROACH (applied directly to the object `value`): ---
         if (fieldName === 'posts' && 'referencename' in value && 'fulllist' in value && value.referencename === 'posts') {
-            return value.referencename; // Simplify to just the string "posts"
+            return value.referencename;
         }
-        // *** Specific Handling for PostsListing.posts END ***
-
-        // Check for nested contentID (like in category: { contentid: 109, ... })
-        // If found, replace the *entire object* with the *referenceName* of the target item.
         if (('contentID' in value || 'contentid' in value) && (typeof value.contentID === 'number' || typeof value.contentid === 'number')) {
              const originalId = value.contentID || value.contentid;
              const contentRef = referenceMapper.getContentMappingById<mgmtApi.ContentItem>(originalId);
              
              if (contentRef?.target?.properties?.referenceName) {
                  const targetRefName = contentRef.target.properties.referenceName;
-                //  console.log(ansiColors.magenta(`Mapping object field ${fieldName} (ID: ${originalId}) to referenceName: ${targetRefName}`));
-                 return targetRefName; // Replace object with target reference name string
+                 return targetRefName;
              } else {
-                //  console.log(ansiColors.red(`✗ Could not find target mapping or referenceName for object field ${fieldName} with source ID ${originalId}`));
-                 // Decide how to handle failure: return null, original value, or throw?
-                 return null; // Returning null might be safest to indicate failure downstream
+                 return null;
              }
         }
-         // Add checks/modifications for other fields within the object if needed
-         // (No other specific object field modifications needed based on old code analysis)
-
     }
-
-    // Return the (potentially modified) object or the original primitive
     return value;
 }
 
-export function mapContentItem(
+export async function mapContentItem(
   contentItem: mgmtApi.ContentItem,
-  referenceMapper: ReferenceMapper
-): mgmtApi.ContentItem {
-  // Create a deep copy of the content item
-  const mappedContentItem = JSON.parse(JSON.stringify(contentItem));
+  referenceMapper: ReferenceMapper,
+  apiClient: mgmtApi.ApiClient,
+  targetGuid: string,
+  defaultAssetContainerOriginUrl: string
+): Promise<mgmtApi.ContentItem> {
+  
+  let mappedContentItem = JSON.parse(JSON.stringify(contentItem));
 
-  // Process the entire content item recursively
   for (const [key, value] of Object.entries(mappedContentItem)) {
     mappedContentItem[key] = processValue(value, referenceMapper, key);
   }
+
+  mappedContentItem = await referenceMapper.processContentItemUrls(
+    mappedContentItem, 
+    apiClient, 
+    targetGuid, 
+    defaultAssetContainerOriginUrl
+  );
 
   return mappedContentItem;
 }
