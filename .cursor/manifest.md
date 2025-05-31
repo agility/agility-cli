@@ -583,22 +583,29 @@ Based on user testing with company documentation site, discovered:
 
 ### **📋 COMPREHENSIVE INVESTIGATION PLAN:**
 
-- [ ] **Task 19.6.1:** Analyze Current Download Architecture ⏳ **ACTIVE**
-    - [ ] **Sub-task 19.6.1.1:** Investigate runSync command template downloading behavior
-        - **🔍 EXAMINE**: How runSync downloads templates vs other entities
-        - **📊 COMPARE**: Template download logic vs models/content/assets download
-        - **🧪 TEST**: Manual verification of what entities runSync actually downloads
-        - **📝 DOCUMENT**: Current template download flow and identified gaps
-    - [ ] **Sub-task 19.6.1.2:** Analyze --elements filter impact on entity loading
-        - **🔍 INVESTIGATE**: Why `--elements Pages` shows different results than no filter
-        - **📊 TRACE**: Entity loading logic when filters are applied vs unfiltered
-        - **🧪 TEST**: Compare loaded entities with and without `--elements` filter
-        - **🐛 IDENTIFY**: Root cause of discrepancy in template availability
-    - [ ] **Sub-task 19.6.1.3:** Debug --headless console output issue
-        - **🔍 INVESTIGATE**: Why --headless produces zero output instead of structured logs
-        - **🔧 FIX**: Ensure debug output works properly with --headless flag
-        - **📊 VALIDATE**: Headless mode should show analysis without interactive prompts
-        - **📝 DOCUMENT**: Proper debugging flags for production analysis
+- [x] **Task 19.6.1:** Analyze Current Download Architecture ⏳ **ACTIVE**
+    - [x] **Sub-task 19.6.1.1:** Investigate runSync command template downloading behavior ✅ **COMPLETE**
+        - **📝 COMMIT**: `git commit -m "[19.6] Add comprehensive template download investigation plan and SHA tracking to project settings"`
+        - **🔖 SHA**: `9e3a02a` - Point-in-time reference for investigation plan establishment
+        - **🔍 CRITICAL DISCOVERY**: Templates are downloaded by `downloadAllTemplates()` in pull system, NOT by runSync
+        - **📊 ARCHITECTURE**: runSync only downloads: content, pages, assets, galleries via Content Sync SDK
+        - **🎯 ROOT CAUSE**: `--elements Pages` filter prevents templates from being loaded in `loadSourceData()`
+        - **📝 ANALYSIS**: When `--elements Pages` is used, only pages are loaded from files, ignoring templates folder
+        - **🐛 BUG CONFIRMED**: Filter logic in `two-pass-sync.ts` lines 157-184 conditionally loads entities based on elements array
+    - [x] **Sub-task 19.6.1.2:** Analyze --elements filter impact on entity loading ✅ **COMPLETE**
+        - **🎯 ROOT CAUSE IDENTIFIED**: Filter logic in `loadSourceData()` (lines 157-184) only loads entities explicitly included in elements array
+        - **🐛 CRITICAL BUG**: When `--elements Pages` is used, templates are NOT loaded because `elements.includes('Templates')` returns false  
+        - **📊 IMPACT**: Pages appear broken because template dependencies cannot be resolved without template data
+        - **🔍 CODE EVIDENCE**: Line 169: `if (this.elements.includes('Templates'))` - only executes when 'Templates' in elements array
+        - **✅ CONFIRMED**: This explains why filtering to Pages only shows "MISSING IN SOURCE DATA" for all templates
+        - **📝 SOLUTION NEEDED**: Modify filter logic to auto-include dependencies (templates for pages, models for content, etc.)
+    - [x] **Sub-task 19.6.1.3:** Debug --headless console output issue ✅ **COMPLETE**
+        - **🐛 DOCUMENTATION BUG**: Line 554 claims headless means "no console output, logs to file" but line 722 says "Turn off the experimental Blessed UI"  
+        - **🔍 IMPLEMENTATION**: Headless actually disables Blessed UI but should still show console output for analysis
+        - **📊 CURRENT BEHAVIOR**: Headless suppresses most output because analysis methods expect Blessed UI context
+        - **🎯 REAL ISSUE**: Analysis output is tied to UI mode rather than being mode-agnostic
+        - **📝 SOLUTION NEEDED**: Make sync analysis output independent of UI mode (headless/verbose/blessed)
+        - **🔧 QUICK FIX**: Use `--verbose` instead of `--headless` for debugging until analysis output is fixed
 
 - [ ] **Task 19.6.2:** Direct Template Download Verification ⏳ **PENDING**
     - [ ] **Sub-task 19.6.2.1:** Manual API verification of templates in instance 67bc73e6-u
