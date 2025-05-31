@@ -44,10 +44,6 @@ export class PageChainDisplay {
         const hierarchicalGroups = sitemapHierarchy.groupPagesHierarchically(sourceEntities.pages, hierarchy);
         const orphanedPages = sitemapHierarchy.getOrphanedPages(sourceEntities.pages, hierarchicalGroups);
 
-        if (this.debug) {
-            sitemapHierarchy.debugLogHierarchy(hierarchy);
-        }
-
         const totalPages = sourceEntities.pages.length;
         const totalGroups = hierarchicalGroups.length + orphanedPages.length;
         console.log(ansiColors.yellow(`Found ${totalPages} pages in ${totalGroups} hierarchical groups:`));
@@ -223,37 +219,28 @@ export class PageChainDisplay {
                 console.log(ansiColors.gray(`${indent}├─ Zone: ${zoneName}`));
                 
                 zoneModules.forEach((module: any, moduleIndex: number) => {
+                    // Each module in a zone represents a module instance (like "Heading", "PromoBanner")
+                    const moduleName = module?.module;
+                    
+                    // Show the page component model
+                    console.log(ansiColors.green(`${indent}│  ├─ Page Component Model:${moduleName || 'Unknown'}`));
+                    
+                    // Show content within this module instance
                     if (module?.item?.contentid || module?.item?.contentId) {
                         const contentId = module.item.contentid || module.item.contentId;
                         const content = sourceEntities.content?.find((c: any) => c.contentID === contentId);
                         
                         if (content) {
-                            console.log(ansiColors.blue(`${indent}│  ├─ ContentID:${content.contentID} (${content.properties?.referenceName || 'No Name'})`));
-                            
-                            // Show content's model dependency
-                            if (content.properties?.definitionName) {
-                                // Use case-insensitive model lookup
-                                let model = sourceEntities.models?.find((m: any) => m.referenceName === content.properties.definitionName);
-                                if (!model) {
-                                    // Try case-insensitive match for model names
-                                    model = sourceEntities.models?.find((m: any) => 
-                                        m.referenceName.toLowerCase() === content.properties.definitionName.toLowerCase()
-                                    );
-                                }
-                                
-                                if (model) {
-                                    console.log(ansiColors.green(`${indent}│  │  ├─ Model:${model.referenceName} (${model.displayName || 'No Name'})`));
-                                } else {
-                                    console.log(ansiColors.red(`${indent}│  │  ├─ Model:${content.properties.definitionName} - MISSING IN SOURCE DATA`));
-                                }
-                            }
+                            console.log(ansiColors.blue(`${indent}│  │  ├─ ContentID:${content.contentID} (${content.properties?.referenceName || 'No Name'})`));
                             
                             // Show content's asset dependencies
                             this.showContentAssetDependencies(content, sourceEntities, `${indent}│  │  `);
                             
                         } else {
-                            console.log(ansiColors.red(`${indent}│  ├─ ContentID:${contentId} - MISSING IN SOURCE DATA`));
+                            console.log(ansiColors.red(`${indent}│  │  ├─ ContentID:${contentId} - MISSING IN SOURCE DATA`));
                         }
+                    } else {
+                        console.log(ansiColors.gray(`${indent}│  │  └─ (Empty component - no content assigned)`));
                     }
                 });
             }

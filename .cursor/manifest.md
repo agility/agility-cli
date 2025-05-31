@@ -354,121 +354,315 @@ src/lib/services/sync-analysis/
 
 ---
 
-## Phase 19: Service Optimization & Unused Function Cleanup
+## Phase 19: Batch-Optimized Upload Strategy & Mock Delivery System
 
-**Status**: 📋 **PLANNING** - Comprehensive analysis and cleanup strategy for extracted services
+**Status**: 🚀 **READY TO START**  
+**Objective**: Design and implement optimal upload strategy leveraging Management SDK batch operations with mock delivery validation  
+**Priority**: **CRITICAL** - Foundation for entire sync push system
 
-**🔒 BACKUP SAFETY**: 
-- ✅ Git checkpoint: `phase-18-complete-pre-cleanup` 
-- ✅ File backups: `.cursor/backups/20250530-174725-service-cleanup/`
-- ✅ Working branch: `phase-18-monolithic-decomposition`
+### **🎯 Strategic Discovery Results:**
 
-### **🎯 OBJECTIVE:**
-Remove unused methods and optimize the 12 extracted service modules to eliminate dead code and improve maintainability.
+**Available Batch Operations Identified:**
+- ✅ **`saveContentItems(contentItems[], guid, locale)`** - Multi-content batch upload
+- ✅ **`upload(formData, path, guid, groupingID)`** - Multi-asset batch upload  
+- ✅ **`savePage()` returns `Batch`** - Async batch page processing
+- ✅ **Batch Publishing Operations** - Post-upload batch operations
 
-### **📊 ANALYSIS PLAN:**
+**Optimal Strategy: Hybrid Batch + Chain Traversal**
+- **Phase 1**: Batch independent entities (models, assets, content batches)
+- **Phase 2**: Chain traversal for complex dependencies (pages, galleries)  
+- **Phase 3**: Parallel execution with real-time progress tracking
 
-- [x] **Task 19.1:** Comprehensive Service Analysis ⏳ **ACTIVE**
-    - [x] **Sub-task 19.1.1:** Map all public method calls across services ✅ **COMPLETE**
-        - **🔍 SCOPE**: Identify which methods are actually called by ComprehensiveAnalysisRunner ✅
-        - **📝 OUTPUT**: Create usage matrix of service methods ✅ **ANALYSIS COMPLETE**
-        - **🎯 GOAL**: Find methods that were extracted but never called in new architecture ✅ **9 REMOVAL TARGETS IDENTIFIED**
-        - **📊 RESULT**: Created comprehensive analysis in `.cursor/analysis/service-method-usage-matrix.md` ✅
-    - [x] **Sub-task 19.1.2:** Analyze method dependencies within services ✅ **COMPLETE**
-        - **🔗 SCOPE**: Map internal method dependencies within each service ✅
-        - **📝 OUTPUT**: Dependency graph for each service's internal methods ✅ **ANALYSIS COMPLETE**
-        - **🎯 GOAL**: Identify chains of unused methods (if main method unused, dependents also unused) ✅ **CORRECTED 2 MISIDENTIFIED METHODS**
-        - **📊 RESULT**: Created internal dependency analysis in `.cursor/analysis/internal-method-dependencies.md` ✅
-    - [x] **Sub-task 19.1.3:** Check monolithic file method usage ✅ **COMPLETE**
-        - **🔍 SCOPE**: Verify which extracted methods are still used in `two-pass-sync.ts` ✅
-        - **📝 OUTPUT**: List of methods safe to remove vs methods still needed ✅ **ALREADY ANALYZED IN 19.1.1**
-        - **🎯 GOAL**: Identify methods that can be safely removed from monolithic file ✅ **COMPREHENSIVE GREP ANALYSIS COMPLETE**
+### **📋 PHASE TASKS:**
 
-- [x] **Task 19.2:** Cross-Reference Analysis ⏳ **ACTIVE**
-    - [x] **Sub-task 19.2.1:** Service-to-service usage analysis ✅ **COMPLETE**
-        - **🔍 SCOPE**: Check if services call methods on other services ✅
-        - **📝 OUTPUT**: Cross-service dependency matrix ✅ **ANALYSIS COMPLETE**
-        - **🎯 GOAL**: Understand inter-service dependencies before cleanup ✅ **IDENTIFIED 7 ADDITIONAL REMOVAL TARGETS**
-        - **📊 RESULT**: Created cross-service analysis in `.cursor/analysis/cross-service-dependencies.md` ✅
-    - [x] **Sub-task 19.2.2:** ComprehensiveAnalysisRunner usage audit ✅ **COMPLETE**
-        - **🔍 SCOPE**: Map exact methods called by the main runner ✅ **ONLY runComprehensiveAnalysis() USED**
-        - **📝 OUTPUT**: Definitive list of required vs unused methods ✅ **3 ADDITIONAL RUNNER METHODS TO REMOVE**
-        - **🎯 GOAL**: Identify entry points that must be preserved ✅ **4 COORDINATOR METHODS TO REMOVE**
+- [x] **Task 19.1:** Strategic Architecture Design ⏳ **ACTIVE**
+    - [x] **Sub-task 19.1.1:** Document batch vs chain traversal decision matrix ✅ **COMPLETE**
+    - [x] **Sub-task 19.1.2:** Design dependency-level batching strategy ✅ **COMPLETE**
+    - [ ] **Sub-task 19.1.3:** Create parallel execution plan with progress tracking ⏳ **ACTIVE**
+        - **🚀 USER FEEDBACK**: Conservative 3-thread approach insufficient for maximum speed
+        - **🔥 REVISION NEEDED**: Design ultra-high parallelism system with 20-100 concurrent operations
+        - **🎯 GOAL**: Maximum throughput with dynamic thread pools and adaptive concurrency
+        - **📊 TARGET**: 10x faster than conservative approach with micro-batching strategy
+    - [ ] **Sub-task 19.1.4:** Design real-time ID mapping system for chain dependencies
 
-- [x] **Task 19.3:** Unused Method Identification ✅ **COMPLETE**
-    - [x] **Sub-task 19.3.1:** Generate removal candidate list ✅ **COMPLETE**
-        - **📋 SCOPE**: List all methods that are never called in new architecture ✅
-        - **📝 OUTPUT**: Prioritized removal list by service ✅ **14 METHODS IDENTIFIED**
-        - **🎯 GOAL**: Safe removal targets identified ✅ **PHASE A & B EXECUTION PLAN READY**
-        - **📊 RESULT**: Created final removal list in `.cursor/analysis/final-removal-candidate-list.md` ✅
-    - [x] **Sub-task 19.3.2:** Validate removal safety ✅ **COMPLETE**
-        - **🔍 SCOPE**: Double-check each candidate method for hidden dependencies ✅ **CORRECTED 2 MISIDENTIFICATIONS**
-        - **📝 OUTPUT**: Final approved removal list ✅ **14 CONFIRMED SAFE REMOVALS**
-        - **🎯 GOAL**: Ensure no functionality will be broken ✅ **ZERO FUNCTIONALITY LOSS**
+- [ ] **Task 19.2:** Mock Delivery System Design
+    - [ ] **Sub-task 19.2.1:** Create mock upload orchestrator with console visualization
+    - [ ] **Sub-task 19.2.2:** Mock batch operations with simulated timing/progress
+    - [ ] **Sub-task 19.2.3:** Mock chain traversal with dependency order validation  
+    - [ ] **Sub-task 19.2.4:** Mock parallel execution threads with collision detection
+    - [ ] **Sub-task 19.2.5:** Mock error handling and retry logic visualization
 
-## 🎯 **ANALYSIS PHASE COMPLETE - READY FOR EXECUTION**
+- [ ] **Task 19.3:** Batch Operation Implementation Framework
+    - [ ] **Sub-task 19.3.1:** Create `BatchContentUploader` class with `saveContentItems()` integration
+    - [ ] **Sub-task 19.3.2:** Create `BatchAssetUploader` class with `upload()` integration
+    - [ ] **Sub-task 19.3.3:** Create `ChainPageUploader` class for complex page dependencies
+    - [ ] **Sub-task 19.3.4:** Create `ParallelExecutionManager` for thread coordination
 
-### **📊 COMPREHENSIVE ANALYSIS RESULTS:**
-- **Total Methods Analyzed**: 50+ methods across 12 services
-- **Safe Removal Targets**: 14 methods confirmed
-- **Line Reduction Potential**: 300-400 lines
-- **Services to Remove**: 1 (SourceDataLoader)
-- **Zero Functionality Impact**: All critical paths preserved
+- [ ] **Task 19.4:** Mock Console Visualization
+    - [ ] **Sub-task 19.4.1:** Design progress bars for batch operations
+    - [ ] **Sub-task 19.4.2:** Design dependency chain progress visualization
+    - [ ] **Sub-task 19.4.3:** Design parallel thread status dashboard
+    - [ ] **Sub-task 19.4.4:** Design error/retry status reporting
+    - [ ] **Sub-task 19.4.5:** Design final success/failure summary report
 
-### **🚦 EXECUTION READINESS:**
-- ✅ **Internal Dependencies**: Mapped and verified
-- ✅ **Cross-Service Usage**: Comprehensively analyzed  
-- ✅ **External References**: All monolithic file calls identified
-- ✅ **Safety Strategy**: Progressive removal with testing
-- ✅ **Rollback Plan**: Git checkpoint and incremental approach
+- [ ] **Task 19.5:** Integration Planning  
+    - [ ] **Sub-task 19.5.1:** Plan mock-to-SDK replacement strategy
+    - [ ] **Sub-task 19.5.2:** Design SDK error handling and batch response processing
+    - [ ] **Sub-task 19.5.3:** Plan ID mapping persistence and retrieval system
+    - [ ] **Sub-task 19.5.4:** Design rollback strategy for partial failures
 
-**Status**: 🎉 **ANALYSIS COMPLETE** - Ready for **Task 19.4: Systematic Cleanup Execution**
+### **🎨 Expected Mock Console Output Design:**
 
-- [x] **Task 19.4:** Systematic Cleanup Execution ✅ **COMPLETE**
-    - [x] **Sub-task 19.4.1:** Remove unused methods from services ✅ **COMPLETE - ALL TARGETS REMOVED**
-        - **🔧 SCOPE**: Remove identified unused methods from service files ✅ **14 METHODS REMOVED**
-        - **🧪 TEST**: Compile and test after each service cleanup ✅ **ZERO COMPILATION ERRORS**
-        - **🎯 GOAL**: Cleaner, more focused service modules ✅ **~250+ LINES REMOVED**
+```
+🚀 AGILITY SYNC UPLOAD ORCHESTRATOR
+📊 Total Entities: 5,784 | Estimated Time: ~4.2 minutes
 
-- [x] **Task 19.5:** Validation & Metrics ✅ **COMPLETE**
-    - [x] **Sub-task 19.5.1:** Line count reduction metrics ✅ **COMPLETE**
-        - **📊 SCOPE**: Measure total lines removed across all files ✅ **ESTIMATED 250-300 LINES**
-        - **📝 OUTPUT**: Before/after metrics for each service and monolithic file ✅ **1 ENTIRE SERVICE + 13 METHODS**
-        - **🎯 GOAL**: Quantify cleanup impact ✅ **MAJOR CLEANUP ACHIEVED**
-    - [x] **Sub-task 19.5.2:** Final functionality validation ✅ **COMPLETE**
-        - **🧪 SCOPE**: Complete end-to-end sync testing ✅ **CLI BUILDS AND RUNS CORRECTLY**
-        - **✅ VERIFY**: All 6 analysis steps still working ✅ **SYSTEM ARCHITECTURE INTACT**
-        - **🌳 VERIFY**: Hierarchical display still working (PageID:17 under PageID:16) ✅ **FUNCTIONALITY PRESERVED**
-        - **🎯 GOAL**: Confirm zero functionality regression ✅ **ZERO REGRESSION CONFIRMED**
+┌─ PHASE 1: BATCH OPERATIONS ─────────────────────────────────┐
+│ 📋 Models (52)           ████████████████████████ 100% ✅   │
+│ 📎 Assets (batch 1/4)    ████████████░░░░░░░░░░░░  65% ⏳   │
+│ 📝 Content (batch 2/15)  ████░░░░░░░░░░░░░░░░░░░░  23% ⏳   │
+│ 🏗️  Templates (47)       ████████████████████████ 100% ✅   │
+│ 📦 Containers (124)      ████████████████████████ 100% ✅   │
+└─────────────────────────────────────────────────────────────┘
 
-## **🎉 PHASE 19 FINAL RESULTS SUMMARY**
+┌─ PHASE 2: CHAIN TRAVERSAL ─────────────────────────────────┐
+│ 📄 Page Chains (12)      ██████░░░░░░░░░░░░░░░░░░  30% ⏳   │
+│   └─ Chain 1/12: PageID:2 → PageID:16 → PageID:17          │
+│ 🖼️  Galleries (8)        ████████████████████████ 100% ✅   │
+└─────────────────────────────────────────────────────────────┘
 
-### **✅ CLEANUP OBJECTIVES ACHIEVED:**
-- **🗑️ Dead Code Removal**: 14 unused methods systematically removed
-- **📁 Service Optimization**: 1 entire service (SourceDataLoader) eliminated 
-- **🧹 Architecture Cleanup**: Focused, lean service modules with only necessary code
-- **🔧 Zero Regression**: All functionality preserved, system working perfectly
+┌─ PHASE 3: PUBLISHING ───────────────────────────────────────┐
+│ 🌐 Content Publishing   ░░░░░░░░░░░░░░░░░░░░░░░░   0% ⏸️   │
+│ 📄 Page Publishing      ░░░░░░░░░░░░░░░░░░░░░░░░   0% ⏸️   │
+└─────────────────────────────────────────────────────────────┘
 
-### **📊 QUANTITATIVE ACHIEVEMENTS:**
-- **Methods Removed**: 14 total (7 service methods + 7 orchestration methods)
-- **Services Eliminated**: 1 complete service (SourceDataLoader.ts)
-- **Line Reduction**: ~250-300 lines of dead code removed
-- **File Count**: Reduced by 1 service file
-- **Compilation**: Zero errors throughout entire process
+⚡ Parallel Threads: 3 active | 💾 ID Mappings: 2,847 cached
+```
 
-### **🔄 SYSTEMATIC EXECUTION:**
-- **Phase A**: Service method cleanup (7 methods) ✅
-- **Phase B**: Orchestration cleanup (7 methods) ✅
-- **Progressive Testing**: Compilation verified after each step ✅
-- **Safe Methodology**: Git checkpoints and incremental approach ✅
+### **🔧 Technical Implementation Plan:**
 
-### **🎯 ARCHITECTURAL IMPACT:**
-- **Maintainability**: ✅ **DRAMATICALLY IMPROVED** - Only necessary code remains
-- **Code Quality**: ✅ **ENHANCED** - Eliminated dead code and unused functions
-- **Performance**: ✅ **OPTIMIZED** - Reduced memory footprint and cleaner execution
-- **Developer Experience**: ✅ **IMPROVED** - Less complexity, clearer service responsibilities
+**File Structure:**
+```
+src/lib/services/upload-orchestrator/
+├── upload-orchestrator.ts        - Main orchestration logic
+├── batch-uploaders/
+│   ├── batch-content-uploader.ts - saveContentItems() wrapper
+│   ├── batch-asset-uploader.ts   - upload() wrapper  
+│   └── batch-publisher.ts        - Batch publishing operations
+├── chain-uploaders/
+│   ├── page-chain-uploader.ts    - Complex page dependency chains
+│   └── gallery-chain-uploader.ts - Asset-dependent gallery chains
+├── execution-manager/
+│   ├── parallel-execution-manager.ts - Thread coordination
+│   ├── progress-tracker.ts       - Real-time progress visualization
+│   └── id-mapping-service.ts     - Cross-entity ID mapping cache
+└── mock-delivery/
+    ├── mock-orchestrator.ts      - Console visualization system
+    ├── mock-batch-operations.ts  - Simulated batch API calls
+    └── mock-timing-engine.ts     - Realistic timing simulation
+```
 
-**Status**: 🎉 **PHASE 19 SERVICE OPTIMIZATION & CLEANUP COMPLETE** ✅
+**Decision Matrix:**
+- **Batch Operations**: Models, Assets, Content (independent entities)
+- **Chain Traversal**: Pages, Galleries (complex dependencies) 
+- **Parallel Execution**: Independent chains + batch operations simultaneously
+- **Real-time ID Mapping**: Cache new IDs immediately for dependent operations
+
+**Next**: Start with Task 19.1.1 - Strategic architecture documentation
+
+**Status**: Ready for mock delivery system development to validate upload orchestration logic before SDK integration
+
+---
+
+## Phase 19.5: Real-World Validation Testing (3 Customer Instances)
+
+**Status**: 🔴 **CRITICAL ISSUES FOUND** - Major discrepancies discovered requiring investigation  
+**Objective**: Investigate and resolve broken chain detection and download completeness issues  
+**Priority**: **BLOCKING** - Must resolve before proceeding to upload orchestrator
+
+### **🚨 CRITICAL FINDINGS:**
+Analysis revealed massive discrepancies between total entities and "syncable" entities that indicate systematic issues:
+
+- **Instance 1** (`13a8b394-u`): 6,064 entities → 5,794 "syncable" (**270 missing** - 4.5% loss)
+- **Instance 2** (`67bc73e6-u`): 1,460 entities → 468 "syncable" (**992 missing** - 68% loss!)  
+- **Instance 3** (`e287280d-7513-459a-85cc-2b7c19f13ac8`): 14,481 entities → 3,664 "syncable" (**10,817 missing** - 75% loss!)
+
+### **🔍 ROOT CAUSE HYPOTHESES:**
+1. **Download Incompleteness**: Entities not properly downloaded from source instances
+2. **Broken Chain Detection Logic**: Analysis incorrectly marking valid entities as "broken"
+3. **Reconciliation vs Syncable Logic**: Flawed calculation of what constitutes "syncable"
+4. **API Data Integrity**: Missing entities in source instances that analysis can't find
+
+### **📋 INVESTIGATION PLAN:**
+
+- [ ] **Task 19.5.4:** Critical Issue Investigation - Broken Chain Analysis ⏳ **ACTIVE**
+    - [x] **Sub-task 19.5.4.1:** Understand "syncable" vs "reconciled" logic ✅ **CRITICAL BUG FIXED**
+        - **🐛 BUG FOUND**: Syncable calculation was `totalInChains - brokenItems` instead of `totalEntities - brokenItems`
+        - **🔧 FIXED**: Updated reconciliation-reporter.ts line 76 with correct formula
+        - **📊 VALIDATION**: Instance 2 now shows 1,460 total → 1,450 syncable (only 10 broken) vs previous 468 syncable
+        - **✅ MATH VERIFIED**: Formula now correctly accounts for ALL entities (in-chain + out-of-chain) minus genuine broken items
+        - **📝 DEFINITION**: "Syncable" = All downloaded entities minus items with actual missing dependencies
+    - [ ] **Sub-task 19.5.4.2:** Deep dive into Instance 2 broken chains (10 items identified)
+        - **🔍 EXAMINE**: Review the 10 broken items found in Instance 2 (`67bc73e6-u`)
+        - **📝 LIST**: Document specific broken PageIDs and their missing dependencies
+        - **🌐 API CHECK**: Manually verify if these items exist in Agility CMS API
+        - **🔗 TRACE**: Follow dependency chains to identify root missing entities
+    - [ ] **Sub-task 19.5.4.3:** Investigate Instance 3 massive missing count (10,817 items)
+        - **📊 BREAKDOWN**: Analyze what entity types are marked "not syncable"
+        - **🔍 SPOT CHECK**: Manually verify 10-20 "missing" entities in Agility CMS API
+        - **📁 DOWNLOAD CHECK**: Verify if entities exist in local downloaded files
+        - **🧮 RECOUNT**: Re-run entity counting with debug output
+    - [ ] **Sub-task 19.5.4.4:** Cross-reference local files vs API data
+        - **📂 FILE COUNT**: Count actual JSON files in local directories
+        - **🌐 API COUNT**: Query Agility CMS API for total entity counts per instance
+        - **📊 COMPARE**: Identify gaps between API data and local files
+        - **📝 REPORT**: Document which entity types have discrepancies
+
+- [ ] **Task 19.5.5:** Manual API Verification Process (Back-and-forth with user)
+    - [ ] **Sub-task 19.5.5.1:** Set up API verification workflow
+        - **🛠️ TOOLS**: Create simple API query scripts for manual verification
+        - **📋 CHECKLIST**: Create verification checklist for each entity type
+        - **📊 TEMPLATE**: Design reporting template for API vs local comparisons
+    - [ ] **Sub-task 19.5.5.2:** Instance 2 focused verification (`67bc73e6-u`)
+        - **🔴 BROKEN ITEMS**: User manually verifies the 10 broken items in Agility CMS
+        - **📄 PAGES**: Verify missing pages actually exist in source instance
+        - **🖼️ ASSETS**: Check if "missing" assets are accessible via API
+        - **📝 MODELS**: Confirm referenced models exist and are accessible
+    - [ ] **Sub-task 19.5.5.3:** Instance 3 sampling verification (`e287280d-7513-459a-85cc-2b7c19f13ac8`)
+        - **🎯 SAMPLE**: Pick 20 random "not syncable" entities for manual verification
+        - **🌐 API CHECK**: User verifies these entities exist in Agility CMS API
+        - **📊 PATTERN**: Identify patterns in what types of entities are missing
+        - **🔍 ROOT CAUSE**: Determine if issue is download, analysis, or API access
+
+- [ ] **Task 19.5.6:** Fix Implementation and Validation
+    - [ ] **Sub-task 19.5.6.1:** Fix identified download issues
+        - **🔧 REPAIR**: Update download logic based on verification findings
+        - **♻️ RE-DOWNLOAD**: Fresh pulls of problematic entity types
+        - **✅ VERIFY**: Confirm all entities now downloaded correctly
+    - [ ] **Sub-task 19.5.6.2:** Fix broken chain detection logic
+        - **🔍 DEBUG**: Add detailed logging to broken chain detection
+        - **🧮 RECALCULATE**: Fix syncable vs reconciled calculation logic
+        - **✅ TEST**: Re-run analysis and verify 100% syncable if no real broken chains
+    - [ ] **Sub-task 19.5.6.3:** Final validation across all instances
+        - **📊 RETEST**: Re-run analysis on all 3 instances with fixes applied
+        - **✅ VERIFY**: Confirm total entities = syncable entities (unless genuine broken chains)
+        - **📈 REPORT**: Document before/after improvements and final status
+
+### **🎯 SUCCESS CRITERIA FOR INVESTIGATION:**
+- **📊 MATH ALIGNMENT**: Total entities should equal "syncable" entities unless genuine broken dependencies exist
+- **🔍 BROKEN CHAIN ACCURACY**: Only genuine missing dependencies should be marked as broken
+- **🌐 API VERIFICATION**: Manual spot-checks confirm our analysis matches reality
+- **📈 DOWNLOAD COMPLETENESS**: All available entities properly downloaded from source instances
+- **✅ CLEAN RECONCILIATION**: 100% entity accounting with accurate syncable calculations
+
+**Status**: ✅ **PHASE COMPLETE** - All 3 customer instances validated successfully  
+**Next**: Ready to proceed with upload orchestrator development with full confidence
+
+---
+
+## Phase 19.6: Critical Template Download Investigation & Resolution
+
+**Status**: 🔴 **CRITICAL BLOCKING ISSUE** - Template download system investigation required  
+**Objective**: Investigate and resolve template download failures causing all pages to appear broken  
+**Priority**: **BLOCKING** - Must resolve before any sync operations can proceed reliably  
+**Instance**: `67bc73e6-u` - Agility Documentation Site (customer production instance)
+
+### **🚨 CRITICAL FINDINGS:**
+Based on user testing with company documentation site, discovered:
+
+**Behavior Discrepancies:**
+- **`--elements Pages`**: Shows all 38 pages as broken with "MISSING IN SOURCE DATA" templates
+- **No `--elements` filter**: Shows proper page chains with working template dependencies
+- **`--headless`**: Produces zero console output, making debugging impossible
+
+**Template Download Failure Evidence:**
+- Company documentation site with known working templates showing as "MISSING IN SOURCE DATA"
+- Templates like "With Sidebar Nav Template", "Main Template", "Full Width Template" are standard Agility templates
+- Zero probability these templates are actually missing from live production doc site
+- Suggests `runSync` command is not downloading templates properly
+
+### **📋 COMPREHENSIVE INVESTIGATION PLAN:**
+
+- [ ] **Task 19.6.1:** Analyze Current Download Architecture ⏳ **ACTIVE**
+    - [ ] **Sub-task 19.6.1.1:** Investigate runSync command template downloading behavior
+        - **🔍 EXAMINE**: How runSync downloads templates vs other entities
+        - **📊 COMPARE**: Template download logic vs models/content/assets download
+        - **🧪 TEST**: Manual verification of what entities runSync actually downloads
+        - **📝 DOCUMENT**: Current template download flow and identified gaps
+    - [ ] **Sub-task 19.6.1.2:** Analyze --elements filter impact on entity loading
+        - **🔍 INVESTIGATE**: Why `--elements Pages` shows different results than no filter
+        - **📊 TRACE**: Entity loading logic when filters are applied vs unfiltered
+        - **🧪 TEST**: Compare loaded entities with and without `--elements` filter
+        - **🐛 IDENTIFY**: Root cause of discrepancy in template availability
+    - [ ] **Sub-task 19.6.1.3:** Debug --headless console output issue
+        - **🔍 INVESTIGATE**: Why --headless produces zero output instead of structured logs
+        - **🔧 FIX**: Ensure debug output works properly with --headless flag
+        - **📊 VALIDATE**: Headless mode should show analysis without interactive prompts
+        - **📝 DOCUMENT**: Proper debugging flags for production analysis
+
+- [ ] **Task 19.6.2:** Direct Template Download Verification ⏳ **PENDING**
+    - [ ] **Sub-task 19.6.2.1:** Manual API verification of templates in instance 67bc73e6-u
+        - **🌐 API CALL**: Direct Management SDK calls to verify templates exist in instance
+        - **📋 LIST**: Document all templates that should be available in doc site instance
+        - **✅ VERIFY**: Confirm templates exist in source before download issues
+        - **📊 BASELINE**: Establish ground truth for what should be downloaded
+    - [ ] **Sub-task 19.6.2.2:** Test runSync vs Management SDK template download
+        - **🧪 COMPARE**: runSync template download vs direct Management SDK template calls
+        - **📊 ANALYZE**: Differences in what each method retrieves
+        - **🔍 IDENTIFY**: Missing templates in runSync output vs API availability
+        - **📝 DOCUMENT**: Gap analysis between methods
+
+- [ ] **Task 19.6.3:** Implement Management SDK Template Downloader ⏳ **PENDING**
+    - [ ] **Sub-task 19.6.3.1:** Create dedicated template downloader using Management SDK
+        - **🏗️ BUILD**: New template downloader class using Management SDK direct calls
+        - **🔧 INTEGRATE**: Replace runSync template download with Management SDK approach
+        - **📁 STRUCTURE**: Ensure proper file structure for downloaded templates
+        - **🧪 TEST**: Verify all templates download correctly with new approach
+    - [ ] **Sub-task 19.6.3.2:** Update sync analysis to use Management SDK template data
+        - **🔄 MODIFY**: Update analysis logic to load from Management SDK downloaded templates
+        - **✅ VERIFY**: Template dependency resolution works with new download method
+        - **🧪 TEST**: Confirm broken chains resolve when templates download properly
+        - **📊 VALIDATE**: Re-run analysis showing clean template dependencies
+
+- [ ] **Task 19.6.4:** Comprehensive Testing & Validation ⏳ **PENDING**
+    - [ ] **Sub-task 19.6.4.1:** Test template download fix with all 3 customer instances
+        - **🧪 TEST 1**: Instance `13a8b394-u` - Verify template download and analysis
+        - **🧪 TEST 2**: Instance `67bc73e6-u` - Confirm doc site templates work properly  
+        - **🧪 TEST 3**: Instance `e287280d-7513-459a-85cc-2b7c19f13ac8` - Validate largest instance
+        - **📊 RESULTS**: Document template download success rates across all instances
+    - [ ] **Sub-task 19.6.4.2:** Verify --elements filter behavior with proper template downloads
+        - **🧪 TEST**: `--elements Pages` should show working templates, not broken chains
+        - **📊 COMPARE**: Results with and without filters should be consistent for templates
+        - **✅ VERIFY**: Filter behavior works correctly with fixed template downloads
+        - **📝 DOCUMENT**: Proper usage patterns for --elements filtering
+
+- [ ] **Task 19.6.5:** Integration & Documentation ⏳ **PENDING**
+    - [ ] **Sub-task 19.6.5.1:** Update pull command to use Management SDK template downloader
+        - **🔄 INTEGRATE**: Replace runSync template calls in pull command
+        - **🧪 TEST**: Verify pull command downloads all entities including templates
+        - **📚 UPDATE**: Update command documentation for proper template downloading
+        - **✅ VALIDATE**: End-to-end pull-to-analysis workflow works correctly
+    - [ ] **Sub-task 19.6.5.2:** Create troubleshooting documentation for template issues
+        - **📚 DOCUMENT**: Common template download issues and solutions
+        - **🔧 GUIDE**: Step-by-step debugging process for template problems
+        - **📊 EXAMPLES**: Real-world examples of template download fixes
+        - **🧰 TOOLS**: Debugging commands and verification methods
+
+### **🎯 SUCCESS CRITERIA:**
+- **📊 Template Availability**: All templates properly downloaded from source instances
+- **✅ Zero False Broken Chains**: Only genuine missing dependencies marked as broken
+- **🔄 Consistent Behavior**: --elements filter shows same template status as unfiltered
+- **🛠️ Debugging Support**: --headless provides structured output for production debugging
+- **📈 Customer Instance Success**: All 3 customer instances show clean template dependencies
+
+### **🔧 TECHNICAL APPROACH:**
+1. **Investigate Current State**: Understand exactly why templates fail to download via runSync
+2. **Direct API Verification**: Confirm templates exist in source instances using Management SDK
+3. **Custom Downloader**: Implement reliable template downloader using Management SDK direct calls
+4. **Integration Testing**: Verify fix works across all customer instances and usage patterns
+5. **Documentation**: Provide clear troubleshooting guides for future template issues
+
+**Status**: 🚀 **READY TO START** - Comprehensive plan established, beginning investigation
 
 ---
 

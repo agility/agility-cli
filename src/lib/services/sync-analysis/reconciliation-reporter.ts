@@ -82,7 +82,11 @@ export class ReconciliationReporter implements ChainAnalysisService {
 
         // Find broken items that will be skipped
         const brokenItems = this.findAllBrokenItems(sourceEntities);
-        const syncableItems = totalInChains - brokenItems.length;
+        
+        // 🐛 CRITICAL FIX: Syncable items should be ALL entities minus broken ones
+        // Previously was: totalInChains - brokenItems.length (only counted in-chain entities)
+        // Corrected to: totalEntities - brokenItems.length (counts ALL entities)
+        const syncableItems = totalEntities - brokenItems.length;
 
         console.log(ansiColors.cyan(`📊 SYNC READINESS SUMMARY`));
         console.log(ansiColors.white(`   Total entities: ${totalEntities}`));

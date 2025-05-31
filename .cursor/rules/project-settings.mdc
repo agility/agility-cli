@@ -146,6 +146,46 @@ When working with older code:
 
 ---
 
+## 📚 Git SHA Tracking & Point-in-Time References
+
+**CRITICAL**: All development work must include SHA tracking for debugging and code restoration.
+
+### **SHA Tracking Protocol** ⚠️ **MANDATORY**
+- **🔴 REQUIRED**: Commit after each completed task/sub-task
+- **🔴 REQUIRED**: Add SHA reference to manifest after each commit
+- **🔴 REQUIRED**: Use descriptive commit messages following format: `[TaskID] Brief description`
+- **🔴 REQUIRED**: Tag major milestones with semantic tags
+
+### **Manifest SHA Documentation Format**
+```markdown
+- [x] **Task N.X:** Task Description ✅ **COMPLETE** 
+    - **📝 COMMIT**: `git commit -m "[19.6.1] Fix template download logic"`
+    - **🔖 SHA**: `a1b2c3d4` - Point-in-time reference for debugging/restoration
+    - **📊 RESULT**: Brief description of what was accomplished
+```
+
+### **Point-in-Time Reference Uses**
+- **🔧 Debugging**: Jump to specific SHA when investigating regressions
+- **↩️ Rollback**: Restore to working state if new changes break functionality  
+- **📊 Progress Tracking**: Document exact commit where functionality was achieved
+- **🧪 Testing**: Compare behavior between different SHA points
+- **📚 Code Review**: Reference specific commits during reviews
+
+### **Git Workflow Integration**
+1. **Work on feature/task**
+2. **Test thoroughly** 
+3. **Commit with descriptive message**
+4. **Update manifest with SHA**
+5. **Continue to next task**
+
+### **Branch Strategy**
+- Use feature branches for major phases: `phase-N-description`
+- Commit frequently on feature branches
+- Document all SHAs in manifest during development
+- Merge to main only when phase complete
+
+---
+
 ## 🔒 Type Safety Rules
 
 - No `as any`—raise ambiguity concerns in `.cursor/gotchas.md`

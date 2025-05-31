@@ -105,36 +105,56 @@ export class PageChainAnalyzer implements ChainAnalysisService {
                 console.log(ansiColors.gray(`${indent}├─ Zone: ${zoneName}`));
                 
                 zoneModules.forEach((module: any, moduleIndex: number) => {
-                    if (module?.item?.contentid || module?.item?.contentId) {
-                        const contentId = module.item.contentid || module.item.contentId;
-                        const content = sourceEntities.content?.find((c: any) => c.contentID === contentId);
+                    // Each module in a zone represents a container instance
+                    const containerID = module?.contentDefinitionID || module?.containerID;
+                    const container = sourceEntities.containers?.find((c: any) => c.contentViewID === containerID);
+                    
+                    if (container) {
+                        console.log(ansiColors.white(`${indent}│  ├─ ContainerID:${container.contentViewID} (${container.referenceName || 'No Name'})`));
                         
-                        if (content) {
-                            console.log(ansiColors.blue(`${indent}│  ├─ ContentID:${content.contentID} (${content.properties?.referenceName || 'No Name'})`));
+                        // Show content within this container
+                        if (module?.item?.contentid || module?.item?.contentId) {
+                            const contentId = module.item.contentid || module.item.contentId;
+                            const content = sourceEntities.content?.find((c: any) => c.contentID === contentId);
                             
-                            // Show content's model dependency
-                            if (content.properties?.definitionName) {
-                                // Use case-insensitive model lookup
-                                let model = sourceEntities.models?.find((m: any) => m.referenceName === content.properties.definitionName);
-                                if (!model) {
-                                    // Try case-insensitive match for model names
-                                    model = sourceEntities.models?.find((m: any) => 
-                                        m.referenceName.toLowerCase() === content.properties.definitionName.toLowerCase()
-                                    );
+                            if (content) {
+                                console.log(ansiColors.blue(`${indent}│  │  ├─ ContentID:${content.contentID} (${content.properties?.referenceName || 'No Name'})`));
+                                
+                                // Show content's model dependency
+                                if (content.properties?.definitionName) {
+                                    // Use case-insensitive model lookup
+                                    let model = sourceEntities.models?.find((m: any) => m.referenceName === content.properties.definitionName);
+                                    if (!model) {
+                                        // Try case-insensitive match for model names
+                                        model = sourceEntities.models?.find((m: any) => 
+                                            m.referenceName.toLowerCase() === content.properties.definitionName.toLowerCase()
+                                        );
+                                    }
+                                    
+                                    if (model) {
+                                        console.log(ansiColors.green(`${indent}│  │  │  ├─ Model:${model.referenceName} (${model.displayName || 'No Name'})`));
+                                    } else {
+                                        console.log(ansiColors.red(`${indent}│  │  │  ├─ Model:${content.properties.definitionName} - MISSING IN SOURCE DATA`));
+                                    }
                                 }
                                 
-                                if (model) {
-                                    console.log(ansiColors.green(`${indent}│  │  ├─ Model:${model.referenceName} (${model.displayName || 'No Name'})`));
-                                } else {
-                                    console.log(ansiColors.red(`${indent}│  │  ├─ Model:${content.properties.definitionName} - MISSING IN SOURCE DATA`));
-                                }
+                                // Show content's asset dependencies
+                                this.assetExtractor.showContentAssetDependencies(content, sourceEntities, `${indent}│  │  │  `);
+                                
+                            } else {
+                                console.log(ansiColors.red(`${indent}│  │  ├─ ContentID:${contentId} - MISSING IN SOURCE DATA`));
                             }
-                            
-                            // Show content's asset dependencies
-                            this.assetExtractor.showContentAssetDependencies(content, sourceEntities, `${indent}│  │  `);
-                            
                         } else {
-                            console.log(ansiColors.red(`${indent}│  ├─ ContentID:${contentId} - MISSING IN SOURCE DATA`));
+                            console.log(ansiColors.gray(`${indent}│  │  └─ (Empty container - no content assigned)`));
+                        }
+                    } else {
+                        // Fallback: show content directly if container not found (for debugging)
+                        if (module?.item?.contentid || module?.item?.contentId) {
+                            const contentId = module.item.contentid || module.item.contentId;
+                            console.log(ansiColors.yellow(`${indent}│  ├─ ⚠️  ContainerID:${containerID || 'Unknown'} - MISSING IN SOURCE DATA`));
+                            console.log(ansiColors.blue(`${indent}│  │  ├─ ContentID:${contentId} (content without container)`));
+                        } else {
+                            console.log(ansiColors.red(`${indent}│  ├─ ⚠️  Module with no container or content reference`));
                         }
                     }
                 });
