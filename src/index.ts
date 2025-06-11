@@ -1108,9 +1108,9 @@ yargs.command({
       }
 
       // Import and use the new 2-pass sync system
-      const { TwoPassSync } = await import('./lib/pushers/two-pass-sync');
+                  const { TopologicalContentSync } = await import('./lib/pushers/topological-content-sync');
 
-      const syncOperation = new TwoPassSync(options, multibar, sourceGuid, targetGuid, locale, isPreview, blessedUIEnabled, elements, rootPath, legacyFolders, dryRun, {
+            const syncOperation = new TopologicalContentSync(options, multibar, sourceGuid, targetGuid, locale, isPreview, blessedUIEnabled, elements, rootPath, legacyFolders, dryRun, {
         debug,
         maxDepth: maxDepth,
         forceSync: forceSync,

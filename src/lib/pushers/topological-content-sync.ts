@@ -19,7 +19,7 @@ import { ChainDataLoader } from '../services/chain-data-loader';
 
 
 
-export interface TwoPassSyncOptions {
+export interface TopologicalContentSyncOptions {
     debug: boolean;
     maxDepth?: number;
     forceSync?: boolean; // Full sync mode - force update all items
@@ -32,12 +32,20 @@ export interface TwoPassSyncOptions {
 }
 
 /**
- * Two-Pass Sync Operation
+ * Topological Content Sync Operation
  * 
- * SIMPLIFIED: Uses existing proven pushers in dependency order from analysis system.
- * No complex orchestration - just feed analysis results to solid pushers.
+ * Sophisticated topological dependency analysis engine that traverses content/page 
+ * dependency chains from inside out, groups into batches based on dependency depth,
+ * and executes reference-aware sync with comprehensive broken chain detection.
+ * 
+ * Features:
+ * - Topological Chain Analysis: Traverse dependencies from inside out
+ * - Dependency Leveling: Group into batches by dependency depth  
+ * - Broken Chain Detection: Identify and report unresolved references
+ * - Reference Remapping: Replace contentID references using mapping files
+ * - Two-Phase Architecture: Analysis + Execution with clear separation
  */
-export class TwoPassSync {
+export class TopologicalContentSync {
     private options: mgmtApi.Options;
     private multibar: any;
     private sourceGuid: string;
@@ -49,7 +57,7 @@ export class TwoPassSync {
     private rootPath: string;
     private legacyFolders: boolean;
     private dryRun: boolean;
-    private syncOptions: TwoPassSyncOptions;
+    private syncOptions: TopologicalContentSyncOptions;
     private fileOps: fileOperations;
     private startTime: number = 0;
     private totalFailures: number = 0;
@@ -68,7 +76,7 @@ export class TwoPassSync {
         rootPath: string,
         legacyFolders: boolean,
         dryRun: boolean,
-        syncOptions: TwoPassSyncOptions
+        syncOptions: TopologicalContentSyncOptions
     ) {
         this.options = options;
         this.multibar = multibar;
