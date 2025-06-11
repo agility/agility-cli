@@ -90,64 +90,12 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
             }
         });
         
-        // 🎯 ENHANCED: Categorize containers using architectural understanding
+        // TRUNCATED: Show summary only to improve console readability
         if (containersWithoutContent.length > 0) {
-            console.log(ansiColors.cyan(`\n🏗️ ARCHITECTURAL CONTAINER ANALYSIS (${containersWithoutContent.length} containers):`));
-            
-            // Categorize containers by architectural patterns
-            const containerCategories = {
-                template: [] as any[],
-                system: [] as any[],
-                store: [] as any[],
-                orphaned: [] as any[]
-            };
-            
-            containersWithoutContent.forEach((container: any) => {
-                const analysis = this.analyzeContainerPattern(container, sourceEntities);
-                containerCategories[analysis.category].push({ container, analysis });
-            });
-            
-            // 🎨 COMPONENT TEMPLATES
-            if (containerCategories.template.length > 0) {
-                console.log(ansiColors.green(`\n   🎨 COMPONENT TEMPLATES (${containerCategories.template.length} containers):`));
-                console.log(ansiColors.green('      Architectural foundation - empty by design'));
-                containerCategories.template.forEach(({ container, analysis }) => {
-                    console.log(ansiColors.green(`      • ContainerID:${container.contentViewID} (${container.referenceName})`));
-                    console.log(ansiColors.gray(`        ${analysis.reason}`));
-                });
-            }
-            
-            // ⚙️ SYSTEM CONTAINERS
-            if (containerCategories.system.length > 0) {
-                console.log(ansiColors.blue(`\n   ⚙️ SYSTEM CONTAINERS (${containerCategories.system.length} containers):`));
-                console.log(ansiColors.blue('      Built-in Agility CMS infrastructure'));
-                containerCategories.system.forEach(({ container, analysis }) => {
-                    console.log(ansiColors.blue(`      • ContainerID:${container.contentViewID} (${container.referenceName})`));
-                });
-            }
-            
-            // 📦 CONTENT STORES (empty ones)
-            if (containerCategories.store.length > 0) {
-                console.log(ansiColors.yellow(`\n   📦 EMPTY CONTENT STORES (${containerCategories.store.length} containers):`));
-                console.log(ansiColors.yellow('      Data repositories currently without content'));
-                containerCategories.store.forEach(({ container, analysis }) => {
-                    console.log(ansiColors.yellow(`      • ContainerID:${container.contentViewID} (${container.referenceName})`));
-                    console.log(ansiColors.gray(`        ${analysis.reason}`));
-                });
-            }
-            
-            // 🚫 ORPHANED CONTAINERS 
-            if (containerCategories.orphaned.length > 0) {
-                console.log(ansiColors.red(`\n   🚫 ORPHANED CONTAINERS (${containerCategories.orphaned.length} containers):`));
-                console.log(ansiColors.red('      May be safely skipped during sync'));
-                containerCategories.orphaned.forEach(({ container, analysis }) => {
-                    console.log(ansiColors.red(`      • ContainerID:${container.contentViewID} (${container.referenceName})`));
-                    console.log(ansiColors.gray(`        ${analysis.reason}`));
-                });
-            }
+            console.log(ansiColors.gray(`\n   🏗️  ${containersWithoutContent.length} empty containers (component templates, system containers, and orphaned items)`));
         }
-
-        // 📄 ENHANCED: Display containers WITH content using architectural awareness
+        
+        // 📄 Display containers WITH content (limited for readability)
         if (containersWithContent.length > 0) {
             console.log(ansiColors.cyan(`\n📋 CONTAINERS WITH CONTENT (${containersWithContent.length} containers):`));
             
@@ -169,39 +117,51 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
                 }
             });
             
-            // 📄 PAGE COMPONENT INSTANCES
+            // 📄 PAGE COMPONENT INSTANCES (limited display)
             if (contentCategories.instance.length > 0) {
                 console.log(ansiColors.cyan(`\n   📄 PAGE COMPONENT INSTANCES (${contentCategories.instance.length} containers):`));
                 console.log(ansiColors.cyan('      User-created component instances with content'));
-                contentCategories.instance.forEach(({ container, contentCount, analysis }) => {
+                const displayLimit = 3;
+                contentCategories.instance.slice(0, displayLimit).forEach(({ container, contentCount, analysis }) => {
                     console.log(ansiColors.white(`\n      ContainerID:${container.contentViewID} (${container.referenceName}) - ${contentCount} items`));
                     console.log(ansiColors.gray(`        ${analysis.reason}`));
-                    if (analysis.sequentialInfo) {
-                        console.log(ansiColors.gray(`        ${analysis.sequentialInfo}`));
-                    }
                     this.showContainerDependencyHierarchy(container, sourceEntities, '        ');
                 });
+                if (contentCategories.instance.length > displayLimit) {
+                    const remaining = contentCategories.instance.length - displayLimit;
+                    console.log(ansiColors.gray(`      ... and ${remaining} more component instances`));
+                }
             }
             
-            // 📦 CONTENT STORES (with content)
+            // 📦 CONTENT STORES (limited display)
             if (contentCategories.store.length > 0) {
                 console.log(ansiColors.cyan(`\n   📦 CONTENT STORES (${contentCategories.store.length} containers):`));
                 console.log(ansiColors.cyan('      Data repositories with content'));
-                contentCategories.store.forEach(({ container, contentCount, analysis }) => {
+                const displayLimit = 5;
+                contentCategories.store.slice(0, displayLimit).forEach(({ container, contentCount, analysis }) => {
                     console.log(ansiColors.white(`\n      ContainerID:${container.contentViewID} (${container.referenceName}) - ${contentCount} items`));
                     console.log(ansiColors.gray(`        ${analysis.reason}`));
                     this.showContainerDependencyHierarchy(container, sourceEntities, '        ');
                 });
+                if (contentCategories.store.length > displayLimit) {
+                    const remaining = contentCategories.store.length - displayLimit;
+                    console.log(ansiColors.gray(`      ... and ${remaining} more content stores`));
+                }
             }
             
-            // 📂 OTHER CONTAINERS WITH CONTENT
+            // 📂 OTHER CONTAINERS (limited display)
             if (contentCategories.other.length > 0) {
                 console.log(ansiColors.cyan(`\n   📂 OTHER CONTAINERS (${contentCategories.other.length} containers):`));
-                contentCategories.other.forEach(({ container, contentCount, analysis }) => {
+                const displayLimit = 10;
+                contentCategories.other.slice(0, displayLimit).forEach(({ container, contentCount, analysis }) => {
                     console.log(ansiColors.white(`\n      ContainerID:${container.contentViewID} (${container.referenceName}) - ${contentCount} items`));
                     console.log(ansiColors.gray(`        ${analysis.pattern}: ${analysis.reason}`));
                     this.showContainerDependencyHierarchy(container, sourceEntities, '        ');
                 });
+                if (contentCategories.other.length > displayLimit) {
+                    const remaining = contentCategories.other.length - displayLimit;
+                    console.log(ansiColors.gray(`      ... and ${remaining} more containers`));
+                }
             }
         }
     }

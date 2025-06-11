@@ -101,6 +101,7 @@ export class TopologicalContentSync {
 
         // Dependency rules based on legacy sync insights
         if (enforcedElements.has('Pages')) {
+            console.log(ansiColors.yellow('🔗 Pages require Templates, Containers, Content, Assets, Galleries - adding automatically'));
             enforcedElements.add('Templates');
             enforcedElements.add('Containers'); 
             enforcedElements.add('Content');
@@ -109,6 +110,7 @@ export class TopologicalContentSync {
         }
 
         if (enforcedElements.has('Content')) {
+            console.log(ansiColors.yellow('🔗 Content requires Containers, Models, Assets, Galleries - adding automatically'));
             enforcedElements.add('Containers');
             enforcedElements.add('Models');
             enforcedElements.add('Assets');
@@ -116,6 +118,7 @@ export class TopologicalContentSync {
         }
 
         if (enforcedElements.has('Containers')) {
+            console.log(ansiColors.yellow('🔗 Containers require Models - adding automatically'));
             enforcedElements.add('Models');
         }
 
@@ -132,19 +135,29 @@ export class TopologicalContentSync {
         }
 
         const finalElements = Array.from(enforcedElements);
+        
+        if (finalElements.length > requestedElements.length) {
+            console.log(ansiColors.cyan(`📋 Final element list: ${finalElements.join(', ')}`));
+        }
+
         return finalElements;
     }
 
     /**
      * Main sync execution method
-     * Sophisticated topological dependency analysis and reference-aware sync execution
+     * SIMPLIFIED: Uses existing proven pushers in dependency order
      */
     async syncInstance(): Promise<void> {
         this.startTime = Date.now();
         let referenceMapper: ReferenceMapper | null = null;
         
         try {
-            // Load source data and perform comprehensive dependency analysis
+            console.log(ansiColors.cyan('\n🚀 Starting Simplified Pusher-Based Sync'));
+            console.log('=' .repeat(60));
+
+            // Step 1: Load source data and perform analysis (keep this - it's perfect)
+            console.log(ansiColors.yellow('📥 Loading source data and performing dependency analysis...'));
+            
             const sourceData = await this.loadSourceData();
             
             if (this.hasNoContent(sourceData)) {
@@ -152,24 +165,27 @@ export class TopologicalContentSync {
                 return;
             }
 
-            // Run sophisticated topological dependency analysis
+            // Use ComprehensiveAnalysisRunner for perfect dependency analysis
             const analysisRunner = new ComprehensiveAnalysisRunner();
+            
+            // Initialize with proper context including rootPath for sitemap loading
             const analysisContext: any = {
                 sourceGuid: this.sourceGuid,
                 locale: this.locale,
                 isPreview: this.isPreview,
-                rootPath: this.rootPath,
+                rootPath: this.rootPath, // This will be process.cwd(), which SitemapHierarchy will correctly extend to agility-files
                 debug: this.syncOptions.debug || false,
                 elements: this.elements
             };
             analysisRunner.initialize(analysisContext);
+            
             const analysisResults = analysisRunner.runComprehensiveAnalysis(sourceData);
             
-            // Set up API client and reference mapper
+            // Step 2: Set up API client and reference mapper
             const apiClient = new mgmtApi.ApiClient(this.options);
             referenceMapper = new ReferenceMapper(this.sourceGuid, this.targetGuid);
             
-            // Target instance discovery (moved bulk checking to individual pushers)
+            // Step 3: Target Instance Discovery (only with valid authentication)
             let discoveryResult = null;
             if (this.targetGuid !== 'test' && this.options.token !== 'test-token') {
                 const targetMapper = new TargetInstanceMapper(apiClient, this.targetGuid, referenceMapper);
@@ -179,36 +195,65 @@ export class TopologicalContentSync {
                 console.log(ansiColors.gray('   💡 To test target discovery, use real authentication without --test flag'));
             }
             
-            // Dry run or test mode - show mapping status and exit
+            // Step 4: Check if this is a dry run or test mode
             if (this.dryRun || this.targetGuid === 'test') {
+                // Check for mappings (including any discovered above)
                 const existingStats = referenceMapper.getDetailedStats();
                 const hasExistingMappings = Object.values(existingStats).some(stat => stat.total > 0);
                 
                 if (hasExistingMappings || discoveryResult?.mappingsFound > 0) {
                     console.log(ansiColors.green('\\n📋 Existing Mappings Found:'));
+                    
                     if (discoveryResult?.mappingsFound > 0) {
                         console.log(ansiColors.cyan(`🔍 Target Discovery: Found ${discoveryResult.mappingsFound} existing entities`));
+                        for (const [entityType, counts] of Object.entries(discoveryResult.entityBreakdown)) {
+                            const typedCounts = counts as { existing: number; new: number };
+                            if (typedCounts.existing > 0) {
+                                console.log(`  ${entityType}: ${typedCounts.existing} existing, ${typedCounts.new} new`);
+                            }
+                        }
                     }
+                    
+                    // Show cached mappings if any
                     for (const [type, stats] of Object.entries(existingStats)) {
                         if (stats.total > 0) {
                             const percentage = stats.withTargets > 0 ? ((stats.withTargets / stats.total) * 100).toFixed(1) : '0.0';
                             console.log(`  ${type}: ${stats.withTargets}/${stats.total} cached mappings (${percentage}%)`);
                         }
                     }
+                    
+                    // Show what sync mode would do with existing mappings
+                    if (this.syncOptions.forceSync) {
+                        console.log(ansiColors.yellow('\\n⚠️  Force Sync Mode: All existing mappings would be cleared and recreated'));
+                    } else {
+                        console.log(ansiColors.green('\\n⚡ Incremental Sync Mode: Existing mappings would be preserved and extended'));
+                    }
                 } else {
                     console.log(ansiColors.yellow('\\n📋 No existing mappings found'));
                     console.log(ansiColors.red.bold('⚠️  Fresh sync - new mappings would be created for all entities'));
                 }
                 
+                // Simple target confirmation
                 const targetDisplay = this.targetGuid === 'test' ? 'TEST MODE (no actual sync)' : this.targetGuid;
                 console.log(ansiColors.blue(`\\n✅ Ready to sync from ${this.sourceGuid} → ${targetDisplay}`));
                 return;
             }
 
-            // Real sync execution
+            // Step 5: Real sync mode continues here
+            // 🔄 SUBSEQUENT SYNC OPTIMIZATION: Preserve existing mappings for fast subsequent syncs
+            // Only clear mappings if explicitly requested via forceSync or if mappings are corrupted
             if (this.syncOptions.forceSync) {
+                console.log(ansiColors.yellow('🧹 Force sync mode: Clearing all cached mappings...'));
                 await referenceMapper.clearAllMappings();
+                // Note: Target discovery mappings are already in the mapper from step 3
+            } else {
+                console.log(ansiColors.green('⚡ Subsequent sync mode: Using existing mappings + discoveries for speed...'));
+                // Let the reference mapper load existing cached mappings for fast subsequent syncs
+                // Target discovery mappings are already added to the mapper from step 3
             }
+
+            // Step 6: Execute pushers in dependency order with early exit
+            console.log(ansiColors.green('\n🎯 Executing Proven Pushers in Dependency Order...'));
             
             const syncResults = await this.executePushersInOrder(
                 sourceData, 
@@ -216,10 +261,12 @@ export class TopologicalContentSync {
                 referenceMapper
             );
 
+            // Step 7: Save all mappings before reporting results
+            console.log(ansiColors.yellow('💾 Saving all mappings...'));
             await referenceMapper.saveAllMappings();
 
-            // Report final results
-            console.log(ansiColors.green('\n🎉 Topological Content Sync Complete!'));
+            // Step 8: Report results
+            console.log(ansiColors.green('\n🎉 Pusher-Based Sync Complete!'));
             console.log(`✅ Total Success: ${syncResults.totalSuccess}`);
             console.log(`❌ Total Failures: ${syncResults.totalFailures}`);
             console.log(`📊 Success Rate: ${((syncResults.totalSuccess / (syncResults.totalSuccess + syncResults.totalFailures)) * 100).toFixed(1)}%`);
@@ -232,6 +279,7 @@ export class TopologicalContentSync {
             // Save mappings even on error to preserve any partial progress
             if (referenceMapper) {
                 try {
+                    console.log(ansiColors.yellow('💾 Saving mappings before exit...'));
                     await referenceMapper.saveAllMappings();
                 } catch (saveError) {
                     console.error('Failed to save mappings on error:', saveError);
@@ -242,7 +290,7 @@ export class TopologicalContentSync {
                 console.log(ansiColors.yellow(`\n⏹️ Sync stopped early: ${error.message}`));
                 return;
             }
-            console.error(ansiColors.red(`❌ Error during topological sync: ${error.message}`));
+            console.error(ansiColors.red(`❌ Error during pusher-based sync: ${error.message}`));
             throw error;
         }
     }
@@ -485,6 +533,8 @@ export class TopologicalContentSync {
      * Load source data from local file system
      */
     private async loadSourceData(): Promise<any> {
+        console.log(ansiColors.yellow('🔄 Loading source data with field transformation bridge...'));
+        
         // Use ChainDataLoader with field transformation bridge
         const loader = new ChainDataLoader({
             sourceGuid: this.sourceGuid,
@@ -495,6 +545,18 @@ export class TopologicalContentSync {
         });
 
         const sourceEntities = await loader.loadSourceEntities();
+        
+        // Log summary with transformation confirmation
+        const totalEntities = Object.values(sourceEntities).reduce((sum: number, arr: any) => 
+            sum + (Array.isArray(arr) ? arr.length : 0), 0);
+
+        console.log(ansiColors.green(`✅ Loaded ${totalEntities} entities with field transformation bridge`));
+        
+        // Show transformation details if models were loaded
+        if (sourceEntities.models && sourceEntities.models.length > 0) {
+            console.log(ansiColors.cyan(`   📋 Models: ${sourceEntities.models.length} (recursive-era → structured-era fields transformed)`));
+        }
+        
         return sourceEntities;
     }
 

@@ -148,8 +148,6 @@ export class ChainDataLoader {
         if (this.options.elements!.includes('Containers')) {
             // Load containers from Content Sync SDK /list directory
             // Each file in /list represents a container with its content items
-            console.log('📦 Loading containers from Content Sync SDK list/ directory');
-            
             const containerLists = this.loadJsonFiles('list');
             const containerMetadata: any[] = [];
             
@@ -183,7 +181,6 @@ export class ChainDataLoader {
             });
             
             sourceEntities.containers = containerMetadata;
-            console.log(`   📁 Content Sync SDK list/: ${sourceEntities.containers.length} containers derived from ${containerLists.length} list files`);
         }
 
         if (this.options.elements!.includes('Content')) {
@@ -198,9 +195,6 @@ export class ChainDataLoader {
             const flattenedContentFromLists = contentLists.flatMap((contentList: any) => {
                 return Array.isArray(contentList) ? contentList : [contentList];
             });
-            
-            console.log(`   📝 Content from item/: ${itemContent.length} items`);
-            console.log(`   📋 Content from list/: ${flattenedContentFromLists.length} items`);
             
             // Combine content from both sources - DON'T deduplicate as they may be different content types
             // The item/ directory contains individual content items (like i18 content)
@@ -221,8 +215,6 @@ export class ChainDataLoader {
                 }
                 return true; // Keep items without proper ID/referenceName structure
             });
-            
-            console.log(`   ✅ Total content after deduplication: ${sourceEntities.content.length} items`);
         }
 
         if (this.options.elements!.includes('Templates')) {
@@ -233,20 +225,7 @@ export class ChainDataLoader {
             sourceEntities.pages = this.loadJsonFiles('page'); // Use 'page' directory as specified
         }
 
-        // Log summary
-        const totalEntities = Object.values(sourceEntities).reduce((sum: number, arr: any) => 
-            sum + (Array.isArray(arr) ? arr.length : 0), 0);
-
-        console.log(ansiColors.green(`✅ Loaded ${totalEntities} entities from local files`));
-
-        // Log breakdown for debugging
-        if (sourceEntities.pages) console.log(`   📄 Pages: ${sourceEntities.pages.length}`);
-        if (sourceEntities.templates) console.log(`   🏗️  Templates: ${sourceEntities.templates.length}`);
-        if (sourceEntities.containers) console.log(`   📦 Containers: ${sourceEntities.containers.length}`);
-        if (sourceEntities.models) console.log(`   📋 Models: ${sourceEntities.models.length}`);
-        if (sourceEntities.content) console.log(`   📝 Content: ${sourceEntities.content.length}`);
-        if (sourceEntities.assets) console.log(`   📎 Assets: ${sourceEntities.assets.length}`);
-        if (sourceEntities.galleries) console.log(`   🖼️  Galleries: ${sourceEntities.galleries.length}`);
+        // Entity loading complete (no console output for cleaner analysis display)
 
         return sourceEntities;
     }

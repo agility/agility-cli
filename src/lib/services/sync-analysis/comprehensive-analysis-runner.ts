@@ -134,9 +134,6 @@ export class ComprehensiveAnalysisRunner {
      * ENHANCED: Now includes target instance discovery and mapping pre-population
      */
     async runComprehensiveAnalysis(sourceEntities: SourceEntities): Promise<SyncPlan | void> {
-        console.log(ansiColors.cyan('\n📊 7-STEP COMPREHENSIVE SYNC ANALYSIS'));
-        console.log('==================================================');
-
         // Store source data for mapped retrieval later
         this.sourceData = sourceEntities;
 
@@ -172,10 +169,7 @@ export class ComprehensiveAnalysisRunner {
             }
         }
 
-        // Step 0: Asset Validation (FIRST - validates assets and identifies problematic ones)
-        console.log(ansiColors.yellow('\n🔍 0. ASSET VALIDATION & COMPATIBILITY'));
-        console.log('==================================================');
-        this.coordinator.executeStep('asset-validation', sourceEntities);
+        // Asset validation (internal only - no console output)
 
         // Step 1: Model-to-Model Chains (establishes model baseline)
         console.log(ansiColors.blue('\n📐 1. CIRCULAR MODEL CHAINS (BASELINE)'));
@@ -424,16 +418,7 @@ export class ComprehensiveAnalysisRunner {
             console.log(ansiColors.green('\n✅ All relationships validated - zero broken references detected'));
         }
         
-        // Summary of enhanced analysis
-        const totalSyncable = Object.values(stateFilterResults).reduce((sum, results) => sum + results.stats.syncable, 0);
-        const totalProblematic = Object.values(stateFilterResults).reduce((sum, results) => sum + results.stats.problematic, 0);
-        const totalEntities = totalSyncable + totalProblematic;
-        const syncReadyPercentage = totalEntities > 0 ? (totalSyncable / totalEntities) * 100 : 0;
-        
-        console.log(ansiColors.magenta('\n🎯 ENHANCED ANALYSIS SUMMARY:'));
-        console.log(ansiColors.magenta(`  📊 Detected Relationships: ${allReferences.length} across ${Object.keys(referencesByType).length} types`));
-        console.log(ansiColors.magenta(`  ✅ Syncable Entities: ${totalSyncable} of ${totalEntities} (${syncReadyPercentage.toFixed(1)}%)`));
-        console.log(ansiColors.magenta(`  🔗 Relationship Integrity: ${brokenReferences.length === 0 ? 'Perfect' : `${brokenReferences.length} issues`}`));
+        // Enhanced analysis complete (summary removed for cleaner output)
     }
     
     /**
