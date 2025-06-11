@@ -10,7 +10,7 @@ import { Auth } from './auth';
 import { ReferenceMapper } from '../reference-mapper';
 import {
     pushContainers,
-    pushContentItems,
+    pushContent,
     pushAssets,
     pushGalleries,
     pushModels,
@@ -435,16 +435,17 @@ export class push {
                     if (!containers || containers.length === 0) {
                         console.log('No containers found to push');
                     } else {
-                        const containerPusher = new pushContainers(
-                            this._apiClient,
-                            this._referenceMapper,
-                            this._targetGuid,
-                        );
                         const containerProgressCallback = (processed: number, total: number, status?: 'success' | 'error') => {
                             const percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
                             updateProgress(containerStepIndex, status || 'success', percentage);
                         };
-                        await containerPusher.pushContainers(containers, containerProgressCallback);
+                        await pushContainers(
+                            containers,
+                            this._targetGuid,
+                            this._apiClient,
+                            this._referenceMapper,
+                            containerProgressCallback
+                        );
                     }
                 } catch(e: any){
                     containerStatus = 'error';
@@ -471,17 +472,18 @@ export class push {
                     if (!allContentItems || allContentItems.length === 0) {
                         console.log('No content items found to push');
                     } else {
-                        const contentPusher = new pushContentItems(
-                            this._apiClient,
-                            this._referenceMapper,
-                            this._targetGuid,
-                            this._locale
-                        );
                         const contentProgressCallback = (processed: number, total: number, status?: 'success' | 'error') => {
                             const percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
                             updateProgress(contentStepIndex, status || 'success', percentage); 
                         };
-                        const contentResult = await contentPusher.pushContentItems(allContentItems, contentProgressCallback);
+                        const contentResult = await pushContent(
+                            allContentItems,
+                            this._targetGuid,
+                            this._locale,
+                            this._apiClient,
+                            this._referenceMapper,
+                            contentProgressCallback
+                        );
                         const totalContentItems = allContentItems.length;
                         console.log(ansiColors.yellow(`Processed ${contentResult.successfulItems}/${totalContentItems} content items (${contentResult.failedItems} failed)`));
                         if(contentResult.failedItems > 0) contentStatus = 'error';

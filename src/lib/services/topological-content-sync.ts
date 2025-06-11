@@ -9,8 +9,8 @@ import { SyncAnalysisContext } from '../../types/syncAnalysis';
 import { pushModels } from '../pushers/model-pusher';
 import { pushGalleries } from '../pushers/gallery-pusher';
 import { pushAssets } from '../pushers/asset-pusher';
-import { pushContainers } from '../pushers/index';
-import { pushContentItems } from '../pushers/content-item-pusher';
+import { pushContainers } from '../pushers/container-pusher';
+import { pushContent } from '../pushers/content-item-pusher';
 import { pushTemplates } from '../pushers/template-pusher';
 import { pushPages } from '../pushers/page-pusher';
 // Replaced simple-page-pusher with regular page-pusher (Task 29.4)
@@ -372,8 +372,13 @@ export class TopologicalContentSync {
                 console.log(ansiColors.cyan('\n📦 Pushing Containers...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.containers.length} containers in source data`));
                 
-                const containerPusher = new pushContainers(apiClient, referenceMapper, this.targetGuid);
-                const containerResult = await containerPusher.pushContainers(sourceData.containers);
+                const containerResult = await pushContainers(
+                    sourceData.containers,
+                    this.targetGuid,
+                    apiClient,
+                    referenceMapper
+                );
+                
                 totalSuccess += containerResult.successfulContainers;
                 totalFailures += containerResult.failedContainers;
                 this.checkEarlyExitConditions('Containers', containerResult.failedContainers, containerResult.successfulContainers);
@@ -384,13 +389,13 @@ export class TopologicalContentSync {
                 console.log(ansiColors.cyan('\n📄 Pushing Content Items...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.content.length} content items in source data`));
                 
-                const contentPusher = new pushContentItems(
-                    apiClient,
-                    referenceMapper,
+                const contentResult = await pushContent(
+                    sourceData.content,
                     this.targetGuid,
-                    this.locale
+                    this.locale,
+                    apiClient,
+                    referenceMapper
                 );
-                const contentResult = await contentPusher.pushContentItems(sourceData.content);
                 totalSuccess += contentResult.successfulItems;
                 totalFailures += contentResult.failedItems;
                 this.checkEarlyExitConditions('Content', contentResult.failedItems, contentResult.successfulItems);

@@ -26,6 +26,7 @@ import { instanceSelector } from "./lib/instances/instance-list";
 import { localePrompt } from "./lib/prompts/locale-prompt";
 import { content } from "./lib/services/content";
 import { Pull } from "./lib/services/pull";
+import { channel } from "diagnostics_channel";
 
 
 // declare module "@agility/management-sdk" {
@@ -1115,7 +1116,7 @@ yargs.command({
       }
 
       // Import and use the new 2-pass sync system
-                  const { TopologicalContentSync } = await import('./lib/pushers/topological-content-sync');
+                  const { TopologicalContentSync } = await import('./lib/services/topological-content-sync');
 
             const syncOperation = new TopologicalContentSync(options, multibar, sourceGuid, targetGuid, locale, isPreview, blessedUIEnabled, elements, rootPath, legacyFolders, dryRun, {
         debug,
