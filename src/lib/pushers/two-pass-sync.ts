@@ -388,10 +388,7 @@ export class TwoPassSync {
                     this.targetGuid,
                     referenceMapper,
                     this.syncOptions.debug || false,
-                    this.syncOptions.forceSync || false,
-                    (processed, total, status) => {
-                        console.log(`  Models: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
-                    }
+                    this.syncOptions.forceSync || false
                 );
                 totalSuccess += modelResult.successfulModels;
                 totalFailures += modelResult.failedModels;
@@ -409,10 +406,7 @@ export class TwoPassSync {
                     galleries,
                     this.targetGuid,
                     apiClient,
-                    referenceMapper,
-                    (processed, total, status) => {
-                        console.log(`  Galleries: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
-                    }
+                    referenceMapper
                 );
                 totalSuccess += galleryResult.successfulGroupings;
                 totalFailures += galleryResult.failedGroupings;
@@ -434,10 +428,7 @@ export class TwoPassSync {
                     this.locale,
                     this.isPreview,
                     apiClient,
-                    referenceMapper,
-                    (processed, total, status) => {
-                        console.log(`  Assets: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
-                    }
+                    referenceMapper
                 );
                 totalSuccess += assetResult.successfulAssets;
                 totalFailures += assetResult.failedAssets;
@@ -453,10 +444,7 @@ export class TwoPassSync {
                     sourceData.containers,
                     this.options,
                     this.targetGuid,
-                    referenceMapper,
-                    (processed, total, status) => {
-                        console.log(`  Containers: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
-                    }
+                    referenceMapper
                 );
                 totalSuccess += containerResult.successfulContainers;
                 totalFailures += containerResult.failedContainers;
@@ -476,10 +464,7 @@ export class TwoPassSync {
                     this.locale
                 );
                 const contentResult = await contentPusher.pushContentItems(
-                    sourceData.content,
-                    (processed, total, status) => {
-                        console.log(`  Content: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
-                    }
+                    sourceData.content
                 );
                 totalSuccess += contentResult.successCount + contentResult.existingCount;
                 totalFailures += contentResult.failureCount;
@@ -496,10 +481,7 @@ export class TwoPassSync {
                     this.targetGuid,
                     this.locale,
                     apiClient,
-                    referenceMapper,
-                    (processed, total, status) => {
-                        console.log(`  Templates: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
-                    }
+                    referenceMapper
                 );
                 totalSuccess += templateResult.successfulTemplates;
                 totalFailures += templateResult.failedTemplates;
@@ -516,10 +498,7 @@ export class TwoPassSync {
                     this.targetGuid,
                     this.locale,
                     apiClient,
-                    referenceMapper,
-                    (processed, total, status) => {
-                        console.log(`  Pages: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
-                    }
+                    referenceMapper
                 );
                 totalSuccess += pageResult.successfulPages;
                 totalFailures += pageResult.failedPages;

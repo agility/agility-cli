@@ -26,7 +26,8 @@
 
 "@agility/management-sdk@^0.1.23":
   version "0.1.23"
-  resolved "file:../agility-cms-management-sdk-typescript"
+  resolved "https://registry.npmjs.org/@agility/management-sdk/-/management-sdk-0.1.23.tgz"
+  integrity sha512-/UlaW56g0Bk7WIIjv0D5PdnsQxzCdUuk9mtOnL9Uy3Ewd+mMZ9h2Szj91xyNh6cK442sDW621WcYROFxDjTUXA==
   dependencies:
     axios "^0.27.2"
 
