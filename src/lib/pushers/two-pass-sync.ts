@@ -356,6 +356,9 @@ export class TwoPassSync {
         
         let totalSuccess = 0;
         let totalFailures = 0;
+        
+        // Declare shared variables for dependencies
+        let galleries: any[] = [];
 
         // 🔍 DEBUG: Show actual sync options being used
         console.log(ansiColors.magenta('\n🔍 DEBUG SYNC OPTIONS:'));
@@ -374,111 +377,153 @@ export class TwoPassSync {
         // 7. Pages (depend on templates, content)
 
         try {
-            // 1. Push Models first (foundational) - COMMENTED OUT FOR MAPPING FOCUS
+            // 1. Push Models first (foundational)
             if (sourceData.models && sourceData.models.length > 0) {
-                console.log(ansiColors.cyan('\n📋 [MAPPING FOCUS] Analyzing Models (push operations disabled)...'));
+                console.log(ansiColors.cyan('\n📋 Pushing Models...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.models.length} models in source data`));
-                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
-                console.log(ansiColors.green('  ✅ Model mapping analysis complete - push operations skipped'));
                 
-                // COMMENTED OUT: Push operations disabled for mapping focus
-                // const modelResult = await pushModels(
-                //     sourceData.models,
-                //     this.options,
-                //     this.targetGuid,
-                //     referenceMapper,
-                //     this.syncOptions.debug || false,
-                //     this.syncOptions.forceSync || false,
-                //     (processed, total, status) => {
-                //         console.log(`  Models: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
-                //     }
-                // );
-                // totalSuccess += modelResult.successfulModels;
-                // totalFailures += modelResult.failedModels;
-                // this.checkEarlyExitConditions('Models', modelResult.failedModels, modelResult.successfulModels);
+                const modelResult = await pushModels(
+                    sourceData.models,
+                    this.options,
+                    this.targetGuid,
+                    referenceMapper,
+                    this.syncOptions.debug || false,
+                    this.syncOptions.forceSync || false,
+                    (processed, total, status) => {
+                        console.log(`  Models: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
+                    }
+                );
+                totalSuccess += modelResult.successfulModels;
+                totalFailures += modelResult.failedModels;
+                this.checkEarlyExitConditions('Models', modelResult.failedModels, modelResult.successfulModels);
             }
 
-            // 2. Push Galleries (independent) - COMMENTED OUT FOR MAPPING FOCUS
+            // 2. Push Galleries (independent)
             if (sourceData.galleries && sourceData.galleries.length > 0) {
-                console.log(ansiColors.cyan('\n🖼️ [MAPPING FOCUS] Analyzing Galleries (push operations disabled)...'));
+                console.log(ansiColors.cyan('\n🖼️ Pushing Galleries...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.galleries.length} galleries in source data`));
-                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
-                console.log(ansiColors.green('  ✅ Gallery mapping analysis complete - push operations skipped'));
                 
-                // COMMENTED OUT: Push operations disabled for mapping focus
-                // const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
-                // const galleries = getGalleriesFromFileSystem(...) || [];
-                // const galleryResult = await pushGalleries(...);
-                // totalSuccess += galleryResult.successfulGroupings;
-                // totalFailures += galleryResult.failedGroupings;
+                const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
+                galleries = getGalleriesFromFileSystem(this.sourceGuid, this.locale, this.isPreview, referenceMapper, this.rootPath) || [];
+                const galleryResult = await pushGalleries(
+                    galleries,
+                    this.targetGuid,
+                    apiClient,
+                    referenceMapper,
+                    (processed, total, status) => {
+                        console.log(`  Galleries: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
+                    }
+                );
+                totalSuccess += galleryResult.successfulGroupings;
+                totalFailures += galleryResult.failedGroupings;
+                this.checkEarlyExitConditions('Galleries', galleryResult.failedGroupings, galleryResult.successfulGroupings);
             }
 
-            // 3. Push Assets (depend on galleries) - COMMENTED OUT FOR MAPPING FOCUS
+            // 3. Push Assets (depend on galleries)
             if (sourceData.assets && sourceData.assets.length > 0) {
-                console.log(ansiColors.cyan('\n📎 [MAPPING FOCUS] Analyzing Assets (push operations disabled)...'));
+                console.log(ansiColors.cyan('\n📎 Pushing Assets...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.assets.length} assets in source data`));
-                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
-                console.log(ansiColors.green('  ✅ Asset mapping analysis complete - push operations skipped'));
                 
-                // COMMENTED OUT: Push operations disabled for mapping focus
-                // const { getAssetsFromFileSystem } = await import('../getters/filesystem/get-assets');
-                // const assets = getAssetsFromFileSystem(...) || [];
-                // const galleries = await import('../getters/filesystem/get-galleries').then(m => m.getGalleriesFromFileSystem(...) || []);
-                // const assetResult = await pushAssets(...);
-                // totalSuccess += assetResult.successfulAssets;
-                // totalFailures += assetResult.failedAssets;
+                const { getAssetsFromFileSystem } = await import('../getters/filesystem/get-assets');
+                const assets = getAssetsFromFileSystem(this.sourceGuid, this.locale, this.isPreview, referenceMapper, this.rootPath) || [];
+                const assetResult = await pushAssets(
+                    assets,
+                    galleries,
+                    this.sourceGuid,
+                    this.targetGuid,
+                    this.locale,
+                    this.isPreview,
+                    apiClient,
+                    referenceMapper,
+                    (processed, total, status) => {
+                        console.log(`  Assets: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
+                    }
+                );
+                totalSuccess += assetResult.successfulAssets;
+                totalFailures += assetResult.failedAssets;
+                this.checkEarlyExitConditions('Assets', assetResult.failedAssets, assetResult.successfulAssets);
             }
 
-            // 4. Push Containers (depend on models) - COMMENTED OUT FOR MAPPING FOCUS
+            // 4. Push Containers (depend on models)
             if (sourceData.containers && sourceData.containers.length > 0) {
-                console.log(ansiColors.cyan('\n📦 [MAPPING FOCUS] Analyzing Containers (push operations disabled)...'));
+                console.log(ansiColors.cyan('\n📦 Pushing Containers...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.containers.length} containers in source data`));
-                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
-                console.log(ansiColors.green('  ✅ Container mapping analysis complete - push operations skipped'));
                 
-                // COMMENTED OUT: Push operations disabled for mapping focus
-                // const containerResult = await pushContainersTwoPass(...);
+                const containerResult = await pushContainersTwoPass(
+                    sourceData.containers,
+                    this.options,
+                    this.targetGuid,
+                    referenceMapper,
+                    (processed, total, status) => {
+                        console.log(`  Containers: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
+                    }
+                );
+                totalSuccess += containerResult.successfulContainers;
+                totalFailures += containerResult.failedContainers;
+                this.checkEarlyExitConditions('Containers', containerResult.failedContainers, containerResult.successfulContainers);
             }
 
-            // 5. Push Content Items (SINGLE-PASS WITH CONTAINER INFERENCE) - COMMENTED OUT FOR MAPPING FOCUS
+            // 5. Push Content Items (SINGLE-PASS WITH CONTAINER INFERENCE)
             if (sourceData.content && sourceData.content.length > 0) {
-                console.log(ansiColors.cyan('\n📄 [MAPPING FOCUS] Analyzing Content Items (push operations disabled)...'));
+                console.log(ansiColors.cyan('\n📄 Pushing Content Items...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.content.length} content items in source data`));
-                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
-                console.log(ansiColors.green('  ✅ Content mapping analysis complete - push operations skipped'));
                 
-                // COMMENTED OUT: Push operations disabled for mapping focus
-                // const { BatchContentItemPusher } = await import('./batch-content-item-pusher');
-                // const contentPusher = new BatchContentItemPusher(...);
-                // const contentResult = await contentPusher.pushContentItems(...);
-                // totalSuccess += contentResult.successCount + contentResult.existingCount;
-                // totalFailures += contentResult.failureCount;
+                const { BatchContentItemPusher } = await import('./batch-content-item-pusher');
+                const contentPusher = new BatchContentItemPusher(
+                    apiClient,
+                    referenceMapper,
+                    this.targetGuid,
+                    this.locale
+                );
+                const contentResult = await contentPusher.pushContentItems(
+                    sourceData.content,
+                    (processed, total, status) => {
+                        console.log(`  Content: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
+                    }
+                );
+                totalSuccess += contentResult.successCount + contentResult.existingCount;
+                totalFailures += contentResult.failureCount;
+                this.checkEarlyExitConditions('Content', contentResult.failureCount, contentResult.successCount + contentResult.existingCount);
             }
 
-            // 6. Push Templates (depend on containers, models) - COMMENTED OUT FOR MAPPING FOCUS
+            // 6. Push Templates (depend on containers, models)
             if (sourceData.templates && sourceData.templates.length > 0) {
-                console.log(ansiColors.cyan('\n📄 [MAPPING FOCUS] Analyzing Templates (push operations disabled)...'));
+                console.log(ansiColors.cyan('\n📄 Pushing Templates...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.templates.length} templates in source data`));
-                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
-                console.log(ansiColors.green('  ✅ Template mapping analysis complete - push operations skipped'));
                 
-                // COMMENTED OUT: Push operations disabled for mapping focus
-                // const templateResult = await pushTemplates(...);
-                // totalSuccess += templateResult.successfulTemplates;
-                // totalFailures += templateResult.failedTemplates;
+                const templateResult = await pushTemplates(
+                    sourceData.templates,
+                    this.targetGuid,
+                    this.locale,
+                    apiClient,
+                    referenceMapper,
+                    (processed, total, status) => {
+                        console.log(`  Templates: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
+                    }
+                );
+                totalSuccess += templateResult.successfulTemplates;
+                totalFailures += templateResult.failedTemplates;
+                this.checkEarlyExitConditions('Templates', templateResult.failedTemplates, templateResult.successfulTemplates);
             }
 
-            // 7. Push Pages (depend on templates, content) - COMMENTED OUT FOR MAPPING FOCUS
+            // 7. Push Pages (depend on templates, content)
             if (sourceData.pages && sourceData.pages.length > 0) {
-                console.log(ansiColors.cyan('\n📄 [MAPPING FOCUS] Analyzing Pages (push operations disabled)...'));
+                console.log(ansiColors.cyan('\n📄 Pushing Pages...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.pages.length} pages in source data`));
-                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
-                console.log(ansiColors.green('  ✅ Page mapping analysis complete - push operations skipped'));
                 
-                // COMMENTED OUT: Push operations disabled for mapping focus
-                // const pageResult = await pushPagesSimple(...);
-                // totalSuccess += pageResult.successfulPages;
-                // totalFailures += pageResult.failedPages;
+                const pageResult = await pushPagesSimple(
+                    sourceData.pages,
+                    this.targetGuid,
+                    this.locale,
+                    apiClient,
+                    referenceMapper,
+                    (processed, total, status) => {
+                        console.log(`  Pages: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
+                    }
+                );
+                totalSuccess += pageResult.successfulPages;
+                totalFailures += pageResult.failedPages;
+                this.checkEarlyExitConditions('Pages', pageResult.failedPages, pageResult.successfulPages);
             }
 
         } catch (error) {
@@ -486,14 +531,15 @@ export class TwoPassSync {
             throw error;
         }
 
-        // Show summary of mapping-focused analysis
-        console.log(ansiColors.green('\n🎯 Mapping Analysis Summary:'));
-        console.log(ansiColors.yellow('  📊 Source data loaded and analyzed'));
-        console.log(ansiColors.blue('  🔍 Target discovery completed with SDK calls'));
-        console.log(ansiColors.cyan('  🗺️ Entity mappings established in ReferenceMapper'));
-        console.log(ansiColors.magenta('  💾 Push operations disabled - focus on data fetching and mapping'));
+        // Show summary of push operations
+        console.log(ansiColors.green('\n🎯 Push Operations Summary:'));
+        console.log(ansiColors.yellow(`  📊 Successfully pushed: ${totalSuccess} entities`));
+        console.log(ansiColors.red(`  ❌ Failed pushes: ${totalFailures} entities`));
+        const overallStatus = totalFailures > 0 ? 'error' : 'success';
+        console.log(ansiColors.cyan(`  🗺️ Entity mappings established in ReferenceMapper`));
+        console.log(ansiColors.magenta(`  💾 Push operations completed with status: ${overallStatus}`));
         
-        return { totalSuccess: 0, totalFailures: 0 }; // No actual pushes performed
+        return { totalSuccess, totalFailures };
     }
 
     /**
