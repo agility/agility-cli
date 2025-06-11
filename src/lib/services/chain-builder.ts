@@ -90,21 +90,13 @@ export class ChainBuilder {
         const workingRootPath = rootPath || process.cwd();
         this.rootPath = workingRootPath; // Store for later use
         
-        // Initialize data loader with path resolver
-        const { resolveInstancePaths } = await import('../utilities/path-resolver');
-        const resolvedPaths = resolveInstancePaths({
-            rootPath: workingRootPath,
-            legacyFolders: false, // Default to false for chain-builder
-            guid: guid,
-            locale: locale,
-            isPreview: isPreview
-        });
-        
+        // Initialize data loader with enhanced fileOperations
         this.dataLoader = new ChainDataLoader({
             sourceGuid: guid,
             locale: locale,
             isPreview: isPreview,
-            resolvedPaths,
+            rootPath: workingRootPath,
+            legacyFolders: false, // Default to false for chain-builder
             elements: ['Pages', 'Templates', 'Containers', 'Models', 'Content', 'Assets', 'Galleries']
         });
 

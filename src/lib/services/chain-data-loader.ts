@@ -13,7 +13,6 @@ import * as fs from 'fs';
 import * as path from 'path';
 import ansiColors from 'ansi-colors';
 import { fileOperations } from './fileOperations';
-import { ResolvedPath, getDataFolderPath } from '../utilities/path-resolver';
 
 export interface SourceEntities {
     pages?: any[];
@@ -29,14 +28,14 @@ export interface ChainDataLoaderOptions {
     sourceGuid: string;
     locale: string;
     isPreview: boolean;
-    resolvedPaths: ResolvedPath;
+    rootPath: string;
+    legacyFolders: boolean;
     elements?: string[];
 }
 
 export class ChainDataLoader {
     private options: ChainDataLoaderOptions;
     private fileOps: fileOperations;
-    private resolvedPaths: ResolvedPath;
 
     constructor(options: ChainDataLoaderOptions) {
         this.options = {
@@ -44,21 +43,14 @@ export class ChainDataLoader {
             ...options
         };
         
-        this.resolvedPaths = options.resolvedPaths;
-        
-        if (this.resolvedPaths.isLegacy) {
-            // Legacy mode: flat structure at resolved root level
-            // Don't use fileOperations for legacy mode as it enforces guid/locale/mode structure
-            this.fileOps = new fileOperations(this.resolvedPaths.resolvedRootPath, '', '', true); // Dummy params
-        } else {
-            // Normal mode: let fileOperations handle guid/locale/mode nesting
-            this.fileOps = new fileOperations(
-                this.resolvedPaths.resolvedRootPath, 
-                this.options.sourceGuid, 
-                this.options.locale, 
-                this.options.isPreview
-            );
-        }
+        // Use enhanced fileOperations with legacyFolders support
+        this.fileOps = new fileOperations(
+            options.rootPath,
+            options.sourceGuid,
+            options.locale,
+            options.isPreview,
+            options.legacyFolders
+        );
     }
 
     /**
@@ -236,26 +228,18 @@ export class ChainDataLoader {
     }
 
     /**
-     * Load JSON files from a specific directory using the established pattern
-     * This is the exact same pattern used in two-pass-sync.ts
+     * Load JSON files from a specific directory using enhanced fileOperations
      */
     private loadJsonFiles(folderPath: string): any[] {
         try {
-            let fullPath: string;
+            // Use enhanced fileOperations to get the correct data folder path
+            const fullPath = this.fileOps.getDataFolderPath(folderPath);
             
-            if (this.resolvedPaths.isLegacy) {
-                // Legacy mode: flat structure {instancePath}/folderPath
-                fullPath = folderPath;
-            } else {
-                // Normal mode: nested structure {instancePath}/folderPath
-                fullPath = `${this.options.sourceGuid}/${this.options.locale}/${this.options.isPreview ? 'preview' : 'live'}/${folderPath}`;
-            }
-            
-            if (!this.fileOps.folderExists(fullPath, this.resolvedPaths.resolvedRootPath)) {
+            if (!this.fileOps.folderExists(path.basename(fullPath), path.dirname(fullPath))) {
                 return [];
             }
             
-            const fileContents = this.fileOps.readDirectory(fullPath, this.resolvedPaths.resolvedRootPath);
+            const fileContents = this.fileOps.readDirectory(path.basename(fullPath), path.dirname(fullPath));
             return fileContents
                 .map(content => {
                     try {
@@ -301,18 +285,11 @@ export class ChainDataLoader {
      * Validate that the source data directory exists and contains expected structure
      */
     validateSourceDataStructure(): boolean {
-        let basePath: string;
-        
-        if (this.resolvedPaths.isLegacy) {
-            // Legacy mode: check if instancePath contains data files directly
-            basePath = '';
-        } else {
-            // Normal mode: check nested structure
-            basePath = `${this.options.sourceGuid}/${this.options.locale}/${this.options.isPreview ? 'preview' : 'live'}`;
-        }
+        // Use enhanced fileOperations instancePath property
+        const instancePath = this.fileOps.instancePath;
             
-        if (!this.fileOps.folderExists(basePath, this.resolvedPaths.resolvedRootPath)) {
-            console.error(ansiColors.red(`❌ Source data directory not found: ${this.resolvedPaths.resolvedRootPath}/${basePath}`));
+        if (!fs.existsSync(instancePath)) {
+            console.error(ansiColors.red(`❌ Source data directory not found: ${instancePath}`));
             console.log(ansiColors.yellow(`💡 Make sure you have pulled data first:`));
             console.log(`   node dist/index.js pull --guid ${this.options.sourceGuid} --locale ${this.options.locale} --channel website --verbose`);
             return false;

@@ -457,21 +457,13 @@ export class TopologicalContentSync {
      * Load source data from local file system
      */
     private async loadSourceData(): Promise<any> {
-        // Use ChainDataLoader with path resolver
-        const { resolveInstancePaths } = await import('../utilities/path-resolver');
-        const resolvedPaths = resolveInstancePaths({
-            rootPath: this.rootPath,
-            legacyFolders: this.legacyFolders,
-            guid: this.sourceGuid,
-            locale: this.locale,
-            isPreview: this.isPreview
-        });
-        
+        // Use ChainDataLoader with enhanced fileOperations
         const loader = new ChainDataLoader({
             sourceGuid: this.sourceGuid,
             locale: this.locale,
             isPreview: this.isPreview,
-            resolvedPaths,
+            rootPath: this.rootPath,
+            legacyFolders: this.legacyFolders,
             elements: this.elements
         });
 
