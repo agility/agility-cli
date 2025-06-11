@@ -633,11 +633,6 @@ yargs.command({
         return;
       }
 
-      console.log("USER DETAILS: ", user);
-
-      //hack
-      console.log("HACK RETURN ")
-      return
 
       const determinedMgmtBaseUrl = auth.determineBaseUrl(guid);
       mgmtApiOptions.baseUrl = userBaseUrl || determinedMgmtBaseUrl;
