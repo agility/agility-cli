@@ -2,7 +2,7 @@ const FormData = require("form-data");
 import { Auth } from "../services/auth";
 import * as mgmtApi from "@agility/management-sdk";
 
-import { type ContentListFilterModel } from "@agility/management-sdk/dist/types/contentListFilterModel";
+import { type ContentListFilterModel } from "@agility/management-sdk/dist/models/contentListFilterModel";
 
 import { fileOperations } from "../services/fileOperations";
 import { localePrompt } from "../prompts/locale-prompt";
