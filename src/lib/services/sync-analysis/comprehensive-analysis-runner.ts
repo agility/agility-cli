@@ -24,6 +24,7 @@ import { TargetInstanceDiscovery, SyncPlan } from './target-instance-discovery';
 import { ReferenceMapper } from '../../reference-mapper';
 import { UniversalReferenceExtractor } from './universal-reference-extractor';
 import { StateValidator } from './state-validator';
+import { LinkTypeDetector } from './link-type-detector';
 
 /**
  * Global model tracking to prevent duplicates across all chain displays
@@ -63,6 +64,7 @@ export class ComprehensiveAnalysisRunner {
     private sourceData?: SourceEntities;
     private universalReferenceExtractor: UniversalReferenceExtractor;
     private stateValidator: StateValidator;
+    private linkTypeDetector: LinkTypeDetector;
 
     constructor() {
         this.coordinator = new AnalysisStepCoordinator();
@@ -71,6 +73,7 @@ export class ComprehensiveAnalysisRunner {
         this.reconciliationReporter = new ReconciliationReporter();
         this.universalReferenceExtractor = new UniversalReferenceExtractor();
         this.stateValidator = new StateValidator();
+        this.linkTypeDetector = new LinkTypeDetector();
         this.setupAnalysisSteps();
     }
 
@@ -435,11 +438,26 @@ export class ComprehensiveAnalysisRunner {
     
     /**
      * Find broken references using enhanced relationship detection
+     * ENHANCED: Now filters out field configuration strings using LinkTypeDetector
      */
     private findBrokenReferencesEnhanced(allReferences: any[], sourceEntities: SourceEntities): any[] {
         const brokenReferences: any[] = [];
         
         allReferences.forEach(ref => {
+            // CRITICAL FIX: Skip field configuration strings that are not actual content references
+            if (ref.sourceType === 'model' && ref.targetType === 'content') {
+                // Find the source model to check if this is a field configuration string
+                const sourceModel = sourceEntities.models?.find((m: any) => 
+                    m.id === ref.sourceId || m.referenceName === ref.sourceId
+                );
+                
+                if (sourceModel && this.linkTypeDetector.isFieldConfigurationString(ref.targetId, sourceModel)) {
+                    // This is a field configuration string (like "footerLogos_ValueField"), not a content reference
+                    // Skip it - it should not be treated as a broken chain
+                    return;
+                }
+            }
+            
             const orphanCheck = this.stateValidator.isReferenceOrphan(ref.targetType, ref.targetId, sourceEntities);
             if (orphanCheck.isOrphan) {
                 brokenReferences.push({
