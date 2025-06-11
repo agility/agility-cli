@@ -7,10 +7,7 @@ import { getModel } from '../services/agility-service';
 
 type ProgressCallback = (processed: number, total: number, status?: 'success' | 'error') => void;
 
-// Helper function to check if a model is linked (based on push_new.ts logic)
-function isLinkedModel(model: mgmtApi.Model): boolean {
-    return model.fields?.some(field => field.type === 'Content' && field.settings?.['ContentDefinition']) ?? false;
-}
+// REMOVED: isLinkedModel function (no longer needed with Joel's simplified 2-pass approach)
 
 // Function to log detailed differences between two model objects
 function logModelDifferences(source: any, target: any, modelName: string) {
@@ -185,115 +182,8 @@ function areModelsDifferent(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Mod
     return areDifferent;
 }
 
-// Helper function to build dependency graph for nested models
-function buildDependencyGraph(models: mgmtApi.Model[]): Map<string, Set<string>> {
-    const graph = new Map<string, Set<string>>();
-    
-    models.forEach(model => {
-        if (!isLinkedModel(model)) return;
-        
-        const dependencies = new Set<string>();
-        model.fields?.forEach(field => {
-            if (field.type === 'Content' && field.settings?.['ContentDefinition']) {
-                dependencies.add(field.settings['ContentDefinition']);
-            }
-        });
-        
-        if (dependencies.size > 0) {
-            graph.set(model.referenceName, dependencies);
-        }
-    });
-    
-    return graph;
-}
-
-// Helper function to detect circular dependencies
-function detectCircularDependencies(graph: Map<string, Set<string>>): Set<string> {
-    const visited = new Set<string>();
-    const recursionStack = new Set<string>();
-    const circularModels = new Set<string>();
-
-    function dfs(node: string) {
-        visited.add(node);
-        recursionStack.add(node);
-
-        const dependencies = graph.get(node) || new Set();
-        Array.from(dependencies).forEach(dep => {
-            if (!visited.has(dep)) {
-                if (dfs(dep)) {
-                    circularModels.add(node);
-                }
-            } else if (recursionStack.has(dep)) {
-                circularModels.add(node);
-            }
-        });
-
-        recursionStack.delete(node);
-        return circularModels.has(node);
-    }
-
-    Array.from(graph.keys()).forEach(node => {
-        if (!visited.has(node)) {
-            dfs(node);
-        }
-    });
-
-    return circularModels;
-}
-
-// Helper function to sort models by dependencies
-function sortModelsByDependencies(models: mgmtApi.Model[]): mgmtApi.Model[] {
-    const graph = buildDependencyGraph(models);
-    const circularModels = detectCircularDependencies(graph);
-    
-    // Log circular dependencies
-    if (circularModels.size > 0) {
-        console.log(ansiColors.yellow('Circular dependencies detected in models:'));
-        circularModels.forEach(model => {
-            console.log(ansiColors.yellow(`- ${model}`));
-        });
-    }
-
-    const visited = new Set<string>();
-    const temp = new Set<string>();
-    const sorted: string[] = [];
-    
-    function visit(node: string) {
-        if (temp.has(node)) {
-            // Skip circular dependencies
-            return;
-        }
-        if (visited.has(node)) return;
-        
-        temp.add(node);
-        const dependencies = graph.get(node) || new Set();
-        dependencies.forEach(dep => visit(dep));
-        temp.delete(node);
-        visited.add(node);
-        sorted.push(node);
-    }
-    
-    // Start with non-linked models
-    const normalModels = models.filter(m => !isLinkedModel(m));
-    const linkedModels = models.filter(m => isLinkedModel(m));
-    
-    // Process normal models first
-    normalModels.forEach(model => {
-        if (!visited.has(model.referenceName)) {
-            visit(model.referenceName);
-        }
-    });
-    
-    // Then process linked models
-    linkedModels.forEach(model => {
-        if (!visited.has(model.referenceName)) {
-            visit(model.referenceName);
-        }
-    });
-    
-    // Return models in sorted order
-    return sorted.map(refName => models.find(m => m.referenceName === refName)!);
-}
+// REMOVED: Complex circular dependency detection functions (buildDependencyGraph, detectCircularDependencies, sortModelsByDependencies)
+// Joel's simplified 2-pass approach makes these obsolete
 
 // Helper functions from legacy system for proper model field updates
 function updateFields(existingModel: mgmtApi.Model, sourceModel: mgmtApi.Model): mgmtApi.ModelField[] {
@@ -468,38 +358,25 @@ export async function pushModels(
     forceSync: boolean = false,
     onProgress?: ProgressCallback
 ): Promise<{ successfulModels: number; failedModels: number; status: 'success' | 'error' }> {
+    
     let successfulModels = 0;
     let failedModels = 0;
     let status: 'success' | 'error' = 'success';
 
-    if (!models || models.length === 0) {
-        console.log('No models found to push');
-        return { successfulModels, failedModels, status };
-    }
-
     const totalModels = models.length;
     const apiClient = new mgmtApi.ApiClient(apiOptions);
-
-    // Detect circular dependencies
-    const graph = buildDependencyGraph(models);
-    const circularModelsSet = detectCircularDependencies(graph);
-    
-    const circularModels = models.filter(m => circularModelsSet.has(m.referenceName));
-    const nonCircularModels = models.filter(m => !circularModelsSet.has(m.referenceName));
-
-    const nonCircularNotLinkedModels = nonCircularModels.filter(m => !isLinkedModel(m));
-    const nonCircularLinkedModels = nonCircularModels.filter(m => isLinkedModel(m)).reverse();
-    // I reversed the order of this because of logical creation order by the user
 
     const processedModels = new Set<number>(); // Keep track of processed models by ID instead of reference name
 
     // Helper to process a model (create or update as needed)
-    const processModel = async (model: mgmtApi.Model, isNormal: boolean, overrideFields?: any[], passDescription?: string): Promise<boolean> => {
+    const processModel = async (model: mgmtApi.Model, overrideFields?: any[], passDescription?: string): Promise<boolean> => {
         const originalModelReferenceName = model.referenceName; // Capture original reference name
         let existingModel: mgmtApi.Model | null = null;
-        const modelType = passDescription || (isNormal ? 'Normal' : 'Nested'); // Use passDescription if available
 
         const isStubCreationIntent = Array.isArray(overrideFields) && overrideFields.length === 0;
+
+        // JOEL'S DEBUG OUTPUT
+        console.log("SOURCE MODEL:", model);
 
         try {
             // Always use the original reference name for fetching to ensure consistency
@@ -511,7 +388,7 @@ export async function pushModels(
                 if (isStubCreationIntent) {
                     // If the intent was to create a stub (empty fields) and the model already exists,
                     // skip comparison and update for this step. Step 4 will handle the full comparison.
-                    // console.log(ansiColors.gray(`  [INFO] ${modelType} ${ansiColors.underline(originalModelReferenceName)} already exists. Full field comparison will occur in the next phase.`));
+                    console.log(`✓ ${passDescription} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.gray('already exists')} - Skipping stub creation. ${ansiColors.green(targetGuid)}: ${ansiColors.green(String(existingModel.id))}`);
                     processedModels.add(model.id); // Add to processed set using model ID
                     return true; // Successfully handled for the stub creation phase
                 }
@@ -529,8 +406,6 @@ export async function pushModels(
                     fields: existingModel.fields || [] 
                 };
 
-                // Debug logging removed for cleaner console output
-
                 if (forceSync || areModelsDifferent(fixedModel, fixedExistingModel, logModelDiffs)) {
                     try {
                         // Use the new legacy-based update logic that properly merges fields
@@ -545,7 +420,7 @@ export async function pushModels(
                         
                         const updatedModel = await apiClient.modelMethods.saveModel(modelPayload, targetGuid);
                         referenceMapper.addMapping('model', model, updatedModel); // Update mapping with newly updated model
-                        console.log(`✓ ${modelType} ${ansiColors.bold.cyan('updated')} ${ansiColors.underline(originalModelReferenceName)} (ID: ${existingModel.id}) on target.`);
+                        console.log(`✓ ${passDescription} ${ansiColors.bold.cyan('updated')} ${ansiColors.underline(originalModelReferenceName)} (ID: ${existingModel.id}) on target.`);
                         processedModels.add(model.id); // Add to processed set using model ID
                         return true;
                     } catch (error: any) {
@@ -561,13 +436,13 @@ export async function pushModels(
 
                         if (isNoChangeNeededError) {
                             // Model is already in the correct state - treat as success
-                            console.log(`✓ ${modelType} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.gray('already up-to-date')} (no update needed). ${ansiColors.green(targetGuid)}: ${ansiColors.green(String(existingModel.id))}`);
+                            console.log(`✓ ${passDescription} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.gray('already up-to-date')} (no update needed). ${ansiColors.green(targetGuid)}: ${ansiColors.green(String(existingModel.id))}`);
                             processedModels.add(model.id);
                             return true;
                         }
 
                         console.error(
-                            ansiColors.red(`Error updating ${modelType.toLowerCase()} ${originalModelReferenceName} (Target ID: ${existingModel?.id || 'N/A'}):`),
+                            ansiColors.red(`Error updating model ${originalModelReferenceName} (Target ID: ${existingModel?.id || 'N/A'}) - (${passDescription}):`),
                             error
                         );
                         if (error.response && error.response.data) {
@@ -588,7 +463,7 @@ export async function pushModels(
                         return false;
                     }
                 } else {
-                    console.log(`✓ ${modelType} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.gray('exists and is identical')} - Skipping update. ${ansiColors.green(targetGuid)}: ${ansiColors.green(String(existingModel.id))}`);
+                    console.log(`✓ ${passDescription} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.gray('exists and is identical')} - Skipping update. ${ansiColors.green(targetGuid)}: ${ansiColors.green(String(existingModel.id))}`);
                     processedModels.add(model.id); // Add to processed set using model ID
                     return true;
                 }
@@ -604,11 +479,10 @@ export async function pushModels(
                 errorMessage.includes("could not find model");
 
             if (isNotFoundError) {
-                // console.log(ansiColors.blue(`  [INFO] Model ${originalModelReferenceName} not found on target (Error: ${error.message}). Will attempt to create.`));
                 existingModel = null; // Ensure creation path is taken
             } else {
                 // Actual error during fetch or pre-update logic
-                console.error(`[Model] ✗ Error during initial check for ${modelType.toLowerCase()} model ${originalModelReferenceName}: ${error.message}`);
+                console.error(`[Model] ✗ Error during initial check for ${passDescription}, model ${originalModelReferenceName}: ${error.message}`);
                 failedModels++;
                 return false;
             }
@@ -629,11 +503,11 @@ export async function pushModels(
             const savedModel = await apiClient.modelMethods.saveModel(modelPayload, targetGuid);
             
             if (!savedModel || !savedModel.id) {
-                 throw new Error(`Failed to save model ${originalModelReferenceName} or returned model has no ID.`);
+                throw new Error(`Failed to save model ${originalModelReferenceName} or returned model has no ID.`);
             }
 
             referenceMapper.addMapping('model', model, savedModel);
-            console.log(`✓ ${modelType} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.cyan('created')} (New ID: ${savedModel.id}) on target.`);
+            console.log(`✓ ${passDescription} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.cyan('created')} (New ID: ${savedModel.id}) on target.`);
             processedModels.add(model.id); // Add to processed set using model ID
             return true;
         } catch (error: any) {
@@ -647,29 +521,29 @@ export async function pushModels(
 
             if (isAlreadyExistsError) {
                 // Model already exists but initial lookup failed - try to retrieve it again
-                console.log(`⚠️  ${modelType} ${ansiColors.underline(originalModelReferenceName)} appears to already exist on target (creation failed). Attempting to retrieve...`);
+                console.log(`⚠️  ${passDescription} ${ansiColors.underline(originalModelReferenceName)} appears to already exist on target (creation failed). Attempting to retrieve...`);
                 try {
                     const retrievedModel = await apiClient.modelMethods.getModelByReferenceName(originalModelReferenceName, targetGuid);
                     if (retrievedModel) {
                         referenceMapper.addMapping('model', model, retrievedModel);
-                        console.log(`✓ ${modelType} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.gray('found on target')} after creation failure. ${ansiColors.green(targetGuid)}: ${ansiColors.green(String(retrievedModel.id))}`);
+                        console.log(`✓ ${passDescription} ${ansiColors.underline(originalModelReferenceName)} ${ansiColors.bold.gray('found on target')} after creation failure. ${ansiColors.green(targetGuid)}: ${ansiColors.green(String(retrievedModel.id))}`);
                         processedModels.add(model.id);
                         return true;
                     }
                 } catch (retrieveError: any) {
-                    console.error(`[Model] ✗ Failed to retrieve ${modelType.toLowerCase()} model ${originalModelReferenceName} after creation failure: ${retrieveError.message}`);
+                    console.error(`[Model] ✗ Failed to retrieve model ${originalModelReferenceName} after creation failure: ${retrieveError.message} (${passDescription})`);
                 }
             }
 
             console.error(
-                ansiColors.red(`Error creating ${modelType.toLowerCase()} ${originalModelReferenceName}:`),
+                ansiColors.red(`Error creating model ${originalModelReferenceName} (${passDescription}):`),
                 error
             );
             if (error.response && error.response.data) {
                 console.error(ansiColors.red(`  API Response Data: ${JSON.stringify(error.response.data, null, 2)}`));
             }
             if (error.request) {
-                 if (typeof error.request === 'string') {
+                if (typeof error.request === 'string') {
                     console.error(ansiColors.red(`  API Request Info: ${error.request}`));
                 } else {
                     console.error(ansiColors.red(`  API Request Details: ${JSON.stringify({
@@ -684,45 +558,25 @@ export async function pushModels(
         }
     };
 
-    // 1. Process non-circular, non-linked models
-    for (const model of nonCircularNotLinkedModels) {
-        if (processedModels.has(model.id)) continue; // Skip if already processed
-        const isNormal = !isLinkedModel(model);
-        const success = await processModel(model, isNormal, undefined, 'Normal Model');
+    // JOEL'S SIMPLIFIED 2-PASS APPROACH (MUCH CLEANER!)
+    
+    //1: first pass - make sure all the models are in the instance (no fields for first pass to ensure stubs exist)
+    for (const model of models) {
+        const success = await processModel(model, [], 'First pass (empty fields phase)');
         if (success) successfulModels++; else failedModels++;
         if (onProgress) onProgress(successfulModels + failedModels, totalModels, failedModels > 0 ? 'error' : 'success');
     }
 
-    // 2. Create circular models with empty fields first (ensures all stubs exist for linking)
-    for (const model of circularModels) {
-        if (processedModels.has(model.id)) continue; // Skip if already processed
-        const isNormal = !isLinkedModel(model); // isLinkedModel is true for circular
-        // Pass undefined for overrideFields to let processModel determine if it needs to be a stub
-        const success = await processModel(model, isNormal, [], 'Circular Linked Model (empty fields phase)');
-        if (success) successfulModels++; else failedModels++;
-        if (onProgress) onProgress(successfulModels + failedModels, totalModels, failedModels > 0 ? 'error' : 'success');
-    }
-
-    // 3. Update circular models with full fields (now that all stubs exist)
-    for (const model of circularModels) {
-        // We re-process here; processModel handles diffing and skipping if identical or if it was just a stub acknowledgement
-        const isNormal = !isLinkedModel(model); // isLinkedModel is true for circular
-        const success = await processModel(model, isNormal, model.fields || [], 'Circular Linked Model (update fields phase)');
+    //2: second pass - update all the models with full fields
+    for (const model of models) {
+        // Re-process here; processModel handles diffing and skipping if identical or if it was just a stub acknowledgement
+        const success = await processModel(model, undefined, 'Second pass (full fields phase)');
         if (success) {
             // Only count unique successful models if you adjust logic here
             // For now, it reflects processing attempts.
         } else {
             failedModels++;
         }
-        if (onProgress) onProgress(successfulModels + failedModels, totalModels, failedModels > 0 ? 'error' : 'success');
-    }
-
-    // 4. Process non-circular, linked models (these can now safely link to fully defined circular models)
-    for (const model of nonCircularLinkedModels) {
-        if (processedModels.has(model.id)) continue; // Skip if already processed
-        const isNormal = !isLinkedModel(model); // This will be true if it wasn't in circularModels
-        const success = await processModel(model, isNormal, undefined, 'Linked Model');
-        if (success) successfulModels++; else failedModels++;
         if (onProgress) onProgress(successfulModels + failedModels, totalModels, failedModels > 0 ? 'error' : 'success');
     }
 

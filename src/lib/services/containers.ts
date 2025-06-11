@@ -541,19 +541,13 @@ export class containers {
             const modelIdArray = Array.from(referencedModelIds);
             for (const modelId of modelIdArray) {
                 try {
-                    // Try both content and page model methods
+                    // JOEL'S SIMPLIFICATION: Direct model fetch instead of searching through lists
                     let model = null;
                     
                     try {
-                        const contentModels = await apiClient.modelMethods.getContentModules(true, guid, false);
-                        model = contentModels.find(m => m.id === modelId);
+                        model = await apiClient.modelMethods.getContentModel(modelId, guid);
                     } catch {
-                        try {
-                            const pageModels = await apiClient.modelMethods.getPageModules(true, guid);
-                            model = pageModels.find(m => m.id === modelId);
-                        } catch {
-                            // Model doesn't exist or access denied
-                        }
+                        // Model doesn't exist or access denied - this is expected for some IDs
                     }
                     
                     if (model) {

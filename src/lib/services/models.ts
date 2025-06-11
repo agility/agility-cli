@@ -60,22 +60,9 @@ export class models {
                 let modelDisplayName = modelSummary.referenceName || modelSummary.displayName || `ID ${modelSummary.id}`;
 
                 try {
-                    // CRITICAL FIX: Always fetch full details for both content and page modules
-                    // This ensures contentDefinitionTypeID is consistently available for all models
-                    if (contentModules.find(cm => cm.id === modelSummary.id)) {
-                        // Content module - get full details
-                        modelDetails = await apiClient.modelMethods.getContentModel(modelSummary.id, guid);
-                    } else {
-                        // Page module - also get full details (summary data may be incomplete)
-                        // Use getContentModel for page modules too as it returns complete model structure
-                        try {
-                            modelDetails = await apiClient.modelMethods.getContentModel(modelSummary.id, guid);
-                        } catch (pageModuleError) {
-                            // Fallback to summary if getContentModel fails for page modules
-                            console.warn(`⚠️  Using summary data for page module ${modelDisplayName} - full details unavailable`);
-                            modelDetails = modelSummary;
-                        }
-                    }
+                    // JOEL'S SIMPLIFICATION: Always fetch full model details regardless of type
+                    // This ensures consistent behavior and complete data for all models
+                    modelDetails = await apiClient.modelMethods.getContentModel(modelSummary.id, guid);
                     
                     if (!modelDetails) {
                         throw new Error("Could not retrieve model details.");
@@ -124,35 +111,35 @@ export class models {
         }
     }
 
-    async validateModels(guid: string,locale:string, isPreview: boolean = false){
-        try{
+    async validateModels(guid: string, locale: string, isPreview: boolean = false) {
+        try {
             let apiClient = new mgmtApi.ApiClient(this._options);
 
             let fileOperation = new fileOperations(this._rootPath, guid, locale, true);
-            let files = fileOperation.readDirectory(`${guid}/${locale}/${isPreview ? 'preview':'live'}/models`);
+            let files = fileOperation.readDirectory(`${guid}/${locale}/${isPreview ? 'preview' : 'live'}/models`);
             let modelStr: string[] = [];
-            for(let i = 0; i < files.length; i++){
+            for (let i = 0; i < files.length; i++) {
                 let model = JSON.parse(files[i]) as mgmtApi.Model;
                 let existingModel = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
-    
-                if(existingModel.referenceName){
+
+                if (existingModel.referenceName) {
                     modelStr.push(existingModel.referenceName);
                 }
-               
+
             }
             return modelStr;
         }
-        catch{
+        catch {
 
         }
-        
+
     }
 
-    deleteModelFiles(models: string[], guid: string, locale:string, isPreview:boolean = false){
+    deleteModelFiles(models: string[], guid: string, locale: string, isPreview: boolean = false) {
         let file = new fileOperations(this._rootPath, guid, locale, true);
-        for(let i = 0; i < models.length; i++){
+        for (let i = 0; i < models.length; i++) {
             let fileName = `${models[i]}.json`;
-            file.deleteFile(`agility-files/${guid}/${locale}/${isPreview ? 'preview':'live'}/models/${fileName}`);
+            file.deleteFile(`agility-files/${guid}/${locale}/${isPreview ? 'preview' : 'live'}/models/${fileName}`);
         }
     }
 }
