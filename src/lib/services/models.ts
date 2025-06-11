@@ -60,14 +60,21 @@ export class models {
                 let modelDisplayName = modelSummary.referenceName || modelSummary.displayName || `ID ${modelSummary.id}`;
 
                 try {
-                    // Check if it's a content model by presence of certain fields, or assume page modules are simpler
-                    // A more robust check might be needed, or an explicit type field if available on modelSummary.
-                    // For now, we assume if it came from getContentModules, we fetch full details.
-                    // PageModules often are the full detail already.
+                    // CRITICAL FIX: Always fetch full details for both content and page modules
+                    // This ensures contentDefinitionTypeID is consistently available for all models
                     if (contentModules.find(cm => cm.id === modelSummary.id)) {
+                        // Content module - get full details
                         modelDetails = await apiClient.modelMethods.getContentModel(modelSummary.id, guid);
                     } else {
-                        modelDetails = modelSummary; // Assume page module summary is detailed enough or is the detail itself
+                        // Page module - also get full details (summary data may be incomplete)
+                        // Use getContentModel for page modules too as it returns complete model structure
+                        try {
+                            modelDetails = await apiClient.modelMethods.getContentModel(modelSummary.id, guid);
+                        } catch (pageModuleError) {
+                            // Fallback to summary if getContentModel fails for page modules
+                            console.warn(`⚠️  Using summary data for page module ${modelDisplayName} - full details unavailable`);
+                            modelDetails = modelSummary;
+                        }
                     }
                     
                     if (!modelDetails) {

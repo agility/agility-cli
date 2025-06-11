@@ -53,7 +53,7 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
             return;
         }
 
-        // First, identify all containers that were processed in page chains
+        // Find containers not in page chains
         const containersInPageChains = new Set<number>();
         
         if (sourceEntities.pages) {
@@ -62,7 +62,6 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
             });
         }
 
-        // Find containers NOT in page chains
         const containersNotInPages = sourceEntities.containers.filter((container: any) => 
             !containersInPageChains.has(container.contentViewID)
         );
@@ -72,96 +71,55 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
             return;
         }
 
-        console.log(ansiColors.yellow(`Found ${containersNotInPages.length} containers not in page chains:`));
-        
-        // Separate containers with content from those without
-        const containersWithContent: any[] = [];
-        const containersWithoutContent: any[] = [];
-        
+        // Categorize by contentDefinitionTypeID (only containers with content)
+        const pageComponentContainers: Array<{ container: any, contentCount: number }> = [];
+        const contentModelContainers: Array<{ container: any, contentCount: number }> = [];
+
         containersNotInPages.forEach((container: any) => {
-            const containerContent = sourceEntities.content?.filter((content: any) => 
-                content.properties?.referenceName === container.referenceName
-            ) || [];
-            
-            if (containerContent.length > 0) {
-                containersWithContent.push({ container, contentCount: containerContent.length });
-            } else {
-                containersWithoutContent.push(container);
+            const contentCount = this.getContainerContentCount(container, sourceEntities);
+            if (contentCount === 0) return; // Skip empty containers
+
+            const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
+            if (model?.contentDefinitionTypeID === 1) {
+                pageComponentContainers.push({ container, contentCount });
+            } else if (model?.contentDefinitionTypeID === 0) {
+                contentModelContainers.push({ container, contentCount });
             }
         });
-        
-        // TRUNCATED: Show summary only to improve console readability
-        if (containersWithoutContent.length > 0) {
-            console.log(ansiColors.gray(`\n   🏗️  ${containersWithoutContent.length} empty containers (component templates, system containers, and orphaned items)`));
-        }
-        
-        // 📄 Display containers WITH content (limited for readability)
-        if (containersWithContent.length > 0) {
-            console.log(ansiColors.cyan(`\n📋 CONTAINERS WITH CONTENT (${containersWithContent.length} containers):`));
-            
-            // Categorize containers with content
-            const contentCategories = {
-                instance: [] as any[],
-                store: [] as any[],
-                other: [] as any[]
-            };
-            
-            containersWithContent.forEach(({ container, contentCount }) => {
-                const analysis = this.analyzeContainerPattern(container, sourceEntities);
-                if (analysis.category === 'instance') {
-                    contentCategories.instance.push({ container, contentCount, analysis });
-                } else if (analysis.category === 'store') {
-                    contentCategories.store.push({ container, contentCount, analysis });
-                } else {
-                    contentCategories.other.push({ container, contentCount, analysis });
+
+        // 📄 PAGE COMPONENT CONTAINERS
+        if (pageComponentContainers.length > 0) {
+            console.log(ansiColors.cyan(`\n📄 PAGE COMPONENT CONTAINERS (${pageComponentContainers.length} containers):`));
+            const displayLimit = 3;
+            pageComponentContainers.slice(0, displayLimit).forEach(({ container, contentCount }) => {
+                const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
+                console.log(ansiColors.white(`\n   ContainerID:${container.contentViewID} (${container.referenceName}) - ${contentCount} items`));
+                if (model) {
+                    console.log(ansiColors.gray(`     Model:${model.referenceName} (${model.displayName || model.name || 'No Name'})`));
                 }
+                this.showContainerContentItems(container, sourceEntities, '     ');
             });
-            
-            // 📄 PAGE COMPONENT INSTANCES (limited display)
-            if (contentCategories.instance.length > 0) {
-                console.log(ansiColors.cyan(`\n   📄 PAGE COMPONENT INSTANCES (${contentCategories.instance.length} containers):`));
-                console.log(ansiColors.cyan('      User-created component instances with content'));
-                const displayLimit = 3;
-                contentCategories.instance.slice(0, displayLimit).forEach(({ container, contentCount, analysis }) => {
-                    console.log(ansiColors.white(`\n      ContainerID:${container.contentViewID} (${container.referenceName}) - ${contentCount} items`));
-                    console.log(ansiColors.gray(`        ${analysis.reason}`));
-                    this.showContainerDependencyHierarchy(container, sourceEntities, '        ');
-                });
-                if (contentCategories.instance.length > displayLimit) {
-                    const remaining = contentCategories.instance.length - displayLimit;
-                    console.log(ansiColors.gray(`      ... and ${remaining} more component instances`));
-                }
+            if (pageComponentContainers.length > displayLimit) {
+                const remaining = pageComponentContainers.length - displayLimit;
+                console.log(ansiColors.gray(`   ... and ${remaining} more page component containers`));
             }
-            
-            // 📦 CONTENT STORES (limited display)
-            if (contentCategories.store.length > 0) {
-                console.log(ansiColors.cyan(`\n   📦 CONTENT STORES (${contentCategories.store.length} containers):`));
-                console.log(ansiColors.cyan('      Data repositories with content'));
-                const displayLimit = 5;
-                contentCategories.store.slice(0, displayLimit).forEach(({ container, contentCount, analysis }) => {
-                    console.log(ansiColors.white(`\n      ContainerID:${container.contentViewID} (${container.referenceName}) - ${contentCount} items`));
-                    console.log(ansiColors.gray(`        ${analysis.reason}`));
-                    this.showContainerDependencyHierarchy(container, sourceEntities, '        ');
-                });
-                if (contentCategories.store.length > displayLimit) {
-                    const remaining = contentCategories.store.length - displayLimit;
-                    console.log(ansiColors.gray(`      ... and ${remaining} more content stores`));
+        }
+
+        // 📦 CONTENT MODEL CONTAINERS  
+        if (contentModelContainers.length > 0) {
+            console.log(ansiColors.cyan(`\n📦 CONTENT MODEL CONTAINERS (${contentModelContainers.length} containers):`));
+            const displayLimit = 5;
+            contentModelContainers.slice(0, displayLimit).forEach(({ container, contentCount }) => {
+                const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
+                console.log(ansiColors.white(`\n   ContainerID:${container.contentViewID} (${container.referenceName}) - ${contentCount} items`));
+                if (model) {
+                    console.log(ansiColors.gray(`     Model:${model.referenceName} (${model.displayName || model.name || 'No Name'})`));
                 }
-            }
-            
-            // 📂 OTHER CONTAINERS (limited display)
-            if (contentCategories.other.length > 0) {
-                console.log(ansiColors.cyan(`\n   📂 OTHER CONTAINERS (${contentCategories.other.length} containers):`));
-                const displayLimit = 10;
-                contentCategories.other.slice(0, displayLimit).forEach(({ container, contentCount, analysis }) => {
-                    console.log(ansiColors.white(`\n      ContainerID:${container.contentViewID} (${container.referenceName}) - ${contentCount} items`));
-                    console.log(ansiColors.gray(`        ${analysis.pattern}: ${analysis.reason}`));
-                    this.showContainerDependencyHierarchy(container, sourceEntities, '        ');
-                });
-                if (contentCategories.other.length > displayLimit) {
-                    const remaining = contentCategories.other.length - displayLimit;
-                    console.log(ansiColors.gray(`      ... and ${remaining} more containers`));
-                }
+                this.showContainerContentItems(container, sourceEntities, '     ');
+            });
+            if (contentModelContainers.length > displayLimit) {
+                const remaining = contentModelContainers.length - displayLimit;
+                console.log(ansiColors.gray(`   ... and ${remaining} more content model containers`));
             }
         }
     }
@@ -274,8 +232,8 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
     }
 
     /**
-     * 🔍 Analyze container naming patterns and orphaned reasons
-     * 🎯 ENHANCED: Template vs Instance Architecture Understanding
+     * 🔍 Analyze container using contentDefinitionTypeID for accurate classification
+     * 🎯 ENHANCED: Use actual model type data instead of name patterns
      */
     private analyzeContainerPattern(container: any, sourceEntities: SourceEntities): {
         pattern: string;
@@ -288,88 +246,77 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
         const containerID = container.contentViewID || container.id;
         
         // ⚙️ SYSTEM CONTAINER DETECTION (FIRST - highest priority)
-        // CMS infrastructure: AgilityCSSFiles, etc.
         if (refName.startsWith('Agility')) {
             return {
-                pattern: '⚙️ System Container',
-                reason: 'Built-in Agility CMS system container',
+                pattern: '⚙️ System',
+                reason: 'CMS system container',
                 isLikelyList: false,
                 category: 'system'
             };
         }
         
-        // 📦 CONTENT STORE DETECTION (SECOND - check for data repositories)
-        // Data repositories: Categories, Posts, i18, etc.
-        if (this.isContentStore(container, sourceEntities)) {
-            const contentCount = this.getContainerContentCount(container, sourceEntities);
+        // 🔍 USE contentDefinitionTypeID to properly classify containers
+        const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
+        const contentCount = this.getContainerContentCount(container, sourceEntities);
+        
+        if (model) {
+            // Use contentDefinitionTypeID to distinguish page vs content models
+            const isPageModule = model.contentDefinitionTypeID === 1; // pageModule
+            const isContentModule = model.contentDefinitionTypeID === 2; // contentModule
+            
+            // Detect list patterns from naming
+            const isLikelyList = refName.endsWith('s') && !refName.includes('_');
+            
+            if (isPageModule) {
+                return {
+                    pattern: '📄 Page Module',
+                    reason: 'Page component container',
+                    isLikelyList: false,
+                    category: 'instance'
+                };
+            } else if (isContentModule) {
+                if (isLikelyList) {
+                    return {
+                        pattern: '📦 Content List',
+                        reason: 'Content module list',
+                        isLikelyList: true,
+                        category: 'store'
+                    };
+                } else {
+                    return {
+                        pattern: '📋 Content Module',
+                        reason: 'Content module container',
+                        isLikelyList: false,
+                        category: 'instance'
+                    };
+                }
+            }
+        }
+        
+        // Fallback for containers without clear model relationship
+        const hasPagePrefix = refName.includes('_');
+        const isLikelyList = refName.endsWith('s') || refName.includes('Options') || refName.includes('Categories');
+        
+        if (isLikelyList) {
             return {
-                pattern: '📦 Content Store',
-                reason: `Data repository with ${contentCount} content items`,
+                pattern: '📦 List',
+                reason: 'Multi-item container',
                 isLikelyList: true,
                 category: 'store'
             };
-        }
-        
-        // 🎨 COMPONENT TEMPLATE DETECTION (THIRD - architectural templates)
-        // Template containers: Low IDs, empty by design, match model names
-        if (this.isComponentTemplate(container, sourceEntities)) {
+        } else if (hasPagePrefix) {
             return {
-                pattern: '🎨 Component Template',
-                reason: 'Empty by design - architectural foundation for component instances',
+                pattern: '📄 Component',
+                reason: 'Page-scoped container',
                 isLikelyList: false,
-                category: 'template'
-            };
-        }
-        
-        // 📄 PAGE COMPONENT INSTANCE DETECTION (FOURTH - user instances)
-        // Instance containers: High sequential IDs, page-scoped, with content
-        const instancePattern = this.detectInstancePattern(container, sourceEntities);
-        if (instancePattern) {
-            return {
-                pattern: `📄 Page Component Instance (${instancePattern.pagePrefix}_*)`,
-                reason: `User-created instance of ${instancePattern.componentType} component`,
-                isLikelyList: false,
-                category: 'instance',
-                sequentialInfo: instancePattern.sequentialInfo
-            };
-        }
-        
-        // 🚫 ORPHANED DETECTION (LAST - fallback for unmatched)
-        const underscoreIndex = refName.indexOf('_');
-        const pagePrefix = underscoreIndex > 0 ? refName.substring(0, underscoreIndex) : '';
-        
-        // Check if page exists
-        const hasMatchingPage = sourceEntities.pages?.some((page: any) => 
-            page.name?.toLowerCase().includes(pagePrefix.toLowerCase()) ||
-            page.path?.toLowerCase().includes(pagePrefix.toLowerCase())
-        );
-        
-        // Detect list vs item patterns
-        const isLikelyList = refName.endsWith('s') || 
-                            refName.includes('Options') || 
-                            refName.includes('Categories') ||
-                            refName.includes('Items');
-        
-        if (pagePrefix && !hasMatchingPage) {
-            return {
-                pattern: `🚫 Orphaned (${pagePrefix}_*)`,
-                reason: `Created for "${pagePrefix}" page/section that may no longer exist`,
-                isLikelyList,
-                category: 'orphaned'
-            };
-        } else if (isLikelyList) {
-            return {
-                pattern: '📦 List Container',
-                reason: 'Designed to hold multiple content items',
-                isLikelyList: true,
-                category: 'store'
+                category: 'instance'
             };
         } else {
             return {
-                pattern: '❓ Unknown Component',
-                reason: 'Standalone component or unclassified pattern',
+                pattern: '📋 Component',
+                reason: 'Generic container',
                 isLikelyList: false,
-                category: 'orphaned'
+                category: 'instance'
             };
         }
     }
@@ -545,6 +492,24 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
         return sourceEntities.content.filter((content: any) => 
             content.properties?.referenceName === container.referenceName
         ).length;
+    }
+
+    /**
+     * Show container content items in a clean format
+     */
+    private showContainerContentItems(container: any, sourceEntities: SourceEntities, indent: string): void {
+        const containerContent = sourceEntities.content?.filter((content: any) => 
+            content.properties?.referenceName === container.referenceName
+        ) || [];
+
+        containerContent.forEach((content: any) => {
+            const contentInfo = `ContentID:${content.contentID} (${content.properties?.referenceName || 'Unknown'})`;
+            const state = this.getPublicationState(content);
+            console.log(ansiColors.blue(`${indent}└─ ${contentInfo}${state}`));
+            
+            // Show assets if any
+            this.showContentAssetDependencies(content, sourceEntities, indent + '   ');
+        });
     }
 
     /**
