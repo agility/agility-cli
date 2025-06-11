@@ -66,13 +66,13 @@ export default async function generateReactComponents(selectedInstance: AgilityI
       AI_ENDPOINT,
       {},
       {
-      headers: {
-        AUTHORIZATION: `Bearer ${token.access_token}`,
-        "Content-Type": "application/json",
-        "agility-guid": guid,
-        "agility-locale": locale,
-      },
-      responseType: "stream",
+        headers: {
+          AUTHORIZATION: `Bearer ${token.access_token}`,
+          "Content-Type": "application/json",
+          "agility-guid": guid,
+          "agility-locale": locale,
+        },
+        responseType: "stream",
       }
     );
 
@@ -85,9 +85,9 @@ export default async function generateReactComponents(selectedInstance: AgilityI
     });
 
     reader.on("end", () => {
-   
+
       console.log(result)
-   
+
     });
 
     return await new Promise((resolve) => reader.on("end", resolve));

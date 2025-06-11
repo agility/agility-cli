@@ -10,13 +10,13 @@ import { AgilityInstance } from "../../types/instance";
 import { forceDevMode } from "../../index";
 const axios = require("axios");
 
-let AI_ENDPOINT_DEV:string = "https://manager-bff-qa-git-cli-ai.publishwithagility.com/api/ai/cli/typescript-models";
+let AI_ENDPOINT_DEV: string = "https://manager-bff-qa-git-cli-ai.publishwithagility.com/api/ai/cli/typescript-models";
 // let AI_ENDPOINT_DEV:string = "https://bff.publishwithagility.com/api/ai/cli/typescript-models";
-let AI_ENDPOINT_PROD:string = "https://bff.agilitycms.com/api/ai/cli/typescript-models";
+let AI_ENDPOINT_PROD: string = "https://bff.agilitycms.com/api/ai/cli/typescript-models";
 
 
 export default async function generateTypes(selectedInstance: AgilityInstance) {
-  
+
   let AI_ENDPOINT: string = forceDevMode ? AI_ENDPOINT_DEV : AI_ENDPOINT_PROD;
 
 
@@ -29,7 +29,7 @@ export default async function generateTypes(selectedInstance: AgilityInstance) {
   const code = new fileOperations('agility-files', selectedInstance.guid, locale, true);
   let guid: string = selectedInstance.guid as string;
   const token = await auth.getToken();
- 
+
   try {
     // lets hit the AI_ENDPOINT
     const response = await axios.post(
@@ -69,7 +69,7 @@ export default async function generateTypes(selectedInstance: AgilityInstance) {
     code.appendLogFile(`${timestamp} Error generating TypeScript interfaces: ${error} - ${AI_ENDPOINT}\n`);
     console.log(ansiColors.red(`Error occurred while generating TypeScript interfaces.`));
     homePrompt(true);
-  
+
   }
 
 }

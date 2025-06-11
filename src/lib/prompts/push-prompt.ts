@@ -26,7 +26,7 @@ export async function pushFiles(instance: any, useBlessedUI: boolean) {
   const selectedInstance: AgilityInstance = await instanceSelector();
   const locale = await localePrompt(selectedInstance);
   const preview = await isPreviewPrompt();
-  const elements:any = await elementsPrompt('push');
+  const elements: any = await elementsPrompt('push');
   const rootPath = await rootPathPrompt();
 
   const basePath = `${rootPath}/${guid}/${locale}/${preview ? 'preview' : 'live'}`;
@@ -50,7 +50,7 @@ export async function pushFiles(instance: any, useBlessedUI: boolean) {
     const legacyFolders = false;
     const dryRun = false; // Assuming not a dry run from here
     const contentFolder = null; // Assuming default content folder
-    
+
     // Assuming push service constructor will also be updated for headless/verbose
     // For now, passing flags based on useBlessedUI
     const isHeadless = !useBlessedUI;
@@ -58,23 +58,23 @@ export async function pushFiles(instance: any, useBlessedUI: boolean) {
 
     console.log(colors.yellow("Pushing your instance..."));
     let pushOperation = new push(
-        options, 
-        multibar, // Pass null
-        guid, // sourceGuid
-        selectedInstance.guid, // targetGuid
-        locale, 
-        preview, 
-        useBlessedUI, // Pass the flag
-        elements, 
-        rootPath, 
-        legacyFolders, 
-        dryRun,
-        contentFolder,
-        modelDiffsEnabled,
-        // TODO: Pass headless/verbose flags if push constructor expects them
-        // isHeadless, 
-        // isVerbose 
-        );
+      options,
+      multibar, // Pass null
+      guid, // sourceGuid
+      selectedInstance.guid, // targetGuid
+      locale,
+      preview,
+      useBlessedUI, // Pass the flag
+      elements,
+      rootPath,
+      legacyFolders,
+      dryRun,
+      contentFolder,
+      modelDiffsEnabled,
+      // TODO: Pass headless/verbose flags if push constructor expects them
+      // isHeadless,
+      // isVerbose
+    );
     // await pushOperation.initialize(); // Assuming constructor handles initialization or pushInstance does
     await pushOperation.pushInstance();
   } else {

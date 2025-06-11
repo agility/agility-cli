@@ -67,8 +67,7 @@ export async function fetchCommandsPrompt(
       JSON.stringify(sitemap, null, 2)
     );
     console.log(
-      `Sitemap saved to ${process.cwd()}/agility-files/${guid}/${locale}/${
-        isPreview ? "preview" : "live"
+      `Sitemap saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"
       }/fetch/sitemapFlat.json`
     );
     // fetchCommandsPrompt(selectedInstance, keys, guid, locale, channel, isPreview, baseUrl, apiKey);
@@ -86,8 +85,7 @@ export async function fetchCommandsPrompt(
       JSON.stringify(sitemapNested, null, 2)
     );
     console.log(
-      `Sitemap saved to ${process.cwd()}/agility-files/${guid}/${locale}/${
-        isPreview ? "preview" : "live"
+      `Sitemap saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"
       }/fetch/sitemapNested.json`
     );
     // fetchCommandsPrompt(selectedInstance, keys, guid, locale, channel, isPreview, baseUrl, apiKey);
@@ -114,8 +112,7 @@ export async function fetchCommandsPrompt(
       JSON.stringify(contentList, null, 2)
     );
     console.log(
-      `Content list saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/${
-        listAnswer.referenceName
+      `Content list saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/${listAnswer.referenceName
       }.json`
     );
   } else if (answer.apiMethod === "getContentItem") {
@@ -139,8 +136,7 @@ export async function fetchCommandsPrompt(
       JSON.stringify(contentItem, null, 2)
     );
     console.log(
-      `Content item saved to ${process.cwd()}/agility-files/${guid}/${locale}/${
-        isPreview ? "preview" : "live"
+      `Content item saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"
       }/fetch/contentItem-${itemAnswer.contentItemID}.json`
     );
   } else if (answer.apiMethod === "getPage (by ID)") {
@@ -162,8 +158,7 @@ export async function fetchCommandsPrompt(
       JSON.stringify(page, null, 2)
     );
     console.log(
-      `Page data saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/page-${
-        pageAnswer.pageID
+      `Page data saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/page-${pageAnswer.pageID
       }.json`
     );
   } else if (answer.apiMethod === "getPageByPath") {
@@ -191,8 +186,7 @@ export async function fetchCommandsPrompt(
       JSON.stringify(page, null, 2)
     );
     console.log(
-      `Page data saved to ${process.cwd()}/agility-files/${guid}/${locale}/${
-        isPreview ? "preview" : "live"
+      `Page data saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"
       }/fetch/page-${pathAnswer.pagePath.replace(/\//g, "-")}.json`
     );
   } else if (answer.apiMethod === "< Back to Instance") {
@@ -214,7 +208,7 @@ export async function fetchAPIPrompt(selectedInstance: AgilityInstance, keys: an
 
   // we need to make sure there's a fetch folder in the path directory
   code.createFolder(`/${guid}/${locale}/${isPreview ? 'preview' : 'live'}/fetch`);
-      
+
   const data = await fetchCommandsPrompt(selectedInstance, keys, guid, locale, channel, isPreview, apiKey, rootPath);
 
   if (data) {

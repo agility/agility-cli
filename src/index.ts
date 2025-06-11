@@ -42,7 +42,7 @@ export let localServer: string;
 export let token: string = null;
 export let blessedUIEnabled: boolean = true;
 export let isAgilityDev: boolean = false;
-export let forceNGROK:boolean = false;
+export let forceNGROK: boolean = false;
 export let modelDiffsEnabled: boolean = false;
 
 // Configure SSL verification based on CLI mode
@@ -83,9 +83,9 @@ yargs.command({
       default: false,
     },
     verbose: {
-        describe: "Run in verbose mode: all logs to console, no UI elements. Overridden by headless.",
-        type: "boolean",
-        default: false
+      describe: "Run in verbose mode: all logs to console, no UI elements. Overridden by headless.",
+      type: "boolean",
+      default: false
     },
     modelDiffs: {
       describe: "Enable detailed logging of model differences during push operations.",
@@ -98,7 +98,7 @@ yargs.command({
     const useVerbose = !useHeadless && (argv.verbose as boolean);
     const useBlessed = !useHeadless && !useVerbose;
     blessedUIEnabled = useBlessed;
-    
+
     forceDevMode = argv.dev as boolean;
     forceLocalMode = argv.local as boolean;
     forcePreProdMode = argv.preprod as boolean;
@@ -111,7 +111,7 @@ yargs.command({
       // If auth fails, it should have already logged a message.
       return;
     }
-    
+
     const envCheck = auth.checkForEnvFile();
     if (envCheck.hasEnvFile && envCheck.guid && !forceLocalMode && !forceDevMode && !forcePreProdMode) {
       try {
@@ -616,11 +616,11 @@ yargs.command({
 
     let multibarInstance = null;
     if (useBlessed) {
-        // screen, multibar setup as before for Blessed UI
-        // ... (this part might need to be inside Pull or passed differently)
+      // screen, multibar setup as before for Blessed UI
+      // ... (this part might need to be inside Pull or passed differently)
     } else if (!useHeadless && !useVerbose) {
-        // Potentially setup cli-progress multibar for a basic non-Blessed, non-headless, non-verbose mode
-        // multibarInstance = new cliProgress.MultiBar({ ... });
+      // Potentially setup cli-progress multibar for a basic non-Blessed, non-headless, non-verbose mode
+      // multibarInstance = new cliProgress.MultiBar({ ... });
     }
 
     let mgmtApiOptions = new mgmtApi.Options();
@@ -632,6 +632,12 @@ yargs.command({
         console.log(colors.red(`Could not retrieve user details for instance ${guid}. Please ensure it's a valid GUID and you have access.`));
         return;
       }
+
+      console.log("USER DETAILS: ", user);
+
+      //hack
+      console.log("HACK RETURN ")
+      return
 
       const determinedMgmtBaseUrl = auth.determineBaseUrl(guid);
       mgmtApiOptions.baseUrl = userBaseUrl || determinedMgmtBaseUrl;
@@ -737,16 +743,16 @@ yargs.command({
       default: false,
     },
     rootPath: {
-        describe: "Specify the root path for the pull operation.",
-        demandOption: false,
-        default: "agility-files",
-        type: "string",
-      },
+      describe: "Specify the root path for the pull operation.",
+      demandOption: false,
+      default: "agility-files",
+      type: "string",
+    },
     legacyFolders: {
-        describe: "Use a flat folder structure directly under the root path (or 'agility-files' if rootPath is not specified) for local files.",
-        demandOption: false,
-        type: "boolean",
-        default: false,
+      describe: "Use a flat folder structure directly under the root path (or 'agility-files' if rootPath is not specified) for local files.",
+      demandOption: false,
+      type: "boolean",
+      default: false,
     },
     dryRun: {
       describe: "Dry run the push operation if able.",
@@ -755,10 +761,10 @@ yargs.command({
       default: false,
     },
     contentFolder: {
-        describe: "Specify the override content folder to push. This will override the default content folder. Use content.json to specify the content to push.",
-        demandOption: false,
-        type: "string",
-        default: "",
+      describe: "Specify the override content folder to push. This will override the default content folder. Use content.json to specify the content to push.",
+      demandOption: false,
+      type: "string",
+      default: "",
     },
     modelDiffs: {
       describe: "Enable detailed logging of model differences.",
@@ -778,7 +784,7 @@ yargs.command({
     configureSSL();
 
     let auth = new Auth();
-    
+
     const isAuthorized = await auth.checkAuthorization();
     if (!isAuthorized) {
       return;
@@ -856,11 +862,11 @@ yargs.command({
         console.log(colors.red(`You do not have the required permissions on the target instance ${targetGuid}.`));
         return;
       }
-      
+
       console.log(colors.yellow(`
 Pushing elements from ${sourceGuid} (${isPreview ? "preview" : "live"}) to ${targetGuid} for locale ${locale}...`));
       console.log(colors.cyan(`Elements to push: ${elements.join(', ')}`));
-      
+
       const pusher = new push(options, multibar, sourceGuid, targetGuid, locale, isPreview, blessedUIEnabled, elements, rootPath, legacyFolders, dryRun, contentFolder, logModelDiffs);
       await pusher.pushInstance();
 
@@ -1005,7 +1011,7 @@ yargs.command({
     configureSSL();
 
     let auth = new Auth();
-    
+
     if (!test) {
       const isAuthorized = await auth.checkAuthorization();
       if (!isAuthorized) {
@@ -1029,13 +1035,13 @@ yargs.command({
     const { TargetInstanceValidator } = await import('./lib/services/target-instance-validator');
     const validator = new TargetInstanceValidator();
     const validation = validator.validateTargetInstance(targetGuid);
-    
+
     if (!validation.isValid) {
       console.log(colors.red(validation.message));
       console.log(colors.yellow(validator.getSuggestions(targetGuid)));
       return;
     }
-    
+
     console.log(colors.green(validation.message));
     let locale: string = argv.locale as string;
     const isPreview: boolean = argv.preview as boolean;
@@ -1105,10 +1111,10 @@ yargs.command({
       } else {
         console.log(colors.yellow("🧪 TEST MODE: Bypassing permission checks..."));
       }
-      
+
       // Import and use the new 2-pass sync system
       const { TwoPassSync } = await import('./lib/pushers/two-pass-sync');
-      
+
       const syncOperation = new TwoPassSync(options, multibar, sourceGuid, targetGuid, locale, isPreview, blessedUIEnabled, elements, rootPath, legacyFolders, dryRun, {
         debug,
         maxDepth: maxDepth,
@@ -1119,12 +1125,12 @@ yargs.command({
         testMode: testMode,
         criticalFailureThreshold: criticalFailureThreshold
       });
-      
+
       await syncOperation.syncInstance();
-      
+
       // Clean up and exit successfully
       multibar.stop();
-      
+
       // Only show success message for actual syncs, not test/dry-run modes
       if (!test && targetGuid !== 'test' && !dryRun) {
         console.log(colors.green('\n✅ Sync operation completed successfully!'));
@@ -1189,7 +1195,7 @@ yargs.command({
 
         const token = await auth.cliPoll(form, guid);
 
-        options =  new mgmtApi.Options();
+        options = new mgmtApi.Options();
         options.token = token.access_token;
 
         const user = await auth.getUser(guid);

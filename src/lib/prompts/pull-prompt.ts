@@ -1,4 +1,4 @@
-import inquirer from "inquirer";    
+import inquirer from "inquirer";
 import colors from "ansi-colors";
 import { Auth } from "../services/auth";
 import { createMultibar } from "../services/multibar";
@@ -36,7 +36,7 @@ export async function pullFiles(selectedInstance: AgilityInstance, useBlessedUI:
     const elements: any = await elementsPrompt();
 
     // central configuration for where you download files to
-    const fullPath = path.join(rootPath, guid, locale, preview ? 'preview':'live');
+    const fullPath = path.join(rootPath, guid, locale, preview ? 'preview' : 'live');
     let userWantsToOverwrite = await overwritePrompt(fullPath);
 
     return await downloadFiles(guid, locale, channel, baseUrl, preview, elements, rootPath, useBlessedUI, userWantsToOverwrite, fullPath);
@@ -46,16 +46,16 @@ export async function pullFiles(selectedInstance: AgilityInstance, useBlessedUI:
 async function downloadFiles(guid: string, locale: any, channel: any, baseUrl: any | null, isPreview: any, elements: any, rootPath: string, useBlessedUI: boolean, forceOverwrite: boolean, fullPath: string) {
     auth = new Auth();
     let userBaseUrl: string = baseUrl as string;
-    
-    let multibar = null; 
+
+    let multibar = null;
 
     options = new mgmtApi.Options();
     options.token = await auth.getToken();
 
     let user = await auth.getUser(guid);
 
-    const instanceFilesParentPath = '.'; 
-        
+    const instanceFilesParentPath = '.';
+
     try {
         const rootDir = path.join(instanceFilesParentPath, rootPath);
         if (!fs.existsSync(rootDir)) {
@@ -63,19 +63,19 @@ async function downloadFiles(guid: string, locale: any, channel: any, baseUrl: a
             console.log(`Created directory: ${rootDir}`);
         }
         await fsPromises.mkdir(fullPath, { recursive: true });
-            
+
     } catch (error) {
         console.error('Error creating directories:', error);
         throw error;
     }
-        
-    if(user){
+
+    if (user) {
         const apiBaseUrl = userBaseUrl || auth.determineBaseUrl(guid);
         let previewKey = await auth.getPreviewKey(guid, apiBaseUrl);
         let fetchKey = await auth.getFetchKey(guid, apiBaseUrl);
         let apiKeyForPull = isPreview ? previewKey : fetchKey;
 
-        if(apiKeyForPull){
+        if (apiKeyForPull) {
             // Log user choices before starting the pull
             try {
                 const logOps = new fileOperations(rootPath, guid, locale, isPreview);
@@ -91,7 +91,7 @@ async function downloadFiles(guid: string, locale: any, channel: any, baseUrl: a
                     useBlessedUI,
                     // Assuming headless/verbose are determined within Pull class for now
                     // If they were passed to downloadFiles, they'd be here too.
-                    timestamp: new Date().toISOString() 
+                    timestamp: new Date().toISOString()
                 };
                 const logMessage = `User Pull Configuration:\n${JSON.stringify(choicesToLog, null, 2)}\n\n`;
                 logOps.appendLogFile(logMessage);
@@ -107,11 +107,11 @@ async function downloadFiles(guid: string, locale: any, channel: any, baseUrl: a
                 channel,
                 isPreview,
                 options,
-                multibar, 
+                multibar,
                 elements,
-                rootPath, 
+                rootPath,
                 false, // legacyFolders - assumed false for now
-                useBlessedUI, 
+                useBlessedUI,
                 false, // isHeadlessMode - this needs to come from index.ts if applicable here
                 false, // isVerboseMode - this needs to come from index.ts if applicable here
                 forceOverwrite // Pass the overall overwrite decision
@@ -137,13 +137,13 @@ async function downloadFiles(guid: string, locale: any, channel: any, baseUrl: a
 async function pullPrompt(guid: string) {
     const instanceOptions = await inquirer.prompt([
         {
-          type: "list",
-          name: "action",
-          message: "What would you like to do with this instance?",
-          choices: ["Download", "Push to another instance", new inquirer.Separator(), "< Back to Home"],
+            type: "list",
+            name: "action",
+            message: "What would you like to do with this instance?",
+            choices: ["Download", "Push to another instance", new inquirer.Separator(), "< Back to Home"],
         },
-        
-      ]);
-  
-     return instanceOptions.action;
-}  
+
+    ]);
+
+    return instanceOptions.action;
+}

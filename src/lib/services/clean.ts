@@ -29,57 +29,57 @@ class Clean {
     options.token = await auth.getToken();
     options.baseUrl = auth.determineBaseUrl(this._guid);
 
-    let mgmtApiClient:mgmtApi.ApiClient = new mgmtApi.ApiClient(options);
+    let mgmtApiClient: mgmtApi.ApiClient = new mgmtApi.ApiClient(options);
 
     const multibar = createMultibar({
       name: "Clean Instance"
     });
 
-      try {
-        const answers = await inquirer.prompt([
-          {
-            type: "confirm",
-            name: "cleanInstance",
-            message: `⚠️ Are you sure you want to clean ${this._websiteName} instance ${this._guid}? All files and content will be deleted.`,
-            default: false,
-          },
-        ]);
+    try {
+      const answers = await inquirer.prompt([
+        {
+          type: "confirm",
+          name: "cleanInstance",
+          message: `⚠️ Are you sure you want to clean ${this._websiteName} instance ${this._guid}? All files and content will be deleted.`,
+          default: false,
+        },
+      ]);
 
-        if (answers.cleanInstance) {
-          console.log("\n");
+      if (answers.cleanInstance) {
+        console.log("\n");
 
-          const content = await this.cleanContent(mgmtApiClient, multibar);
-          if (content) {
-            const pages = await this.cleanPages(mgmtApiClient, multibar);
-            if (pages) {
-              const containers = await this.cleanContainers(mgmtApiClient, multibar);
-              if (containers) {
-                const models = await this.cleanModels(mgmtApiClient, multibar);
-                if (models) {
-                  const media = await this.cleanMedia(multibar);
-                  if (media) {
-                    return true;
-                  }
+        const content = await this.cleanContent(mgmtApiClient, multibar);
+        if (content) {
+          const pages = await this.cleanPages(mgmtApiClient, multibar);
+          if (pages) {
+            const containers = await this.cleanContainers(mgmtApiClient, multibar);
+            if (containers) {
+              const models = await this.cleanModels(mgmtApiClient, multibar);
+              if (models) {
+                const media = await this.cleanMedia(multibar);
+                if (media) {
+                  return true;
                 }
               }
             }
           }
-
         }
 
-        const mappingsPath = `agility-files/${this._guid}/mappings`;
-        if (fs.existsSync(mappingsPath)) {
-            fs.rmSync(mappingsPath, { recursive: true, force: true });
-            console.log(`\n✓ Deleted mappings folder for instance ${this._guid}`);
-        }
-
-      } catch (err) {
-        console.log("Error cleaning instance", err);
-      } finally {
-        console.log(ansiColors.green("\n🗑️ Instance cleaned successfully"));
-        return true;
       }
-  
+
+      const mappingsPath = `agility-files/${this._guid}/mappings`;
+      if (fs.existsSync(mappingsPath)) {
+        fs.rmSync(mappingsPath, { recursive: true, force: true });
+        console.log(`\n✓ Deleted mappings folder for instance ${this._guid}`);
+      }
+
+    } catch (err) {
+      console.log("Error cleaning instance", err);
+    } finally {
+      console.log(ansiColors.green("\n🗑️ Instance cleaned successfully"));
+      return true;
+    }
+
   }
 
 
@@ -101,7 +101,7 @@ class Clean {
   async cleanPages(mgmt: mgmtApi.ApiClient, multibar: any) {
     const sitemap = await mgmt.pageMethods.getSitemap(this._guid, this._locale);
 
-    const pages:mgmtApi.SitemapItem[] = sitemap[0].pages;
+    const pages: mgmtApi.SitemapItem[] = sitemap[0].pages;
 
     let parentPages = pages.filter((p) => p.parentPageID < 0);
     let childPages = pages.filter((p) => p.parentPageID > 0);
@@ -137,7 +137,7 @@ class Clean {
     const progressBar = multibar.create(containers.length, 0);
     progressBar.update(0, { name: "Deleting Content" });
 
-    let content:mgmtApi.ContentItem[] = [];
+    let content: mgmtApi.ContentItem[] = [];
 
     for (const container of containers) {
       try {

@@ -47,7 +47,7 @@ export const generateSitemap = async (selectedInstance: AgilityInstance, keys: a
 
   fs.writeFileSync("sitemap.xml", sitemapXml, "utf8");
   console.log("✅ sitemap.xml generated!");
-  
+
   return sitemapXml;
 
 };

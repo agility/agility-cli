@@ -40,7 +40,7 @@ export class Auth {
         const guidMatch = envContent.match(/AGILITY_GUID=([^\n]+)/);
         const channelMatch = envContent.match(/AGILITY_SITEMAP=([^\n]+)/);
         const localeMatch = envContent.match(/AGILITY_LOCALES=([^\n]+)/);
-        
+
         if (guidMatch && guidMatch[1]) {
           result.hasEnvFile = true;
           result.guid = guidMatch[1].trim();
@@ -132,18 +132,18 @@ export class Auth {
   getInstancePoll(): AxiosInstance {
     let baseURL = "https://mgmt.aglty.io";
 
-    if(forceDevMode) {
+    if (forceDevMode) {
       baseURL = "https://mgmt-dev.aglty.io";
     }
-    
+
     if (forcePreProdMode) {
       baseURL = "https://management-api-us-pre-prod.azurewebsites.net";
     }
-    
+
     if (forceLocalMode) {
       baseURL = "https://localhost:5050";
     }
-    
+
     let instance = axios.create({
       baseURL: `${baseURL}/oauth`,
     });
@@ -203,7 +203,7 @@ export class Auth {
           const expiresAt = issuedAt + token.expires_in * 1000;
 
           if (Date.now() < expiresAt) {
-            console.log(ansiColors.green(`\r● Authenticated to ${env === 'prod' ? 'Agility': env} servers.\n`));
+            console.log(ansiColors.green(`\r● Authenticated to ${env === 'prod' ? 'Agility' : env} servers.\n`));
             return true;
           } else {
             console.log("Existing token has expired. Starting re-authentication...");
@@ -279,7 +279,7 @@ export class Auth {
     }
   }
 
-  
+
 
   async cliPoll(formData: FormData, guid: string = "blank-d") {
     let apiPath = `CliPoll`;
@@ -374,11 +374,20 @@ export class Auth {
       }
 
       const data: serverUser = await response.json();
-      
+
       if (!data || !data.websiteAccess) {
         throw new Error("Invalid user data received");
       }
-      
+
+      if (data.websiteAccess && data.websiteAccess.length > 0) {
+        if (!data.websiteAccess.find((access) => access.guid === guid)) {
+          throw new Error("User does not have access to this instance.");
+        }
+      } else {
+        throw new Error("User does not have access to any instances.");
+      }
+
+
       return data;
     } catch (error) {
       console.error('Error fetching user:', error);
@@ -387,25 +396,25 @@ export class Auth {
   }
 
   async getUsers(guid: string, userBaseUrl: string = null) {
-      let apiPath = `/instance/${guid}/user/list`;
-      let baseUrl = this.determineBaseUrl(guid, userBaseUrl);
-      let instance = axios.create({
-          baseURL: `${baseUrl}/api/v1/`,
+    let apiPath = `/instance/${guid}/user/list`;
+    let baseUrl = this.determineBaseUrl(guid, userBaseUrl);
+    let instance = axios.create({
+      baseURL: `${baseUrl}/api/v1/`,
+    });
+    const token = await this.getToken();
+    try {
+      const resp = await instance.get(apiPath, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+        },
       });
-      const token = await this.getToken();
-      try {
-          const resp = await instance.get(apiPath, {
-              headers: {
-                  Authorization: `Bearer ${token}`,
-                  "Cache-Control": "no-cache",
-              },
-          });
-          return resp.data as serverUser;
-      }
-      catch (error) {
-          console.error("Error fetching user:", error);
-          return null;
-      }
+      return resp.data as serverUser;
     }
+    catch (error) {
+      console.error("Error fetching user:", error);
+      return null;
+    }
+  }
 }
 

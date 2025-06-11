@@ -6,7 +6,7 @@ import { Auth } from "../services/auth";
 import { AgilityInstance } from "types/instance";
 
 export async function homePrompt(useBlessedUI: boolean, prompt?: any) {
-    await inquirer
+  await inquirer
     .prompt([
       {
         type: "list",
@@ -23,15 +23,15 @@ export async function homePrompt(useBlessedUI: boolean, prompt?: any) {
     .then(async (answers: { option: string }) => {
       switch (answers.option) {
         case "Instances":
-            
-            const selectedInstance: AgilityInstance = await instanceSelector();
-            const keys = await getInstance(selectedInstance);
-            const keyClone = {
-                ...keys
-            }
-            delete keyClone['websiteDetails']
-            await instancesPrompt(selectedInstance, keys, useBlessedUI);
-            break;
+
+          const selectedInstance: AgilityInstance = await instanceSelector();
+          const keys = await getInstance(selectedInstance);
+          const keyClone = {
+            ...keys
+          }
+          delete keyClone['websiteDetails']
+          await instancesPrompt(selectedInstance, keys, useBlessedUI);
+          break;
 
         case "Logout":
           const auth = new Auth();

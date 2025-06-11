@@ -17,18 +17,18 @@ const inquirer = require('inquirer');
 export async function generateEnv(selectedInstance?: AgilityInstance) {
 
     let selected = selectedInstance;
-    if(!selectedInstance){
+    if (!selectedInstance) {
         selected = await instanceSelector();
     }
 
     const i = await getInstance(selected);
-    
+
     const locale = await localePrompt(selected);
     const channel = await channelPrompt();
-    
+
 
     const filesPath = await fileSystemPrompt();
-    
+
     let instance = {
         guid: i.guid,
         previewKey: i.previewKey,

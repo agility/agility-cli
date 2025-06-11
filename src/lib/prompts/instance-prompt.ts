@@ -30,21 +30,21 @@ export async function instancesPrompt(selectedInstance: AgilityInstance, keys: a
     new inquirer.Separator(),
     { name: "Generate .env.local", value: "env" },
     { name: "Generate sitemap.xml", value: "sitemap" },
-  
+
     new inquirer.Separator(),
     { name: "< Back to Home", value: "home" },
   ];
 
 
-    // choices.push(  new inquirer.Separator() )
-    // choices.push({ name: "Generate TypeScript interfaces (beta)", value: "types" });
-    // choices.push({ name: "Generate React Components (beta)", value: "reactcomponents" });
-    choices.push(  new inquirer.Separator() )
-    choices.push({ name: "Clean instance (warning: data loss)", value: "clean" })
-    
+  // choices.push(  new inquirer.Separator() )
+  // choices.push({ name: "Generate TypeScript interfaces (beta)", value: "types" });
+  // choices.push({ name: "Generate React Components (beta)", value: "reactcomponents" });
+  choices.push(new inquirer.Separator())
+  choices.push({ name: "Clean instance (warning: data loss)", value: "clean" })
 
-  
-  
+
+
+
 
   const questions = [
     {
@@ -71,7 +71,7 @@ export async function instancesPrompt(selectedInstance: AgilityInstance, keys: a
       console.log('Sync models needs implementation.');
       // const syncModels = await syncModelsPrompt(selectedInstance);
       // if (syncModels) {
-        // homePrompt();
+      // homePrompt();
       // }
       break;
 
@@ -141,9 +141,9 @@ export async function getInstance(selectedInstance: AgilityInstance) {
 
     let previewKey = null;
     try {
-    previewKey = await auth.getPreviewKey(guid);
-  } catch {
-  }
+      previewKey = await auth.getPreviewKey(guid);
+    } catch {
+    }
 
     let fetchKey = null;
     try {
@@ -157,7 +157,7 @@ export async function getInstance(selectedInstance: AgilityInstance) {
       fetchKey,
       currentWebsite,
     };
-    
+
   } catch (error) {
     // Handle error
     return null;
