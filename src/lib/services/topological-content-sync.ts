@@ -6,14 +6,14 @@ import { ChainBuilder } from '../services/chain-builder';
 import { TopologicalTwoPassOrchestrator } from '../services/topological-two-pass-orchestrator';
 import { ReferenceMapper } from '../reference-mapper';
 import { SyncAnalysisContext } from '../../types/syncAnalysis';
-import { pushModels } from './model-pusher';
-import { pushGalleries } from './gallery-pusher';
-import { pushAssets } from './asset-pusher';
-import { pushContainersTwoPass } from './container-pusher-two-pass';
-// Removed: import { pushContentItems } from './content-item-pusher'; - Using batch pusher instead
-import { pushTemplates } from './template-pusher';
-import { pushPages } from './page-pusher';
-import { pushPagesSimple } from './simple-page-pusher';
+import { pushModels } from '../pushers/model-pusher';
+import { pushGalleries } from '../pushers/gallery-pusher';
+import { pushAssets } from '../pushers/asset-pusher';
+import { pushContainers } from '../pushers/index';
+import { pushContentItems } from '../pushers/content-item-pusher';
+import { pushTemplates } from '../pushers/template-pusher';
+import { pushPages } from '../pushers/page-pusher';
+// Replaced simple-page-pusher with regular page-pusher (Task 29.4)
 import { ChainDataLoader } from '../services/chain-data-loader';
 
 
@@ -372,12 +372,8 @@ export class TopologicalContentSync {
                 console.log(ansiColors.cyan('\n📦 Pushing Containers...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.containers.length} containers in source data`));
                 
-                const containerResult = await pushContainersTwoPass(
-                    sourceData.containers,
-                    this.options,
-                    this.targetGuid,
-                    referenceMapper
-                );
+                const containerPusher = new pushContainers(apiClient, referenceMapper, this.targetGuid);
+                const containerResult = await containerPusher.pushContainers(sourceData.containers);
                 totalSuccess += containerResult.successfulContainers;
                 totalFailures += containerResult.failedContainers;
                 this.checkEarlyExitConditions('Containers', containerResult.failedContainers, containerResult.successfulContainers);
@@ -388,19 +384,16 @@ export class TopologicalContentSync {
                 console.log(ansiColors.cyan('\n📄 Pushing Content Items...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.content.length} content items in source data`));
                 
-                const { BatchContentItemPusher } = await import('./batch-content-item-pusher');
-                const contentPusher = new BatchContentItemPusher(
+                const contentPusher = new pushContentItems(
                     apiClient,
                     referenceMapper,
                     this.targetGuid,
                     this.locale
                 );
-                const contentResult = await contentPusher.pushContentItems(
-                    sourceData.content
-                );
-                totalSuccess += contentResult.successCount + contentResult.existingCount;
-                totalFailures += contentResult.failureCount;
-                this.checkEarlyExitConditions('Content', contentResult.failureCount, contentResult.successCount + contentResult.existingCount);
+                const contentResult = await contentPusher.pushContentItems(sourceData.content);
+                totalSuccess += contentResult.successfulItems;
+                totalFailures += contentResult.failedItems;
+                this.checkEarlyExitConditions('Content', contentResult.failedItems, contentResult.successfulItems);
             }
 
             // 6. Push Templates (depend on containers, models)
@@ -425,12 +418,13 @@ export class TopologicalContentSync {
                 console.log(ansiColors.cyan('\n📄 Pushing Pages...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.pages.length} pages in source data`));
                 
-                const pageResult = await pushPagesSimple(
+                const pageResult = await pushPages(
                     sourceData.pages,
                     this.targetGuid,
                     this.locale,
                     apiClient,
-                    referenceMapper
+                    referenceMapper,
+                    this.multibar
                 );
                 totalSuccess += pageResult.successfulPages;
                 totalFailures += pageResult.failedPages;

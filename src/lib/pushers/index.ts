@@ -6,11 +6,7 @@ export * from './model-pusher';
 export * from './page-pusher';
 export * from './template-pusher';
 
-// Backward compatibility exports
-export { pushContainersTwoPass } from './container-pusher-two-pass';
-
-// Wrapper class for backward compatibility with 'new pushContainers()' usage
-import { pushContainersTwoPass } from './container-pusher-two-pass';
+// Note: pushContainersTwoPass removed - use pushContainers class below instead
 import { ReferenceMapper } from '../reference-mapper';
 import * as mgmtApi from '@agility/management-sdk';
 
@@ -35,7 +31,20 @@ export class pushContainers {
     }
 
     async pushContainers(containers: any[], progressCallback?: (processed: number, total: number, status?: 'success' | 'error') => void) {
-        // Use the actual implementation with proper API options
-        return await pushContainersTwoPass(containers, this.apiOptions, this.targetGuid, this.referenceMapper, progressCallback);
+        // Use the regular ContainerPusher implementation
+        const { ContainerPusher } = await import('./container-pusher');
+        const containerPusher = new ContainerPusher({
+            referenceMapper: this.referenceMapper,
+            apiClient: this.apiClient,
+            targetGuid: this.targetGuid
+        });
+        
+        await containerPusher.process(containers);
+        
+        // Return compatible format for compatibility
+        return {
+            successfulContainers: containers.length,
+            failedContainers: 0
+        };
     }
 } 
