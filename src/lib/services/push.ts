@@ -132,7 +132,7 @@ export class push {
         };
 
         // Declare galleries variable outside the conditional block
-        let galleries: mgmtApi.assetGalleries[] = [];
+        let galleries: mgmtApi.assetMediaGrouping[] = [];
 
         const updateProgress = (currentStepIndex: number, status: 'success' | 'error', percentage?: number) => {
             if (!this._useBlessedUI) return; // Do nothing if UI not enabled
@@ -320,10 +320,15 @@ export class push {
                         this._guid,
                         this._locale,
                         this._isPreview,
-                        this._referenceMapper,
                         this.rootPath,
                         this.legacyFolders
                     ) || []; // Ensure galleries is an array
+                    
+                    // Add galleries to reference mapper for tracking
+                    galleries.forEach(gallery => {
+                        this._referenceMapper.addRecord('gallery', gallery, null);
+                    });
+                    
                     const galleryResult = await pushGalleries(
                         galleries, 
                         this._targetGuid, 
@@ -354,10 +359,15 @@ export class push {
                         this._guid,
                         this._locale,
                         this._isPreview,
-                        this._referenceMapper,
                         this.rootPath,
                         this.legacyFolders
                     ) || []; 
+                    
+                    // Add assets to reference mapper for tracking
+                    assets.forEach(asset => {
+                        this._referenceMapper.addRecord('asset', asset, null);
+                    });
+                    
                     const assetResult = await pushAssets(
                         assets, 
                         galleries,
@@ -385,14 +395,18 @@ export class push {
                 const modelStepIndex = currentStep;
                 try {
                     if (!this._useBlessedUI) console.log(ansiColors.yellow("Pushing Models..."));
-                    const models = await getModelsFromFileSystem(
+                    const models = getModelsFromFileSystem(
                         this._guid,
                         this._locale,
                         this._isPreview,
-                        this._referenceMapper,
                         this.rootPath,
                         this.legacyFolders
                     );
+                    
+                    // Add models to reference mapper for tracking
+                    models.forEach(model => {
+                        this._referenceMapper.addRecord('model', model, null);
+                    });
                     
                     const modelProgressCallback = (processed: number, total: number, status?: 'success' | 'error') => {
                         const percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
@@ -428,10 +442,15 @@ export class push {
                         this._guid,
                         this._locale,
                         this._isPreview,
-                        this._referenceMapper,
                         this.rootPath,
                         this.legacyFolders
                     );
+                    
+                    // Add containers to reference mapper for tracking
+                    containers.forEach(container => {
+                        this._referenceMapper.addRecord('container', container, null);
+                    });
+                    
                     if (!containers || containers.length === 0) {
                         console.log('No containers found to push');
                     } else {
@@ -461,14 +480,19 @@ export class push {
                 let contentStatus: 'success' | 'error' = 'success';
                 const contentStepIndex = currentStep;
                 try{
-                    const allContentItems = await getContentItemsFromFileSystem(
+                    const allContentItems = getContentItemsFromFileSystem(
                         this._guid,
                         this._locale,
                         this._isPreview,
-                        this._referenceMapper,
                         this.rootPath,
                         this.legacyFolders
                     );
+                    
+                    // Add content items to reference mapper for tracking
+                    allContentItems.forEach(content => {
+                        this._referenceMapper.addRecord('content', content, null);
+                    });
+                    
                     if (!allContentItems || allContentItems.length === 0) {
                         console.log('No content items found to push');
                     } else {
@@ -507,13 +531,18 @@ export class push {
                     if (!this._useBlessedUI) console.log('Processing templates...'); 
                     else logContainer?.log('Processing templates...');
                     
-                    const templates = await getTemplatesFromFileSystem(
+                    const templates = getTemplatesFromFileSystem(
                         this._guid,
                         this._locale,
                         this._isPreview,
                         this.rootPath,
                         this.legacyFolders
                     );
+                    
+                    // Add templates to reference mapper for tracking
+                    templates.forEach(template => {
+                        this._referenceMapper.addRecord('template', template, null);
+                    });
                     
                     if(!templates || templates.length === 0){
                         console.log('No templates found to push');
@@ -552,14 +581,18 @@ export class push {
                     if (!this._useBlessedUI) console.log('Processing pages...');
                     else logContainer?.log('Processing pages...');
                     
-                    const pages = await getPagesFromFileSystem(
+                    const pages = getPagesFromFileSystem(
                         this._guid,
                         this._locale,
                         this._isPreview,
-                        this._referenceMapper,
                         this.rootPath,
                         this.legacyFolders
                     ); 
+                    
+                    // Add pages to reference mapper for tracking
+                    pages.forEach(page => {
+                        this._referenceMapper.addRecord('page', page, null);
+                    });
                     
                     if(!pages || pages.length === 0){
                          console.log('No pages found to push');

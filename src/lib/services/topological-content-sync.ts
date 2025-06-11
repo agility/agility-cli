@@ -332,8 +332,8 @@ export class TopologicalContentSync {
                 console.log(ansiColors.cyan('\n🖼️ Pushing Galleries...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.galleries.length} galleries in source data`));
                 
-                const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
-                galleries = getGalleriesFromFileSystem(this.sourceGuid, this.locale, this.isPreview, referenceMapper, this.rootPath) || [];
+                // Use galleries already loaded by ChainDataLoader - no redundant filesystem access
+                galleries = sourceData.galleries;
                 const galleryResult = await pushGalleries(
                     galleries,
                     this.targetGuid,
@@ -350,8 +350,8 @@ export class TopologicalContentSync {
                 console.log(ansiColors.cyan('\n📎 Pushing Assets...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.assets.length} assets in source data`));
                 
-                const { getAssetsFromFileSystem } = await import('../getters/filesystem/get-assets');
-                const assets = getAssetsFromFileSystem(this.sourceGuid, this.locale, this.isPreview, referenceMapper, this.rootPath) || [];
+                // Use assets already loaded by ChainDataLoader - no redundant filesystem access
+                const assets = sourceData.assets;
                 const assetResult = await pushAssets(
                     assets,
                     galleries,

@@ -1,85 +1,49 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from '../../reference-mapper';
-import { fileOperations } from '../../services/fileOperations';
 import * as fs from 'fs';
 import * as path from 'path';
 import ansiColors from 'ansi-colors';
 
+/**
+ * Get assets from filesystem without side effects
+ */
 export function getAssetsFromFileSystem(
     guid: string,
     locale: string,
     isPreview: boolean,
-    referenceMapper: ReferenceMapper,
     rootPath?: string,
-    legacyFolders?: boolean
-): mgmtApi.AssetMediaList[] | null {
-    let fileOperation = new fileOperations(rootPath, guid, locale, isPreview);
-  
-    try{
-      
-        const baseFolder = rootPath || 'agility-files'; 
-        let dirPath = `${guid}/${locale}/${isPreview ? 'preview':'live'}/assets/json`;
+    legacyFolders?: boolean 
+): mgmtApi.Media[] {
+    const baseFolder = rootPath || 'agility-files';
+    let assetsPath: string;
 
-        if(legacyFolders){
-            dirPath = `assets/json`;
+    if (legacyFolders) {
+        assetsPath = `${baseFolder}/assets`;
+    } else {
+        assetsPath = `${baseFolder}/${guid}/${locale}/${isPreview ? 'preview':'live'}/assets`;
+    }
+
+    try {
+        // Load assets from JSON files
+        const jsonPath = path.join(assetsPath, 'json');
+        if (!fs.existsSync(jsonPath)) {
+            return [];
         }
 
-        let assets: mgmtApi.AssetMediaList[] = [];
-        let processedMediaIds = new Set<number>(); // Track processed media IDs to avoid duplicates
-
-        // First, load assets from JSON metadata files (original logic)
-        try {
-            let files = fileOperation.readDirectory(dirPath, baseFolder);
-            
-            for(let i = 0; i < files.length; i++){
-                let file = JSON.parse(files[i]) as mgmtApi.AssetMediaList;
-                // Add each media item individually to the reference mapper
-                for (const media of file.assetMedias) {
-                    referenceMapper.addRecord('asset', media, null);
-                    processedMediaIds.add(media.mediaID);
-                }
-                assets.push(file);
-            }
-            console.log(ansiColors.green(`[Assets] Loaded ${processedMediaIds.size} assets from JSON metadata`));
-        } catch (jsonError) {
-            console.log(ansiColors.yellow(`[Assets] No JSON metadata found, scanning filesystem directly`));
-        }
-
-        // Second, scan the filesystem for additional assets not in JSON metadata
-        const assetsBasePath = legacyFolders 
-            ? path.join(baseFolder, 'assets')
-            : path.join(baseFolder, guid, locale, isPreview ? 'preview' : 'live', 'assets');
-
-        const filesystemAssets = scanFilesystemForAssets(assetsBasePath, guid);
+        const assetFiles = fs.readdirSync(jsonPath).filter(file => file.endsWith('.json'));
+        const allAssets: mgmtApi.Media[] = [];
         
-        if (filesystemAssets.length > 0) {
-            // Create a new AssetMediaList for filesystem-discovered assets
-            const filesystemAssetList: mgmtApi.AssetMediaList = {
-                assetMedias: filesystemAssets.filter(media => !processedMediaIds.has(media.mediaID)),
-                totalCount: 0 // Will be set correctly below
-            };
-            
-            if (filesystemAssetList.assetMedias.length > 0) {
-                filesystemAssetList.totalCount = filesystemAssetList.assetMedias.length;
-                
-                // Add to reference mapper and assets list
-                for (const media of filesystemAssetList.assetMedias) {
-                    referenceMapper.addRecord('asset', media, null);
-                }
-                
-                assets.push(filesystemAssetList);
-                console.log(ansiColors.green(`[Assets] Discovered ${filesystemAssetList.assetMedias.length} additional assets from filesystem`));
+        assetFiles.forEach(file => {
+            const assetData = JSON.parse(fs.readFileSync(path.join(jsonPath, file), 'utf8'));
+            // Extract assetMedias array from each JSON file
+            if (assetData.assetMedias && Array.isArray(assetData.assetMedias)) {
+                allAssets.push(...assetData.assetMedias);
             }
-        }
-
-        const totalAssets = assets.reduce((sum, list) => sum + list.assetMedias.length, 0);
-        console.log(ansiColors.cyan(`[Assets] Total assets available for upload: ${totalAssets}`));
+        });
         
-        return assets.length > 0 ? assets : null;
-    } catch (e){
-        console.error(`Error in getAssetsFromFileSystem: ${e.message}`);
-        fileOperation.appendLogFile(`\n No Assets were found in the source Instance to process.`);
-        return null;
+        return allAssets;
+    } catch (error: any) {
+        console.warn(`[Assets] Error loading assets from ${assetsPath}: ${error.message}`);
+        return [];
     }
 }
 

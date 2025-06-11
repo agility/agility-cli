@@ -1,33 +1,73 @@
 import * as mgmtApi from '@agility/management-sdk';
 import * as fs from 'fs';
-import { ReferenceMapper } from '../../reference-mapper';
+import * as path from 'path';
 
-export async function getContentItemsFromFileSystem(
+/**
+ * Get content items from filesystem without side effects
+ * Includes complex deduplication logic combining item/ and list/ content (from ChainDataLoader logic)
+ */
+export function getContentItemsFromFileSystem(
     guid: string,
     locale: string,
     isPreview: boolean,
-    referenceMapper: ReferenceMapper,
     rootPath?: string,
     legacyFolders?: boolean 
-): Promise<mgmtApi.ContentItem[]> {
+): mgmtApi.ContentItem[] {
     const baseFolder = rootPath || 'agility-files';
-    let contentItemsPath: string; // Changed variable name for clarity from 'contentPath'
+    let itemPath: string;
+    let listPath: string;
 
     if (legacyFolders) {
-        contentItemsPath = `${baseFolder}/item`;
+        itemPath = `${baseFolder}/item`;
+        listPath = `${baseFolder}/list`;
     } else {
-        contentItemsPath = `${baseFolder}/${guid}/${locale}/${isPreview ? 'preview':'live'}/item`;
+        itemPath = `${baseFolder}/${guid}/${locale}/${isPreview ? 'preview':'live'}/item`;
+        listPath = `${baseFolder}/${guid}/${locale}/${isPreview ? 'preview':'live'}/list`;
     }
 
-    const contentFiles = fs.readdirSync(contentItemsPath);
-    const contentItems: mgmtApi.ContentItem[] = [];
+    try {
+        const allContent: any[] = [];
+        const processedContentIds = new Set<number>();
 
-    for (const file of contentFiles) {
-        const contentItemData = JSON.parse(fs.readFileSync(`${contentItemsPath}/${file}`, 'utf8'));
-        const contentItem = contentItemData as mgmtApi.ContentItem; 
-        referenceMapper.addRecord('content', contentItem, null);
-        contentItems.push(contentItem);
+        // Load content from /item directory (individual content items)
+        if (fs.existsSync(itemPath)) {
+            const itemFiles = fs.readdirSync(itemPath).filter(file => file.endsWith('.json'));
+            for (const file of itemFiles) {
+                try {
+                    const contentData = JSON.parse(fs.readFileSync(path.join(itemPath, file), 'utf8'));
+                    if (contentData.contentID && !processedContentIds.has(contentData.contentID)) {
+                        allContent.push(contentData);
+                        processedContentIds.add(contentData.contentID);
+                    }
+                } catch (error: any) {
+                    console.warn(`[Content] Error loading item file ${file}: ${error.message}`);
+                }
+            }
+        }
+
+        // Load content from /list directory (container content lists) - exact logic from ChainDataLoader
+        if (fs.existsSync(listPath)) {
+            const listFiles = fs.readdirSync(listPath).filter(file => file.endsWith('.json'));
+            for (const file of listFiles) {
+                try {
+                    const contentList = JSON.parse(fs.readFileSync(path.join(listPath, file), 'utf8'));
+                    if (Array.isArray(contentList)) {
+                        for (const contentItem of contentList) {
+                            if (contentItem.contentID && !processedContentIds.has(contentItem.contentID)) {
+                                allContent.push(contentItem);
+                                processedContentIds.add(contentItem.contentID);
+                            }
+                        }
+                    }
+                } catch (error: any) {
+                    console.warn(`[Content] Error loading list file ${file}: ${error.message}`);
+                }
+            }
+        }
+
+        return allContent;
+    } catch (error: any) {
+        console.warn(`[Content] Error loading content items: ${error.message}`);
+        return [];
     }
-
-    return contentItems;
 }

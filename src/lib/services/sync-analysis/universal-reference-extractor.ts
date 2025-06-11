@@ -360,6 +360,8 @@ export class UniversalReferenceExtractor {
         const references: EntityReference[] = [];
         
         // Asset belongs to gallery (from push_legacy.ts mediaGroupingID patterns)
+        // CRITICAL: Only check gallery references when mediaGroupingID > 0
+        // Assets with mediaGroupingID = 0 are folder-based, not gallery-based
         if (asset.mediaGroupingID && asset.mediaGroupingID > 0) {
             references.push({
                 sourceType: 'asset',
@@ -369,19 +371,23 @@ export class UniversalReferenceExtractor {
                 fieldPath: 'mediaGroupingID',
                 relationshipType: 'asset-to-gallery'
             });
+            
+            // Only check gallery name reference if asset actually belongs to a gallery
+            if (asset.mediaGroupingName && typeof asset.mediaGroupingName === 'string') {
+                references.push({
+                    sourceType: 'asset',
+                    sourceId: assetId,
+                    targetType: 'gallery',
+                    targetId: asset.mediaGroupingName,
+                    fieldPath: 'mediaGroupingName',
+                    relationshipType: 'asset-to-gallery-name'
+                });
+            }
         }
         
-        // Gallery name reference
-        if (asset.mediaGroupingName && typeof asset.mediaGroupingName === 'string') {
-            references.push({
-                sourceType: 'asset',
-                sourceId: assetId,
-                targetType: 'gallery',
-                targetId: asset.mediaGroupingName,
-                fieldPath: 'mediaGroupingName',
-                relationshipType: 'asset-to-gallery-name'
-            });
-        }
+        // NOTE: Assets with mediaGroupingID = 0 and mediaGroupingName are folder-based
+        // (e.g., mediaGroupingName: "Attachments" means stored in assets/Attachments/ folder)
+        // These should NOT be treated as gallery references
         
         return references;
     }

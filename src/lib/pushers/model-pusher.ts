@@ -3,7 +3,7 @@ import ansiColors from 'ansi-colors';
 import { ReferenceMapper } from '../reference-mapper';
 import _ from 'lodash'; // Import lodash for deep comparison
 import { ApiClient } from '@agility/management-sdk';
-import { getModel } from '../services/agility-service';
+// REMOVED: import { getModel } from '../services/agility-service' - no longer needed with direct API calls
 
 type ProgressCallback = (processed: number, total: number, status?: 'success' | 'error') => void;
 
@@ -289,65 +289,8 @@ function prepareFields(fields: any[]): any[] {
     return cleanFieldSettings(fields);
 }
 
-interface ModelPusherOptions {
-    referenceMapper: ReferenceMapper;
-    apiClient: ApiClient;
-    targetGuid: string;
-}
-
-export class ModelPusher {
-    private options: ModelPusherOptions;
-
-    constructor(options: ModelPusherOptions) {
-        this.options = options;
-    }
-
-    async process(sourceModels: any[]): Promise<void> {
-        const { referenceMapper, apiClient, targetGuid } = this.options;
-
-        for (const model of sourceModels) {
-            const sourceId = model.id;
-            const sourceRefName = model.referenceName;
-
-            // Skip if already processed
-            if (referenceMapper.getMapping('model', sourceId)) {
-                console.log(`Skipping already mapped model ${sourceRefName}`);
-                continue;
-            }
-
-            console.log(`Processing model ${sourceRefName}...`);
-
-            try {
-                // Check if model exists on target
-                let targetModel = await getModel(sourceRefName, apiClient, targetGuid);
-
-                if (targetModel) {
-                    console.log(`  Model ${sourceRefName} already exists on target. Mapping it.`);
-                    referenceMapper.addMapping('model', { id: sourceId }, targetModel);
-                } else {
-                    console.log(`  Model ${sourceRefName} does not exist. Creating it...`);
-                    
-                    const payload = { ...model };
-                    payload.id = -1; // Create as new
-
-                    const newModel = await apiClient.modelMethods.saveModel(payload, targetGuid);
-                    
-                    if (!newModel || !newModel.id) {
-                        throw new Error(`Failed to create model ${sourceRefName} or returned model has no ID.`);
-                    }
-                    
-                    console.log(`  Successfully created model ${sourceRefName} with new ID ${newModel.id}`);
-                    // The returned newModel object is the full model, so no need for another fetch.
-                    referenceMapper.addMapping('model', { id: sourceId }, newModel);
-                }
-
-            } catch (error: any) {
-                console.error(`Error processing model ${sourceRefName}:`, error.message);
-                throw error;
-            }
-        }
-    }
-}
+// REMOVED: ModelPusher class - replaced with pushModels function for consistency with other pushers
+// The pushModels function below provides all the same functionality with Joel's simplified 2-pass approach
 
 export async function pushModels(
     models: mgmtApi.Model[],

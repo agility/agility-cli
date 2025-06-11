@@ -3,7 +3,7 @@ import { ReferenceMapper } from "../reference-mapper";
 import { findContainerInTargetInstance } from "../finders/container-finder";
 import ansiColors from "ansi-colors";
 import { ApiClient } from '@agility/management-sdk';
-import { getContainer } from '../services/agility-service';
+
 
 export async function pushContainers(
     sourceContainers: any[],
@@ -40,8 +40,8 @@ export async function pushContainers(
 
             console.log(`Processing container ${sourceRefName}...`);
 
-            // Check if container exists on target
-            let targetContainer = await getContainer(sourceRefName, apiClient, targetGuid);
+            // Check if container exists on target using proper finder (checks mappings then SDK)
+            let targetContainer = await findContainerInTargetInstance(container, apiClient, targetGuid, referenceMapper);
 
             if (targetContainer) {
                 console.log(`  Container ${sourceRefName} already exists on target. Mapping it.`);

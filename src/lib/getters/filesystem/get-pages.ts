@@ -1,44 +1,33 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from '../../reference-mapper';
-import { fileOperations } from '../../services/fileOperations';
+import * as fs from 'fs';
 
-export async function getPagesFromFileSystem(
+/**
+ * Get pages from filesystem without side effects
+ */
+export function getPagesFromFileSystem(
     guid: string,
-    classLocale: string, 
+    locale: string,
     isPreview: boolean,
-    referenceMapper: ReferenceMapper,
     rootPath?: string,
-    legacyFolders?: boolean
-): Promise<mgmtApi.PageItem[] | null> {
-    let fileOperation = new fileOperations(rootPath, guid, classLocale, isPreview);
+    legacyFolders?: boolean 
+): mgmtApi.PageItem[] {
     const baseFolder = rootPath || 'agility-files';
-    let dirPath: string;
+    let pagesPath: string;
 
     if (legacyFolders) {
-        dirPath = `pages`;
+        pagesPath = `${baseFolder}/page`;
     } else {
-        dirPath = `${guid}/${classLocale}/${isPreview ? 'preview':'live'}/pages`;
+        pagesPath = `${baseFolder}/${guid}/${locale}/${isPreview ? 'preview':'live'}/page`;
     }
 
-    try{
-        let files = fileOperation.readDirectory(dirPath, baseFolder); // Pass full path
-
-        let pages : mgmtApi.PageItem[] = [];
-
-        for(let i = 0; i < files.length; i++){
-            let page = JSON.parse(files[i]) as mgmtApi.PageItem;
-            referenceMapper.addRecord('page', page, null);
-            pages.push(page);
-            
-            // Debug: Log each page being loaded
-            if (page.name === 'winning-numbers' || page.pageID === 28 || page.pageID === 25) {
-                console.log(`[Page Debug] Loading page: ${page.name} (ID: ${page.pageID}, Type: ${page.pageType}) from file ${i}`);
-            }
-        }
-        return pages;
-    } catch (e){
-        console.error(`Error in getPagesFromFileSystem reading ${dirPath}: ${e.message}`);
-        fileOperation.appendLogFile(`\n No Pages were found in ${dirPath} to process.`);
-        return null;
+    try {
+        const pageFiles = fs.readdirSync(pagesPath).filter(file => file.endsWith('.json'));
+        return pageFiles.map(file => {
+            const pageData = JSON.parse(fs.readFileSync(`${pagesPath}/${file}`, 'utf8'));
+            return pageData as mgmtApi.PageItem;
+        });
+    } catch (error: any) {
+        console.warn(`[Pages] Error loading pages from ${pagesPath}: ${error.message}`);
+        return [];
     }
 }
