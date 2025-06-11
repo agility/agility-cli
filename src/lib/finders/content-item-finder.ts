@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from '../mapper';
+import { ReferenceMapper } from '../reference-mapper';
 
 export async function findContentInTargetInstance(
     contentItem: mgmtApi.ContentItem, 
@@ -9,20 +9,46 @@ export async function findContentInTargetInstance(
     referenceMapper: ReferenceMapper
 ): Promise<mgmtApi.ContentItem | null> {
     try {
-        // first check the reference mapper for content item with the same reference name
-        const { target:targetMapping } = referenceMapper.getMapping('content', 'contentID', contentItem.contentID);
+        // First check the reference mapper for content item with the same content ID
+        const targetMapping = referenceMapper.getMapping('content', contentItem.contentID);
 
         if (targetMapping) {
             return targetMapping as mgmtApi.ContentItem;
         }
 
-        // now lets check the API
+        // FIXED: Search by reference name in target instance, not source content ID
+        const referenceName = contentItem.properties?.referenceName;
+        if (!referenceName) {
+            // No reference name to search with
+            return null;
+        }
+
         try {
-            const targetContentItem = await apiClient.contentMethods.getContentItem(contentItem.contentID, guid, locale);
-            if (targetContentItem) {
-                return targetContentItem as mgmtApi.ContentItem;
+            // Get all containers and search through their content lists
+            const containers = await apiClient.containerMethods.getContainerList(guid);
+            
+            for (const container of containers) {
+                try {
+                    const contentList = await apiClient.contentMethods.getContentList(container.referenceName, guid, locale, null);
+                    if (contentList && contentList.items) {
+                        const existingContent = contentList.items.find(item => 
+                            item.properties?.referenceName === referenceName
+                        );
+                        
+                        if (existingContent) {
+                            console.log(`✅ Found existing content in target: ${referenceName} (ID: ${existingContent.contentID}) in container: ${container.referenceName}`);
+                            return existingContent;
+                        }
+                    }
+                } catch (containerError) {
+                    // Continue to next container if this one fails
+                    continue;
+                }
             }
-        } catch {
+            
+            return null; // Not found in any container
+        } catch (apiError) {
+            // If API call fails, assume content doesn't exist
             return null;
         }
         

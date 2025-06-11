@@ -1,11 +1,12 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from 'lib/mapper';
+import { ReferenceMapper } from '../reference-mapper';
 
 export async function findModelInTargetInstance(model: mgmtApi.Model, apiClient: mgmtApi.ApiClient, guid: string, referenceMapper: ReferenceMapper): Promise<mgmtApi.Model | null> {
     try {
 
         // first check the local reference mapper for a model with the same reference name
-        const { target:targetMapping } = referenceMapper.getMapping('model', 'referenceName', model.referenceName);
+        const mappingResult = referenceMapper.getMappingByKey('model', 'referenceName', model.referenceName);
+        const targetMapping = mappingResult?.target;
 
         if (targetMapping) {
             return targetMapping as mgmtApi.Model;

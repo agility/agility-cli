@@ -10,7 +10,7 @@ import {
     SourceEntities, 
     SyncAnalysisContext, 
     ChainAnalysisService 
-} from './types';
+} from '../../../types/syncAnalysis';
 
 export class AnalysisStepCoordinator {
     private context?: SyncAnalysisContext;
@@ -29,6 +29,18 @@ export class AnalysisStepCoordinator {
         // Initialize all registered services
         Array.from(this.services.entries()).forEach(([name, service]) => {
             service.initialize(context);
+        });
+    }
+
+    /**
+     * Update context for all services (used for enhanced context like model tracking)
+     */
+    updateContext(newContext: SyncAnalysisContext): void {
+        this.context = newContext;
+        
+        // Re-initialize all services with new context
+        Array.from(this.services.entries()).forEach(([name, service]) => {
+            service.initialize(newContext);
         });
     }
 

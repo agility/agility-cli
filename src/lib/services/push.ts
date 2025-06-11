@@ -7,7 +7,7 @@ import * as cliProgress from 'cli-progress';
 import ansiColors from 'ansi-colors';
 import { homePrompt } from '../prompts/home-prompt';
 import { Auth } from './auth';
-import { ReferenceMapper } from '../mapper';
+import { ReferenceMapper } from '../reference-mapper';
 import {
     pushContainers,
     pushContentItems,
@@ -405,6 +405,7 @@ export class push {
                         this._targetGuid,
                         this._referenceMapper,
                         this._logModelDiffs,
+                        false, // forceSync - default to incremental mode
                         modelProgressCallback
                     );
                     modelStatus = modelResult.status;

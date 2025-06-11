@@ -7,10 +7,10 @@
 
 import { 
     SourceEntities, 
-    SyncAnalysisContext, 
+    SyncAnalysisContext,
     DependencyValidationService,
-    DependencyValidationResult 
-} from './types';
+    DependencyValidationResult
+} from '../../../types/syncAnalysis';
 import { AssetReferenceExtractor } from './asset-reference-extractor';
 import { ContainerReferenceExtractor } from './container-reference-extractor';
 
@@ -191,7 +191,8 @@ export class DependencyFinder implements DependencyValidationService {
 
         // Check container's model dependency
         if (container.contentDefinitionID) {
-            const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
+            // Look for model using the new structured-era field name (definitionID)
+            const model = sourceEntities.models?.find((m: any) => m.definitionID === container.contentDefinitionID);
             if (!model) {
                 missing.push(`Model:ID_${container.contentDefinitionID}`);
             }

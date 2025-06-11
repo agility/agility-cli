@@ -1,5 +1,5 @@
 import ansiColors from 'ansi-colors';
-import { ReferenceMapper } from '../mapper';
+import { ReferenceMapper } from '../reference-mapper';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 

@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from '../../mapper';
+import { ReferenceMapper } from '../../reference-mapper';
 import { fileOperations } from '../../services/fileOperations';
 import * as fs from 'fs';
 import * as path from 'path';

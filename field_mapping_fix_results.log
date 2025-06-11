@@ -1,0 +1,434 @@
+🔧 FIELD MAPPING MISMATCH FIX
+============================
+🎯 PROBLEM: Model field names changed between recursive and structured eras
+🔧 SOLUTION: Transform recursive-era fields to structured-era expectations
+
+📥 Loading raw data to examine field structure...
+[32m✅ Loaded 3623 entities from local files[39m
+   📄 Pages: 38
+   🏗️  Templates: 4
+   📦 Containers: 341
+   📋 Models: 35
+   📝 Content: 1042
+   📎 Assets: 2159
+   🖼️  Galleries: 4
+
+🔍 ANALYZING FIELD STRUCTURE MISMATCH
+====================================
+📋 Raw model field analysis:
+   Available fields: id, lastModifiedDate, displayName, referenceName, contentDefinitionTypeID, lastModifiedBy, lastModifiedAuthorID, description, allowTagging, contentDefinitionTypeName
+
+🔍 Field mapping analysis:
+   definitionID: lastModifiedAuthorID
+   definitionName: contentDefinitionTypeName
+   fields: contentDefinitionTypeName
+
+🔧 TRANSFORMING MODELS TO STRUCTURED FORMAT
+==========================================
+📋 Model transformation results:
+   Original models: 35
+   Valid transformed models: 35
+
+📋 Transformed model sample:
+   definitionID: 1
+   definitionName: Rich Text Area
+   fields: present
+
+🧪 TESTING ECOSYSTEM HEALTH WITH TRANSFORMED DATA
+================================================
+📋 Pre-populating 35 transformed models...
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+[32m[Mapper] Added model mapping: undefined → undefined[39m
+📦 Transforming and linking containers...
+[32m[Mapper] Added container mapping: 225 → undefined[39m
+[32m[Mapper] Added container mapping: 226 → undefined[39m
+[32m[Mapper] Added container mapping: 1 → undefined[39m
+[32m[Mapper] Added container mapping: 3 → undefined[39m
+[32m[Mapper] Added container mapping: 2 → undefined[39m
+[32m[Mapper] Added container mapping: 4 → undefined[39m
+[32m[Mapper] Added container mapping: 5 → undefined[39m
+[32m[Mapper] Added container mapping: 54 → undefined[39m
+[32m[Mapper] Added container mapping: 61 → undefined[39m
+[32m[Mapper] Added container mapping: 249 → undefined[39m
+[32m[Mapper] Added container mapping: 248 → undefined[39m
+[32m[Mapper] Added container mapping: 278 → undefined[39m
+[32m[Mapper] Added container mapping: 277 → undefined[39m
+[32m[Mapper] Added container mapping: 102 → undefined[39m
+[32m[Mapper] Added container mapping: 220 → undefined[39m
+[32m[Mapper] Added container mapping: 104 → undefined[39m
+[32m[Mapper] Added container mapping: 296 → undefined[39m
+[32m[Mapper] Added container mapping: 349 → undefined[39m
+[32m[Mapper] Added container mapping: 315 → undefined[39m
+[32m[Mapper] Added container mapping: 147 → undefined[39m
+[32m[Mapper] Added container mapping: 154 → undefined[39m
+[32m[Mapper] Added container mapping: 161 → undefined[39m
+[32m[Mapper] Added container mapping: 162 → undefined[39m
+[32m[Mapper] Added container mapping: 163 → undefined[39m
+[32m[Mapper] Added container mapping: 168 → undefined[39m
+[32m[Mapper] Added container mapping: 169 → undefined[39m
+[32m[Mapper] Added container mapping: 190 → undefined[39m
+[32m[Mapper] Added container mapping: 193 → undefined[39m
+[32m[Mapper] Added container mapping: 294 → undefined[39m
+[32m[Mapper] Added container mapping: 202 → undefined[39m
+[32m[Mapper] Added container mapping: 203 → undefined[39m
+[32m[Mapper] Added container mapping: 207 → undefined[39m
+[32m[Mapper] Added container mapping: 213 → undefined[39m
+[32m[Mapper] Added container mapping: 218 → undefined[39m
+[32m[Mapper] Added container mapping: 223 → undefined[39m
+[32m[Mapper] Added container mapping: 224 → undefined[39m
+[32m[Mapper] Added container mapping: 227 → undefined[39m
+[32m[Mapper] Added container mapping: 228 → undefined[39m
+[32m[Mapper] Added container mapping: 229 → undefined[39m
+[32m[Mapper] Added container mapping: 230 → undefined[39m
+[32m[Mapper] Added container mapping: 231 → undefined[39m
+[32m[Mapper] Added container mapping: 232 → undefined[39m
+[32m[Mapper] Added container mapping: 233 → undefined[39m
+[32m[Mapper] Added container mapping: 234 → undefined[39m
+[32m[Mapper] Added container mapping: 235 → undefined[39m
+[32m[Mapper] Added container mapping: 236 → undefined[39m
+[32m[Mapper] Added container mapping: 237 → undefined[39m
+[32m[Mapper] Added container mapping: 239 → undefined[39m
+[32m[Mapper] Added container mapping: 238 → undefined[39m
+[32m[Mapper] Added container mapping: 240 → undefined[39m
+[32m[Mapper] Added container mapping: 241 → undefined[39m
+[32m[Mapper] Added container mapping: 242 → undefined[39m
+[32m[Mapper] Added container mapping: 243 → undefined[39m
+[32m[Mapper] Added container mapping: 244 → undefined[39m
+[32m[Mapper] Added container mapping: 245 → undefined[39m
+[32m[Mapper] Added container mapping: 257 → undefined[39m
+[32m[Mapper] Added container mapping: 260 → undefined[39m
+[32m[Mapper] Added container mapping: 261 → undefined[39m
+[32m[Mapper] Added container mapping: 265 → undefined[39m
+[32m[Mapper] Added container mapping: 266 → undefined[39m
+[32m[Mapper] Added container mapping: 268 → undefined[39m
+[32m[Mapper] Added container mapping: 269 → undefined[39m
+[32m[Mapper] Added container mapping: 300 → undefined[39m
+[32m[Mapper] Added container mapping: 274 → undefined[39m
+[32m[Mapper] Added container mapping: 273 → undefined[39m
+[32m[Mapper] Added container mapping: 361 → undefined[39m
+[32m[Mapper] Added container mapping: 351 → undefined[39m
+[32m[Mapper] Added container mapping: 289 → undefined[39m
+[32m[Mapper] Added container mapping: 347 → undefined[39m
+[32m[Mapper] Added container mapping: 291 → undefined[39m
+[32m[Mapper] Added container mapping: 304 → undefined[39m
+[32m[Mapper] Added container mapping: 353 → undefined[39m
+[32m[Mapper] Added container mapping: 305 → undefined[39m
+[32m[Mapper] Added container mapping: 301 → undefined[39m
+[32m[Mapper] Added container mapping: 272 → undefined[39m
+[32m[Mapper] Added container mapping: 297 → undefined[39m
+[32m[Mapper] Added container mapping: 276 → undefined[39m
+[32m[Mapper] Added container mapping: 352 → undefined[39m
+[32m[Mapper] Added container mapping: 295 → undefined[39m
+[32m[Mapper] Added container mapping: 298 → undefined[39m
+[32m[Mapper] Added container mapping: 290 → undefined[39m
+[32m[Mapper] Added container mapping: 275 → undefined[39m
+[32m[Mapper] Added container mapping: 316 → undefined[39m
+[32m[Mapper] Added container mapping: 308 → undefined[39m
+[32m[Mapper] Added container mapping: 317 → undefined[39m
+[32m[Mapper] Added container mapping: 307 → undefined[39m
+[32m[Mapper] Added container mapping: 348 → undefined[39m
+[32m[Mapper] Added container mapping: 292 → undefined[39m
+[32m[Mapper] Added container mapping: 302 → undefined[39m
+[32m[Mapper] Added container mapping: 303 → undefined[39m
+[32m[Mapper] Added container mapping: 299 → undefined[39m
+[32m[Mapper] Added container mapping: 9 → undefined[39m
+[32m[Mapper] Added container mapping: 7 → undefined[39m
+[32m[Mapper] Added container mapping: 18 → undefined[39m
+[32m[Mapper] Added container mapping: 8 → undefined[39m
+[32m[Mapper] Added container mapping: 10 → undefined[39m
+[32m[Mapper] Added container mapping: 6 → undefined[39m
+[32m[Mapper] Added container mapping: 52 → undefined[39m
+[32m[Mapper] Added container mapping: 59 → undefined[39m
+[32m[Mapper] Added container mapping: 209 → undefined[39m
+[32m[Mapper] Added container mapping: 210 → undefined[39m
+[32m[Mapper] Added container mapping: 211 → undefined[39m
+[32m[Mapper] Added container mapping: 212 → undefined[39m
+[32m[Mapper] Added container mapping: 50 → undefined[39m
+[32m[Mapper] Added container mapping: 57 → undefined[39m
+[32m[Mapper] Added container mapping: 86 → undefined[39m
+[32m[Mapper] Added container mapping: 87 → undefined[39m
+[32m[Mapper] Added container mapping: 88 → undefined[39m
+[32m[Mapper] Added container mapping: 55 → undefined[39m
+[32m[Mapper] Added container mapping: 62 → undefined[39m
+[32m[Mapper] Added container mapping: 135 → undefined[39m
+[32m[Mapper] Added container mapping: 354 → undefined[39m
+[32m[Mapper] Added container mapping: 357 → undefined[39m
+[32m[Mapper] Added container mapping: 49 → undefined[39m
+[32m[Mapper] Added container mapping: 56 → undefined[39m
+[32m[Mapper] Added container mapping: 51 → undefined[39m
+[32m[Mapper] Added container mapping: 58 → undefined[39m
+[32m[Mapper] Added container mapping: 14 → undefined[39m
+[32m[Mapper] Added container mapping: 12 → undefined[39m
+[32m[Mapper] Added container mapping: 15 → undefined[39m
+[32m[Mapper] Added container mapping: 13 → undefined[39m
+[32m[Mapper] Added container mapping: 255 → undefined[39m
+[32m[Mapper] Added container mapping: 39 → undefined[39m
+[32m[Mapper] Added container mapping: 337 → undefined[39m
+[32m[Mapper] Added container mapping: 338 → undefined[39m
+[32m[Mapper] Added container mapping: 198 → undefined[39m
+[32m[Mapper] Added container mapping: 285 → undefined[39m
+[32m[Mapper] Added container mapping: 326 → undefined[39m
+[32m[Mapper] Added container mapping: 199 → undefined[39m
+[32m[Mapper] Added container mapping: 286 → undefined[39m
+[32m[Mapper] Added container mapping: 327 → undefined[39m
+[32m[Mapper] Added container mapping: 94 → undefined[39m
+[32m[Mapper] Added container mapping: 280 → undefined[39m
+[32m[Mapper] Added container mapping: 321 → undefined[39m
+[32m[Mapper] Added container mapping: 194 → undefined[39m
+[32m[Mapper] Added container mapping: 281 → undefined[39m
+[32m[Mapper] Added container mapping: 322 → undefined[39m
+[32m[Mapper] Added container mapping: 195 → undefined[39m
+[32m[Mapper] Added container mapping: 323 → undefined[39m
+[32m[Mapper] Added container mapping: 282 → undefined[39m
+[32m[Mapper] Added container mapping: 325 → undefined[39m
+[32m[Mapper] Added container mapping: 283 → undefined[39m
+[32m[Mapper] Added container mapping: 324 → undefined[39m
+[32m[Mapper] Added container mapping: 196 → undefined[39m
+[32m[Mapper] Added container mapping: 197 → undefined[39m
+[32m[Mapper] Added container mapping: 284 → undefined[39m
+[32m[Mapper] Added container mapping: 250 → undefined[39m
+[32m[Mapper] Added container mapping: 258 → undefined[39m
+[32m[Mapper] Added container mapping: 251 → undefined[39m
+[32m[Mapper] Added container mapping: 262 → undefined[39m
+[32m[Mapper] Added container mapping: 252 → undefined[39m
+[32m[Mapper] Added container mapping: 256 → undefined[39m
+[32m[Mapper] Added container mapping: 263 → undefined[39m
+[32m[Mapper] Added container mapping: 247 → undefined[39m
+[32m[Mapper] Added container mapping: 254 → undefined[39m
+[32m[Mapper] Added container mapping: 253 → undefined[39m
+[32m[Mapper] Added container mapping: 358 → undefined[39m
+[32m[Mapper] Added container mapping: 359 → undefined[39m
+[32m[Mapper] Added container mapping: 214 → undefined[39m
+[32m[Mapper] Added container mapping: 217 → undefined[39m
+[32m[Mapper] Added container mapping: 219 → undefined[39m
+[32m[Mapper] Added container mapping: 222 → undefined[39m
+[32m[Mapper] Added container mapping: 221 → undefined[39m
+[32m[Mapper] Added container mapping: 314 → undefined[39m
+[32m[Mapper] Added container mapping: 101 → undefined[39m
+[32m[Mapper] Added container mapping: 139 → undefined[39m
+[32m[Mapper] Added container mapping: 146 → undefined[39m
+[32m[Mapper] Added container mapping: 145 → undefined[39m
+[32m[Mapper] Added container mapping: 140 → undefined[39m
+[32m[Mapper] Added container mapping: 215 → undefined[39m
+[32m[Mapper] Added container mapping: 216 → undefined[39m
+[32m[Mapper] Added container mapping: 141 → undefined[39m
+[32m[Mapper] Added container mapping: 143 → undefined[39m
+[32m[Mapper] Added container mapping: 142 → undefined[39m
+[32m[Mapper] Added container mapping: 149 → undefined[39m
+[32m[Mapper] Added container mapping: 144 → undefined[39m
+[32m[Mapper] Added container mapping: 148 → undefined[39m
+[32m[Mapper] Added container mapping: 204 → undefined[39m
+[32m[Mapper] Added container mapping: 205 → undefined[39m
+[32m[Mapper] Added container mapping: 29 → undefined[39m
+[32m[Mapper] Added container mapping: 22 → undefined[39m
+[32m[Mapper] Added container mapping: 19 → undefined[39m
+[32m[Mapper] Added container mapping: 30 → undefined[39m
+[32m[Mapper] Added container mapping: 33 → undefined[39m
+[32m[Mapper] Added container mapping: 16 → undefined[39m
+[32m[Mapper] Added container mapping: 53 → undefined[39m
+[32m[Mapper] Added container mapping: 60 → undefined[39m
+[32m[Mapper] Added container mapping: 150 → undefined[39m
+[32m[Mapper] Added container mapping: 151 → undefined[39m
+[32m[Mapper] Added container mapping: 111 → undefined[39m
+[32m[Mapper] Added container mapping: 114 → undefined[39m
+[32m[Mapper] Added container mapping: 152 → undefined[39m
+[32m[Mapper] Added container mapping: 153 → undefined[39m
+[32m[Mapper] Added container mapping: 93 → undefined[39m
+[32m[Mapper] Added container mapping: 125 → undefined[39m
+[32m[Mapper] Added container mapping: 126 → undefined[39m
+[32m[Mapper] Added container mapping: 112 → undefined[39m
+[32m[Mapper] Added container mapping: 116 → undefined[39m
+[32m[Mapper] Added container mapping: 115 → undefined[39m
+[32m[Mapper] Added container mapping: 113 → undefined[39m
+[32m[Mapper] Added container mapping: 21 → undefined[39m
+[32m[Mapper] Added container mapping: 28 → undefined[39m
+[32m[Mapper] Added container mapping: 123 → undefined[39m
+[32m[Mapper] Added container mapping: 124 → undefined[39m
+[32m[Mapper] Added container mapping: 96 → undefined[39m
+[32m[Mapper] Added container mapping: 97 → undefined[39m
+[32m[Mapper] Added container mapping: 122 → undefined[39m
+[32m[Mapper] Added container mapping: 121 → undefined[39m
+[32m[Mapper] Added container mapping: 100 → undefined[39m
+[32m[Mapper] Added container mapping: 99 → undefined[39m
+[32m[Mapper] Added container mapping: 98 → undefined[39m
+[32m[Mapper] Added container mapping: 137 → undefined[39m
+[32m[Mapper] Added container mapping: 138 → undefined[39m
+[32m[Mapper] Added container mapping: 27 → undefined[39m
+[32m[Mapper] Added container mapping: 186 → undefined[39m
+[32m[Mapper] Added container mapping: 187 → undefined[39m
+[32m[Mapper] Added container mapping: 92 → undefined[39m
+[32m[Mapper] Added container mapping: 178 → undefined[39m
+[32m[Mapper] Added container mapping: 179 → undefined[39m
+[32m[Mapper] Added container mapping: 183 → undefined[39m
+[32m[Mapper] Added container mapping: 182 → undefined[39m
+[32m[Mapper] Added container mapping: 188 → undefined[39m
+[32m[Mapper] Added container mapping: 189 → undefined[39m
+[32m[Mapper] Added container mapping: 90 → undefined[39m
+[32m[Mapper] Added container mapping: 180 → undefined[39m
+[32m[Mapper] Added container mapping: 181 → undefined[39m
+[32m[Mapper] Added container mapping: 185 → undefined[39m
+[32m[Mapper] Added container mapping: 184 → undefined[39m
+[32m[Mapper] Added container mapping: 41 → undefined[39m
+[32m[Mapper] Added container mapping: 42 → undefined[39m
+[32m[Mapper] Added container mapping: 34 → undefined[39m
+[32m[Mapper] Added container mapping: 311 → undefined[39m
+[32m[Mapper] Added container mapping: 312 → undefined[39m
+[32m[Mapper] Added container mapping: 246 → undefined[39m
+[32m[Mapper] Added container mapping: 35 → undefined[39m
+[32m[Mapper] Added container mapping: 136 → undefined[39m
+[32m[Mapper] Added container mapping: 129 → undefined[39m
+[32m[Mapper] Added container mapping: 128 → undefined[39m
+[32m[Mapper] Added container mapping: 36 → undefined[39m
+[32m[Mapper] Added container mapping: 37 → undefined[39m
+[32m[Mapper] Added container mapping: 127 → undefined[39m
+[32m[Mapper] Added container mapping: 40 → undefined[39m
+[32m[Mapper] Added container mapping: 38 → undefined[39m
+[32m[Mapper] Added container mapping: 309 → undefined[39m
+[32m[Mapper] Added container mapping: 310 → undefined[39m
+[32m[Mapper] Added container mapping: 206 → undefined[39m
+[32m[Mapper] Added container mapping: 95 → undefined[39m
+[32m[Mapper] Added container mapping: 105 → undefined[39m
+[32m[Mapper] Added container mapping: 118 → undefined[39m
+[32m[Mapper] Added container mapping: 117 → undefined[39m
+[32m[Mapper] Added container mapping: 106 → undefined[39m
+[32m[Mapper] Added container mapping: 120 → undefined[39m
+[32m[Mapper] Added container mapping: 119 → undefined[39m
+[32m[Mapper] Added container mapping: 108 → undefined[39m
+[32m[Mapper] Added container mapping: 109 → undefined[39m
+[32m[Mapper] Added container mapping: 107 → undefined[39m
+[32m[Mapper] Added container mapping: 110 → undefined[39m
+[32m[Mapper] Added container mapping: 355 → undefined[39m
+[32m[Mapper] Added container mapping: 360 → undefined[39m
+[32m[Mapper] Added container mapping: 356 → undefined[39m
+[32m[Mapper] Added container mapping: 176 → undefined[39m
+[32m[Mapper] Added container mapping: 177 → undefined[39m
+[32m[Mapper] Added container mapping: 89 → undefined[39m
+[32m[Mapper] Added container mapping: 164 → undefined[39m
+[32m[Mapper] Added container mapping: 165 → undefined[39m
+[32m[Mapper] Added container mapping: 192 → undefined[39m
+[32m[Mapper] Added container mapping: 166 → undefined[39m
+[32m[Mapper] Added container mapping: 191 → undefined[39m
+[32m[Mapper] Added container mapping: 167 → undefined[39m
+[32m[Mapper] Added container mapping: 174 → undefined[39m
+[32m[Mapper] Added container mapping: 175 → undefined[39m
+[32m[Mapper] Added container mapping: 91 → undefined[39m
+[32m[Mapper] Added container mapping: 170 → undefined[39m
+[32m[Mapper] Added container mapping: 171 → undefined[39m
+[32m[Mapper] Added container mapping: 172 → undefined[39m
+[32m[Mapper] Added container mapping: 173 → undefined[39m
+[32m[Mapper] Added container mapping: 131 → undefined[39m
+[32m[Mapper] Added container mapping: 132 → undefined[39m
+[32m[Mapper] Added container mapping: 43 → undefined[39m
+[32m[Mapper] Added container mapping: 44 → undefined[39m
+[32m[Mapper] Added container mapping: 45 → undefined[39m
+[32m[Mapper] Added container mapping: 46 → undefined[39m
+[32m[Mapper] Added container mapping: 293 → undefined[39m
+[32m[Mapper] Added container mapping: 134 → undefined[39m
+[32m[Mapper] Added container mapping: 133 → undefined[39m
+[32m[Mapper] Added container mapping: 47 → undefined[39m
+[32m[Mapper] Added container mapping: 48 → undefined[39m
+[32m[Mapper] Added container mapping: 24 → undefined[39m
+[32m[Mapper] Added container mapping: 25 → undefined[39m
+[32m[Mapper] Added container mapping: 264 → undefined[39m
+[32m[Mapper] Added container mapping: 20 → undefined[39m
+[32m[Mapper] Added container mapping: 26 → undefined[39m
+[32m[Mapper] Added container mapping: 155 → undefined[39m
+[32m[Mapper] Added container mapping: 200 → undefined[39m
+[32m[Mapper] Added container mapping: 201 → undefined[39m
+[32m[Mapper] Added container mapping: 159 → undefined[39m
+[32m[Mapper] Added container mapping: 156 → undefined[39m
+[32m[Mapper] Added container mapping: 157 → undefined[39m
+[32m[Mapper] Added container mapping: 158 → undefined[39m
+[32m[Mapper] Added container mapping: 31 → undefined[39m
+[32m[Mapper] Added container mapping: 66 → undefined[39m
+[32m[Mapper] Added container mapping: 69 → undefined[39m
+[32m[Mapper] Added container mapping: 82 → undefined[39m
+[32m[Mapper] Added container mapping: 320 → undefined[39m
+[32m[Mapper] Added container mapping: 78 → undefined[39m
+[32m[Mapper] Added container mapping: 279 → undefined[39m
+[32m[Mapper] Added container mapping: 81 → undefined[39m
+[32m[Mapper] Added container mapping: 72 → undefined[39m
+[32m[Mapper] Added container mapping: 75 → undefined[39m
+[32m[Mapper] Added container mapping: 63 → undefined[39m
+[32m[Mapper] Added container mapping: 80 → undefined[39m
+[32m[Mapper] Added container mapping: 328 → undefined[39m
+[32m[Mapper] Added container mapping: 83 → undefined[39m
+[32m[Mapper] Added container mapping: 74 → undefined[39m
+[32m[Mapper] Added container mapping: 65 → undefined[39m
+[32m[Mapper] Added container mapping: 77 → undefined[39m
+[32m[Mapper] Added container mapping: 23 → undefined[39m
+[32m[Mapper] Added container mapping: 32 → undefined[39m
+[32m[Mapper] Added container mapping: 84 → undefined[39m
+[32m[Mapper] Added container mapping: 70 → undefined[39m
+[32m[Mapper] Added container mapping: 287 → undefined[39m
+[32m[Mapper] Added container mapping: 76 → undefined[39m
+[32m[Mapper] Added container mapping: 71 → undefined[39m
+[32m[Mapper] Added container mapping: 73 → undefined[39m
+[32m[Mapper] Added container mapping: 79 → undefined[39m
+[32m[Mapper] Added container mapping: 329 → undefined[39m
+[32m[Mapper] Added container mapping: 288 → undefined[39m
+[32m[Mapper] Added container mapping: 68 → undefined[39m
+[32m[Mapper] Added container mapping: 64 → undefined[39m
+[32m[Mapper] Added container mapping: 67 → undefined[39m
+[32m[Mapper] Added container mapping: 130 → undefined[39m
+[32m[Mapper] Added container mapping: 332 → undefined[39m
+[32m[Mapper] Added container mapping: 333 → undefined[39m
+[32m[Mapper] Added container mapping: 336 → undefined[39m
+[32m[Mapper] Added container mapping: 331 → undefined[39m
+[32m[Mapper] Added container mapping: 346 → undefined[39m
+[32m[Mapper] Added container mapping: 345 → undefined[39m
+[32m[Mapper] Added container mapping: 330 → undefined[39m
+[32m[Mapper] Added container mapping: 259 → undefined[39m
+[32m[Mapper] Added container mapping: 271 → undefined[39m
+[32m[Mapper] Added container mapping: 350 → undefined[39m
+✅ Successfully linked 341 containers to transformed models
+
+🏥 TRANSFORMED ECOSYSTEM HEALTH: 90.0%
+   📋 Model Health: 100.0%
+   📦 Container Health: 100.0%
+   📄 Content Health: 50.0%
+   🔗 Reference Health: 100%
+
+✅ SUCCESS: Field mapping fix restored ecosystem health!
+🎯 SOLUTION CONFIRMED: The issue was field name mismatch between eras
+
+🎯 TESTING CONTENT MAPPING WITH TRANSFORMED DATA
+==============================================
+📊 Content mapping with transformed models:
+   ✅ Model-aware matches: 0
+   ✅ Other matches: 1039
+   ❌ No matches: 3
+   📈 Success rate: 99.7%

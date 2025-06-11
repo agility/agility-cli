@@ -69,6 +69,7 @@ Every development session must:
 ### **Supporting Files**
 - `.cursor/gotchas.md`: Document technical quirks or confusing edge cases
 - `.cursor/failed-approaches.md`: Log ideas or implementations that didn't work—avoid retesting  
+- `.cursor/chain-assembly.md`: **MANDATORY** - Established chain assembly methodology and patterns
 - `.cursor/rules/project-settings.mdc`: This file—used to define expectations, architecture, and standards
 
 ### **Enforcement Rules**
@@ -179,7 +180,9 @@ src/lib/services/sync-analysis/
 **CRITICAL**: All development work must include SHA tracking for debugging and code restoration.
 
 ### **SHA Tracking Protocol** ⚠️ **MANDATORY**
-- **🔴 REQUIRED**: Commit after each completed task/sub-task
+- **🔴 REQUIRED**: **Get user approval before marking tasks complete**
+- **🔴 REQUIRED**: **Ask user to verify functionality works as expected**
+- **🔴 REQUIRED**: Commit only after user confirms feature is satisfactory
 - **🔴 REQUIRED**: Add SHA reference to manifest after each commit
 - **🔴 REQUIRED**: Use descriptive commit messages following format: `[TaskID] Brief description`
 - **🔴 REQUIRED**: Tag major milestones with semantic tags
@@ -190,6 +193,7 @@ src/lib/services/sync-analysis/
     - **📝 COMMIT**: `git commit -m "[19.6.1] Fix template download logic"`
     - **🔖 SHA**: `a1b2c3d4` - Point-in-time reference for debugging/restoration
     - **📊 RESULT**: Brief description of what was accomplished
+    - **✅ USER VERIFIED**: User confirmed functionality works as expected
 ```
 
 ### **Point-in-Time Reference Uses**
@@ -202,9 +206,11 @@ src/lib/services/sync-analysis/
 ### **Git Workflow Integration**
 1. **Work on feature/task**
 2. **Test thoroughly** 
-3. **Commit with descriptive message**
-4. **Update manifest with SHA**
-5. **Continue to next task**
+3. **Ask user to verify functionality**
+4. **Get user approval for completion**
+5. **Commit with descriptive message** (only after approval)
+6. **Update manifest with SHA**
+7. **Continue to next task**
 
 ### **Branch Strategy**
 - Use feature branches for major phases: `phase-N-description`
@@ -401,5 +407,44 @@ If you discover improvements to these settings, update this file:
 `.cursor/rules/project-settings.mdc`
 
 📌 And optionally log suggestions in `.cursor/manifest.md` as "DX Upgrades".
+
+---
+
+## 🔗 Chain Assembly Standards ⚠️ **MANDATORY**
+
+**CRITICAL**: All chain-based development must follow established patterns documented in `.cursor/chain-assembly.md`
+
+### **Chain Assembly Rules** ⚠️ **MANDATORY**
+- **🔴 REQUIRED**: Check `.cursor/chain-assembly.md` before building any chain-related features
+- **🔴 REQUIRED**: Use existing sync analysis services instead of building custom chain logic
+- **🔴 REQUIRED**: Import and extend proven services from `src/lib/services/sync-analysis/`
+- **🔴 REQUIRED**: Use `SourceDataLoader` for all data loading operations
+- **🔴 REQUIRED**: Follow the established 6-step analysis framework
+- **🔴 REQUIRED**: Test with proven instance GUIDs for validation
+
+### **Established Chain Services** ✅ **USE THESE**
+```typescript
+// ✅ ALWAYS use established services
+import { SourceDataLoader } from '../sync-analysis/source-data-loader';
+import { ComprehensiveAnalysisRunner } from '../sync-analysis/comprehensive-analysis-runner';
+import { PageChainAnalyzer } from '../sync-analysis/page-chain-analyzer';
+import { PageChainDisplay } from '../dependency-analyzer/page-chain-display';
+```
+
+### **Anti-Patterns** ❌ **NEVER DO THESE**
+- ❌ Building custom JSON file loading loops
+- ❌ Manual dependency relationship building
+- ❌ Reinventing chain assembly from scratch
+- ❌ Ignoring the 6-step analysis framework
+- ❌ Using `~/agility-files` instead of `process.cwd() + 'agility-files'`
+- ❌ Looking for `content/` instead of `item/` and `list/` directories
+
+### **Chain Assembly Workflow**
+1. **Assessment**: Check if existing services can be extended
+2. **Integration**: Import and use established chain assembly services
+3. **Validation**: Test with all 3 proven instance GUIDs
+4. **Documentation**: Reference established patterns in new features
+
+**Reference**: See `.cursor/chain-assembly.md` for complete methodology
 
 ---

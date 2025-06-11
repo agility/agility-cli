@@ -1,6 +1,6 @@
 import * as mgmtApi from '@agility/management-sdk';
 import * as fs from 'fs';
-import { ReferenceMapper } from '../../mapper';
+import { ReferenceMapper } from '../../reference-mapper';
 
 export function getContainersFromFileSystem(
     guid: string,

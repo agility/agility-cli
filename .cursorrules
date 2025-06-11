@@ -6,11 +6,21 @@
 - ALWAYS update manifest when adding/changing tasks
 - ALWAYS archive completed phases to changelog.md
 
+## Chain Assembly Standards (MANDATORY)
+- ALWAYS check .cursor/chain-assembly.md before building chain-related features
+- NEVER build custom chain assembly logic - use established services
+- ALWAYS use SourceDataLoader for data loading operations
+- ALWAYS import from src/lib/services/sync-analysis/ for chain operations
+- NEVER reinvent dependency relationship building
+- ALWAYS follow the 6-step analysis framework
+
 ## Development Protocol
 1. Read current manifest status
 2. Plan work in manifest before executing
 3. Update progress markers as work completes
-4. Use manifest task IDs in commit messages
+4. **ASK USER to verify functionality before marking complete**
+5. **GET USER APPROVAL before committing**
+6. Use manifest task IDs in commit messages
 
 ## Code Quality
 - No `any` types - use proper TypeScript typing
@@ -18,9 +28,16 @@
 - Use keytar for token storage, never file-based
 - Test with real instance data (guid: 13a8b394-u)
 
+## Commit Protocol
+- NEVER commit without user approval
+- NEVER mark tasks complete without user verification
+- ASK user to test functionality before committing
+- Only commit after user confirms feature works as expected
+
 ## File Organization
 - Pull logic: use lib/downloaders/
 - Analysis logic: use lib/services/dependency-analyzer.ts
+- Chain operations: use lib/services/sync-analysis/
 - UI prompts: use lib/prompts/
 - Document quirks in .cursor/gotchas.md
 - Log failed approaches in .cursor/failed-approaches.md 

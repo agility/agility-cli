@@ -10,12 +10,14 @@ import {
     SourceEntities, 
     SyncAnalysisContext, 
     ChainAnalysisService,
+    EntityCounts,
     EntitiesInChains
-} from './types';
+} from '../../../types/syncAnalysis';
 import { ContainerReferenceExtractor } from './container-reference-extractor';
 import { DependencyFinder } from './dependency-finder';
 import { NonChainedItemsAnalyzer } from './non-chained-items-analyzer';
 import { ModelChainAnalyzer } from './model-chain-analyzer';
+import { AssetValidationAnalyzer, AssetValidationResult } from './asset-validation-analyzer';
 
 export class ReconciliationReporter implements ChainAnalysisService {
     private context?: SyncAnalysisContext;
@@ -23,6 +25,7 @@ export class ReconciliationReporter implements ChainAnalysisService {
     private dependencyFinder: DependencyFinder;
     private nonChainedAnalyzer: NonChainedItemsAnalyzer;
     private modelAnalyzer: ModelChainAnalyzer;
+    private assetValidator?: AssetValidationAnalyzer;
 
     constructor() {
         this.containerExtractor = new ContainerReferenceExtractor();
@@ -40,6 +43,13 @@ export class ReconciliationReporter implements ChainAnalysisService {
         this.dependencyFinder.initialize(context);
         this.nonChainedAnalyzer.initialize(context);
         this.modelAnalyzer.initialize(context);
+    }
+
+    /**
+     * Set the asset validator reference to access validation results
+     */
+    setAssetValidator(assetValidator: AssetValidationAnalyzer): void {
+        this.assetValidator = assetValidator;
     }
 
     /**
@@ -83,9 +93,14 @@ export class ReconciliationReporter implements ChainAnalysisService {
         // Find broken items that will be skipped
         const brokenItems = this.findAllBrokenItems(sourceEntities);
         
+        // Get asset validation results to exclude problematic assets
+        const assetValidationResult = this.assetValidator?.getAssetValidationResult();
+        const problematicAssetCount = assetValidationResult?.problematicAssetCount || 0;
+        
         // 🐛 CRITICAL FIX: Syncable items should be ALL entities minus broken ones
+        // Problematic assets should be included in missing assets, not subtracted from total
         // Previously was: totalInChains - brokenItems.length (only counted in-chain entities)
-        // Corrected to: totalEntities - brokenItems.length (counts ALL entities)
+        // Now: totalEntities - brokenItems.length (problematic assets count as missing, not unsyncable)
         const syncableItems = totalEntities - brokenItems.length;
 
         console.log(ansiColors.cyan(`📊 SYNC READINESS SUMMARY`));
@@ -118,18 +133,40 @@ export class ReconciliationReporter implements ChainAnalysisService {
             console.log(ansiColors.gray(`     - ${type.name}: ${type.inChains} in chains, ${outOfChains} out, ${accountedFor} accounted for${type.note}`));
         });
         
+        // Show items that will be skipped
         if (brokenItems.length > 0) {
-            console.log(ansiColors.yellow(`\n   Will be skipped: ${brokenItems.length} broken items`));
-            console.log(ansiColors.gray(`\n   Broken items that will be skipped:`));
-            brokenItems.slice(0, 10).forEach(item => {
+            console.log(ansiColors.yellow(`\n   Will be skipped: ${brokenItems.length} items`));
+            
+            console.log(ansiColors.gray(`\n   Broken dependency items (${brokenItems.length}):`));
+            brokenItems.slice(0, 5).forEach(item => {
                 console.log(ansiColors.red(`     - ${item}`));
             });
-            if (brokenItems.length > 10) {
-                console.log(ansiColors.gray(`     ... and ${brokenItems.length - 10} more broken items`));
+            if (brokenItems.length > 5) {
+                console.log(ansiColors.gray(`     ... and ${brokenItems.length - 5} more broken items`));
+            }
+        }
+        
+        if (problematicAssetCount > 0) {
+            console.log(ansiColors.yellow(`\n   Problematic assets (${problematicAssetCount}):`));
+            console.log(ansiColors.gray(`   📝 Note: These assets are included in missing assets breakdown during target discovery`));
+            if (assetValidationResult) {
+                const { problematicAssets } = assetValidationResult;
+                if (problematicAssets.corruptedMetadata.length > 0) {
+                    console.log(ansiColors.red(`     - ${problematicAssets.corruptedMetadata.length} corrupted metadata files`));
+                }
+                if (problematicAssets.specialCharacterIssues.length > 0) {
+                    console.log(ansiColors.yellow(`     - ${problematicAssets.specialCharacterIssues.length} special character issues`));
+                }
+                if (problematicAssets.urlEncodingIssues.length > 0) {
+                    console.log(ansiColors.yellow(`     - ${problematicAssets.urlEncodingIssues.length} URL encoding issues`));
+                }
+                if (problematicAssets.missingFiles.length > 0) {
+                    console.log(ansiColors.red(`     - ${problematicAssets.missingFiles.length} missing files`));
+                }
             }
         }
 
-        console.log(ansiColors.cyan(`\n   🚀 Do you want to proceed to sync ${syncableItems} items?`));
+
     }
 
     /**

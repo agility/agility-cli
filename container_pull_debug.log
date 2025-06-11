@@ -1,0 +1,46 @@
+[33mWelcome to Agility CLI.[39m
+[32m● Authenticated to Agility servers.[39m
+[32m[39m
+[33m[39m
+[33mPulling instance 67bc73e6-u (en-us) [website] Preview into ./agility-files[39m
+Pull operation started in verbose mode.
+Using directory as root for Agility instances: /Users/aaron/Documents/GitHub/agility-cli/agility-files
+Effective path for instance files: /Users/aaron/Documents/GitHub/agility-cli/agility-files/67bc73e6-u/en-us/preview
+
+Starting Containers...
+🔍 Using model-based container discovery (getContainerList misses containers)...
+📋 Standard getContainerList found: 341 containers
+🔍 Discovering additional containers through COMPREHENSIVE model discovery...
+📋 Standard model discovery...
+   📄 Content modules: 16
+   📝 Page modules: 19
+   📊 Standard total: 35
+🔍 Enhanced model discovery via content definitions...
+🔍 Found 0 unique model IDs referenced in content
+✅ Content-based model discovery: 0 models retrieved
+📦 Total models discovered: 35 (0 additional)
+📦 Model-based discovery complete: 341 containers
+🔍 Discovering additional containers through content references...
+📋 Scanning content files for container references...
+🔍 Found 1046 unique container IDs referenced in content
+🔄 Attempting to retrieve 1046 unique containers...
+   ✅ Found missing container via content: ContainerID:752 (No Name)
+   ✅ Found missing container via content: ContainerID:754 (No Name)
+   ✅ Found missing container via content: ContainerID:28 (dynamicarticleseditors_Sideb5DDC13)
+   ✅ Found missing container via content: ContainerID:30 (developersarticlesdynamic_Si30609B)
+   ✅ Found missing container via content: ContainerID:620 (No Name)
+   ✅ Found missing container via content: ContainerID:1022 (No Name)
+   ✅ Found missing container via content: ContainerID:1172 (No Name)
+   ✅ Found missing container via content: ContainerID:621 (No Name)
+   ✅ Found missing container via content: ContainerID:599 (No Name)
+   ✅ Found missing container via content: ContainerID:622 (No Name)
+   📊 Progress: 100/1046 processed (100 found, 0 failed)
+   📊 Progress: 200/1046 processed (200 found, 0 failed)
+   📊 Progress: 300/1046 processed (300 found, 0 failed)
+   📊 Progress: 400/1046 processed (400 found, 0 failed)
+   📊 Progress: 500/1046 processed (500 found, 0 failed)
+   📊 Progress: 600/1046 processed (600 found, 0 failed)
+   ✅ Found missing container via content: ContainerID:405 (No Name)
+   📊 Progress: 700/1046 processed (700 found, 0 failed)
+   📊 Progress: 800/1046 processed (800 found, 0 failed)
+   📊 Progress: 900/1046 processed (900 found, 0 failed)

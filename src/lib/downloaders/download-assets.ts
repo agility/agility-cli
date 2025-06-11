@@ -19,15 +19,12 @@ export async function downloadAllAssets(
   const assetJsonMetaPath = path.join(mainAssetsPath, "json");
 
   if (forceOverwrite) {
-    // REMOVE: fs.rmSync for deleting the folder
-    // if (fs.existsSync(assetJsonMetaPath)) {
-    //   console.log(ansiColors.yellow(`Overwrite selected: Deleting existing asset JSON metadata folder at ${assetJsonMetaPath}`));
-    //   fs.rmSync(assetJsonMetaPath, { recursive: true, force: true });
-    // }
-    // Note: Actual asset binary files are typically within gallery folders or handled by AssetsService.
-    // Clearing assetJsonMetaPath ensures their metadata is re-fetched and they might be re-downloaded by AssetsService.
-    // ADJUST Log message
-    // console.log(ansiColors.yellow(`Overwrite selected: Asset files and metadata will be refreshed.`));
+    // Enable overwrite: Delete existing asset files and metadata to force re-download
+    if (fs.existsSync(mainAssetsPath)) {
+      console.log(ansiColors.yellow(`Overwrite selected: Deleting existing asset folder at ${mainAssetsPath}`));
+      fs.rmSync(mainAssetsPath, { recursive: true, force: true });
+    }
+    console.log(ansiColors.yellow(`Overwrite selected: Asset files and metadata will be refreshed.`));
   } else {
     let skipDownload = false;
     if (fs.existsSync(assetJsonMetaPath) && fs.readdirSync(assetJsonMetaPath).length > 0) {

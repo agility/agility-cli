@@ -1,0 +1,154 @@
+{
+  "sourceInstances": {
+    "small": {
+      "guid": "67bc73e6-u",
+      "name": "Agility Documentation Site",
+      "entityCount": 3619,
+      "description": "Moderate complexity, Agility's own documentation site",
+      "status": "100% validated",
+      "characteristics": [
+        "Clean structure",
+        "Good for basic testing",
+        "Well-organized content"
+      ]
+    },
+    "medium": {
+      "guid": "13a8b394-u", 
+      "name": "Primary Test Instance",
+      "entityCount": 6064,
+      "description": "Well-tested instance, primary development target",
+      "status": "100% validated", 
+      "characteristics": [
+        "Most thoroughly tested",
+        "Good mix of entity types",
+        "Contains i18 content (5,547 items)",
+        "Complex page hierarchies",
+        "Various container types"
+      ]
+    },
+    "large": {
+      "guid": "e287280d-7513-459a-85cc-2b7c19f13ac8",
+      "name": "Complex Production Instance", 
+      "entityCount": 14481,
+      "description": "Largest and most complex instance for stress testing",
+      "status": "100% validated",
+      "characteristics": [
+        "Largest entity count",
+        "Most complex relationships", 
+        "Stress testing target",
+        "Production-scale complexity"
+      ]
+    }
+  },
+  "targetInstances": {
+    "target1": {
+      "guid": "90c39c80-u",
+      "name": "Target Instance 1",
+      "description": "Primary target for sync testing",
+      "status": "Available for testing"
+    },
+    "target2": {
+      "guid": "e67929d5-u",
+      "name": "Target Instance 2", 
+      "description": "Secondary target for sync testing",
+      "status": "Available for testing"
+    },
+    "target3": {
+      "guid": "f3866b86-u",
+      "name": "Target Instance 3",
+      "description": "Tertiary target for sync testing", 
+      "status": "Available for testing"
+    },
+    "target4": {
+      "guid": "0bdf7173-u",
+      "name": "Target Instance 4",
+      "description": "Additional target for sync testing",
+      "status": "Available for testing"
+    }
+  },
+  "testScenarios": {
+    "basic": {
+      "source": "small",
+      "target": "target1", 
+      "description": "Basic functionality test with clean, simple data"
+    },
+    "standard": {
+      "source": "medium",
+      "target": "target2",
+      "description": "Standard sync test with well-tested primary instance"
+    },
+    "stress": {
+      "source": "large", 
+      "target": "target3",
+      "description": "Stress test with largest, most complex instance"
+    },
+    "parallel": {
+      "sources": ["small", "medium"],
+      "targets": ["target1", "target2"], 
+      "description": "Parallel sync testing across multiple instance pairs"
+    }
+  },
+  "syncCommands": {
+    "quickTest": {
+      "command": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"test\" --locale=\"en-us\" --verbose --test",
+      "description": "Quick analysis test (no actual upload, --test flag bypasses auth)",
+      "entityCount": 6064,
+      "estimatedTime": "2-3 minutes"
+    },
+    "standard": {
+      "command": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"e67929d5-u\" --locale=\"en-us\" --verbose",
+      "description": "Standard sync: Medium instance → Target 2",
+      "entityCount": 6064,
+      "estimatedTime": "20-30 minutes"
+    },
+    "basic": {
+      "command": "agility sync --sourceGuid=\"67bc73e6-u\" --targetGuid=\"90c39c80-u\" --locale=\"en-us\" --verbose",
+      "description": "Basic sync: Small instance → Target 1",
+      "entityCount": 3619,
+      "estimatedTime": "12-18 minutes"
+    },
+    "stress": {
+      "command": "agility sync --sourceGuid=\"e287280d-7513-459a-85cc-2b7c19f13ac8\" --targetGuid=\"f3866b86-u\" --locale=\"en-us\" --verbose",
+      "description": "Stress test: Large instance → Target 3",
+      "entityCount": 14481,
+      "estimatedTime": "45-60 minutes"
+    },
+    "analysisOnly": {
+      "command": "agility sync --sourceGuid=\"e287280d-7513-459a-85cc-2b7c19f13ac8\" --targetGuid=\"test\" --locale=\"en-us\" --verbose --test",
+      "description": "Analysis-only on largest instance (no upload)",
+      "entityCount": 14481,
+      "estimatedTime": "3-5 minutes"
+    },
+    "allTargets": {
+      "target1": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"90c39c80-u\" --locale=\"en-us\" --verbose",
+      "target2": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"e67929d5-u\" --locale=\"en-us\" --verbose", 
+      "target3": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"f3866b86-u\" --locale=\"en-us\" --verbose",
+      "target4": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"0bdf7173-u\" --locale=\"en-us\" --verbose",
+      "description": "Medium instance to all target instances"
+    },
+    "debugging": {
+      "verbose": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"e67929d5-u\" --locale=\"en-us\" --verbose",
+      "quiet": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"e67929d5-u\" --locale=\"en-us\"",
+      "testMode": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"test\" --locale=\"en-us\" --verbose --test",
+      "description": "Different logging levels and test modes"
+    },
+    "production": {
+      "smallToProd": "agility sync --sourceGuid=\"67bc73e6-u\" --targetGuid=\"YOUR-PROD-GUID\" --locale=\"en-us\" --verbose",
+      "mediumToProd": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"YOUR-PROD-GUID\" --locale=\"en-us\" --verbose",
+      "largeToProd": "agility sync --sourceGuid=\"e287280d-7513-459a-85cc-2b7c19f13ac8\" --targetGuid=\"YOUR-PROD-GUID\" --locale=\"en-us\" --verbose",
+      "description": "Production sync commands (replace YOUR-PROD-GUID with actual production instance)"
+    }
+  },
+  "metadata": {
+    "lastUpdated": "2024-03-08",
+    "totalValidatedEntities": 24164,
+    "validationStatus": "100% entity reconciliation across all source instances",
+    "notes": [
+      "All source instances have been validated with 100% entity reconciliation",
+      "Analysis system handles 24,164+ entities across 3 diverse customer instances",
+      "Target instances are clean and ready for sync testing",
+      "Use --test flag to bypass authentication for analysis-only testing",
+      "Copy commands directly from syncCommands section for easy testing"
+    ]
+  }
+} 

@@ -1,0 +1,155 @@
+/**
+ * 🎯 Simple Management SDK Downloader
+ * Basic implementation to test the approach and get immediate results
+ */
+
+import * as mgmtApi from '@agility/management-sdk';
+import * as fs from 'fs';
+import * as path from 'path';
+
+export interface SimpleDownloaderOptions {
+    guid: string;
+    locale: string;
+    channel: string;
+    apiKey: string;
+    outputDir?: string;
+    verbose?: boolean;
+}
+
+export class SimpleManagementSDKDownloader {
+    private client: mgmtApi.ApiClient;
+    private options: SimpleDownloaderOptions;
+    private outputDir: string;
+
+    constructor(options: SimpleDownloaderOptions) {
+        this.options = options;
+        this.outputDir = options.outputDir || path.join(process.cwd(), 'agility-files', options.guid, options.locale, 'preview');
+        
+        // Initialize Management SDK client using correct pattern
+        const mgmtOptions = new mgmtApi.Options();
+        mgmtOptions.token = options.apiKey;
+        this.client = new mgmtApi.ApiClient(mgmtOptions);
+    }
+
+    /**
+     * Test basic download functionality
+     */
+    async testDownload(): Promise<{success: boolean, stats: any}> {
+        console.log(`🚀 Testing Management SDK Download for instance ${this.options.guid}`);
+        
+        const stats = {
+            models: 0,
+            containers: 0,
+            content: 0,
+            templates: 0
+        };
+
+        try {
+            // Create basic directory structure
+            await fs.promises.mkdir(this.outputDir, { recursive: true });
+            await fs.promises.mkdir(path.join(this.outputDir, 'models'), { recursive: true });
+            await fs.promises.mkdir(path.join(this.outputDir, 'containers'), { recursive: true });
+            await fs.promises.mkdir(path.join(this.outputDir, 'templates'), { recursive: true });
+
+            // Test 1: Download models
+            console.log('📐 Testing model download...');
+            const contentModels = await this.client.modelMethods.getContentModules(true, this.options.guid, false);
+            const pageModels = await this.client.modelMethods.getPageModules(true, this.options.guid);
+            stats.models = contentModels.length + pageModels.length;
+            console.log(`✅ Found ${stats.models} models`);
+
+            // Test 2: Download containers
+            console.log('📦 Testing container download...');
+            const containers = await this.client.containerMethods.getContainerList(this.options.guid);
+            const validContainers = containers.filter((c: any) => c.contentViewID !== -1);
+            stats.containers = validContainers.length;
+            console.log(`✅ Found ${stats.containers} valid containers (${containers.length - validContainers.length} deleted)`);
+
+            // Test 3: Download templates
+            console.log('🏗️ Testing template download...');
+            const templates = await this.client.pageMethods.getPageTemplates(true, this.options.guid);
+            stats.templates = templates.length;
+            console.log(`✅ Found ${stats.templates} templates`);
+
+            // Test 4: Basic content check
+            console.log('📝 Testing content discovery...');
+            let totalContent = 0;
+            for (let i = 0; i < Math.min(3, validContainers.length); i++) {
+                try {
+                    const container = validContainers[i];
+                    const contentList = await this.client.contentMethods.getContentList(
+                        container.referenceName,
+                        this.options.guid,
+                        this.options.locale,
+                        null
+                    );
+                    if (contentList && contentList.items) {
+                        totalContent += contentList.items.length;
+                        console.log(`   Container ${container.referenceName}: ${contentList.items.length} items`);
+                    }
+                } catch (error) {
+                    // Skip containers with no content
+                }
+            }
+            stats.content = totalContent;
+            console.log(`✅ Sample content check: ${totalContent} items from first 3 containers`);
+
+            console.log('\n📊 TEST RESULTS:');
+            console.log(`📐 Models: ${stats.models}`);
+            console.log(`📦 Containers: ${stats.containers}`);
+            console.log(`🏗️ Templates: ${stats.templates}`);
+            console.log(`📝 Content (sample): ${stats.content}`);
+            console.log(`📁 Output directory: ${this.outputDir}`);
+
+            return { success: true, stats };
+
+        } catch (error) {
+            console.error('❌ Management SDK test failed:', error);
+            return { success: false, stats };
+        }
+    }
+
+    /**
+     * Save basic model data for testing
+     */
+    async saveTestData(): Promise<void> {
+        console.log('💾 Saving test data...');
+        
+        try {
+            // Save models
+            const contentModels = await this.client.modelMethods.getContentModules(true, this.options.guid, false);
+            const pageModels = await this.client.modelMethods.getPageModules(true, this.options.guid);
+            
+            for (const model of [...contentModels, ...pageModels]) {
+                const filename = `${model.referenceName || model.id}.json`;
+                const filepath = path.join(this.outputDir, 'models', filename);
+                await fs.promises.writeFile(filepath, JSON.stringify(model, null, 2));
+            }
+
+            // Save containers
+            const containers = await this.client.containerMethods.getContainerList(this.options.guid);
+            const validContainers = containers.filter((c: any) => c.contentViewID !== -1);
+            
+            for (const container of validContainers) {
+                const filename = `${container.referenceName || container.contentViewID}.json`;
+                const filepath = path.join(this.outputDir, 'containers', filename);
+                await fs.promises.writeFile(filepath, JSON.stringify(container, null, 2));
+            }
+
+            // Save templates
+            const templates = await this.client.pageMethods.getPageTemplates(true, this.options.guid);
+            
+            for (const template of templates) {
+                const filename = `${template.referenceName || template.id}.json`;
+                const filepath = path.join(this.outputDir, 'templates', filename);
+                await fs.promises.writeFile(filepath, JSON.stringify(template, null, 2));
+            }
+
+            console.log('✅ Test data saved to disk');
+
+        } catch (error) {
+            console.error('❌ Failed to save test data:', error);
+            throw error;
+        }
+    }
+} 

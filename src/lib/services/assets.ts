@@ -165,14 +165,14 @@ export class assets {
         const assetMediaID = assetMedia.mediaID;
         const filePath = this.getFilePath(originUrl);
         const folderPath = filePath.split("/").slice(0, -1).join("/");
-        const fileName = `${assetMedia.fileName}`;
+        let fileName = `${assetMedia.fileName}`;
         const assetFileDownloadBase = assetsRootWithinInstance;
 
-        if (this.isUrlProperlyEncoded(originUrl)) {
-          this.unProcessedAssets[assetMediaID] = fileName;
-          if (this._progressCallback) this._progressCallback(totalSuccessfullyDownloaded, totalRecords, 'progress');
-          continue;
-        }
+        // Sanitize filename to avoid filesystem issues
+        fileName = fileName.replace(/[<>:"|?*]/g, '_'); // Replace invalid filesystem characters
+        fileName = fileName.substring(0, 200); // Limit filename length to prevent path issues
+
+        // Note: Removed broken isUrlProperlyEncoded check - all valid assets should be downloaded
 
         const destinationFolderPath = folderPath ? path.join(assetFileDownloadBase, folderPath) : assetFileDownloadBase;
         if (folderPath) {
@@ -217,14 +217,14 @@ export class assets {
             const mediaID = assetMedia.mediaID;
             const filePath = this.getFilePath(originUrl);
             const folderPath = filePath.split("/").slice(0, -1).join("/");
-            const fileName = `${assetMedia.fileName}`;
+            let fileName = `${assetMedia.fileName}`;
             const assetFileDownloadBase = assetsRootWithinInstance;
 
-            if (this.isUrlProperlyEncoded(originUrl)) {
-              this.unProcessedAssets[mediaID] = fileName;
-              if (this._progressCallback) this._progressCallback(totalSuccessfullyDownloaded, totalRecords, 'progress');
-              continue;
-            }
+            // Sanitize filename to avoid filesystem issues
+            fileName = fileName.replace(/[<>:"|?*]/g, '_'); // Replace invalid filesystem characters
+            fileName = fileName.substring(0, 200); // Limit filename length to prevent path issues
+
+            // Note: Removed broken isUrlProperlyEncoded check - all valid assets should be downloaded
 
             const destinationFolderPath = folderPath ? path.join(assetFileDownloadBase, folderPath) : assetFileDownloadBase;
             if (folderPath) {

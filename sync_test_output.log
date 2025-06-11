@@ -1,0 +1,2171 @@
+[33mWelcome to Agility CLI.[39m
+[33m🧪 TEST MODE: Bypassing authentication...[39m
+🔒 Target instance validation enabled. 5 approved targets loaded.
+[32m✅ Target instance validated: Test Mode (Analysis Only) (test)[39m
+[33m🧪 TEST MODE: Bypassing permission checks...[39m
+[33m🔗 Pages require Templates, Containers, Content, Assets, Galleries - adding automatically[39m
+[33m🔗 Content requires Containers, Models, Assets, Galleries - adding automatically[39m
+[33m🔗 Containers require Models - adding automatically[39m
+[36m[39m
+[36m🚀 Starting Simplified Pusher-Based Sync[39m
+============================================================
+[33m📥 Loading source data and performing dependency analysis...[39m
+[33m🔄 Loading source data with field transformation bridge...[39m
+📦 Loading containers from Management SDK containers/ directory only
+   📁 Management SDK containers/: 356 containers
+[32m✅ Loaded 3634 entities from local files[39m
+   📄 Pages: 38
+   🏗️  Templates: 4
+   📦 Containers: 356
+   📋 Models: 35
+   📝 Content: 1042
+   📎 Assets: 2159
+   🖼️  Galleries: 0
+[32m✅ Loaded 3634 entities with field transformation bridge[39m
+[36m   📋 Models: 35 (recursive-era → structured-era fields transformed)[39m
+[36m[39m
+[36m📊 7-STEP COMPREHENSIVE SYNC ANALYSIS[39m
+==================================================
+[33m[39m
+[33m🔍 0. ASSET VALIDATION & COMPATIBILITY[39m
+==================================================
+
+🔍 Analyzing 2159 assets for sync compatibility...
+📊 Asset Validation Results:
+   ✅ Valid assets: 2137
+   ❌ Problematic assets: 22
+
+      🔴 Corrupted metadata (18 assets):
+         -07172023140948.vU1elVlAAAAABJRU5ErkJggg== (ID:1232, 767KB)
+         -07172023141527.8+xhyERERERERERERFZGDAkIiIiIiIiIiIiCwOGRE... (ID:1234, 55KB)
+         -07172023141527.H8jZaa7UrFzOQAAAABJRU5ErkJggg== (ID:1233, 49KB)
+         -07172023141529.mlQF8IIIAAAggggAACCCCAAAIIIHC6BHJCrdwKwir... (ID:1235, 105KB)
+         -07172023141833.0Wtre4yKJfEACBXAhEEmPfAfxFXddw75cpV15rFGl... (ID:1236, 55KB)
+         ... and 13 more
+
+      🟡 Special character issues (3 assets):
+         SvelteKitLogo+AgilityLogo-02202025201509.png (ID:2188, 146KB)
+         SvelteKitLogo+AgilityLogo-02202025210135.png (ID:2189, 146KB)
+         SvelteKitLogo+AgilityLogo.png (ID:2190, 146KB)
+
+      🟠 URL encoding issues (1 assets):
+         Screenshot%202023-07-28%20at%2010.09.41%20AM-072820231310... (ID:1554, 390KB)
+
+📋 **Asset Validation Report**
+
+**Summary:**
+- Total Assets: 2159
+- Valid Assets: 2137 (99.0%)
+- Problematic Assets: 22 (1.0%)
+
+**🔴 Corrupted Metadata (18 assets):**
+These assets have corrupted filenames with embedded base64 data and will be skipped:
+- -07172023140948.vU1elVlAAAAABJRU5ErkJggg==...
+- -07172023141527.8+xhyERERERERERERFZGDAkIiIiIiIiIiI...
+- -07172023141527.H8jZaa7UrFzOQAAAABJRU5ErkJggg==...
+- -07172023141529.mlQF8IIIAAAggggAACCCCAAAIIIHC6BHJC...
+- -07172023141833.0Wtre4yKJfEACBXAhEEmPfAfxFXddw75cp...
+- ... and 13 more
+
+**🟡 Special Character Issues (3 assets):**
+These assets have filenames with special characters that cause CDN issues:
+- SvelteKitLogo+AgilityLogo-02202025201509.png
+- SvelteKitLogo+AgilityLogo-02202025210135.png
+- SvelteKitLogo+AgilityLogo.png
+
+**🟠 URL Encoding Issues (1 assets):**
+These assets have URL-encoded characters in filenames:
+- Screenshot%202023-07-28%20at%2010.09.41%20AM-07282023131004-07282023140104.png
+
+**✅ Sync Impact:**
+2137 assets will be included in sync operations.
+22 assets will be excluded due to validation issues.
+
+[34m[39m
+[34m📐 1. CIRCULAR MODEL CHAINS (BASELINE)[39m
+==================================================
+[33mFound 3 independent model-to-model chains:[39m
+[32m[39m
+[32m  Model:Header (Header)[39m
+[32m    ├─ Model:Link (Link)[39m
+[32m    ├─ Model:Link (Link)[39m
+[32m[39m
+[32m  Model:Release (Release)[39m
+[32m    ├─ Model:ChangeLog (Change Log)[39m
+[32m    │  ├─ Model:ChangeLogTag (Change Log Tag)[39m
+[32m[39m
+[32m  Model:Footer (Footer)[39m
+[32m    ├─ Model:Link (Link)[39m
+[32m    ├─ Model:Link (Link)[39m
+[32m    ├─ Model:Link (Link)[39m
+[34m[39m
+[34m📄 2. ALL PAGE CHAINS[39m
+==================================================
+✅ Loaded nested sitemap with 21 top-level nodes
+[33mFound 38 pages in 21 hierarchical groups:[39m
+[37m[39m
+[37m  PageID:16 (nextjs)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:63 (ownersadmins_SidebarNav63)[39m
+[32m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav)[39m
+[34m    │  │  │  ├─ ContentID:134 (ownersadmins_sidebarnav63)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:89 (nextjs_HeroHeading)[39m
+[32m    │  │  │  ├─ Model:HeroHeading (Hero Heading)[39m
+[34m    │  │  │  ├─ ContentID:191 (nextjs_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:next-js-logo-8FCFF51DD2-seeklogo.com.png[39m
+[37m    │  │  ├─ ContainerID:176 (nextjs_ArticleListing)[39m
+[32m    │  │  │  ├─ Model:ArticleListing (Article Listing)[39m
+[34m    │  │  │  ├─ ContentID:539 (nextjs_articlelisting)[39m
+[37m    │  │  ├─ ContainerID:191 (nextjs_RightOrLeftAlignedLinAF340D)[39m
+[32m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links)[39m
+[34m    │  │  │  ├─ ContentID:584 (nextjs_rightorleftalignedlinaf340d)[39m
+[37m    │  │  ├─ ContainerID:164 (nextjs_ListofLinks)[39m
+[32m    │  │  │  ├─ Model:ListofLinks (List of Links)[39m
+[34m    │  │  │  ├─ ContentID:489 (nextjs_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:166 (nextjs_RightOrLeftAlignedLinA47238)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:492 (nextjs_rightorleftalignedlina47238)[39m
+[37m    └─ PageID:17 (nextjs-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:64 (ownersadminsarticlesdynamic_D25F84)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:136 (ownersadminsarticlesdynamic_d25f84)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:65 (ownersadminsarticlesdynamic_45AB5E)[39m
+[32m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details)[39m
+[34m        │  │  │  ├─ ContentID:137 (ownersadminsarticlesdynamic_45ab5e)[39m
+[37m[39m
+[37m  PageID:18 (gatsby)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:66 (ownersadmins_SidebarNav62)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:139 (ownersadmins_sidebarnav62)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:90 (gatsby_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:192 (gatsby_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:Gatsby_Monogram_20210922195636_0.png[39m
+[37m    │  │  ├─ ContainerID:180 (gatsby_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:555 (gatsby_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:184 (gatsby_RightOrLeftAlignedLinCA77EC)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:564 (gatsby_rightorleftalignedlinca77ec)[39m
+[37m    │  │  ├─ ContainerID:188 (gatsby_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:573 (gatsby_articlelisting)[39m
+[37m    └─ PageID:19 (gatsby-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:67 (ownersadminsarticlesdynamic_F0E1EB)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:141 (ownersadminsarticlesdynamic_f0e1eb)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:68 (ownersadminsarticlesdynamic_CDCF1A)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:142 (ownersadminsarticlesdynamic_cdcf1a)[39m
+[37m[39m
+[37m  PageID:20 (nuxt)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:69 (ownersadmins_SidebarNav6265)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:144 (ownersadmins_sidebarnav6265)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:91 (nuxt_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:193 (nuxt_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:nuxt.png[39m
+[37m    │  │  ├─ ContainerID:170 (nuxt_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:515 (nuxt_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:172 (nuxt_RightOrLeftAlignedLinks)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:518 (nuxt_rightorleftalignedlinks)[39m
+[37m    │  │  ├─ ContainerID:174 (nuxt_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:522 (nuxt_articlelisting)[39m
+[37m    └─ PageID:21 (nuxt-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:70 (ownersadminsarticlesdynamic_87233E)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:146 (ownersadminsarticlesdynamic_87233e)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:71 (ownersadminsarticlesdynamic_925AA2)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:147 (ownersadminsarticlesdynamic_925aa2)[39m
+[37m[39m
+[37m  PageID:22 (eleventy)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:72 (ownersadmins_SidebarNav62656A144CE)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:149 (ownersadmins_sidebarnav62656a144ce)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:92 (eleventy_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:194 (eleventy_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:11ty.svg[39m
+[37m    │  │  ├─ ContainerID:178 (eleventy_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:554 (eleventy_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:182 (eleventy_RightOrLeftAlignedL73C8AB)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:559 (eleventy_rightorleftalignedl73c8ab)[39m
+[37m    │  │  ├─ ContainerID:186 (eleventy_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:565 (eleventy_articlelisting)[39m
+[37m    └─ PageID:23 (eleventy-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:73 (ownersadminsarticlesdynamic_94AA33)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:151 (ownersadminsarticlesdynamic_94aa33)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:74 (ownersadminsarticlesdynamic_393923)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:152 (ownersadminsarticlesdynamic_393923)[39m
+[37m[39m
+[37m  PageID:24 (dotNet)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:75 (ownersadmins_SidebarNav62656C4D259)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:154 (ownersadmins_sidebarnav62656c4d259)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:93 (dotNet_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:195 (dotnet_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:NET_Logo.svg[39m
+[37m    │  │  ├─ ContainerID:125 (dotNet_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:326 (dotnet_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:112 (dotNet_RightOrLeftAlignedLin21DF2F)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:286 (dotnet_rightorleftalignedlin21df2f)[39m
+[37m    │  │  ├─ ContainerID:150 (dotNet_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:401 (dotnet_articlelisting)[39m
+[37m    └─ PageID:25 (dotNet-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:76 (ownersadminsarticlesdynamic_8F4582)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:156 (ownersadminsarticlesdynamic_8f4582)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:77 (ownersadminsarticlesdynamic_54F950)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:157 (ownersadminsarticlesdynamic_54f950)[39m
+[37m[39m
+[37m  PageID:26 (angular)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:78 (ownersadmins_SidebarNav6265623932C)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:159 (ownersadmins_sidebarnav6265623932c)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:94 (angular_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:196 (angular_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:AngularJS-Shield.svg[39m
+[37m    │  │  ├─ ContainerID:194 (angular_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:614 (angular_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:196 (angular_RightOrLeftAlignedLi4FB4E3)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:617 (angular_rightorleftalignedli4fb4e3)[39m
+[37m    │  │  ├─ ContainerID:198 (angular_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:620 (angular_articlelisting)[39m
+[37m    └─ PageID:27 (angular-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:79 (ownersadminsarticlesdynamic_AA21DF)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:161 (ownersadminsarticlesdynamic_aa21df)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:80 (ownersadminsarticlesdynamic_0B5064)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:162 (ownersadminsarticlesdynamic_0b5064)[39m
+[37m[39m
+[37m  PageID:29 (javascript)[34m [Parent: 3 child pages][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:82 (ownersadmins_SidebarNav62656193752)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:166 (ownersadmins_sidebarnav62656193752)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:95 (javascript_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:197 (javascript_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:js.png[39m
+[37m    │  │  ├─ ContainerID:117 (javascript_ListofLinks117)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:293 (javascript_listoflinks117)[39m
+[37m    │  │  ├─ ContainerID:119 (javascript_RightOrLeftAligne3B6F8D)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:298 (javascript_rightorleftaligne3b6f8d)[39m
+[37m    │  │  ├─ ContainerID:109 (javascript_RightOrLeftAligneD46C2F)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:272 (javascript_rightorleftaligned46c2f)[39m
+[37m    ├─ PageID:30 (javascript-articles-dynamic)[39m
+[35m    │   ├─ Template:With Sidebar Nav Template[39m
+[90m    │   │  ├─ Zone: SidebarContentZone[39m
+[37m    │   │  │  ├─ ContainerID:83 (ownersadminsarticlesdynamic_2313A7)[39m
+[90m    │   │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │   │  │  │  ├─ ContentID:168 (ownersadminsarticlesdynamic_2313a7)[39m
+[90m    │   │  ├─ Zone: MainContentZone[39m
+[37m    │   │  │  ├─ ContainerID:84 (ownersadminsarticlesdynamic_70FA28)[39m
+[90m    │   │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m    │   │  │  │  ├─ ContentID:169 (ownersadminsarticlesdynamic_70fa28)[39m
+[37m    └─ PageID:53 (management-sdk)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:360 (managementsdk_HeroHeading)[39m
+[90m        │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:1267 (managementsdk_heroheading)[39m
+[37m        └─ PageID:54 (articles)[39m
+[35m            ├─ Template:With Sidebar Nav Template[39m
+[90m            │  ├─ Zone: SidebarContentZone[39m
+[37m            │  │  ├─ ContainerID:359 (articles_SidebarNav)[39m
+[90m            │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m            │  │  │  ├─ ContentID:1266 (articles_sidebarnav)[39m
+[37m[39m
+[37m  PageID:3 (developers)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:29 (developers_SidebarNav)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:73 (developers_sidebarnav)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:101 (developers_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:211 (developers_heroheading)[39m
+[37m    │  │  ├─ ContainerID:139 (developers_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:361 (developers_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:141 (developers_RightOrLeftAligne3B5BF7)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:364 (developers_rightorleftaligne3b5bf7)[39m
+[37m    │  │  ├─ ContainerID:143 (developers_RightOrLeftAligne529CA4)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:368 (developers_rightorleftaligne529ca4)[39m
+[37m    │  │  ├─ ContainerID:204 (developers_SDKsFrameworks)[39m
+[32m    │  │  │  ├─ Model:SDKsFrameworks (SDK's & Frameworks)[39m
+[34m    │  │  │  ├─ ContentID:654 (developers_sdksframeworks)[39m
+[37m    │  │  ├─ ContainerID:145 (developers_ListofLinks145)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:372 (developers_listoflinks145)[39m
+[37m    │  │  ├─ ContainerID:215 (developers_RightOrLeftAligne028AE1)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:717 (developers_rightorleftaligne028ae1)[39m
+[37m    └─ PageID:9 (developers-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:30 (developersarticlesdynamic_Si30609B)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:74 (developersarticlesdynamic_si30609b)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:22 (developersarticlesdynamic_Dy73CA6F)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:63 (developersarticlesdynamic_dy73ca6f)[39m
+[37m[39m
+[37m  PageID:36 (apps)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:247 (apps_SidebarNav)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:854 (apps_sidebarnav)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:250 (apps_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:855 (apps_heroheading)[39m
+[37m    │  │  ├─ ContainerID:262 (apps_RightOrLeftAlignedLinks262)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:909 (apps_rightorleftalignedlinks262)[39m
+[37m    │  │  ├─ ContainerID:251 (apps_RightOrLeftAlignedLinks)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:856 (apps_rightorleftalignedlinks)[39m
+[37m    │  │  ├─ ContainerID:255 (Right Or Left Aligned Links)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:877 (right or left aligned links)[39m
+[37m    └─ PageID:37 (apps-articles)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:253 (appsarticles_SidebarNav)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:864 (appsarticles_sidebarnav)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:254 (appsarticles_DynamicArticleDF510FD)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:865 (appsarticles_dynamicarticledf510fd)[39m
+[37m[39m
+[37m  PageID:4 (editors)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:27 (editors_SidebarNav)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:71 (editors_sidebarnav)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:96 (editors_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:206 (editors_heroheading)[39m
+[37m    │  │  ├─ ContainerID:97 (editors_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:207 (editors_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:99 (editors_ListofLinks99)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:210 (editors_listoflinks99)[39m
+[37m    │  │  ├─ ContainerID:121 (editors_ListofLinks121)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:314 (editors_listoflinks121)[39m
+[37m    │  │  ├─ ContainerID:123 (editors_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:321 (editors_articlelisting)[39m
+[37m    │  │  ├─ ContainerID:137 (editors_RightOrLeftAlignedLi5B65FE)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:357 (editors_rightorleftalignedli5b65fe)[39m
+[37m    └─ PageID:7 (dynamic-articles-editors)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:28 (dynamicarticleseditors_Sideb5DDC13)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:72 (dynamicarticleseditors_sideb5ddc13)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:21 (dynamicarticleseditors_Dynam43D043)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:62 (dynamicarticleseditors_dynam43d043)[39m
+[37m[39m
+[37m  PageID:40 (astro)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:279 (ownersadmins_SidebarNav626565EA00D)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1011 (ownersadmins_sidebarnav626565ea00d)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:280 (angular_HeroHeadingC418B5BC)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1012 (angular_heroheadingc418b5bc)[39m
+    │  │  │  │  ├─ [33mAsset:astro-icon-light-gradient_20240516023807.svg[39m
+[37m    │  │  ├─ ContainerID:281 (angular_ListofLinks0CF808B5)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1015 (angular_listoflinks0cf808b5)[39m
+[37m    │  │  ├─ ContainerID:283 (angular_RightOrLeftAlignedLi289FEB)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1019 (angular_rightorleftalignedli289feb)[39m
+[37m    │  │  ├─ ContainerID:285 (angular_ArticleListing7A4AB981)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1022 (angular_articlelisting7a4ab981)[39m
+[37m    └─ PageID:41 (astro-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:287 (ownersadminsarticlesdynamic_881C17)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:1024 (ownersadminsarticlesdynamic_881c17)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:288 (ownersadminsarticlesdynamic_C1354F)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:1025 (ownersadminsarticlesdynamic_c1354f)[39m
+[37m[39m
+[37m  PageID:43 (codefeature)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:Main Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:314 (codefeature_CodeFeature)[39m
+[32m    │  │  │  ├─ Model:CodeFeature (CodeFeature)[39m
+[34m    │  │  │  ├─ ContentID:1140 (codefeature_codefeature)[39m
+[37m    └─ PageID:55 (test)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[37m[39m
+[37m  PageID:44 (sveltekit)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:336 (sveltekit_SidebarNav39DE282E)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1182 (sveltekit_sidebarnav39de282e)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:321 (angular_HeroHeadingC418B5BC27B33EDA)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1162 (angular_heroheadingc418b5bc27b33eda)[39m
+    │  │  │  │  ├─ [33mAsset:9969f494-sveltelogo.png[39m
+[37m    └─ PageID:46 (sveltekit-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:330 (sveltekitarticlesdynamic_SidCDCB01)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:1183 (sveltekitarticlesdynamic_sidcdcb01)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:346 (sveltekitarticlesdynamic_Dyn5C6AEE)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:1204 (sveltekitarticlesdynamic_dyn5c6aee)[39m
+[37m[39m
+[37m  PageID:5 (overview)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:25 (overview_SidebarNav25)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:69 (overview_sidebarnav25)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:44 (overview_HeroHeadinig)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:119 (overview_heroheadinig)[39m
+[37m    │  │  ├─ ContainerID:45 (overview_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:120 (overview_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:47 (overview_RightOrLeftAlignedLC61341)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:123 (overview_rightorleftalignedlc61341)[39m
+[37m    │  │  ├─ ContainerID:131 (overview_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:343 (overview_articlelisting)[39m
+[37m    │  │  ├─ ContainerID:133 (overview_RightOrLeftAlignedLBF4A2F)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:348 (overview_rightorleftalignedlbf4a2f)[39m
+[37m    └─ PageID:8 (overview-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:26 (overviewarticlesdynamic_Side220AE9)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:70 (overviewarticlesdynamic_side220ae9)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:20 (overviewarticlesdynamic_DynaCD5DA2)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:61 (overviewarticlesdynamic_dynacd5da2)[39m
+[37m[39m
+[37m  PageID:6 (owners-admins)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:31 (ownersadmins_SidebarNav)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:75 (ownersadmins_sidebarnav)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:155 (ownersadmins_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:455 (ownersadmins_heroheading)[39m
+[37m    │  │  ├─ ContainerID:156 (ownersadmins_RightOrLeftAlig731389)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:456 (ownersadmins_rightorleftalig731389)[39m
+[37m    │  │  ├─ ContainerID:158 (ownersadmins_RightOrLeftAligD51F46)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:464 (ownersadmins_rightorleftaligd51f46)[39m
+[37m    │  │  ├─ ContainerID:200 (ownersadmins_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:635 (ownersadmins_listoflinks)[39m
+[37m    └─ PageID:10 (owners-admins-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:32 (ownersadminsarticlesdynamic_703F29)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:76 (ownersadminsarticlesdynamic_703f29)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:23 (ownersadminsarticlesdynamic_64DA82)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:64 (ownersadminsarticlesdynamic_64da82)[39m
+[37m[39m
+[37m  PageID:2 (home)[39m
+[35m    ├─ Template:Main Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:34 (home_CategoryListing)[39m
+[32m    │  │  │  ├─ Model:HeroCategories (Hero Categories)[39m
+[34m    │  │  │  ├─ ContentID:80 (home_categorylisting)[39m
+[37m    │  │  ├─ ContainerID:206 (home_TextBlockswithImages)[39m
+[32m    │  │  │  ├─ Model:TextBlockswithImages (Text Blocks with Images)[39m
+[34m    │  │  │  ├─ ContentID:696 (home_textblockswithimages)[39m
+    │  │  │  │  ├─ [33mAsset:New-Home_20230928054141.png[39m
+    │  │  │  │  ├─ [33mAsset:starters_20211027171451_0.png[39m
+[37m    │  │  ├─ ContainerID:37 (home_RightOrLeftAlignedLinks)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:92 (home_rightorleftalignedlinks)[39m
+[37m    │  │  ├─ ContainerID:128 (home_ListofLinks128)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:327 (home_listoflinks128)[39m
+[37m    │  │  ├─ ContainerID:41 (home_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:101 (home_articlelisting)[39m
+[37m    │  │  ├─ ContainerID:39 (RightOrLeftAlignedLinks)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:99 (rightorleftalignedlinks)[39m
+[37m[39m
+[37m  PageID:31 (professional-services)[39m
+[35m    ├─ Template:Main Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:130 (professionalservices_BlockEd1D02F5)[39m
+[32m    │  │  │  ├─ Model:BlockEditor (Block Editor)[39m
+[34m    │  │  │  ├─ ContentID:331 (professionalservices_blocked1d02f5)[39m
+[37m[39m
+[37m  PageID:32 (changelog)[39m
+[35m    ├─ Template:Full Width Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:222 (changelog_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:740 (changelog_heroheading)[39m
+[37m    │  │  ├─ ContainerID:219 (changelog_Changelog219)[39m
+[32m    │  │  │  ├─ Model:Changelog (Changelog)[39m
+[34m    │  │  │  ├─ ContentID:730 (changelog_changelog219)[39m
+[37m[39m
+[37m  PageID:33 (404)[39m
+[35m    ├─ Template:Main Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:225 (404_RichTextArea)[39m
+[32m    │  │  │  ├─ Model:RichTextArea (Rich Text Area)[39m
+[34m    │  │  │  ├─ ContentID:752 (404_richtextarea)[39m
+[37m[39m
+[37m  PageID:34 (500)[39m
+[35m    ├─ Template:Main Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:226 (500_RichTextArea)[39m
+[90m    │  │  │  ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:754 (500_richtextarea)[39m
+[37m[39m
+[37m  PageID:47 (testing)[39m
+[35m    ├─ Template:Full Width Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:350 (testing_RichTextArea)[39m
+[90m    │  │  │  ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1230 (testing_richtextarea)[39m
+[34m[39m
+[34m📦 3. ALL CONTAINER CHAINS[39m
+==================================================
+[33mFound 292 containers not in page chains:[39m
+[37m[39m
+[37m  ContainerID:225 (404_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:226 (500_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:1 (AgilityCSSFiles) [39m
+[32m    ├─ Model:AgilityCSS (Agility CSS)[39m
+[37m[39m
+[37m  ContainerID:3 (AgilityGlobalCodeTemplates) [39m
+[32m    ├─ Model:AgilityCodeTemplate (Agility Code Template)[39m
+[37m[39m
+[37m  ContainerID:2 (AgilityJavascriptFiles) [39m
+[32m    ├─ Model:AgilityJavascript (Agility Javascript)[39m
+[37m[39m
+[37m  ContainerID:4 (AgilityModuleCodeTemplates) [39m
+[90m    ├─ Model:AgilityCodeTemplate (Agility Code Template) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:5 (AgilityPageCodeTemplates) [39m
+[90m    ├─ Model:AgilityCodeTemplate (Agility Code Template) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:54 (AngularArticles) [39m
+[32m    ├─ Model:DocArticle (Doc Article)[39m
+[37m[39m
+[37m  ContainerID:249 (AppsArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:248 (AppsSections) [39m
+[32m    ├─ Model:DocSection (Doc Section)[39m
+[37m[39m
+[37m  ContainerID:278 (AstroArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:277 (AstroSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:102 (ChangeLog) [39m
+[90m    ├─ Model:Release (Release) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:220 (ChangeLogTags) [39m
+[90m    ├─ Model:ChangeLogTag (Change Log Tag) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:104 (ChangeLog_ChangeLog) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:296 (ChangeLog_ChangeLog095768E2) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:349 (ChangeLog_ChangeLog0A12EE5F) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:315 (ChangeLog_ChangeLog0F7D0FF9) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:163 (ChangeLog_ChangeLog163) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:190 (ChangeLog_ChangeLog190) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:294 (ChangeLog_ChangeLog1B750FE5) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:202 (ChangeLog_ChangeLog202) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:203 (ChangeLog_ChangeLog203) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:213 (ChangeLog_ChangeLog213) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:218 (ChangeLog_ChangeLog218) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:223 (ChangeLog_ChangeLog223) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:224 (ChangeLog_ChangeLog224) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:227 (ChangeLog_ChangeLog227) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:228 (ChangeLog_ChangeLog228) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:229 (ChangeLog_ChangeLog229) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:230 (ChangeLog_ChangeLog230) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:231 (ChangeLog_ChangeLog231) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:232 (ChangeLog_ChangeLog232) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:233 (ChangeLog_ChangeLog233) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:234 (ChangeLog_ChangeLog234) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:235 (ChangeLog_ChangeLog235) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:236 (ChangeLog_ChangeLog236) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:237 (ChangeLog_ChangeLog237) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:239 (ChangeLog_ChangeLog237239) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:238 (ChangeLog_ChangeLog238) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:240 (ChangeLog_ChangeLog240) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:241 (ChangeLog_ChangeLog241) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:242 (ChangeLog_ChangeLog242) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:243 (ChangeLog_ChangeLog243) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:244 (ChangeLog_ChangeLog244) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:245 (ChangeLog_ChangeLog245) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:257 (ChangeLog_ChangeLog257) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:260 (ChangeLog_ChangeLog260) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:261 (ChangeLog_ChangeLog261) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:265 (ChangeLog_ChangeLog265) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:266 (ChangeLog_ChangeLog266) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:267 (ChangeLog_ChangeLog267_deleted) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:268 (ChangeLog_ChangeLog268) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:269 (ChangeLog_ChangeLog269) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:270 (ChangeLog_ChangeLog270_deleted) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:300 (ChangeLog_ChangeLog35C9718B) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:274 (ChangeLog_ChangeLog3851B7CD) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:273 (ChangeLog_ChangeLog3A165FC4) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:351 (ChangeLog_ChangeLog47940944) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:289 (ChangeLog_ChangeLog4C01395E) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:347 (ChangeLog_ChangeLog52C913D6) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:291 (ChangeLog_ChangeLog658D78D5) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:304 (ChangeLog_ChangeLog665D40C6) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:353 (ChangeLog_ChangeLog784710ED) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:305 (ChangeLog_ChangeLog7912A7B5) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:301 (ChangeLog_ChangeLog893CCDF9) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:297 (ChangeLog_ChangeLogA85C1A50) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:276 (ChangeLog_ChangeLogADDE2186) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:352 (ChangeLog_ChangeLogAF2F8251) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:295 (ChangeLog_ChangeLogB9C12569) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:290 (ChangeLog_ChangeLogC6087A08) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:275 (ChangeLog_ChangeLogCC424538) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:316 (ChangeLog_ChangeLogCCD5D770) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:308 (ChangeLog_ChangeLogCE87F013) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:317 (ChangeLog_ChangeLogCF23C59A) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:307 (ChangeLog_ChangeLogD61D0978) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:292 (ChangeLog_ChangeLogE411AF0E) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:302 (ChangeLog_ChangeLogE794A7F4) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:303 (ChangeLog_ChangeLogF5CE09CC) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:299 (ChangeLog_ChangeLogFA739A00) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:9 (DeveloperArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:7 (DeveloperSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:18 (DocCategories) [39m
+[32m    ├─ Model:DocCategory (Doc Category)[39m
+[37m[39m
+[37m  ContainerID:8 (DocConcepts) [39m
+[32m    ├─ Model:DocConcept (Doc Concept)[39m
+[37m[39m
+[37m  ContainerID:10 (EditorArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:6 (EditorSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:52 (EleventyArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:59 (EleventySedtions) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:209 (Footer) [39m
+[90m    ├─ Model:Footer (Footer) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:212 (Footer_Link212) [39m
+[90m    ├─ Model:Link (Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:208 (Footer_deleted) [39m
+[90m    ├─ Model:Footer (Footer) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:50 (GatsbyArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:57 (GatsbySections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:86 (Header) [39m
+[90m    ├─ Model:Header (Header) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:87 (Header_Link) [39m
+[90m    ├─ Model:Link (Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:88 (Header_Link88) [39m
+[90m    ├─ Model:Link (Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:85 (Header_deleted) [39m
+[90m    ├─ Model:Header (Header) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:55 (JavaScriptArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:135 (ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:354 (ManagementSDK-Articles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:49 (NextjsArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:56 (NextjsSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:51 (NuxtArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:58 (NuxtSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:14 (OverviewArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:12 (OverviewSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:15 (OwnersAdminsArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:13 (OwnersAdminsSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:255 (Right Or Left Aligned Links) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:39 (RightOrLeftAlignedLinks) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:337 (SvelteKitArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:339 (SvelteKit-ArticlesTest_deleted) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:319 (SvelteKit-Articles_deleted) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:338 (SvelteKitSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:318 (SvelteKit-Sections_deleted) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:340 (SvelteKit-Test2-Take2_deleted) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:342 (SvelteKit-Testy-mc-dashy_deleted) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:334 (SvelteSections_deleted) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:344 (Teeeestymctestdash_deleted) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:306 (TestContentFetchAPI_deleted) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:341 (Testing-The-Dash - and_deleted) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:198 (angular_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:285 (angular_ArticleListing7A4AB981) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:199 (angular_ArticleListing_Liste4B4DEE) [39m
+[32m    ├─ Model:ListedArticle (Listed Article)[39m
+[37m[39m
+[37m  ContainerID:94 (angular_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:280 (angular_HeroHeadingC418B5BC) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:281 (angular_ListofLinks0CF808B5) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:322 (angular_ListofLinks0CF808B525DAC55D) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:323 (angular_ListofLinks_ListedLiCFBB45) [39m
+[32m    ├─ Model:ListedLink (Listed Link)[39m
+[37m[39m
+[37m  ContainerID:282 (angular_ListofLinks_ListedLiE758BD) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:325 (angular_RightOrLeftAlignedLi20D28E) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:283 (angular_RightOrLeftAlignedLi289FEB) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:324 (angular_RightOrLeftAlignedLi4F1EB9) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:284 (angular_RightOrLeftAlignedLiF7EBB4) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:250 (apps_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:258 (apps_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:251 (apps_RightOrLeftAlignedLinks) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:262 (apps_RightOrLeftAlignedLinks262) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:252 (apps_RightOrLeftAlignedLinks3881B3) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:263 (apps_RightOrLeftAlignedLinksD80E12) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:247 (apps_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:254 (appsarticles_DynamicArticleDF510FD) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:253 (appsarticles_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:358 (articles_DynamicArticleDetaiBB29E6) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:359 (articles_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:214 (changelog_BlockEditor) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:217 (changelog_Changelog217) [39m
+[90m    ├─ Model:Changelog (Changelog) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:219 (changelog_Changelog219) [39m
+[90m    ├─ Model:Changelog (Changelog) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:222 (changelog_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:221 (changelog_SidebarFilter) [39m
+[32m    ├─ Model:SidebarFilter (Sidebar Filter)[39m
+[37m[39m
+[37m  ContainerID:145 (developers_ListofLinks145) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:140 (developers_ListofLinks_Liste433B24) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:215 (developers_RightOrLeftAligne028AE1) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:216 (developers_RightOrLeftAligne037AFF) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:143 (developers_RightOrLeftAligne529CA4) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:148 (developers_RightOrLeftAligneE25906) [39m
+[32m    ├─ Model:RightOrLeftAlignedImageLinks (Right Or Left Aligned Image Links)[39m
+[37m[39m
+[37m  ContainerID:204 (developers_SDKsFrameworks) [39m
+[90m    ├─ Model:SDKsFrameworks (SDK's & Frameworks) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:205 (developers_SDKsFrameworks_ImB0B7AF) [39m
+[32m    ├─ Model:ImageLink (Image Link)[39m
+[37m[39m
+[37m  ContainerID:29 (developers_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:22 (developersarticlesdynamic_Dy73CA6F) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:19 (developersarticlesdynamic_RiD12B34) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:30 (developersarticlesdynamic_Si30609B) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:33 (docs_BlockEditor) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:16 (docs_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:53 (dotNetArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:60 (dotNetSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:150 (dotNet_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:111 (dotNet_BlockEditor) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:114 (dotNet_BlockEditor114) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:153 (dotNet_BlockEditor153) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:93 (dotNet_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:125 (dotNet_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:126 (dotNet_ListofLinks_ListedLinA4FC5D) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:112 (dotNet_RightOrLeftAlignedLin21DF2F) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:116 (dotNet_RightOrLeftAlignedLinC3CE8C) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:115 (dotNet_RightOrLeftAlignedLinC602B9) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:113 (dotNet_RightOrLeftAlignedLinDCC62A) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:21 (dynamicarticleseditors_Dynam43D043) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:28 (dynamicarticleseditors_Sideb5DDC13) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:124 (editors_ArticleListing_Liste58F98C) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:96 (editors_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:97 (editors_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:122 (editors_ListofLinks120_ListeDE161D) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:121 (editors_ListofLinks121) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:100 (editors_ListofLinks98_Listed0E200A) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:98 (editors_ListofLinks_ListedLi610A64) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:138 (editors_RightOrLeftAlignedLiAF3294) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:27 (editors_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:186 (eleventy_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:187 (eleventy_ArticleListing_ListB9CF27) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:178 (eleventy_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:179 (eleventy_ListofLinks_ListedLCD6959) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:183 (eleventy_RightOrLeftAlignedL54F4F0) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:182 (eleventy_RightOrLeftAlignedL73C8AB) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:188 (gatsby_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:189 (gatsby_ArticleListing_ListedFBCBFE) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:90 (gatsby_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:180 (gatsby_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:181 (gatsby_ListofLinks_ListedLin8202C8) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:185 (gatsby_RightOrLeftAlignedLinCA6399) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:184 (gatsby_RightOrLeftAlignedLinCA77EC) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:41 (home_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:42 (home_ArticleListing_ListedArB6B909) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:34 (home_CategoryListing) [39m
+[90m    ├─ Model:HeroCategories (Hero Categories) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:311 (home_CodeFeature) [39m
+[90m    ├─ Model:CodeFeature (CodeFeature) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:312 (home_CodeFeature187F9499) [39m
+[90m    ├─ Model:CodeFeature (CodeFeature) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:313 (home_CodeTabs) [31m [BROKEN][39m[37m[39m
+[31m    ├─ Model:ID_43 - MISSING IN SOURCE DATA[39m
+[37m[39m
+[37m  ContainerID:246 (home_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:35 (home_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:129 (home_ListofLinks127_ListedLiD4433B) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:128 (home_ListofLinks128) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:36 (home_ListofLinks_ListedLink) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:37 (home_RightOrLeftAlignedLinks) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:127 (home_RightOrLeftAlignedLinks127) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:40 (home_RightOrLeftAlignedLinks16B151) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:38 (home_RightOrLeftAlignedLinksA3D016) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:309 (home_RightOrLeftAlignedLinksB573129D) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:310 (home_RightOrLeftAlignedLinksE47B96) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:95 (javascript_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:105 (javascript_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:118 (javascript_ListofLinks116_Li84AAD0) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:117 (javascript_ListofLinks117) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:106 (javascript_ListofLinks_Liste834E6A) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:108 (javascript_RightOrLeftAligne85253D) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:109 (javascript_RightOrLeftAligneD46C2F) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:107 (javascript_RightOrLeftAligneD98D16) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:110 (javascript_RightOrLeftAligneDC8701) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:355 (managementsdk_DynamicArticle94ABCA) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:360 (managementsdk_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:356 (managementsdk_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:176 (nextjs_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:177 (nextjs_ArticleListing_Listed25E7FD) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:89 (nextjs_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:164 (nextjs_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:165 (nextjs_ListofLinks_ListedLin828102) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:167 (nextjs_RightOrLeftAlignedLinB54F1D) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:174 (nuxt_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:175 (nuxt_ArticleListing_ListedArA5F57A) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:91 (nuxt_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:170 (nuxt_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:171 (nuxt_ListofLinks_ListedLink) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:172 (nuxt_RightOrLeftAlignedLinks) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:173 (nuxt_RightOrLeftAlignedLinks7EA5F4) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:131 (overview_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:132 (overview_ArticleListing_List5D2DA9) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:43 (overview_BlockEditor) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:44 (overview_HeroHeadinig) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:45 (overview_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:46 (overview_ListofLinks_ListedLAE2CE7) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:133 (overview_RightOrLeftAlignedLBF4A2F) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:47 (overview_RightOrLeftAlignedLC61341) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:48 (overview_RightOrLeftAlignedLEB2429) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:24 (overview_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:25 (overview_SidebarNav25) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:264 (overview_TextBlockswithImage0CE4E1) [39m
+[90m    ├─ Model:TextBlockswithImages (Text Blocks with Images) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:20 (overviewarticlesdynamic_DynaCD5DA2) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:26 (overviewarticlesdynamic_Side220AE9) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:155 (ownersadmins_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:200 (ownersadmins_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:201 (ownersadmins_ListofLinks_Lis0DBB55) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:158 (ownersadmins_RightOrLeftAligD51F46) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:31 (ownersadmins_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:66 (ownersadmins_SidebarNav62) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:82 (ownersadmins_SidebarNav62656193752) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:320 (ownersadmins_SidebarNav626561CE191) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:78 (ownersadmins_SidebarNav6265623932C) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:279 (ownersadmins_SidebarNav626565EA00D) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:81 (ownersadmins_SidebarNav6265670A682) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:328 (ownersadminsarticlesdynamic_1EECC6) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:83 (ownersadminsarticlesdynamic_2313A7) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:65 (ownersadminsarticlesdynamic_45AB5E) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:77 (ownersadminsarticlesdynamic_54F950) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:23 (ownersadminsarticlesdynamic_64DA82) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:32 (ownersadminsarticlesdynamic_703F29) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:84 (ownersadminsarticlesdynamic_70FA28) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:287 (ownersadminsarticlesdynamic_881C17) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:79 (ownersadminsarticlesdynamic_AA21DF) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:329 (ownersadminsarticlesdynamic_BA62C4) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:288 (ownersadminsarticlesdynamic_C1354F) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:68 (ownersadminsarticlesdynamic_CDCF1A) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:67 (ownersadminsarticlesdynamic_F0E1EB) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:130 (professionalservices_BlockEd1D02F5) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:332 (sveltekit_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:333 (sveltekit_SidebarNav0EA78DF7) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:336 (sveltekit_SidebarNav39DE282E) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:346 (sveltekitarticlesdynamic_Dyn5C6AEE) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:345 (sveltekitarticlesdynamic_Dyn7CE2DC) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:330 (sveltekitarticlesdynamic_SidCDCB01) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:259 (test_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:271 (test_RichTextArea9E194634) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:350 (testing_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[36m[39m
+[36m🔗 NESTED CONTAINER CHAIN ANALYSIS[39m
+==================================================
+[33m[39m
+[33m📊 CONTAINER ROLE CATEGORIZATION:[39m
+  📋 List Containers: 145
+  📄 Item Containers: 167
+  📦 Standalone Containers: 44
+  🔗 Nested Chain Roots: 86
+[90m[39m
+[90m  📄 Example Item Containers (hash-suffix pattern):[39m
+[90m    - ContainerID:296 (ChangeLog_ChangeLog095768E2)[39m
+[90m    - ContainerID:349 (ChangeLog_ChangeLog0A12EE5F)[39m
+[90m    - ContainerID:315 (ChangeLog_ChangeLog0F7D0FF9)[39m
+[90m    - ContainerID:294 (ChangeLog_ChangeLog1B750FE5)[39m
+[90m    - ContainerID:239 (ChangeLog_ChangeLog237239)[39m
+[90m    ... and 162 more[39m
+[34m[39m
+[34m  🔗 Containers with nested dependencies:[39m
+[34m    - ContainerID:54 (AngularArticles)[39m
+[34m    - ContainerID:249 (AppsArticles)[39m
+[34m    - ContainerID:278 (AstroArticles)[39m
+[34m    - ContainerID:9 (DeveloperArticles)[39m
+[34m    - ContainerID:10 (EditorArticles)[39m
+[34m    ... and 81 more[39m
+[33m[39m
+[33m📝 CONTENT→CONTAINER REFERENCES (SOURCE DATA ONLY):[39m
+[33mFound 381 content items with container references[39m
+[34m[39m
+[34m📋 SAMPLE CONTENT→CONTAINER RELATIONSHIPS:[39m
+[37m[39m
+[37m  1. ContentID:1006 (astroarticles)[39m
+[90m     References 2 container(s):[39m
+[34m       → Field "section.contentid" → ContainerID:1003 ❌ MISSING[39m
+[34m       → Field "concept.contentid" → ContainerID:47 (overview_RightOrLeftAlignedLC61341) ✅ FOUND[39m
+[37m[39m
+[37m  2. ContentID:1007 (astroarticles)[39m
+[90m     References 2 container(s):[39m
+[34m       → Field "section.contentid" → ContainerID:1004 ❌ MISSING[39m
+[34m       → Field "concept.contentid" → ContainerID:587 ❌ MISSING[39m
+[37m[39m
+[37m  3. ContentID:1008 (astroarticles)[39m
+[90m     References 2 container(s):[39m
+[34m       → Field "section.contentid" → ContainerID:1004 ❌ MISSING[39m
+[34m       → Field "concept.contentid" → ContainerID:587 ❌ MISSING[39m
+[36m[39m
+[36m📊 Source Data Resolution: 345/592 (58.3%) found in downloaded data[39m
+[31m⚠️  247 container references point to containers NOT FOUND in downloaded data[39m
+[33m[39m
+[33m🔍 MOST FREQUENTLY MISSING CONTAINERS:[39m
+[31m   - ContainerID:435 (missing in 20 content items)[39m
+[31m   - ContainerID:412 (missing in 19 content items)[39m
+[31m   - ContainerID:587 (missing in 18 content items)[39m
+[31m   - ContainerID:433 (missing in 18 content items)[39m
+[31m   - ContainerID:859 (missing in 17 content items)[39m
+[31m   - ContainerID:858 (missing in 11 content items)[39m
+[31m   - ContainerID:422 (missing in 7 content items)[39m
+[31m   - ContainerID:1177 (missing in 4 content items)[39m
+[31m   - ContainerID:1205 (missing in 4 content items)[39m
+[31m   - ContainerID:1210 (missing in 4 content items)[39m
+[35m[39m
+[35m💡 CRITICAL INSIGHT: These containers may exist in source instance but failed to download[39m
+[35m   🔍 Running SDK verification to check if they exist in source instance...[39m
+[36m[39m
+[36m🔎 VERIFYING DOWNLOADED CONTAINERS:[39m
+[36m   Downloaded containers: 356[39m
+[31m[39m
+[31m❌ TRULY MISSING FROM DOWNLOAD (99 containers):[39m
+[31m   - ContainerID:405 - Not found in downloaded data[39m
+[31m   - ContainerID:407 - Not found in downloaded data[39m
+[31m   - ContainerID:408 - Not found in downloaded data[39m
+[31m   - ContainerID:409 - Not found in downloaded data[39m
+[31m   - ContainerID:410 - Not found in downloaded data[39m
+[31m   - ContainerID:411 - Not found in downloaded data[39m
+[31m   - ContainerID:412 - Not found in downloaded data[39m
+[31m   - ContainerID:413 - Not found in downloaded data[39m
+[31m   - ContainerID:415 - Not found in downloaded data[39m
+[31m   - ContainerID:418 - Not found in downloaded data[39m
+[90m   ... and 89 more missing containers[39m
+[33m[39m
+[33m💡 These containers may exist in source instance but failed to download[39m
+[33m   🔍 TESTING: Attempting direct SDK verification for top missing containers...[39m
+[36m[39m
+[36m🧪 LIVE SDK VERIFICATION:[39m
+[36m   Testing 5 missing container IDs against source instance...[39m
+[36m[39m
+[36m📊 CONTAINER DOWNLOAD VERIFICATION:[39m
+[36m   Downloaded: 356 containers[39m
+[36m   Missing from download: 99 container IDs[39m
+[36m   Found but not matched: 0[39m
+[36m   Truly missing: 99[39m
+[31m   🚨 DOWNLOAD ISSUE: 99 containers referenced in content but not downloaded![39m
+[33m[39m
+[33m🔗 NESTED CONTAINER CHAINS (SOURCE DATA ONLY): 86 chains detected[39m
+[37m[39m
+[37m  ContainerID:54 (AngularArticles)[39m
+[90m    Path: Container:54[39m
+[34m    ├─ ContentID:1090 (angulararticles)[39m
+[31m│   ├─ ❌ ContainerID:595 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:587 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:597 (angulararticles)[39m
+[31m│   ├─ ❌ ContainerID:594 [MISSING FROM SOURCE DATA][39m
+[32m│   └─ ✅ ContainerID:47 (overview_RightOrLeftAlignedLC61341) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:598 (angulararticles)[39m
+[31m│   ├─ ❌ ContainerID:595 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:587 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:599 (angulararticles)[39m
+[31m│   ├─ ❌ ContainerID:595 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:587 [MISSING FROM SOURCE DATA][39m
+[34m    └─ ContentID:600 (angulararticles)[39m
+[31m    ├─ ❌ ContainerID:596 [MISSING FROM SOURCE DATA][39m
+[31m    └─ ❌ ContainerID:412 [MISSING FROM SOURCE DATA][39m
+[37m[39m
+[37m  ContainerID:249 (AppsArticles)[39m
+[90m    Path: Container:249[39m
+[34m    ├─ ContentID:1234 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:858 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:1236 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:858 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:860 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:857 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:861 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:858 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:866 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:858 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:867 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:858 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:870 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:858 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:871 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:858 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:884 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:858 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:885 (appsarticles)[39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:886 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:858 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:887 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:858 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:888 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:858 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:907 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:908 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:911 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:908 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:915 (appsarticles)[39m
+[31m│   ├─ ❌ ContainerID:857 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[34m    └─ ContentID:916 (appsarticles)[39m
+[31m    ├─ ❌ ContainerID:908 [MISSING FROM SOURCE DATA][39m
+[31m    └─ ❌ ContainerID:859 [MISSING FROM SOURCE DATA][39m
+[37m[39m
+[37m  ContainerID:278 (AstroArticles)[39m
+[90m    Path: Container:278[39m
+[34m    ├─ ContentID:1006 (astroarticles)[39m
+[31m│   ├─ ❌ ContainerID:1003 [MISSING FROM SOURCE DATA][39m
+[32m│   └─ ✅ ContainerID:47 (overview_RightOrLeftAlignedLC61341) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:1007 (astroarticles)[39m
+[31m│   ├─ ❌ ContainerID:1004 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:587 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:1008 (astroarticles)[39m
+[31m│   ├─ ❌ ContainerID:1004 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:587 [MISSING FROM SOURCE DATA][39m
+[34m    └─ ContentID:1009 (astroarticles)[39m
+[31m    ├─ ❌ ContainerID:1005 [MISSING FROM SOURCE DATA][39m
+[31m    └─ ❌ ContainerID:412 [MISSING FROM SOURCE DATA][39m
+[37m[39m
+[37m  ContainerID:9 (DeveloperArticles)[39m
+[90m    Path: Container:9[39m
+[34m    ├─ ContentID:1062 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:1086 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:1091 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:6 (EditorSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:1118 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:255 (Right Or Left Aligned Links) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:212 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:10 (EditorArticles) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:47 (overview_RightOrLeftAlignedLC61341) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:213 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:10 (EditorArticles) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:217 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:219 (changelog_Changelog219) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:47 (overview_RightOrLeftAlignedLC61341) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:241 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:219 (changelog_Changelog219) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:242 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:243 (ChangeLog_ChangeLog243) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:25 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:10 (EditorArticles) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:250 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:257 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:255 (Right Or Left Aligned Links) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:258 (apps_RichTextArea) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:259 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:260 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:4 (AgilityModuleCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:261 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:255 (Right Or Left Aligned Links) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:258 (apps_RichTextArea) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:262 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[31m│   └─ ❌ ContainerID:503 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:264 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:255 (Right Or Left Aligned Links) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:258 (apps_RichTextArea) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:265 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:255 (Right Or Left Aligned Links) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:258 (apps_RichTextArea) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:284 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:434 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [FOUND IN SOURCE][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:436 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [FOUND IN SOURCE][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:437 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [FOUND IN SOURCE][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:438 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:441 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:443 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:446 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[31m│   └─ ❌ ContainerID:412 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:591 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:592 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:593 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:613 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:631 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:632 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:4 (AgilityModuleCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:634 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [FOUND IN SOURCE][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:638 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:47 (overview_RightOrLeftAlignedLC61341) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:641 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:642 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:10 (EditorArticles) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:5 (AgilityPageCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:645 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:644 [MISSING FROM SOURCE DATA][39m
+[32m│   └─ ✅ ContainerID:7 (DeveloperSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:646 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:5 (AgilityPageCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:700 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:531 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:701 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:412 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:703 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:412 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:706 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:531 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:710 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[32m│   └─ ✅ ContainerID:5 (AgilityPageCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:711 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:712 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:714 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:728 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:729 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:777 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:830 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:838 (developerarticles)[39m
+[31m│   ├─ ❌ ContainerID:433 [MISSING FROM SOURCE DATA][39m
+[31m│   └─ ❌ ContainerID:435 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:851 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:255 (Right Or Left Aligned Links) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:258 (apps_RichTextArea) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:891 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:255 (Right Or Left Aligned Links) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:258 (apps_RichTextArea) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:900 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[31m│   └─ ❌ ContainerID:531 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:919 (developerarticles)[39m
+[32m│   ├─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:5 (AgilityPageCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:986 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:987 (developerarticles)[39m
+[32m│   └─ ✅ ContainerID:220 (ChangeLogTags) [FOUND IN SOURCE][39m
+[34m    └─ ContentID:989 (developerarticles)[39m
+[31m    ├─ ❌ ContainerID:990 [MISSING FROM SOURCE DATA][39m
+[32m    └─ ✅ ContainerID:312 (home_CodeFeature187F9499) [FOUND IN SOURCE][39m
+[37m[39m
+[37m  ContainerID:10 (EditorArticles)[39m
+[90m    Path: Container:10[39m
+[34m    ├─ ContentID:1065 (editorarticles)[39m
+[32m│   └─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:1066 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:243 (ChangeLog_ChangeLog243) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:1069 (editorarticles)[39m
+[32m│   └─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:130 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:310 (home_RightOrLeftAlignedLinksE47B96) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:131 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:89 (nextjs_HeroHeading) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:132 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:7 (DeveloperSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:198 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:308 (ChangeLog_ChangeLogCE87F013) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:199 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:201 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:203 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:312 (home_CodeFeature187F9499) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:204 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:205 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:215 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:43 (overview_BlockEditor) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:5 (AgilityPageCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:216 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:43 (overview_BlockEditor) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:5 (AgilityPageCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:218 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:43 (overview_BlockEditor) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:221 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:47 (overview_RightOrLeftAlignedLC61341) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:222 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:43 (overview_BlockEditor) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:307 (ChangeLog_ChangeLogD61D0978) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:223 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:44 (overview_HeroHeadinig) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:6 (EditorSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:225 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:44 (overview_HeroHeadinig) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:6 (EditorSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:226 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:44 (overview_HeroHeadinig) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:6 (EditorSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:227 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:43 (overview_BlockEditor) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:312 (home_CodeFeature187F9499) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:229 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:43 (overview_BlockEditor) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:5 (AgilityPageCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:230 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:43 (overview_BlockEditor) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:308 (ChangeLog_ChangeLogCE87F013) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:231 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:43 (overview_BlockEditor) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:5 (AgilityPageCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:451 (editorarticles)[39m
+[32m│   └─ ✅ ContainerID:6 (EditorSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:452 (editorarticles)[39m
+[32m│   └─ ✅ ContainerID:6 (EditorSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:453 (editorarticles)[39m
+[32m│   └─ ✅ ContainerID:6 (EditorSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:454 (editorarticles)[39m
+[32m│   └─ ✅ ContainerID:6 (EditorSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:46 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:47 (overview_RightOrLeftAlignedLC61341) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:48 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:49 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:307 (ChangeLog_ChangeLogD61D0978) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:500 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[31m│   └─ ❌ ContainerID:501 [MISSING FROM SOURCE DATA][39m
+[34m    ├─ ContentID:52 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:308 (ChangeLog_ChangeLogCE87F013) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:57 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:58 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:59 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:612 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:312 (home_CodeFeature187F9499) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:629 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:44 (overview_HeroHeadinig) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:6 (EditorSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:630 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:43 (overview_BlockEditor) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:5 (AgilityPageCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:647 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:4 (AgilityModuleCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:66 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:7 (DeveloperSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:779 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:4 (AgilityModuleCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:81 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:311 (home_CodeFeature) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:82 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:309 (home_RightOrLeftAlignedLinksB573129D) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:892 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:920 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:219 (changelog_Changelog219) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:6 (EditorSections) [FOUND IN SOURCE][39m
+[34m    ├─ ContentID:924 (editorarticles)[39m
+[32m│   ├─ ✅ ContainerID:41 (home_ArticleListing) [FOUND IN SOURCE][39m
+[32m│   └─ ✅ ContainerID:9 (DeveloperArticles) [FOUND IN SOURCE][39m
+[34m    └─ ContentID:959 (editorarticles)[39m
+[32m    ├─ ✅ ContainerID:42 (home_ArticleListing_ListedArB6B909) [FOUND IN SOURCE][39m
+[32m    └─ ✅ ContainerID:3 (AgilityGlobalCodeTemplates) [FOUND IN SOURCE][39m
+[90m[39m
+[90m  ... and 81 more nested chains[39m
+[36m[39m
+[36m📊 Nested Chain Summary (Source Data Only):[39m
+[36m   86 containers have nested dependencies[39m
+[36m   378 content items contain container references[39m
+[36m   579 total container references in nested chains[39m
+[35m[39m
+[35m🔍 DEBUG SAMPLE - Field Structure Analysis[39m
+==================================================
+[37m[39m
+[37m📄 SAMPLE: ContentID:1006 (astroarticles)[39m
+[90mRaw field structure:[39m
+[90m  title: "Astro and Agility CMS"[39m
+[90m  slug: "astro-and-agility-cms"[39m
+[90m  description: "Learn why Astro and Agility CMS work great togethe..."[39m
+[90m  content: "{"blocks":[{"id":"J8MSTVcoUG","type":"paragraph","..."[39m
+[90m  section:[39m
+[33m    contentid: 1003 🔗 (CONTAINER REFERENCE)[39m
+[90m    fulllist: false[39m
+[90m  section_TextField: "Introduction"[39m
+[90m  section_ValueField: "1003"[39m
+[90m  concept:[39m
+[33m    contentid: 47 🔗 (CONTAINER REFERENCE)[39m
+[90m    fulllist: false[39m
+[90m  concept_TextField: "Overview"[39m
+[90m  concept_ValueField: "47"[39m
+[33m[39m
+[33m🔗 Container references found in these fields:[39m
+[34m  1. Field: section.contentid → ID:1003 ❌ MISSING[39m
+[34m  2. Field: concept.contentid → ContainerID:47 (overview_RightOrLeftAlignedLC61341) ✅ FOUND[39m
+[90m[39m
+[90m💡 This shows how a single content item can reference multiple containers through different fields.[39m
+[90m   Each field that contains a "contentid" or "contentID" creates a container dependency.[39m
+[31m[39m
+[31m🔴 4. BROKEN CHAINS AND MISSING DEPENDENCIES[39m
+==================================================
+[31m[39m
+[31m🔴 4. BROKEN CHAINS AND MISSING DEPENDENCIES[39m
+==================================================
+[33mFound 1 broken chains with missing dependencies:[39m
+[33m[39m
+[33m  📦 BROKEN CONTAINER CHAINS (1):[39m
+[37m[39m
+[37m    ContainerID:313 (home_CodeTabs)[39m
+[31m    Missing dependencies:[39m
+[31m      - Model:ID_43[39m
+[33m[39m
+[33m   SUMMARY OF MISSING DEPENDENCIES:[39m
+[37m    Container chains missing: 1 items[39m
+[34m[39m
+[34m📊 5. ITEMS OUTSIDE OF CHAINS[39m
+==================================================
+[33mItems that exist but are not referenced by any chains:[39m
+[34m[39m
+[34m  📋 CONTENT: 2 items[39m
+[90m    - ContentID:28 (alldoccategories_deleted)[39m
+[90m    - ContentID:30 (alldoccategories_deleted)[39m
+[32m[39m
+[32m  📐 MODELS: 3 items[39m
+[90m    - Model:FormBuilder (Form)[39m
+[90m    - Model:Markdown (Markdown)[39m
+[90m    - Model:AgilityFormBuilder (Form Builder)[39m
+[35m[39m
+[35m  📋 TEMPLATES: 1 items[39m
+[90m    - Template:Test template[39m
+[33m[39m
+[33m  🖼️  ASSETS: 2159 items[39m
+[90m    (Assets not referenced by any content fields)[39m
+[90m    - Asset: 11ty_20210922200032_0.svg[39m
+[90m    - Asset: 9969f494-sveltelogo.png[39m
+[90m    - Asset: AngularJS-Shield_20210922200359_0.svg[39m
+[90m    - Asset: astro-icon-light-gradient_20240516023807.svg[39m
+[90m    - Asset: dot-NET-Standard-Logo-Square-150x150_20210922200249_0.png[39m
+[90m    - Asset: dot-NET-Standard-Logo-Square-150x150_20210922200335_0.png[39m
+[90m    - Asset: Gatsby_Monogram_20210922195636_0.png[39m
+[90m    - Asset: js_20210922200645_0.png[39m
+[90m    - Asset: logo_combined_yellow_white.png[39m
+[90m    - Asset: New-Home_20230928054141.png[39m
+[90m    ... and 2149 more assets[39m
+[36m[39m
+[36m  📊 Total non-chained items: 2165[39m
+[36m[39m
+[36m🔍 6. RECONCILIATION SUMMARY[39m
+==================================================
+[36m📊 SYNC READINESS SUMMARY[39m
+[37m   Total entities: 3634[39m
+[32m   Ready to sync: 3633 items[39m
+[90m[39m
+[90m   Entity breakdown:[39m
+[90m     - Pages: 38 in chains, 0 out, 100% accounted for[39m
+[90m     - Content: 1040 in chains, 2 out, 100% accounted for[39m
+[90m     - Models: 33 in chains, 2 out, 100% accounted for[39m
+[90m     - Templates: 3 in chains, 1 out, 100% accounted for[39m
+[90m     - Containers: 356 in chains, 0 out, 100% accounted for[39m
+[90m     - Assets: 19 in chains, 2140 out, 100% accounted for[39m
+[33m[39m
+[33m   Will be skipped: 1 items[39m
+[90m[39m
+[90m   Broken dependency items (1):[39m
+[31m     - ContainerID:313 (home_CodeTabs)[39m
+[33m[39m
+[33m   Problematic assets (22):[39m
+[90m   📝 Note: These assets are included in missing assets breakdown during target discovery[39m
+[31m     - 18 corrupted metadata files[39m
+[33m     - 3 special character issues[39m
+[33m     - 1 URL encoding issues[39m
+[33m🔍 Skipping target discovery - test mode authentication detected[39m
+[90m   💡 To test target discovery, use real authentication without --test flag[39m
+[33m\n📋 No existing mappings found[39m
+[31m[1m⚠️  Fresh sync - new mappings would be created for all entities[22m[39m
+[34m\n✅ Ready to sync from 67bc73e6-u → TEST MODE (no actual sync)[39m
+[32m   ✅ Management SDK initialized for instance: 67bc73e6-u[39m
+[36m   🎯 Comprehensive SDK verification for top 5 most critical containers:[39m
+[36m   🔍 Will test: getContainerByID → getContainerList → getContainerByReferenceName[39m
+[36m[39m
+[34m   🔍 ContainerID:405 - Comprehensive verification...[39m
+[90m      📍 Method 1: getContainerByID(405)[39m
+[32m      ✅ FOUND via getContainerByID: No Name[39m
+[32m      🎯 DEFINITIVE RESULT: Container EXISTS in source instance[39m
+[32m         📋 Name: No Name[39m
+[32m         📋 Type: Item Container[39m
+[32m         📋 Model ID: Unknown[39m
+[32m         📋 Found via: getContainerByID[39m
+
+[34m   🔍 ContainerID:407 - Comprehensive verification...[39m
+[90m      📍 Method 1: getContainerByID(407)[39m
+[32m      ✅ FOUND via getContainerByID: No Name[39m
+[32m      🎯 DEFINITIVE RESULT: Container EXISTS in source instance[39m
+[32m         📋 Name: No Name[39m
+[32m         📋 Type: Item Container[39m
+[32m         📋 Model ID: Unknown[39m
+[32m         📋 Found via: getContainerByID[39m
+
+[34m   🔍 ContainerID:408 - Comprehensive verification...[39m
+[90m      📍 Method 1: getContainerByID(408)[39m
+[32m      ✅ FOUND via getContainerByID: No Name[39m
+[32m      🎯 DEFINITIVE RESULT: Container EXISTS in source instance[39m
+[32m         📋 Name: No Name[39m
+[32m         📋 Type: Item Container[39m
+[32m         📋 Model ID: Unknown[39m
+[32m         📋 Found via: getContainerByID[39m
+
+[34m   🔍 ContainerID:409 - Comprehensive verification...[39m
+[90m      📍 Method 1: getContainerByID(409)[39m
+[32m      ✅ FOUND via getContainerByID: No Name[39m
+[32m      🎯 DEFINITIVE RESULT: Container EXISTS in source instance[39m
+[32m         📋 Name: No Name[39m
+[32m         📋 Type: Item Container[39m
+[32m         📋 Model ID: Unknown[39m
+[32m         📋 Found via: getContainerByID[39m
+
+[34m   🔍 ContainerID:410 - Comprehensive verification...[39m
+[90m      📍 Method 1: getContainerByID(410)[39m
+[32m      ✅ FOUND via getContainerByID: No Name[39m
+[32m      🎯 DEFINITIVE RESULT: Container EXISTS in source instance[39m
+[32m         📋 Name: No Name[39m
+[32m         📋 Type: Item Container[39m
+[32m         📋 Model ID: Unknown[39m
+[32m         📋 Found via: getContainerByID[39m
+
+[36m[39m
+[36m   📊 LIVE VERIFICATION RESULTS:[39m
+[36m      ✅ Found in source instance: 5[39m
+[36m      ❌ Missing from source instance: 0[39m
+[36m      ⚠️  Errors during verification: 0[39m
+[31m[39m
+[31m   🚨 DOWNLOAD PROCESS BUG CONFIRMED![39m
+[31m      These containers exist in source but weren't downloaded:[39m
+[31m      - ContainerID:405 (undefined)[39m
+[31m      - ContainerID:407 (undefined)[39m
+[31m      - ContainerID:408 (undefined)[39m
+[31m      - ContainerID:409 (undefined)[39m
+[31m      - ContainerID:410 (undefined)[39m
+[35m[39m
+[35m   💡 CRITICAL: Download process missing nested container discovery[39m

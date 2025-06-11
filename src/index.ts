@@ -560,6 +560,11 @@ yargs.command({
       describe: "Run in verbose mode: all logs to console, no UI elements. Overridden by headless.",
       type: "boolean",
       default: false
+    },
+    overwrite: {
+      describe: "Force overwrite existing local files and metadata.",
+      type: "boolean",
+      default: false
     }
   },
   handler: async function (argv) {
@@ -579,7 +584,7 @@ yargs.command({
     const userBaseUrl: string = argv.baseUrl as string;
     const legacyFolders: boolean = argv.legacyFolders as boolean;
     const rootPath: string = instanceMainDirName;
-    const { blessed, headless, verbose } = argv;
+    const { blessed, headless, verbose, overwrite } = argv;
 
     const envCheck = auth.checkForEnvFile();
     if (envCheck.hasEnvFile) {
@@ -659,7 +664,8 @@ yargs.command({
         legacyFolders,
         useBlessed,
         useHeadless,
-        useVerbose
+        useVerbose,
+        overwrite // Add the overwrite flag
       );
 
       await pullOperation.pullInstance();
@@ -895,10 +901,10 @@ yargs.command({
       default: true,
     },
     elements: {
-      describe: "Comma-separated list of elements to sync (Galleries,Assets,Models,Containers,Content,Templates,Pages)",
+      describe: "Comma-separated list of elements to sync (Models,Galleries,Assets,Containers,Content,Templates,Pages)",
       demandOption: false,
       type: "string",
-      default: "Galleries,Assets,Models,Containers,Content,Templates,Pages",
+      default: "Models,Galleries,Assets,Containers,Content,Templates,Pages",
     },
     local: {
       describe: "Switch to local management API mode.",
@@ -951,10 +957,44 @@ yargs.command({
       demandOption: false,
       type: "boolean",
       default: false,
+    },
+    forceSync: {
+      describe: "Force sync mode - updates ALL items to ensure 100% consistency (vs incremental mode which only updates changed items).",
+      demandOption: false,
+      type: "boolean",
+      default: false,
+    },
+    failFast: {
+      describe: "Exit immediately on first critical failure for faster testing.",
+      demandOption: false,
+      type: "boolean",
+      default: false,
+    },
+    maxFailures: {
+      describe: "Exit after N total failures to avoid long-running failing syncs.",
+      demandOption: false,
+      type: "number",
+    },
+    timeout: {
+      describe: "Exit after N seconds to avoid extremely long-running syncs.",
+      demandOption: false,
+      type: "number",
+    },
+    testMode: {
+      describe: "Enhanced early exit for testing - stops after validating models if mostly successful.",
+      demandOption: false,
+      type: "boolean",
+      default: false,
+    },
+    criticalFailureThreshold: {
+      describe: "Exit if critical dependency (model) failure rate exceeds this percentage.",
+      demandOption: false,
+      type: "number",
+      default: 50,
     }
   },
   handler: async function (argv) {
-    const { headless, verbose, local, debug, test, maxDepth } = argv;
+    const { headless, verbose, local, debug, test, maxDepth, forceSync, failFast, maxFailures, timeout, testMode, criticalFailureThreshold } = argv;
     const useBlessed = !headless && !verbose;
     blessedUIEnabled = useBlessed;
 
@@ -984,6 +1024,19 @@ yargs.command({
 
     let sourceGuid: string = argv.sourceGuid as string;
     const targetGuid: string = argv.targetGuid as string;
+
+    // 🔒 SAFETY CHECK: Validate target instance before any operations
+    const { TargetInstanceValidator } = await import('./lib/services/target-instance-validator');
+    const validator = new TargetInstanceValidator();
+    const validation = validator.validateTargetInstance(targetGuid);
+    
+    if (!validation.isValid) {
+      console.log(colors.red(validation.message));
+      console.log(colors.yellow(validator.getSuggestions(targetGuid)));
+      return;
+    }
+    
+    console.log(colors.green(validation.message));
     let locale: string = argv.locale as string;
     const isPreview: boolean = argv.preview as boolean;
     const elements: string[] = (argv.elements as string).split(",");
@@ -1058,14 +1111,24 @@ yargs.command({
       
       const syncOperation = new TwoPassSync(options, multibar, sourceGuid, targetGuid, locale, isPreview, blessedUIEnabled, elements, rootPath, legacyFolders, dryRun, {
         debug,
-        maxDepth: maxDepth
+        maxDepth: maxDepth,
+        forceSync: forceSync,
+        failFast: failFast,
+        maxFailures: maxFailures,
+        timeout: timeout,
+        testMode: testMode,
+        criticalFailureThreshold: criticalFailureThreshold
       });
       
       await syncOperation.syncInstance();
       
       // Clean up and exit successfully
       multibar.stop();
-      console.log(colors.green('\n✅ Sync operation completed successfully!'));
+      
+      // Only show success message for actual syncs, not test/dry-run modes
+      if (!test && targetGuid !== 'test' && !dryRun) {
+        console.log(colors.green('\n✅ Sync operation completed successfully!'));
+      }
 
     } catch (error) {
       multibar.stop();

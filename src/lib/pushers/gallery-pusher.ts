@@ -1,6 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { ReferenceMapper } from "../mapper";
+import { ReferenceMapper } from "../reference-mapper";
 
 export async function pushGalleries(
     galleries: mgmtApi.assetGalleries[], 

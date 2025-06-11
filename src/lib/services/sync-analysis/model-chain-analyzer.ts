@@ -10,7 +10,7 @@ import {
     SourceEntities, 
     SyncAnalysisContext, 
     ChainAnalysisService 
-} from './types';
+} from '../../../types/syncAnalysis';
 import { ContainerReferenceExtractor } from './container-reference-extractor';
 
 export class ModelChainAnalyzer implements ChainAnalysisService {
@@ -198,6 +198,11 @@ export class ModelChainAnalyzer implements ChainAnalysisService {
         }
 
         visited.add(model.referenceName);
+        
+        // Mark this model as displayed in the global tracker (establishes baseline)
+        if (this.context?.modelTracker) {
+            this.context.modelTracker.markModelDisplayed(model.referenceName);
+        }
 
         if (!model.fields) return;
 
@@ -207,6 +212,11 @@ export class ModelChainAnalyzer implements ChainAnalysisService {
                 const referencedModel = sourceEntities.models?.find((m: any) => m.referenceName === referencedModelName);
                 
                 if (referencedModel) {
+                    // Mark referenced model as displayed too
+                    if (this.context?.modelTracker) {
+                        this.context.modelTracker.markModelDisplayed(referencedModel.referenceName);
+                    }
+                    
                     console.log(ansiColors.green(`${indent}├─ Model:${referencedModel.referenceName} (${referencedModel.displayName || 'No Name'})`));
                     
                     // Recursively show nested model dependencies

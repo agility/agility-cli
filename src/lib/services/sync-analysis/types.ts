@@ -1,117 +1,77 @@
 /**
- * Shared Types and Interfaces for Sync Analysis Services
- * 
- * This file contains all shared type definitions used across the sync analysis
- * service modules to ensure consistency and type safety.
+ * Content state definitions from Agility CMS documentation
+ * Official state values and their meanings
  */
+export const CONTENT_STATES = {
+    1: { label: 'Staging', description: 'Content saved but not published - can be previewed', syncable: true, icon: '📝' },
+    2: { label: 'Published', description: 'Content live and viewable on website', syncable: true, icon: '✅' },
+    3: { label: 'Deleted', description: 'Content marked for deletion', syncable: false, icon: '🗑️' },
+    4: { label: 'Approved', description: 'Content reviewed and approved for publishing', syncable: true, icon: '👍' },
+    5: { label: 'Awaiting Approval', description: 'Content submitted for review', syncable: true, icon: '⏳' },
+    6: { label: 'Declined', description: 'Content review declined - needs changes', syncable: true, icon: '👎' },
+    7: { label: 'Unpublished', description: 'Content removed from live site but not deleted', syncable: false, icon: '📴' }
+} as const;
 
-export interface TwoPassSyncOptions {
-    debug: boolean;
-    maxDepth?: number;
+/**
+ * Helper function to get formatted state information
+ */
+export function getContentStateInfo(state: number): { label: string; description: string; syncable: boolean; icon: string; formatted: string } {
+    const stateInfo = CONTENT_STATES[state as keyof typeof CONTENT_STATES];
+    
+    if (!stateInfo) {
+        return {
+            label: 'Unknown',
+            description: `Unknown state: ${state}`,
+            syncable: false,
+            icon: '❓',
+            formatted: `${state} (Unknown State)`
+        };
+    }
+    
+    return {
+        ...stateInfo,
+        formatted: `${stateInfo.icon} ${stateInfo.label} (${state})`
+    };
 }
 
+/**
+ * Helper function to categorize state impact on sync
+ */
+export function getStateSyncImpact(state: number): 'normal' | 'problematic' | 'unsyncable' | 'pending' {
+    const stateInfo = CONTENT_STATES[state as keyof typeof CONTENT_STATES];
+    
+    if (!stateInfo || !stateInfo.syncable) {
+        return state === 3 || state === 7 ? 'unsyncable' : 'problematic';
+    }
+    
+    if (state === 5 || state === 6) {
+        return 'pending';
+    }
+    
+    return 'normal';
+}
+
+/**
+ * Entity Reference for relationship tracking
+ */
+export interface EntityReference {
+    sourceType: string;
+    sourceId: string | number;
+    targetType: string;
+    targetId: string | number;
+    fieldPath: string;
+    relationshipType: string;
+}
+
+/**
+ * Source Entities structure
+ */
 export interface SourceEntities {
-    pages?: any[];
     content?: any[];
-    models?: any[];
-    templates?: any[];
     containers?: any[];
+    models?: any[];
     assets?: any[];
     galleries?: any[];
-}
-
-export interface AssetReference {
-    url: string;
-    fieldPath: string;
-}
-
-export interface ContainerReference {
-    contentID: number;
-    fieldPath: string;
-}
-
-export interface EntityCounts {
-    pages: number;
-    content: number;
-    models: number;
-    templates: number;
-    containers: number;
-    assets: number;
-    galleries: number;
-}
-
-export interface EntitiesInChains {
-    pages: Set<number>;
-    content: Set<number>;
-    models: Set<string>;
-    templates: Set<string>;
-    containers: Set<number>;
-    assets: Set<string>;
-    galleries: Set<number>;
-}
-
-export interface BrokenChain {
-    entity: any;
-    missing: string[];
-}
-
-export interface EntityType {
-    name: string;
-    total: number;
-    inChains: number;
-    note: string;
-}
-
-export interface SyncAnalysisContext {
-    rootPath: string;
-    sourceGuid: string;
-    locale: string;
-    isPreview: boolean;
-    debug: boolean;
-    elements: string[];
-}
-
-export interface DependencyValidationResult {
-    missing: string[];
-    isBroken: boolean;
-}
-
-/**
- * Base interface for all sync analysis services
- */
-export interface SyncAnalysisService {
-    /**
-     * Initialize the service with context
-     */
-    initialize(context: SyncAnalysisContext): void;
-}
-
-/**
- * Interface for services that analyze specific entity chains
- */
-export interface ChainAnalysisService extends SyncAnalysisService {
-    /**
-     * Analyze and display the chains for this service's domain
-     */
-    analyzeChains(sourceEntities: SourceEntities): void;
-}
-
-/**
- * Interface for utility services that extract references
- */
-export interface ReferenceExtractionService extends SyncAnalysisService {
-    /**
-     * Extract references from the given data structure
-     */
-    extractReferences(data: any): any[];
-}
-
-/**
- * Interface for services that validate dependencies
- */
-export interface DependencyValidationService extends SyncAnalysisService {
-    /**
-     * Validate dependencies for a given entity
-     */
-    validateDependencies(entity: any, sourceEntities: SourceEntities): DependencyValidationResult;
+    templates?: any[];
+    pages?: any[];
 } 

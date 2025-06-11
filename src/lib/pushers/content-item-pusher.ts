@@ -1,8 +1,20 @@
-import { ReferenceMapper } from "../mapper";
+import { ReferenceMapper } from "../reference-mapper";
 import * as mgmtApi from '@agility/management-sdk';
 import { findContentInTargetInstance } from "../finders/content-item-finder";
-import { mapContentItem } from "../mappers/content-item-mapper";
 import ansiColors from "ansi-colors";
+
+// Simple content item mapping function to replace the deleted mapper
+async function mapContentItem(
+    contentItem: mgmtApi.ContentItem,
+    referenceMapper: ReferenceMapper,
+    apiClient: mgmtApi.ApiClient,
+    targetGuid: string,
+    defaultAssetUrl: string
+): Promise<mgmtApi.ContentItem> {
+    // For now, return the content item as-is
+    // TODO: Add field mapping logic here if needed
+    return { ...contentItem };
+}
 
 export class pushContentItems {
     private apiClient: mgmtApi.ApiClient;

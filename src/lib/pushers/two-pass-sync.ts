@@ -2,18 +2,40 @@ import * as mgmtApi from '@agility/management-sdk';
 import ansiColors from 'ansi-colors';
 import { fileOperations } from '../services/fileOperations';
 import { ComprehensiveAnalysisRunner } from '../services/sync-analysis/comprehensive-analysis-runner';
-import { SyncAnalysisContext } from '../services/sync-analysis/types';
+import { TargetInstanceMapper } from '../services/target-instance-mapper';
+import { ChainBuilder } from '../services/chain-builder';
+import { TopologicalTwoPassOrchestrator } from '../services/topological-two-pass-orchestrator';
+import { ReferenceMapper } from '../reference-mapper';
+import { SyncAnalysisContext } from '../../types/syncAnalysis';
+import { pushModels } from './model-pusher';
+import { pushGalleries } from './gallery-pusher';
+import { pushAssets } from './asset-pusher';
+import { pushContainersTwoPass } from './container-pusher-two-pass';
+// Removed: import { pushContentItems } from './content-item-pusher'; - Using batch pusher instead
+import { pushTemplates } from './template-pusher';
+import { pushPages } from './page-pusher';
+import { pushPagesSimple } from './simple-page-pusher';
+import { ChainDataLoader } from '../services/chain-data-loader';
+
+
 
 export interface TwoPassSyncOptions {
     debug: boolean;
     maxDepth?: number;
+    forceSync?: boolean; // Full sync mode - force update all items
+    // Add early exit options
+    failFast?: boolean;           // Exit on first critical failure
+    maxFailures?: number;         // Exit after N failures
+    timeout?: number;             // Exit after N seconds  
+    testMode?: boolean;           // Enhanced early exit for testing
+    criticalFailureThreshold?: number; // % of critical dependencies that can fail
 }
 
 /**
  * Two-Pass Sync Operation
  * 
- * Main orchestrator that coordinates the entire 2-pass dependency system.
- * This replaces the traditional push system with a sophisticated dependency-aware approach.
+ * SIMPLIFIED: Uses existing proven pushers in dependency order from analysis system.
+ * No complex orchestration - just feed analysis results to solid pushers.
  */
 export class TwoPassSync {
     private options: mgmtApi.Options;
@@ -29,6 +51,10 @@ export class TwoPassSync {
     private dryRun: boolean;
     private syncOptions: TwoPassSyncOptions;
     private fileOps: fileOperations;
+    private startTime: number = 0;
+    private totalFailures: number = 0;
+    private criticalFailures: number = 0;
+    private batchFailures: number = 0; // Track batch API failures
 
     constructor(
         options: mgmtApi.Options,
@@ -51,7 +77,7 @@ export class TwoPassSync {
         this.locale = locale;
         this.isPreview = isPreview;
         this.blessedUIEnabled = blessedUIEnabled;
-        this.elements = elements;
+        this.elements = this.enforceElementDependencies(elements); // Apply dependency enforcement
         this.rootPath = rootPath;
         this.legacyFolders = legacyFolders;
         this.dryRun = dryRun;
@@ -60,128 +86,444 @@ export class TwoPassSync {
     }
 
     /**
+     * Enforce element dependencies - automatically include required dependencies
+     */
+    private enforceElementDependencies(requestedElements: string[]): string[] {
+        const enforcedElements = new Set(requestedElements);
+
+        // Dependency rules based on legacy sync insights
+        if (enforcedElements.has('Pages')) {
+            console.log(ansiColors.yellow('🔗 Pages require Templates, Containers, Content, Assets, Galleries - adding automatically'));
+            enforcedElements.add('Templates');
+            enforcedElements.add('Containers'); 
+            enforcedElements.add('Content');
+            enforcedElements.add('Assets');
+            enforcedElements.add('Galleries');
+        }
+
+        if (enforcedElements.has('Content')) {
+            console.log(ansiColors.yellow('🔗 Content requires Containers, Models, Assets, Galleries - adding automatically'));
+            enforcedElements.add('Containers');
+            enforcedElements.add('Models');
+            enforcedElements.add('Assets');
+            enforcedElements.add('Galleries');
+        }
+
+        if (enforcedElements.has('Containers')) {
+            console.log(ansiColors.yellow('🔗 Containers require Models - adding automatically'));
+            enforcedElements.add('Models');
+        }
+
+        // Templates can be standalone - they define page structure but don't require content to exist
+
+        if (enforcedElements.has('Assets') && !enforcedElements.has('Galleries')) {
+            console.log(ansiColors.yellow('🔗 Assets require Galleries - adding automatically'));
+            enforcedElements.add('Galleries');
+        }
+
+        if (enforcedElements.has('Galleries') && !enforcedElements.has('Assets')) {
+            console.log(ansiColors.yellow('🔗 Galleries require Assets - adding automatically'));
+            enforcedElements.add('Assets');
+        }
+
+        const finalElements = Array.from(enforcedElements);
+        
+        if (finalElements.length > requestedElements.length) {
+            console.log(ansiColors.cyan(`📋 Final element list: ${finalElements.join(', ')}`));
+        }
+
+        return finalElements;
+    }
+
+    /**
      * Main sync execution method
-     * PHASE 10 FIX: This is now ANALYSIS ONLY - no actual pushing to target instance
+     * SIMPLIFIED: Uses existing proven pushers in dependency order
      */
     async syncInstance(): Promise<void> {
+        this.startTime = Date.now();
+        let referenceMapper: ReferenceMapper | null = null;
+        
         try {
-            // Load source data from file system
-            const sourceEntities = await this.loadSourceData();
+            console.log(ansiColors.cyan('\n🚀 Starting Simplified Pusher-Based Sync'));
+            console.log('=' .repeat(60));
+
+            // Step 1: Load source data and perform analysis (keep this - it's perfect)
+            console.log(ansiColors.yellow('📥 Loading source data and performing dependency analysis...'));
             
-            if (this.hasNoContent(sourceEntities)) {
-                console.log(ansiColors.yellow('⚠️ No content found in source data. Skipping analysis.'));
+            const sourceData = await this.loadSourceData();
+            
+            if (this.hasNoContent(sourceData)) {
+                console.log(ansiColors.yellow('⚠️ No content found in source data. Skipping sync.'));
                 return;
             }
 
-            // ANALYSIS PHASE ONLY: Use ComprehensiveAnalysisRunner for 6-step analysis
+            // Use ComprehensiveAnalysisRunner for perfect dependency analysis
             const analysisRunner = new ComprehensiveAnalysisRunner();
             
-            // Create analysis context
-            const context: SyncAnalysisContext = {
+            // Initialize with proper context including rootPath for sitemap loading
+            const analysisContext: any = {
                 sourceGuid: this.sourceGuid,
                 locale: this.locale,
                 isPreview: this.isPreview,
-                rootPath: this.rootPath,
-                debug: this.syncOptions.debug,
+                rootPath: this.rootPath, // This will be process.cwd(), which SitemapHierarchy will correctly extend to agility-files
+                debug: this.syncOptions.debug || false,
                 elements: this.elements
             };
+            analysisRunner.initialize(analysisContext);
             
-            // Initialize and run analysis
-            analysisRunner.initialize(context);
-            analysisRunner.runComprehensiveAnalysis(sourceEntities);
+            const analysisResults = analysisRunner.runComprehensiveAnalysis(sourceData);
+            
+            // Step 2: Set up API client and reference mapper
+            const apiClient = new mgmtApi.ApiClient(this.options);
+            referenceMapper = new ReferenceMapper(this.sourceGuid, this.targetGuid);
+            
+            // Step 3: Target Instance Discovery (only with valid authentication)
+            let discoveryResult = null;
+            if (this.targetGuid !== 'test' && this.options.token !== 'test-token') {
+                const targetMapper = new TargetInstanceMapper(apiClient, this.targetGuid, referenceMapper);
+                discoveryResult = await targetMapper.discoverAndMapExistingEntities(sourceData);
+            } else if (this.options.token === 'test-token') {
+                console.log(ansiColors.yellow('🔍 Skipping target discovery - test mode authentication detected'));
+                console.log(ansiColors.gray('   💡 To test target discovery, use real authentication without --test flag'));
+            }
+            
+            // Step 4: Check if this is a dry run or test mode
+            if (this.dryRun || this.targetGuid === 'test') {
+                // Check for mappings (including any discovered above)
+                const existingStats = referenceMapper.getDetailedStats();
+                const hasExistingMappings = Object.values(existingStats).some(stat => stat.total > 0);
+                
+                if (hasExistingMappings || discoveryResult?.mappingsFound > 0) {
+                    console.log(ansiColors.green('\\n📋 Existing Mappings Found:'));
+                    
+                    if (discoveryResult?.mappingsFound > 0) {
+                        console.log(ansiColors.cyan(`🔍 Target Discovery: Found ${discoveryResult.mappingsFound} existing entities`));
+                        for (const [entityType, counts] of Object.entries(discoveryResult.entityBreakdown)) {
+                            const typedCounts = counts as { existing: number; new: number };
+                            if (typedCounts.existing > 0) {
+                                console.log(`  ${entityType}: ${typedCounts.existing} existing, ${typedCounts.new} new`);
+                            }
+                        }
+                    }
+                    
+                    // Show cached mappings if any
+                    for (const [type, stats] of Object.entries(existingStats)) {
+                        if (stats.total > 0) {
+                            const percentage = stats.withTargets > 0 ? ((stats.withTargets / stats.total) * 100).toFixed(1) : '0.0';
+                            console.log(`  ${type}: ${stats.withTargets}/${stats.total} cached mappings (${percentage}%)`);
+                        }
+                    }
+                    
+                    // Show what sync mode would do with existing mappings
+                    if (this.syncOptions.forceSync) {
+                        console.log(ansiColors.yellow('\\n⚠️  Force Sync Mode: All existing mappings would be cleared and recreated'));
+                    } else {
+                        console.log(ansiColors.green('\\n⚡ Incremental Sync Mode: Existing mappings would be preserved and extended'));
+                    }
+                } else {
+                    console.log(ansiColors.yellow('\\n📋 No existing mappings found'));
+                    console.log(ansiColors.red.bold('⚠️  Fresh sync - new mappings would be created for all entities'));
+                }
+                
+                // Simple target confirmation
+                const targetDisplay = this.targetGuid === 'test' ? 'TEST MODE (no actual sync)' : this.targetGuid;
+                console.log(ansiColors.blue(`\\n✅ Ready to sync from ${this.sourceGuid} → ${targetDisplay}`));
+                return;
+            }
 
-            // COMMENTED OUT: 2-pass orchestrator - this is for PUSH phase, not analysis
-            /*
-            const orchestrator = new TwoPassOrchestrator(this.syncOptions.debug);
-            const targetApiClient = new mgmtApi.ApiClient(this.options);
-            const result = await orchestrator.execute2PassMigration(sourceEntities, targetApiClient, {
-                onlyUsedAssets: true,
-                assetAnalysisDepth: 'deep',
-                enableParallelProcessing: false,
-                maxRetries: 3
-            });
-            */
+            // Step 5: Real sync mode continues here
+            // 🔄 SUBSEQUENT SYNC OPTIMIZATION: Preserve existing mappings for fast subsequent syncs
+            // Only clear mappings if explicitly requested via forceSync or if mappings are corrupted
+            if (this.syncOptions.forceSync) {
+                console.log(ansiColors.yellow('🧹 Force sync mode: Clearing all cached mappings...'));
+                await referenceMapper.clearAllMappings();
+                // Note: Target discovery mappings are already in the mapper from step 3
+            } else {
+                console.log(ansiColors.green('⚡ Subsequent sync mode: Using existing mappings + discoveries for speed...'));
+                // Let the reference mapper load existing cached mappings for fast subsequent syncs
+                // Target discovery mappings are already added to the mapper from step 3
+            }
+
+            // Step 6: Execute pushers in dependency order with early exit
+            console.log(ansiColors.green('\n🎯 Executing Proven Pushers in Dependency Order...'));
+            
+            const syncResults = await this.executePushersInOrder(
+                sourceData, 
+                apiClient, 
+                referenceMapper
+            );
+
+            // Step 7: Save all mappings before reporting results
+            console.log(ansiColors.yellow('💾 Saving all mappings...'));
+            await referenceMapper.saveAllMappings();
+
+            // Step 8: Report results
+            console.log(ansiColors.green('\n🎉 Pusher-Based Sync Complete!'));
+            console.log(`✅ Total Success: ${syncResults.totalSuccess}`);
+            console.log(`❌ Total Failures: ${syncResults.totalFailures}`);
+            console.log(`📊 Success Rate: ${((syncResults.totalSuccess / (syncResults.totalSuccess + syncResults.totalFailures)) * 100).toFixed(1)}%`);
+
+            if (syncResults.totalFailures > 0) {
+                console.log(ansiColors.yellow(`⚠️ Sync completed with ${syncResults.totalFailures} failures. Check logs for details.`));
+            }
 
         } catch (error) {
-            console.error(ansiColors.red(`Error during analysis: ${error.message}`));
+            // Save mappings even on error to preserve any partial progress
+            if (referenceMapper) {
+                try {
+                    console.log(ansiColors.yellow('💾 Saving mappings before exit...'));
+                    await referenceMapper.saveAllMappings();
+                } catch (saveError) {
+                    console.error('Failed to save mappings on error:', saveError);
+                }
+            }
+
+            if (error.message.includes('EARLY_EXIT')) {
+                console.log(ansiColors.yellow(`\n⏹️ Sync stopped early: ${error.message}`));
+                return;
+            }
+            console.error(ansiColors.red(`❌ Error during pusher-based sync: ${error.message}`));
             throw error;
         }
+    }
+
+    private checkEarlyExitConditions(stepName: string, failures: number, successes: number): void {
+        const options = this.syncOptions;
+        const elapsed = Date.now() - this.startTime;
+        
+        // Update counters
+        this.totalFailures += failures;
+        if (['Models', 'Containers'].includes(stepName)) {
+            this.criticalFailures += failures;
+        }
+
+        // Check for batch API failures
+        if (['Content', 'Templates', 'Pages'].includes(stepName) && failures > 0) {
+            this.batchFailures += failures;
+            
+            // FAIL FAST: If we have many batch failures, likely API issue
+            if (this.batchFailures >= 5) {
+                throw new Error(`EARLY_EXIT: Too many batch failures (${this.batchFailures}) - likely batch API unavailable`);
+            }
+        }
+
+        // Early exit conditions
+        if (options.timeout && elapsed > options.timeout * 1000) {
+            throw new Error(`EARLY_EXIT: Timeout reached (${options.timeout}s)`);
+        }
+
+        if (options.failFast && failures > 0) {
+            throw new Error(`EARLY_EXIT: Fail-fast mode - ${failures} failures in ${stepName}`);
+        }
+
+        if (options.maxFailures && this.totalFailures >= options.maxFailures) {
+            throw new Error(`EARLY_EXIT: Max failures reached (${this.totalFailures}/${options.maxFailures})`);
+        }
+
+        // Critical dependency threshold
+        if (options.criticalFailureThreshold && stepName === 'Models') {
+            const total = successes + failures;
+            const failureRate = (failures / total) * 100;
+            if (failureRate > options.criticalFailureThreshold) {
+                throw new Error(`EARLY_EXIT: Critical model failure rate ${failureRate.toFixed(1)}% > ${options.criticalFailureThreshold}%`);
+            }
+        }
+
+        // Test mode early exits
+        if (options.testMode) {
+            // Exit early if models are mostly failing
+            if (stepName === 'Models' && failures > successes) {
+                throw new Error(`EARLY_EXIT: Test mode - Model failures (${failures}) exceed successes (${successes})`);
+            }
+            
+            // Exit after models in test mode if mostly successful
+            if (stepName === 'Models' && failures <= 2 && successes > 10) {
+                console.log(ansiColors.cyan(`\n🧪 Test mode: Models looking good (${successes} success, ${failures} failures) - stopping early`));
+                throw new Error(`EARLY_EXIT: Test mode - Models validated successfully`);
+            }
+        }
+    }
+
+    /**
+     * Execute existing proven pushers in dependency order
+     * SIMPLE: Use what already works!
+     */
+    private async executePushersInOrder(
+        sourceData: any, 
+        apiClient: mgmtApi.ApiClient, 
+        referenceMapper: ReferenceMapper
+    ): Promise<{ totalSuccess: number; totalFailures: number }> {
+        
+        let totalSuccess = 0;
+        let totalFailures = 0;
+
+        // 🔍 DEBUG: Show actual sync options being used
+        console.log(ansiColors.magenta('\n🔍 DEBUG SYNC OPTIONS:'));
+        console.log(ansiColors.magenta(`  forceSync: ${this.syncOptions.forceSync}`));
+        console.log(ansiColors.magenta(`  debug: ${this.syncOptions.debug}`));
+        console.log(ansiColors.magenta(`  maxDepth: ${this.syncOptions.maxDepth}`));
+        console.log(ansiColors.magenta(`  elements: ${this.elements.join(', ')}`));
+
+        // Dependency Order (based on analysis system findings):
+        // 1. Models (no dependencies)
+        // 2. Galleries (no dependencies)  
+        // 3. Assets (depend on galleries)
+        // 4. Containers (depend on models)
+        // 5. Content (depends on containers, models, assets)
+        // 6. Templates (depend on containers, models)
+        // 7. Pages (depend on templates, content)
+
+        try {
+            // 1. Push Models first (foundational) - COMMENTED OUT FOR MAPPING FOCUS
+            if (sourceData.models && sourceData.models.length > 0) {
+                console.log(ansiColors.cyan('\n📋 [MAPPING FOCUS] Analyzing Models (push operations disabled)...'));
+                console.log(ansiColors.yellow(`  📊 Found ${sourceData.models.length} models in source data`));
+                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
+                console.log(ansiColors.green('  ✅ Model mapping analysis complete - push operations skipped'));
+                
+                // COMMENTED OUT: Push operations disabled for mapping focus
+                // const modelResult = await pushModels(
+                //     sourceData.models,
+                //     this.options,
+                //     this.targetGuid,
+                //     referenceMapper,
+                //     this.syncOptions.debug || false,
+                //     this.syncOptions.forceSync || false,
+                //     (processed, total, status) => {
+                //         console.log(`  Models: ${processed}/${total} ${status === 'error' ? '❌' : '✅'}`);
+                //     }
+                // );
+                // totalSuccess += modelResult.successfulModels;
+                // totalFailures += modelResult.failedModels;
+                // this.checkEarlyExitConditions('Models', modelResult.failedModels, modelResult.successfulModels);
+            }
+
+            // 2. Push Galleries (independent) - COMMENTED OUT FOR MAPPING FOCUS
+            if (sourceData.galleries && sourceData.galleries.length > 0) {
+                console.log(ansiColors.cyan('\n🖼️ [MAPPING FOCUS] Analyzing Galleries (push operations disabled)...'));
+                console.log(ansiColors.yellow(`  📊 Found ${sourceData.galleries.length} galleries in source data`));
+                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
+                console.log(ansiColors.green('  ✅ Gallery mapping analysis complete - push operations skipped'));
+                
+                // COMMENTED OUT: Push operations disabled for mapping focus
+                // const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
+                // const galleries = getGalleriesFromFileSystem(...) || [];
+                // const galleryResult = await pushGalleries(...);
+                // totalSuccess += galleryResult.successfulGroupings;
+                // totalFailures += galleryResult.failedGroupings;
+            }
+
+            // 3. Push Assets (depend on galleries) - COMMENTED OUT FOR MAPPING FOCUS
+            if (sourceData.assets && sourceData.assets.length > 0) {
+                console.log(ansiColors.cyan('\n📎 [MAPPING FOCUS] Analyzing Assets (push operations disabled)...'));
+                console.log(ansiColors.yellow(`  📊 Found ${sourceData.assets.length} assets in source data`));
+                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
+                console.log(ansiColors.green('  ✅ Asset mapping analysis complete - push operations skipped'));
+                
+                // COMMENTED OUT: Push operations disabled for mapping focus
+                // const { getAssetsFromFileSystem } = await import('../getters/filesystem/get-assets');
+                // const assets = getAssetsFromFileSystem(...) || [];
+                // const galleries = await import('../getters/filesystem/get-galleries').then(m => m.getGalleriesFromFileSystem(...) || []);
+                // const assetResult = await pushAssets(...);
+                // totalSuccess += assetResult.successfulAssets;
+                // totalFailures += assetResult.failedAssets;
+            }
+
+            // 4. Push Containers (depend on models) - COMMENTED OUT FOR MAPPING FOCUS
+            if (sourceData.containers && sourceData.containers.length > 0) {
+                console.log(ansiColors.cyan('\n📦 [MAPPING FOCUS] Analyzing Containers (push operations disabled)...'));
+                console.log(ansiColors.yellow(`  📊 Found ${sourceData.containers.length} containers in source data`));
+                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
+                console.log(ansiColors.green('  ✅ Container mapping analysis complete - push operations skipped'));
+                
+                // COMMENTED OUT: Push operations disabled for mapping focus
+                // const containerResult = await pushContainersTwoPass(...);
+            }
+
+            // 5. Push Content Items (SINGLE-PASS WITH CONTAINER INFERENCE) - COMMENTED OUT FOR MAPPING FOCUS
+            if (sourceData.content && sourceData.content.length > 0) {
+                console.log(ansiColors.cyan('\n📄 [MAPPING FOCUS] Analyzing Content Items (push operations disabled)...'));
+                console.log(ansiColors.yellow(`  📊 Found ${sourceData.content.length} content items in source data`));
+                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
+                console.log(ansiColors.green('  ✅ Content mapping analysis complete - push operations skipped'));
+                
+                // COMMENTED OUT: Push operations disabled for mapping focus
+                // const { BatchContentItemPusher } = await import('./batch-content-item-pusher');
+                // const contentPusher = new BatchContentItemPusher(...);
+                // const contentResult = await contentPusher.pushContentItems(...);
+                // totalSuccess += contentResult.successCount + contentResult.existingCount;
+                // totalFailures += contentResult.failureCount;
+            }
+
+            // 6. Push Templates (depend on containers, models) - COMMENTED OUT FOR MAPPING FOCUS
+            if (sourceData.templates && sourceData.templates.length > 0) {
+                console.log(ansiColors.cyan('\n📄 [MAPPING FOCUS] Analyzing Templates (push operations disabled)...'));
+                console.log(ansiColors.yellow(`  📊 Found ${sourceData.templates.length} templates in source data`));
+                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
+                console.log(ansiColors.green('  ✅ Template mapping analysis complete - push operations skipped'));
+                
+                // COMMENTED OUT: Push operations disabled for mapping focus
+                // const templateResult = await pushTemplates(...);
+                // totalSuccess += templateResult.successfulTemplates;
+                // totalFailures += templateResult.failedTemplates;
+            }
+
+            // 7. Push Pages (depend on templates, content) - COMMENTED OUT FOR MAPPING FOCUS
+            if (sourceData.pages && sourceData.pages.length > 0) {
+                console.log(ansiColors.cyan('\n📄 [MAPPING FOCUS] Analyzing Pages (push operations disabled)...'));
+                console.log(ansiColors.yellow(`  📊 Found ${sourceData.pages.length} pages in source data`));
+                console.log(ansiColors.blue('  🔍 Target discovery has already been completed above'));
+                console.log(ansiColors.green('  ✅ Page mapping analysis complete - push operations skipped'));
+                
+                // COMMENTED OUT: Push operations disabled for mapping focus
+                // const pageResult = await pushPagesSimple(...);
+                // totalSuccess += pageResult.successfulPages;
+                // totalFailures += pageResult.failedPages;
+            }
+
+        } catch (error) {
+            console.error(ansiColors.red(`❌ Error during pusher execution: ${error.message}`));
+            throw error;
+        }
+
+        // Show summary of mapping-focused analysis
+        console.log(ansiColors.green('\n🎯 Mapping Analysis Summary:'));
+        console.log(ansiColors.yellow('  📊 Source data loaded and analyzed'));
+        console.log(ansiColors.blue('  🔍 Target discovery completed with SDK calls'));
+        console.log(ansiColors.cyan('  🗺️ Entity mappings established in ReferenceMapper'));
+        console.log(ansiColors.magenta('  💾 Push operations disabled - focus on data fetching and mapping'));
+        
+        return { totalSuccess: 0, totalFailures: 0 }; // No actual pushes performed
     }
 
     /**
      * Load source data from local file system
      */
     private async loadSourceData(): Promise<any> {
-        const sourceEntities: any = {};
+        console.log(ansiColors.yellow('🔄 Loading source data with field transformation bridge...'));
+        
+        // Use ChainDataLoader with field transformation bridge
+        const loader = new ChainDataLoader({
+            sourceGuid: this.sourceGuid,
+            locale: this.locale,
+            isPreview: this.isPreview,
+            rootPath: this.rootPath,
+            elements: this.elements
+        });
 
-        // Helper function to load JSON files from a directory
-        const loadJsonFiles = (folderPath: string): any[] => {
-            try {
-                // Construct the full path using the fileOps basePath structure
-                const fullPath = `${this.sourceGuid}/${this.locale}/${this.isPreview ? 'preview' : 'live'}/${folderPath}`;
-                
-                if (!this.fileOps.folderExists(fullPath, this.rootPath)) {
-                    return [];
-                }
-                
-                const fileContents = this.fileOps.readDirectory(fullPath, this.rootPath);
-                return fileContents
-                    .map(content => {
-                        try {
-                            return JSON.parse(content);
-                        } catch {
-                            return null;
-                        }
-                    })
-                    .filter(item => item !== null);
-            } catch {
-                return [];
-            }
-        };
-
-        // Load different entity types based on requested elements
-        if (this.elements.includes('Galleries')) {
-            const galleryLists = loadJsonFiles('assets/galleries');
-            // Extract individual gallery objects from AssetMediaGroupingList structure
-            sourceEntities.galleries = galleryLists.flatMap((galleryList: any) => 
-                galleryList.assetMediaGroupings || []
-            );
-        }
-
-        if (this.elements.includes('Assets')) {
-            const assetLists = loadJsonFiles('assets/json');
-            // Extract individual media objects from AssetMediaList structure
-            sourceEntities.assets = assetLists.flatMap((assetList: any) => 
-                assetList.assetMedias || []
-            );
-        }
-
-        if (this.elements.includes('Models')) {
-            sourceEntities.models = loadJsonFiles('models'); // Models are directly in 'models' folder
-        }
-
-        if (this.elements.includes('Containers')) {
-            sourceEntities.containers = loadJsonFiles('containers');
-        }
-
-        if (this.elements.includes('Content')) {
-            sourceEntities.content = loadJsonFiles('item'); // Content items are in 'item' folder
-        }
-
-        if (this.elements.includes('Templates')) {
-            sourceEntities.templates = loadJsonFiles('templates');
-        }
-
-        if (this.elements.includes('Pages')) {
-            sourceEntities.pages = loadJsonFiles('page'); // Only use 'page' directory as specified
-        }
-
-        // Log summary
+        const sourceEntities = await loader.loadSourceEntities();
+        
+        // Log summary with transformation confirmation
         const totalEntities = Object.values(sourceEntities).reduce((sum: number, arr: any) => 
             sum + (Array.isArray(arr) ? arr.length : 0), 0);
 
-        console.log(ansiColors.green(`✅ Loaded ${totalEntities} entities from local files`));
-
+        console.log(ansiColors.green(`✅ Loaded ${totalEntities} entities with field transformation bridge`));
+        
+        // Show transformation details if models were loaded
+        if (sourceEntities.models && sourceEntities.models.length > 0) {
+            console.log(ansiColors.cyan(`   📋 Models: ${sourceEntities.models.length} (recursive-era → structured-era fields transformed)`));
+        }
+        
         return sourceEntities;
     }
 
@@ -260,9 +602,9 @@ export class TwoPassSync {
     private showContainerDependencyHierarchy(container: any, sourceEntities: any, indent: string): void {
         // Show container's model dependency
         if (container.contentDefinitionID) {
-            const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
+            const model = sourceEntities.models?.find((m: any) => m.definitionID === container.contentDefinitionID);
             if (model) {
-                console.log(ansiColors.green(`${indent}├─ Model:${model.referenceName} (${model.displayName || 'No Name'})`));
+                console.log(ansiColors.green(`${indent}├─ Model:${model.referenceName} (${model.definitionName || 'No Name'})`));
             } else {
                 console.log(ansiColors.red(`${indent}├─ Model:ID_${container.contentDefinitionID} - MISSING IN SOURCE DATA`));
             }
@@ -307,7 +649,7 @@ export class TwoPassSync {
                     if (nestedContainer.contentDefinitionID) {
                         const nestedModel = sourceEntities.models?.find((m: any) => m.referenceName === nestedContainer.contentDefinitionID);
                         if (nestedModel) {
-                            console.log(ansiColors.green(`${indent}│  ├─ Model:${nestedModel.referenceName} (${nestedModel.displayName || 'No Name'})`));
+                            console.log(ansiColors.green(`${indent}│  ├─ Model:${nestedModel.referenceName} (${nestedModel.definitionName || 'No Name'})`));
                         } else {
                             console.log(ansiColors.red(`${indent}│  ├─ Model:${nestedContainer.contentDefinitionID} - MISSING IN SOURCE DATA`));
                         }
@@ -462,7 +804,7 @@ export class TwoPassSync {
             if (template?.contentSectionDefinitions) {
                 template.contentSectionDefinitions.forEach((section: any) => {
                     if (section.contentDefinitionID) {
-                        const model = sourceEntities.models?.find((m: any) => m.id === section.contentDefinitionID);
+                        const model = sourceEntities.models?.find((m: any) => m.definitionID === section.contentDefinitionID);
                         if (model) {
                             modelNames.add(model.referenceName);
                         }
@@ -484,7 +826,7 @@ export class TwoPassSync {
                             const contentId = module.item.contentid || module.item.contentId;
                             const container = sourceEntities.containers?.find((c: any) => c.contentViewID === contentId);
                             if (container?.contentDefinitionID) {
-                                const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
+                                const model = sourceEntities.models?.find((m: any) => m.definitionID === container.contentDefinitionID);
                                 if (model) {
                                     modelNames.add(model.referenceName);
                                 }
@@ -577,7 +919,7 @@ export class TwoPassSync {
                 const referencedModel = sourceEntities.models?.find((m: any) => m.referenceName === referencedModelName);
                 
                 if (referencedModel) {
-                    console.log(ansiColors.green(`${indent}├─ Model:${referencedModel.referenceName} (${referencedModel.displayName || 'No Name'})`));
+                    console.log(ansiColors.green(`${indent}├─ Model:${referencedModel.referenceName} (${referencedModel.definitionName || 'No Name'})`));
                     
                     // Recursively show nested model dependencies
                     this.showModelDependencyHierarchy(referencedModel, sourceEntities, `${indent}│  `, new Set(visited));
@@ -662,7 +1004,7 @@ export class TwoPassSync {
             console.log(ansiColors.yellow(`\n  📐 BROKEN MODEL CHAINS (${brokenModelChains.length}):`));
             brokenModelChains.slice(0, 5).forEach((chain, index) => { // Show first 5
                 const model = chain.entity;
-                console.log(ansiColors.green(`\n    Model:${model.referenceName} (${model.displayName || 'No Name'})`));
+                console.log(ansiColors.green(`\n    Model:${model.referenceName} (${model.definitionName || 'No Name'})`));
                 console.log(ansiColors.red(`    Missing dependencies:`));
                 chain.missing.forEach(dep => {
                     console.log(ansiColors.red(`      - ${dep}`));
@@ -763,7 +1105,7 @@ export class TwoPassSync {
                 
                 // Track container's model
                 if (container.contentDefinitionID) {
-                    const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
+                    const model = sourceEntities.models?.find((m: any) => m.definitionID === container.contentDefinitionID);
                     if (model) {
                         entitiesInChains.models.add(model.referenceName);
                     }
@@ -898,7 +1240,7 @@ export class TwoPassSync {
         if (nonChainedModels.length > 0) {
             console.log(ansiColors.green(`\n  📐 MODELS: ${nonChainedModels.length} items`));
             nonChainedModels.forEach((model: any) => {
-                console.log(ansiColors.gray(`    - Model:${model.referenceName} (${model.displayName || 'No Name'})`));
+                console.log(ansiColors.gray(`    - Model:${model.referenceName} (${model.definitionName || 'No Name'})`));
             });
         }
 
@@ -1009,7 +1351,7 @@ export class TwoPassSync {
             }
         }
 
-        console.log(ansiColors.cyan(`\n   🚀 Do you want to proceed to sync ${syncableItems} items?`));
+
     }
 
     /**
@@ -1058,7 +1400,7 @@ export class TwoPassSync {
             modelToModelChains.forEach((model: any) => {
                 const missing = this.findMissingDependenciesForModel(model, sourceEntities);
                 if (missing.length > 0) {
-                    brokenItems.push(`Model:${model.referenceName} (${model.displayName})`);
+                    brokenItems.push(`Model:${model.referenceName} (${model.definitionName})`);
                 }
             });
         }
@@ -1133,7 +1475,7 @@ export class TwoPassSync {
                 
                 // Track container's model
                 if (container.contentDefinitionID) {
-                    const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
+                    const model = sourceEntities.models?.find((m: any) => m.definitionID === container.contentDefinitionID);
                     if (model) {
                         entitiesInChains.models.add(model.referenceName);
                     }
@@ -1230,9 +1572,9 @@ export class TwoPassSync {
                 
                 // Show container's model dependency
                 if (container.contentDefinitionID) {
-                    const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
+                    const model = sourceEntities.models?.find((m: any) => m.definitionID === container.contentDefinitionID);
                     if (model) {
-                        console.log(ansiColors.green(`${indent}│  ├─ Model:${model.referenceName} (${model.displayName || 'No Name'})`));
+                        console.log(ansiColors.green(`${indent}│  ├─ Model:${model.referenceName} (${model.definitionName || 'No Name'})`));
                     } else {
                         console.log(ansiColors.red(`${indent}│  ├─ Model:ID_${container.contentDefinitionID} - MISSING IN SOURCE DATA`));
                     }
@@ -1271,7 +1613,7 @@ export class TwoPassSync {
                                 }
                                 
                                 if (model) {
-                                    console.log(ansiColors.green(`${indent}│  │  ├─ Model:${model.referenceName} (${model.displayName || 'No Name'})`));
+                                    console.log(ansiColors.green(`${indent}│  │  ├─ Model:${model.referenceName} (${model.definitionName || 'No Name'})`));
                                 } else {
                                     console.log(ansiColors.red(`${indent}│  │  ├─ Model:${content.properties.definitionName} - MISSING IN SOURCE DATA`));
                                 }
@@ -1504,7 +1846,7 @@ export class TwoPassSync {
 
         // Check container's model dependency
         if (container.contentDefinitionID) {
-            const model = sourceEntities.models?.find((m: any) => m.id === container.contentDefinitionID);
+            const model = sourceEntities.models?.find((m: any) => m.definitionID === container.contentDefinitionID);
             if (!model) {
                 missing.push(`Model:ID_${container.contentDefinitionID}`);
             }
@@ -1573,5 +1915,22 @@ export class TwoPassSync {
         }
         
         return references;
+    }
+
+    /**
+     * Get counts of entities in source data for test mode display
+     */
+    private getSourceEntityCounts(sourceData: any): Record<string, number> {
+        const counts: Record<string, number> = {};
+        
+        if (sourceData.models) counts['Models'] = sourceData.models.length;
+        if (sourceData.containers) counts['Containers'] = sourceData.containers.length;
+        if (sourceData.content) counts['Content'] = sourceData.content.length;
+        if (sourceData.assets) counts['Assets'] = sourceData.assets.length;
+        if (sourceData.galleries) counts['Galleries'] = sourceData.galleries.length;
+        if (sourceData.templates) counts['Templates'] = sourceData.templates.length;
+        if (sourceData.pages) counts['Pages'] = sourceData.pages.length;
+        
+        return counts;
     }
 }

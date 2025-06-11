@@ -1,0 +1,2252 @@
+[33mWelcome to Agility CLI.[39m
+[32m● Authenticated to Agility servers.[39m
+[32m[39m
+🔒 Target instance validation enabled. 5 approved targets loaded.
+[32m✅ Target instance validated: Target Instance 1 (90c39c80-u)[39m
+[36m[39m
+[36m🚀 Starting Revolutionary Topological Two-Pass Sync[39m
+============================================================
+[33m📥 Loading source data and performing dependency analysis...[39m
+[36m🔄 Loading source data...[39m
+[32m✅ Loaded 3623 entities from local files[39m
+   📄 Pages: 38
+   🏗️  Templates: 4
+   📦 Containers: 341
+   📋 Models: 35
+   📝 Content: 1042
+   📎 Assets: 2159
+   🖼️  Galleries: 4
+[32m✅ Loaded 3623 source entities[39m
+[36m🔗 Performing chain analysis...[39m
+[36m[39m
+[36m📊 6-STEP DEPENDENCY CHAIN ANALYSIS[39m
+==================================================
+[34m[39m
+[34m📐 1. CIRCULAR MODEL CHAINS (BASELINE)[39m
+==================================================
+[33mFound 4 independent model-to-model chains:[39m
+[32m[39m
+[32m  Model:DocArticle (Doc Article)[39m
+[32m    ├─ Model:DocSection (Doc Section)[39m
+[32m    │  ├─ Model:DocSection (Doc Section)[39m
+[33m    │  │  ├─ Model:DocSection (CIRCULAR REFERENCE)[39m
+[32m    ├─ Model:DocConcept (Doc Concept)[39m
+[32m[39m
+[32m  Model:Header (Header)[39m
+[32m    ├─ Model:Link (Link)[39m
+[32m    ├─ Model:Link (Link)[39m
+[32m[39m
+[32m  Model:Release (Release)[39m
+[32m    ├─ Model:ChangeLog (Change Log)[39m
+[32m    │  ├─ Model:ChangeLogTag (Change Log Tag)[39m
+[32m[39m
+[32m  Model:Footer (Footer)[39m
+[32m    ├─ Model:Link (Link)[39m
+[32m    ├─ Model:Link (Link)[39m
+[32m    ├─ Model:Link (Link)[39m
+[34m[39m
+[34m📄 2. ALL PAGE CHAINS[39m
+==================================================
+✅ Loaded nested sitemap with 21 top-level nodes
+[33mFound 38 pages in 21 hierarchical groups:[39m
+[37m[39m
+[37m  PageID:16 (nextjs)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:63 (ownersadmins_SidebarNav63)[39m
+[32m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav)[39m
+[34m    │  │  │  ├─ ContentID:134 (ownersadmins_sidebarnav63)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:89 (nextjs_HeroHeading)[39m
+[32m    │  │  │  ├─ Model:HeroHeading (Hero Heading)[39m
+[34m    │  │  │  ├─ ContentID:191 (nextjs_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:next-js-logo-8FCFF51DD2-seeklogo.com.png[39m
+[37m    │  │  ├─ ContainerID:176 (nextjs_ArticleListing)[39m
+[32m    │  │  │  ├─ Model:ArticleListing (Article Listing)[39m
+[34m    │  │  │  ├─ ContentID:539 (nextjs_articlelisting)[39m
+[37m    │  │  ├─ ContainerID:191 (nextjs_RightOrLeftAlignedLinAF340D)[39m
+[32m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links)[39m
+[34m    │  │  │  ├─ ContentID:584 (nextjs_rightorleftalignedlinaf340d)[39m
+[37m    │  │  ├─ ContainerID:164 (nextjs_ListofLinks)[39m
+[32m    │  │  │  ├─ Model:ListofLinks (List of Links)[39m
+[34m    │  │  │  ├─ ContentID:489 (nextjs_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:166 (nextjs_RightOrLeftAlignedLinA47238)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:492 (nextjs_rightorleftalignedlina47238)[39m
+[37m    └─ PageID:17 (nextjs-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:64 (ownersadminsarticlesdynamic_D25F84)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:136 (ownersadminsarticlesdynamic_d25f84)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:65 (ownersadminsarticlesdynamic_45AB5E)[39m
+[32m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details)[39m
+[34m        │  │  │  ├─ ContentID:137 (ownersadminsarticlesdynamic_45ab5e)[39m
+[37m[39m
+[37m  PageID:18 (gatsby)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:66 (ownersadmins_SidebarNav62)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:139 (ownersadmins_sidebarnav62)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:90 (gatsby_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:192 (gatsby_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:Gatsby_Monogram_20210922195636_0.png[39m
+[37m    │  │  ├─ ContainerID:180 (gatsby_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:555 (gatsby_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:184 (gatsby_RightOrLeftAlignedLinCA77EC)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:564 (gatsby_rightorleftalignedlinca77ec)[39m
+[37m    │  │  ├─ ContainerID:188 (gatsby_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:573 (gatsby_articlelisting)[39m
+[37m    └─ PageID:19 (gatsby-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:67 (ownersadminsarticlesdynamic_F0E1EB)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:141 (ownersadminsarticlesdynamic_f0e1eb)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:68 (ownersadminsarticlesdynamic_CDCF1A)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:142 (ownersadminsarticlesdynamic_cdcf1a)[39m
+[37m[39m
+[37m  PageID:20 (nuxt)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:69 (ownersadmins_SidebarNav6265)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:144 (ownersadmins_sidebarnav6265)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:91 (nuxt_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:193 (nuxt_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:nuxt.png[39m
+[37m    │  │  ├─ ContainerID:170 (nuxt_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:515 (nuxt_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:172 (nuxt_RightOrLeftAlignedLinks)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:518 (nuxt_rightorleftalignedlinks)[39m
+[37m    │  │  ├─ ContainerID:174 (nuxt_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:522 (nuxt_articlelisting)[39m
+[37m    └─ PageID:21 (nuxt-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:70 (ownersadminsarticlesdynamic_87233E)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:146 (ownersadminsarticlesdynamic_87233e)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:71 (ownersadminsarticlesdynamic_925AA2)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:147 (ownersadminsarticlesdynamic_925aa2)[39m
+[37m[39m
+[37m  PageID:22 (eleventy)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:72 (ownersadmins_SidebarNav62656A144CE)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:149 (ownersadmins_sidebarnav62656a144ce)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:92 (eleventy_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:194 (eleventy_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:11ty.svg[39m
+[37m    │  │  ├─ ContainerID:178 (eleventy_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:554 (eleventy_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:182 (eleventy_RightOrLeftAlignedL73C8AB)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:559 (eleventy_rightorleftalignedl73c8ab)[39m
+[37m    │  │  ├─ ContainerID:186 (eleventy_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:565 (eleventy_articlelisting)[39m
+[37m    └─ PageID:23 (eleventy-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:73 (ownersadminsarticlesdynamic_94AA33)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:151 (ownersadminsarticlesdynamic_94aa33)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:74 (ownersadminsarticlesdynamic_393923)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:152 (ownersadminsarticlesdynamic_393923)[39m
+[37m[39m
+[37m  PageID:24 (dotNet)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:75 (ownersadmins_SidebarNav62656C4D259)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:154 (ownersadmins_sidebarnav62656c4d259)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:93 (dotNet_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:195 (dotnet_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:NET_Logo.svg[39m
+[37m    │  │  ├─ ContainerID:125 (dotNet_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:326 (dotnet_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:112 (dotNet_RightOrLeftAlignedLin21DF2F)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:286 (dotnet_rightorleftalignedlin21df2f)[39m
+[37m    │  │  ├─ ContainerID:150 (dotNet_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:401 (dotnet_articlelisting)[39m
+[37m    └─ PageID:25 (dotNet-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:76 (ownersadminsarticlesdynamic_8F4582)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:156 (ownersadminsarticlesdynamic_8f4582)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:77 (ownersadminsarticlesdynamic_54F950)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:157 (ownersadminsarticlesdynamic_54f950)[39m
+[37m[39m
+[37m  PageID:26 (angular)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:78 (ownersadmins_SidebarNav6265623932C)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:159 (ownersadmins_sidebarnav6265623932c)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:94 (angular_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:196 (angular_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:AngularJS-Shield.svg[39m
+[37m    │  │  ├─ ContainerID:194 (angular_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:614 (angular_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:196 (angular_RightOrLeftAlignedLi4FB4E3)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:617 (angular_rightorleftalignedli4fb4e3)[39m
+[37m    │  │  ├─ ContainerID:198 (angular_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:620 (angular_articlelisting)[39m
+[37m    └─ PageID:27 (angular-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:79 (ownersadminsarticlesdynamic_AA21DF)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:161 (ownersadminsarticlesdynamic_aa21df)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:80 (ownersadminsarticlesdynamic_0B5064)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:162 (ownersadminsarticlesdynamic_0b5064)[39m
+[37m[39m
+[37m  PageID:29 (javascript)[34m [Parent: 3 child pages][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:82 (ownersadmins_SidebarNav62656193752)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:166 (ownersadmins_sidebarnav62656193752)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:95 (javascript_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:197 (javascript_heroheading)[39m
+    │  │  │  │  ├─ [33mAsset:js.png[39m
+[37m    │  │  ├─ ContainerID:117 (javascript_ListofLinks117)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:293 (javascript_listoflinks117)[39m
+[37m    │  │  ├─ ContainerID:119 (javascript_RightOrLeftAligne3B6F8D)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:298 (javascript_rightorleftaligne3b6f8d)[39m
+[37m    │  │  ├─ ContainerID:109 (javascript_RightOrLeftAligneD46C2F)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:272 (javascript_rightorleftaligned46c2f)[39m
+[37m    ├─ PageID:30 (javascript-articles-dynamic)[39m
+[35m    │   ├─ Template:With Sidebar Nav Template[39m
+[90m    │   │  ├─ Zone: SidebarContentZone[39m
+[37m    │   │  │  ├─ ContainerID:83 (ownersadminsarticlesdynamic_2313A7)[39m
+[90m    │   │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │   │  │  │  ├─ ContentID:168 (ownersadminsarticlesdynamic_2313a7)[39m
+[90m    │   │  ├─ Zone: MainContentZone[39m
+[37m    │   │  │  ├─ ContainerID:84 (ownersadminsarticlesdynamic_70FA28)[39m
+[90m    │   │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m    │   │  │  │  ├─ ContentID:169 (ownersadminsarticlesdynamic_70fa28)[39m
+[37m    └─ PageID:53 (management-sdk)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:360 (managementsdk_HeroHeading)[39m
+[90m        │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:1267 (managementsdk_heroheading)[39m
+[37m        └─ PageID:54 (articles)[39m
+[35m            ├─ Template:With Sidebar Nav Template[39m
+[90m            │  ├─ Zone: SidebarContentZone[39m
+[37m            │  │  ├─ ContainerID:359 (articles_SidebarNav)[39m
+[90m            │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m            │  │  │  ├─ ContentID:1266 (articles_sidebarnav)[39m
+[37m[39m
+[37m  PageID:3 (developers)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:29 (developers_SidebarNav)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:73 (developers_sidebarnav)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:101 (developers_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:211 (developers_heroheading)[39m
+[37m    │  │  ├─ ContainerID:139 (developers_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:361 (developers_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:141 (developers_RightOrLeftAligne3B5BF7)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:364 (developers_rightorleftaligne3b5bf7)[39m
+[37m    │  │  ├─ ContainerID:143 (developers_RightOrLeftAligne529CA4)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:368 (developers_rightorleftaligne529ca4)[39m
+[37m    │  │  ├─ ContainerID:204 (developers_SDKsFrameworks)[39m
+[32m    │  │  │  ├─ Model:SDKsFrameworks (SDK's & Frameworks)[39m
+[34m    │  │  │  ├─ ContentID:654 (developers_sdksframeworks)[39m
+[37m    │  │  ├─ ContainerID:145 (developers_ListofLinks145)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:372 (developers_listoflinks145)[39m
+[37m    │  │  ├─ ContainerID:215 (developers_RightOrLeftAligne028AE1)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:717 (developers_rightorleftaligne028ae1)[39m
+[37m    └─ PageID:9 (developers-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:30 (developersarticlesdynamic_Si30609B)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:74 (developersarticlesdynamic_si30609b)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:22 (developersarticlesdynamic_Dy73CA6F)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:63 (developersarticlesdynamic_dy73ca6f)[39m
+[37m[39m
+[37m  PageID:36 (apps)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:247 (apps_SidebarNav)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:854 (apps_sidebarnav)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:250 (apps_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:855 (apps_heroheading)[39m
+[37m    │  │  ├─ ContainerID:262 (apps_RightOrLeftAlignedLinks262)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:909 (apps_rightorleftalignedlinks262)[39m
+[37m    │  │  ├─ ContainerID:251 (apps_RightOrLeftAlignedLinks)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:856 (apps_rightorleftalignedlinks)[39m
+[37m    │  │  ├─ ContainerID:255 (Right Or Left Aligned Links)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:877 (right or left aligned links)[39m
+[37m    └─ PageID:37 (apps-articles)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:253 (appsarticles_SidebarNav)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:864 (appsarticles_sidebarnav)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:254 (appsarticles_DynamicArticleDF510FD)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:865 (appsarticles_dynamicarticledf510fd)[39m
+[37m[39m
+[37m  PageID:4 (editors)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:27 (editors_SidebarNav)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:71 (editors_sidebarnav)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:96 (editors_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:206 (editors_heroheading)[39m
+[37m    │  │  ├─ ContainerID:97 (editors_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:207 (editors_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:99 (editors_ListofLinks99)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:210 (editors_listoflinks99)[39m
+[37m    │  │  ├─ ContainerID:121 (editors_ListofLinks121)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:314 (editors_listoflinks121)[39m
+[37m    │  │  ├─ ContainerID:123 (editors_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:321 (editors_articlelisting)[39m
+[37m    │  │  ├─ ContainerID:137 (editors_RightOrLeftAlignedLi5B65FE)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:357 (editors_rightorleftalignedli5b65fe)[39m
+[37m    └─ PageID:7 (dynamic-articles-editors)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:28 (dynamicarticleseditors_Sideb5DDC13)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:72 (dynamicarticleseditors_sideb5ddc13)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:21 (dynamicarticleseditors_Dynam43D043)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:62 (dynamicarticleseditors_dynam43d043)[39m
+[37m[39m
+[37m  PageID:40 (astro)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:279 (ownersadmins_SidebarNav626565EA00D)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1011 (ownersadmins_sidebarnav626565ea00d)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:280 (angular_HeroHeadingC418B5BC)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1012 (angular_heroheadingc418b5bc)[39m
+    │  │  │  │  ├─ [33mAsset:astro-icon-light-gradient_20240516023807.svg[39m
+[37m    │  │  ├─ ContainerID:281 (angular_ListofLinks0CF808B5)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1015 (angular_listoflinks0cf808b5)[39m
+[37m    │  │  ├─ ContainerID:283 (angular_RightOrLeftAlignedLi289FEB)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1019 (angular_rightorleftalignedli289feb)[39m
+[37m    │  │  ├─ ContainerID:285 (angular_ArticleListing7A4AB981)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1022 (angular_articlelisting7a4ab981)[39m
+[37m    └─ PageID:41 (astro-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:287 (ownersadminsarticlesdynamic_881C17)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:1024 (ownersadminsarticlesdynamic_881c17)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:288 (ownersadminsarticlesdynamic_C1354F)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:1025 (ownersadminsarticlesdynamic_c1354f)[39m
+[37m[39m
+[37m  PageID:43 (codefeature)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:Main Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:314 (codefeature_CodeFeature)[39m
+[32m    │  │  │  ├─ Model:CodeFeature (CodeFeature)[39m
+[34m    │  │  │  ├─ ContentID:1140 (codefeature_codefeature)[39m
+[37m    └─ PageID:55 (test)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[37m[39m
+[37m  PageID:44 (sveltekit)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:336 (sveltekit_SidebarNav39DE282E)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1182 (sveltekit_sidebarnav39de282e)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:321 (angular_HeroHeadingC418B5BC27B33EDA)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1162 (angular_heroheadingc418b5bc27b33eda)[39m
+    │  │  │  │  ├─ [33mAsset:9969f494-sveltelogo.png[39m
+[37m    └─ PageID:46 (sveltekit-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:330 (sveltekitarticlesdynamic_SidCDCB01)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:1183 (sveltekitarticlesdynamic_sidcdcb01)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:346 (sveltekitarticlesdynamic_Dyn5C6AEE)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:1204 (sveltekitarticlesdynamic_dyn5c6aee)[39m
+[37m[39m
+[37m  PageID:5 (overview)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:25 (overview_SidebarNav25)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:69 (overview_sidebarnav25)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:44 (overview_HeroHeadinig)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:119 (overview_heroheadinig)[39m
+[37m    │  │  ├─ ContainerID:45 (overview_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:120 (overview_listoflinks)[39m
+[37m    │  │  ├─ ContainerID:47 (overview_RightOrLeftAlignedLC61341)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:123 (overview_rightorleftalignedlc61341)[39m
+[37m    │  │  ├─ ContainerID:131 (overview_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:343 (overview_articlelisting)[39m
+[37m    │  │  ├─ ContainerID:133 (overview_RightOrLeftAlignedLBF4A2F)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:348 (overview_rightorleftalignedlbf4a2f)[39m
+[37m    └─ PageID:8 (overview-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:26 (overviewarticlesdynamic_Side220AE9)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:70 (overviewarticlesdynamic_side220ae9)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:20 (overviewarticlesdynamic_DynaCD5DA2)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:61 (overviewarticlesdynamic_dynacd5da2)[39m
+[37m[39m
+[37m  PageID:6 (owners-admins)[34m [Parent: 1 child page][39m[37m[39m
+[35m    ├─ Template:With Sidebar Nav Template[39m
+[90m    │  ├─ Zone: SidebarContentZone[39m
+[37m    │  │  ├─ ContainerID:31 (ownersadmins_SidebarNav)[39m
+[90m    │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:75 (ownersadmins_sidebarnav)[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:155 (ownersadmins_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:455 (ownersadmins_heroheading)[39m
+[37m    │  │  ├─ ContainerID:156 (ownersadmins_RightOrLeftAlig731389)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:456 (ownersadmins_rightorleftalig731389)[39m
+[37m    │  │  ├─ ContainerID:158 (ownersadmins_RightOrLeftAligD51F46)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:464 (ownersadmins_rightorleftaligd51f46)[39m
+[37m    │  │  ├─ ContainerID:200 (ownersadmins_ListofLinks)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:635 (ownersadmins_listoflinks)[39m
+[37m    └─ PageID:10 (owners-admins-articles-dynamic)[39m
+[35m        ├─ Template:With Sidebar Nav Template[39m
+[90m        │  ├─ Zone: SidebarContentZone[39m
+[37m        │  │  ├─ ContainerID:32 (ownersadminsarticlesdynamic_703F29)[39m
+[90m        │  │  │  ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:76 (ownersadminsarticlesdynamic_703f29)[39m
+[90m        │  ├─ Zone: MainContentZone[39m
+[37m        │  │  ├─ ContainerID:23 (ownersadminsarticlesdynamic_64DA82)[39m
+[90m        │  │  │  ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[34m        │  │  │  ├─ ContentID:64 (ownersadminsarticlesdynamic_64da82)[39m
+[37m[39m
+[37m  PageID:2 (home)[39m
+[35m    ├─ Template:Main Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:34 (home_CategoryListing)[39m
+[32m    │  │  │  ├─ Model:HeroCategories (Hero Categories)[39m
+[34m    │  │  │  ├─ ContentID:80 (home_categorylisting)[39m
+[37m    │  │  ├─ ContainerID:206 (home_TextBlockswithImages)[39m
+[32m    │  │  │  ├─ Model:TextBlockswithImages (Text Blocks with Images)[39m
+[34m    │  │  │  ├─ ContentID:696 (home_textblockswithimages)[39m
+    │  │  │  │  ├─ [33mAsset:New-Home_20230928054141.png[39m
+    │  │  │  │  ├─ [33mAsset:starters_20211027171451_0.png[39m
+[37m    │  │  ├─ ContainerID:37 (home_RightOrLeftAlignedLinks)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:92 (home_rightorleftalignedlinks)[39m
+[37m    │  │  ├─ ContainerID:128 (home_ListofLinks128)[39m
+[90m    │  │  │  ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:327 (home_listoflinks128)[39m
+[37m    │  │  ├─ ContainerID:41 (home_ArticleListing)[39m
+[90m    │  │  │  ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:101 (home_articlelisting)[39m
+[37m    │  │  ├─ ContainerID:39 (RightOrLeftAlignedLinks)[39m
+[90m    │  │  │  ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:99 (rightorleftalignedlinks)[39m
+[37m[39m
+[37m  PageID:31 (professional-services)[39m
+[35m    ├─ Template:Main Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:130 (professionalservices_BlockEd1D02F5)[39m
+[32m    │  │  │  ├─ Model:BlockEditor (Block Editor)[39m
+[34m    │  │  │  ├─ ContentID:331 (professionalservices_blocked1d02f5)[39m
+[37m[39m
+[37m  PageID:32 (changelog)[39m
+[35m    ├─ Template:Full Width Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:222 (changelog_HeroHeading)[39m
+[90m    │  │  │  ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:740 (changelog_heroheading)[39m
+[37m    │  │  ├─ ContainerID:219 (changelog_Changelog219)[39m
+[32m    │  │  │  ├─ Model:Changelog (Changelog)[39m
+[34m    │  │  │  ├─ ContentID:730 (changelog_changelog219)[39m
+[37m[39m
+[37m  PageID:33 (404)[39m
+[35m    ├─ Template:Main Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:225 (404_RichTextArea)[39m
+[32m    │  │  │  ├─ Model:RichTextArea (Rich Text Area)[39m
+[34m    │  │  │  ├─ ContentID:752 (404_richtextarea)[39m
+[37m[39m
+[37m  PageID:34 (500)[39m
+[35m    ├─ Template:Main Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:226 (500_RichTextArea)[39m
+[90m    │  │  │  ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:754 (500_richtextarea)[39m
+[37m[39m
+[37m  PageID:47 (testing)[39m
+[35m    ├─ Template:Full Width Template[39m
+[90m    │  ├─ Zone: MainContentZone[39m
+[37m    │  │  ├─ ContainerID:350 (testing_RichTextArea)[39m
+[90m    │  │  │  ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[34m    │  │  │  ├─ ContentID:1230 (testing_richtextarea)[39m
+[34m[39m
+[34m📦 3. ALL CONTAINER CHAINS[39m
+==================================================
+[33mFound 278 containers not in page chains:[39m
+[37m[39m
+[37m  ContainerID:225 (404_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:226 (500_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:1 (AgilityCSSFiles) [39m
+[32m    ├─ Model:AgilityCSS (Agility CSS)[39m
+[37m[39m
+[37m  ContainerID:3 (AgilityGlobalCodeTemplates) [39m
+[32m    ├─ Model:AgilityCodeTemplate (Agility Code Template)[39m
+[37m[39m
+[37m  ContainerID:2 (AgilityJavascriptFiles) [39m
+[32m    ├─ Model:AgilityJavascript (Agility Javascript)[39m
+[37m[39m
+[37m  ContainerID:4 (AgilityModuleCodeTemplates) [39m
+[90m    ├─ Model:AgilityCodeTemplate (Agility Code Template) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:5 (AgilityPageCodeTemplates) [39m
+[90m    ├─ Model:AgilityCodeTemplate (Agility Code Template) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:54 (AngularArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:249 (AppsArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:248 (AppsSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:278 (AstroArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:277 (AstroSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:102 (ChangeLog) [39m
+[90m    ├─ Model:Release (Release) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:220 (ChangeLogTags) [39m
+[90m    ├─ Model:ChangeLogTag (Change Log Tag) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:104 (ChangeLog_ChangeLog) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:296 (ChangeLog_ChangeLog095768E2) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:349 (ChangeLog_ChangeLog0A12EE5F) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:315 (ChangeLog_ChangeLog0F7D0FF9) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:163 (ChangeLog_ChangeLog163) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:190 (ChangeLog_ChangeLog190) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:294 (ChangeLog_ChangeLog1B750FE5) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:202 (ChangeLog_ChangeLog202) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:203 (ChangeLog_ChangeLog203) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:213 (ChangeLog_ChangeLog213) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:218 (ChangeLog_ChangeLog218) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:223 (ChangeLog_ChangeLog223) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:224 (ChangeLog_ChangeLog224) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:227 (ChangeLog_ChangeLog227) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:228 (ChangeLog_ChangeLog228) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:229 (ChangeLog_ChangeLog229) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:230 (ChangeLog_ChangeLog230) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:231 (ChangeLog_ChangeLog231) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:232 (ChangeLog_ChangeLog232) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:233 (ChangeLog_ChangeLog233) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:234 (ChangeLog_ChangeLog234) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:235 (ChangeLog_ChangeLog235) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:236 (ChangeLog_ChangeLog236) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:237 (ChangeLog_ChangeLog237) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:239 (ChangeLog_ChangeLog237239) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:238 (ChangeLog_ChangeLog238) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:240 (ChangeLog_ChangeLog240) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:241 (ChangeLog_ChangeLog241) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:242 (ChangeLog_ChangeLog242) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:243 (ChangeLog_ChangeLog243) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:244 (ChangeLog_ChangeLog244) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:245 (ChangeLog_ChangeLog245) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:257 (ChangeLog_ChangeLog257) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:260 (ChangeLog_ChangeLog260) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:261 (ChangeLog_ChangeLog261) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:265 (ChangeLog_ChangeLog265) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:266 (ChangeLog_ChangeLog266) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:268 (ChangeLog_ChangeLog268) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:269 (ChangeLog_ChangeLog269) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:300 (ChangeLog_ChangeLog35C9718B) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:274 (ChangeLog_ChangeLog3851B7CD) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:273 (ChangeLog_ChangeLog3A165FC4) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:351 (ChangeLog_ChangeLog47940944) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:289 (ChangeLog_ChangeLog4C01395E) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:347 (ChangeLog_ChangeLog52C913D6) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:291 (ChangeLog_ChangeLog658D78D5) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:304 (ChangeLog_ChangeLog665D40C6) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:353 (ChangeLog_ChangeLog784710ED) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:305 (ChangeLog_ChangeLog7912A7B5) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:301 (ChangeLog_ChangeLog893CCDF9) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:297 (ChangeLog_ChangeLogA85C1A50) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:276 (ChangeLog_ChangeLogADDE2186) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:352 (ChangeLog_ChangeLogAF2F8251) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:295 (ChangeLog_ChangeLogB9C12569) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:290 (ChangeLog_ChangeLogC6087A08) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:275 (ChangeLog_ChangeLogCC424538) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:316 (ChangeLog_ChangeLogCCD5D770) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:308 (ChangeLog_ChangeLogCE87F013) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:317 (ChangeLog_ChangeLogCF23C59A) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:307 (ChangeLog_ChangeLogD61D0978) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:292 (ChangeLog_ChangeLogE411AF0E) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:302 (ChangeLog_ChangeLogE794A7F4) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:303 (ChangeLog_ChangeLogF5CE09CC) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:299 (ChangeLog_ChangeLogFA739A00) [39m
+[90m    ├─ Model:ChangeLog (Change Log) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:9 (DeveloperArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:7 (DeveloperSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:18 (DocCategories) [39m
+[32m    ├─ Model:DocCategory (Doc Category)[39m
+[37m[39m
+[37m  ContainerID:8 (DocConcepts) [39m
+[90m    ├─ Model:DocConcept (Doc Concept) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:10 (EditorArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:6 (EditorSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:52 (EleventyArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:59 (EleventySedtions) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:209 (Footer) [39m
+[90m    ├─ Model:Footer (Footer) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:212 (Footer_Link212) [39m
+[90m    ├─ Model:Link (Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:50 (GatsbyArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:57 (GatsbySections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:86 (Header) [39m
+[90m    ├─ Model:Header (Header) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:87 (Header_Link) [39m
+[90m    ├─ Model:Link (Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:88 (Header_Link88) [39m
+[90m    ├─ Model:Link (Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:55 (JavaScriptArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:135 (ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:354 (ManagementSDK-Articles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:49 (NextjsArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:56 (NextjsSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:51 (NuxtArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:58 (NuxtSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:14 (OverviewArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:12 (OverviewSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:15 (OwnersAdminsArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:13 (OwnersAdminsSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:255 (Right Or Left Aligned Links) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:39 (RightOrLeftAlignedLinks) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:337 (SvelteKitArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:338 (SvelteKitSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:198 (angular_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:285 (angular_ArticleListing7A4AB981) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:199 (angular_ArticleListing_Liste4B4DEE) [39m
+[32m    ├─ Model:ListedArticle (Listed Article)[39m
+[37m[39m
+[37m  ContainerID:94 (angular_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:280 (angular_HeroHeadingC418B5BC) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:281 (angular_ListofLinks0CF808B5) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:322 (angular_ListofLinks0CF808B525DAC55D) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:323 (angular_ListofLinks_ListedLiCFBB45) [39m
+[32m    ├─ Model:ListedLink (Listed Link)[39m
+[37m[39m
+[37m  ContainerID:282 (angular_ListofLinks_ListedLiE758BD) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:325 (angular_RightOrLeftAlignedLi20D28E) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:283 (angular_RightOrLeftAlignedLi289FEB) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:324 (angular_RightOrLeftAlignedLi4F1EB9) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:284 (angular_RightOrLeftAlignedLiF7EBB4) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:250 (apps_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:258 (apps_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:251 (apps_RightOrLeftAlignedLinks) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:262 (apps_RightOrLeftAlignedLinks262) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:252 (apps_RightOrLeftAlignedLinks3881B3) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:256 (apps_RightOrLeftAlignedLinks3A2CA7) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:263 (apps_RightOrLeftAlignedLinksD80E12) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:247 (apps_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:254 (appsarticles_DynamicArticleDF510FD) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:253 (appsarticles_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:358 (articles_DynamicArticleDetaiBB29E6) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:359 (articles_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:214 (changelog_BlockEditor) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:217 (changelog_Changelog217) [39m
+[90m    ├─ Model:Changelog (Changelog) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:219 (changelog_Changelog219) [39m
+[90m    ├─ Model:Changelog (Changelog) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:222 (changelog_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:221 (changelog_SidebarFilter) [39m
+[32m    ├─ Model:SidebarFilter (Sidebar Filter)[39m
+[37m[39m
+[37m  ContainerID:145 (developers_ListofLinks145) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:140 (developers_ListofLinks_Liste433B24) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:215 (developers_RightOrLeftAligne028AE1) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:216 (developers_RightOrLeftAligne037AFF) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:143 (developers_RightOrLeftAligne529CA4) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:148 (developers_RightOrLeftAligneE25906) [39m
+[32m    ├─ Model:RightOrLeftAlignedImageLinks (Right Or Left Aligned Image Links)[39m
+[37m[39m
+[37m  ContainerID:204 (developers_SDKsFrameworks) [39m
+[90m    ├─ Model:SDKsFrameworks (SDK's & Frameworks) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:205 (developers_SDKsFrameworks_ImB0B7AF) [39m
+[32m    ├─ Model:ImageLink (Image Link)[39m
+[37m[39m
+[37m  ContainerID:29 (developers_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:22 (developersarticlesdynamic_Dy73CA6F) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:19 (developersarticlesdynamic_RiD12B34) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:30 (developersarticlesdynamic_Si30609B) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:33 (docs_BlockEditor) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:16 (docs_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:53 (dotNetArticles) [39m
+[90m    ├─ Model:DocArticle (Doc Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:60 (dotNetSections) [39m
+[90m    ├─ Model:DocSection (Doc Section) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:150 (dotNet_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:111 (dotNet_BlockEditor) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:114 (dotNet_BlockEditor114) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:153 (dotNet_BlockEditor153) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:93 (dotNet_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:125 (dotNet_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:126 (dotNet_ListofLinks_ListedLinA4FC5D) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:112 (dotNet_RightOrLeftAlignedLin21DF2F) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:116 (dotNet_RightOrLeftAlignedLinC3CE8C) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:115 (dotNet_RightOrLeftAlignedLinC602B9) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:113 (dotNet_RightOrLeftAlignedLinDCC62A) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:21 (dynamicarticleseditors_Dynam43D043) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:28 (dynamicarticleseditors_Sideb5DDC13) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:124 (editors_ArticleListing_Liste58F98C) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:96 (editors_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:97 (editors_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:122 (editors_ListofLinks120_ListeDE161D) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:121 (editors_ListofLinks121) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:100 (editors_ListofLinks98_Listed0E200A) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:98 (editors_ListofLinks_ListedLi610A64) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:138 (editors_RightOrLeftAlignedLiAF3294) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:27 (editors_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:186 (eleventy_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:187 (eleventy_ArticleListing_ListB9CF27) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:178 (eleventy_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:179 (eleventy_ListofLinks_ListedLCD6959) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:183 (eleventy_RightOrLeftAlignedL54F4F0) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:182 (eleventy_RightOrLeftAlignedL73C8AB) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:188 (gatsby_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:189 (gatsby_ArticleListing_ListedFBCBFE) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:90 (gatsby_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:180 (gatsby_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:181 (gatsby_ListofLinks_ListedLin8202C8) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:185 (gatsby_RightOrLeftAlignedLinCA6399) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:184 (gatsby_RightOrLeftAlignedLinCA77EC) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:41 (home_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:42 (home_ArticleListing_ListedArB6B909) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:34 (home_CategoryListing) [39m
+[90m    ├─ Model:HeroCategories (Hero Categories) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:311 (home_CodeFeature) [39m
+[90m    ├─ Model:CodeFeature (CodeFeature) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:312 (home_CodeFeature187F9499) [39m
+[90m    ├─ Model:CodeFeature (CodeFeature) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:246 (home_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:35 (home_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:129 (home_ListofLinks127_ListedLiD4433B) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:128 (home_ListofLinks128) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:36 (home_ListofLinks_ListedLink) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:37 (home_RightOrLeftAlignedLinks) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:127 (home_RightOrLeftAlignedLinks127) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:40 (home_RightOrLeftAlignedLinks16B151) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:38 (home_RightOrLeftAlignedLinksA3D016) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:309 (home_RightOrLeftAlignedLinksB573129D) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:310 (home_RightOrLeftAlignedLinksE47B96) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:95 (javascript_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:105 (javascript_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:118 (javascript_ListofLinks116_Li84AAD0) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:117 (javascript_ListofLinks117) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:106 (javascript_ListofLinks_Liste834E6A) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:108 (javascript_RightOrLeftAligne85253D) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:109 (javascript_RightOrLeftAligneD46C2F) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:107 (javascript_RightOrLeftAligneD98D16) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:110 (javascript_RightOrLeftAligneDC8701) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:355 (managementsdk_DynamicArticle94ABCA) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:360 (managementsdk_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:356 (managementsdk_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:176 (nextjs_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:177 (nextjs_ArticleListing_Listed25E7FD) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:89 (nextjs_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:164 (nextjs_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:165 (nextjs_ListofLinks_ListedLin828102) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:167 (nextjs_RightOrLeftAlignedLinB54F1D) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:174 (nuxt_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:175 (nuxt_ArticleListing_ListedArA5F57A) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:91 (nuxt_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:170 (nuxt_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:171 (nuxt_ListofLinks_ListedLink) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:172 (nuxt_RightOrLeftAlignedLinks) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:173 (nuxt_RightOrLeftAlignedLinks7EA5F4) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:131 (overview_ArticleListing) [39m
+[90m    ├─ Model:ArticleListing (Article Listing) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:132 (overview_ArticleListing_List5D2DA9) [39m
+[90m    ├─ Model:ListedArticle (Listed Article) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:43 (overview_BlockEditor) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:44 (overview_HeroHeadinig) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:45 (overview_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:46 (overview_ListofLinks_ListedLAE2CE7) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:133 (overview_RightOrLeftAlignedLBF4A2F) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:47 (overview_RightOrLeftAlignedLC61341) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:48 (overview_RightOrLeftAlignedLEB2429) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:24 (overview_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:25 (overview_SidebarNav25) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:264 (overview_TextBlockswithImage0CE4E1) [39m
+[90m    ├─ Model:TextBlockswithImages (Text Blocks with Images) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:20 (overviewarticlesdynamic_DynaCD5DA2) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:26 (overviewarticlesdynamic_Side220AE9) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:155 (ownersadmins_HeroHeading) [39m
+[90m    ├─ Model:HeroHeading (Hero Heading) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:200 (ownersadmins_ListofLinks) [39m
+[90m    ├─ Model:ListofLinks (List of Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:201 (ownersadmins_ListofLinks_Lis0DBB55) [39m
+[90m    ├─ Model:ListedLink (Listed Link) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:158 (ownersadmins_RightOrLeftAligD51F46) [39m
+[90m    ├─ Model:RightOrLeftAlignedLinks (Right Or Left Aligned Links) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:31 (ownersadmins_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:66 (ownersadmins_SidebarNav62) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:82 (ownersadmins_SidebarNav62656193752) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:320 (ownersadmins_SidebarNav626561CE191) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:78 (ownersadmins_SidebarNav6265623932C) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:279 (ownersadmins_SidebarNav626565EA00D) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:81 (ownersadmins_SidebarNav6265670A682) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:328 (ownersadminsarticlesdynamic_1EECC6) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:83 (ownersadminsarticlesdynamic_2313A7) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:65 (ownersadminsarticlesdynamic_45AB5E) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:77 (ownersadminsarticlesdynamic_54F950) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:23 (ownersadminsarticlesdynamic_64DA82) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:32 (ownersadminsarticlesdynamic_703F29) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:84 (ownersadminsarticlesdynamic_70FA28) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:287 (ownersadminsarticlesdynamic_881C17) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:79 (ownersadminsarticlesdynamic_AA21DF) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:329 (ownersadminsarticlesdynamic_BA62C4) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:288 (ownersadminsarticlesdynamic_C1354F) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:68 (ownersadminsarticlesdynamic_CDCF1A) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:67 (ownersadminsarticlesdynamic_F0E1EB) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:130 (professionalservices_BlockEd1D02F5) [39m
+[90m    ├─ Model:BlockEditor (Block Editor) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:332 (sveltekit_SidebarNav) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:333 (sveltekit_SidebarNav0EA78DF7) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:336 (sveltekit_SidebarNav39DE282E) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:346 (sveltekitarticlesdynamic_Dyn5C6AEE) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:345 (sveltekitarticlesdynamic_Dyn7CE2DC) [39m
+[90m    ├─ Model:DynamicArticleDetails (Dynamic Article Details) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:330 (sveltekitarticlesdynamic_SidCDCB01) [39m
+[90m    ├─ Model:SidebarNav (Sidebar Nav) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:259 (test_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:271 (test_RichTextArea9E194634) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[37m[39m
+[37m  ContainerID:350 (testing_RichTextArea) [39m
+[90m    ├─ Model:RichTextArea (Rich Text Area) [DUPLICATE][39m
+[34m[39m
+[34m📊 5. ITEMS OUTSIDE OF CHAINS[39m
+==================================================
+[33mItems that exist but are not referenced by any chains:[39m
+[34m[39m
+[34m  📋 CONTENT: 3 items[39m
+[90m    - ContentID:1138 (home_codetabs)[39m
+[90m    - ContentID:28 (alldoccategories_deleted)[39m
+[90m    - ContentID:30 (alldoccategories_deleted)[39m
+[32m[39m
+[32m  📐 MODELS: 3 items[39m
+[90m    - Model:FormBuilder (Form)[39m
+[90m    - Model:Markdown (Markdown)[39m
+[90m    - Model:AgilityFormBuilder (Form Builder)[39m
+[35m[39m
+[35m  📋 TEMPLATES: 1 items[39m
+[90m    - Template:Test template[39m
+[33m[39m
+[33m  🖼️  &nbsp;ASSETS: 2159 items[39m
+[90m    (Assets not referenced by any content fields)[39m
+[90m    - Asset: 11ty_20210922200032_0.svg[39m
+[90m    - Asset: 9969f494-sveltelogo.png[39m
+[90m    - Asset: AngularJS-Shield_20210922200359_0.svg[39m
+[90m    - Asset: astro-icon-light-gradient_20240516023807.svg[39m
+[90m    - Asset: dot-NET-Standard-Logo-Square-150x150_20210922200249_0.png[39m
+[90m    - Asset: dot-NET-Standard-Logo-Square-150x150_20210922200335_0.png[39m
+[90m    - Asset: Gatsby_Monogram_20210922195636_0.png[39m
+[90m    - Asset: js_20210922200645_0.png[39m
+[90m    - Asset: logo_combined_yellow_white.png[39m
+[90m    - Asset: New-Home_20230928054141.png[39m
+[90m    ... and 2149 more assets[39m
+[90m[39m
+[90m  📁 GALLERIES: 4 items[39m
+[90m    - Gallery: ChangeLog/Screenshots/Fixed Bug in Dot Net Core SDK with Initializing Pages in Other Languages-324697 (ID: 5)[39m
+[90m    - Gallery: ChangeLog/Screenshots/Supports Vercel Marketplace Integration-7d7538 (ID: 4)[39m
+[90m    - Gallery: Gallery-20210921125212 (ID: 2)[39m
+[90m    - Gallery: Gallery-20210921125915 (ID: 3)[39m
+[36m[39m
+[36m  📊 Total non-chained items: 2170[39m
+[36m[39m
+[36m🔍 6. RECONCILIATION SUMMARY[39m
+==================================================
+[36m📊 SYNC READINESS SUMMARY[39m
+[37m   Total entities: 3623[39m
+[32m   Ready to sync: 3623 items[39m
+[90m[39m
+[90m   Entity breakdown:[39m
+[90m     - Pages: 38 in chains, 0 out, 100% accounted for[39m
+[90m     - Content: 1039 in chains, 3 out, 100% accounted for[39m
+[90m     - Models: 32 in chains, 3 out, 100% accounted for[39m
+[90m     - Templates: 3 in chains, 1 out, 100% accounted for[39m
+[90m     - Containers: 341 in chains, 0 out, 100% accounted for[39m
+[90m     - Assets: 19 in chains, 2140 out, 100% accounted for[39m
+[90m     - Galleries: 0 in chains, 4 out, 100% accounted for[39m
+[36m[39m
+[36m   🚀 Do you want to proceed to sync 3623 items?[39m
+[32m✅ Chain analysis completed[39m
+[33m🎯 Initializing Topological Two-Pass Orchestrator...[39m
+[32m[39m
+[32m🎯 Executing Topological Two-Pass Sync...[39m
+[36m[39m
+[36m🎯 Starting Topological Two-Pass Upload Orchestration[39m
+============================================================
+[36m🔄 Converting chain analysis to upload sequence...[39m
+[36m🔧 [DEBUG] Building entity dependency map...[39m
+   Source data keys: galleries, assets, models, containers, content, templates, pages, metadata
+🔧 [DEBUG] Source data entity counts:
+   Models: 35
+   Assets: 2159
+   Content: 1042
+   Templates: 4
+   Containers: 341
+   Pages: 38
+   Galleries: 4
+   Processing 35 models...
+   ✅ Added 35/35 models to entity map
+   Processing 4 templates...
+   ✅ Added 4 templates to entity map
+   Processing 4 galleries...
+   ✅ Added 4 galleries to entity map
+   Processing 2159 assets...
+   ✅ Added 2159/2159 assets to entity map
+   Processing 341 containers...
+   ✅ Added 341 containers to entity map
+   Processing 1042 content items...
+   [DEBUG] First content sample: {
+  "contentID": 10,
+  "properties": {
+    "state": 2,
+    "modified": "2021-09-15T11:17:47.52",
+    "versionID": 947,
+    "referenceName": "developersections",
+    "definitionName": "DocSection",
+    "itemOrder": 0
+  },
+  "fields": {
+    "title": "Introduction"
+  }
+}
+   ✅ Added 1042 content items to entity map
+   Processing 38 pages...
+   ✅ Added 38 pages to entity map
+[32m🔧 [DEBUG] Entity map completed with 3623 entities[39m
+🔧 [DEBUG] Skipped items captured: 0
+   Type breakdown:
+     Model: 35
+     Template: 4
+     Gallery: 4
+     Asset: 2159
+     Container: 341
+     Content: 1042
+     Page: 38
+🔧 [DEBUG] Starting dependency level calculation with 3623 entities
+🔧 [DEBUG] Level 0: 2198 entities
+🔧 [DEBUG] Level 1: 1425 entities
+🔧 [DEBUG] Total entities in dependency levels: 3623
+[32m✅ Generated 2 upload batches for 3623 entities[39m
+[34m[39m
+[34m📊 Topological Analysis: 2 levels, 3623 entities[39m
+   Level 0: 2198 entities across 1 batches
+   Level 1: 1425 entities across 1 batches
+[34m[39m
+[34m🔄 PASS 1: Creating Entity Stubs (Foundation Building)[39m
+[33m[39m
+[33m📋 Level 0 Pass 1: stub creation (2198 entities)[39m
+[36m  🔧 [100%] Processing Model (2198 entities) - ETA: 0m[39m
+    🔧 Model Pass 1: Creating model shells (35 models)
+      ✅ Model exists: RichTextArea (1 → 896)
+      ✅ Model exists: DocCategory (10 → 918)
+      ✅ Model exists: DocSection (11 → 919)
+      ✅ Model exists: DocConcept (12 → 920)
+      ✅ Model exists: DocArticle (13 → 921)
+      ✅ Model exists: DynamicArticleDetails (15 → 922)
+      ✅ Model exists: SidebarNav (16 → 923)
+      ✅ Model exists: BlockEditor (17 → 924)
+      ✅ Model exists: HeroCategories (18 → 925)
+      ✅ Model exists: FormBuilder (2 → 926)
+      ✅ Model exists: ListedLink (20 → 927)
+      ✅ Model exists: ListofLinks (21 → 928)
+      ✅ Model exists: RightOrLeftAlignedLinks (22 → 929)
+      ✅ Model exists: ArticleListing (23 → 930)
+      ✅ Model exists: ListedArticle (24 → 931)
+      ✅ Model exists: HeroHeading (25 → 932)
+      ✅ Model exists: Header (26 → 933)
+      ✅ Model exists: Link (27 → 934)
+      ✅ Model exists: ChangeLog (28 → 935)
+      ✅ Model exists: Release (29 → 936)
+      ✅ Model exists: AgilityCSS (3 → 897)
+      ✅ Model exists: RightOrLeftAlignedImageLinks (31 → 937)
+      ✅ Model exists: ImageLink (32 → 938)
+      ✅ Model exists: SDKsFrameworks (33 → 939)
+      ✅ Model exists: TextBlockswithImages (34 → 940)
+      ✅ Model exists: Footer (35 → 941)
+      ✅ Model exists: Changelog (36 → 935)
+      ✅ Model exists: ChangeLogTag (37 → 942)
+      ✅ Model exists: SidebarFilter (38 → 943)
+      ✅ Model exists: AgilityCodeTemplate (4 → 898)
+      ✅ Model exists: NewTestModel (40 → 944)
+      ✅ Model exists: Markdown (41 → 945)
+      ✅ Model exists: CodeFeature (42 → 946)
+      ✅ Model exists: AgilityJavascript (5 → 899)
+      ✅ Model exists: AgilityFormBuilder (6 → 947)
+      🎯 Model shell creation complete: 35 success, 0 failed
+    🖼️ Gallery Pass 1: Creating shells (4 galleries)
+    🖼️ Asset Pass 1: Uploading files (2154 assets)
+      📊 Processing 2154 assets individually...
+      🔄 [0%] Asset 1/2154: 11ty_20210922200032_0.svg (ETA: 0m)
+      🔄 [0%] Asset 2/2154: 9969f494-sveltelogo.png (ETA: 4m)
+      🔄 [0%] Asset 3/2154: AngularJS-Shield_20210922200359_0.svg (ETA: 4m)
+      🔄 [0%] Asset 4/2154: astro-icon-light-gradient_20240516023807.svg (ETA: 5m)
+      🔄 [0%] Asset 5/2154: dot-NET-Standard-Logo-Square-150x150_20210922200249_0.png (ETA: 5m)
+      🔄 [0%] Asset 6/2154: dot-NET-Standard-Logo-Square-150x150_20210922200335_0.png (ETA: 6m)
+      🔄 [0%] Asset 7/2154: Gatsby_Monogram_20210922195636_0.png (ETA: 6m)
+      🔄 [0%] Asset 8/2154: js_20210922200645_0.png (ETA: 6m)
+      🔄 [0%] Asset 9/2154: logo_combined_yellow_white.png (ETA: 6m)
+      🔄 [0%] Asset 10/2154: New-Home_20230928054141.png (ETA: 6m)
+      ✅ Progress: 10/2154 assets (0%) - 10 success, 0 failed - Elapsed: 0m
+      🔄 [1%] Asset 11/2154: nextjs_20210922195435_0.png (ETA: 6m)
+      🔄 [1%] Asset 12/2154: next-js-logo-8FCFF51DD2-seeklogo.com_20210922195736_0.png (ETA: 6m)
+      🔄 [1%] Asset 13/2154: nuxt_20210922195828_0.png (ETA: 7m)
+      🔄 [1%] Asset 14/2154: nuxt_20210922195917_0.png (ETA: 7m)
+      🔄 [1%] Asset 15/2154: python_20210922210643_0.png (ETA: 7m)
+      🔄 [1%] Asset 16/2154: Screen Shot 2021-10-27 at 1.14.04 PM_20211027171444_0.png (ETA: 7m)
+      🔄 [1%] Asset 17/2154: screen-agility_20221011051812.png (ETA: 7m)
+      🔄 [1%] Asset 18/2154: starters_20211027171451_0.png (ETA: 7m)
+      🔄 [1%] Asset 19/2154: svelte_20250220025404.png (ETA: 7m)
+      🔄 [1%] Asset 20/2154: svelte_20250220155522_0.png (ETA: 7m)
+      ✅ Progress: 20/2154 assets (1%) - 20 success, 0 failed - Elapsed: 0m
+      🔄 [1%] Asset 21/2154: Svelte-kit-horizontal.svg.png (ETA: 7m)
+      🔄 [1%] Asset 22/2154: image-09282021190645-10062021151410.png (ETA: 7m)
+      🔄 [1%] Asset 23/2154: image-09282021191807-10062021154240.png (ETA: 7m)
+      🔄 [1%] Asset 24/2154: Screen_Shot_2020-10-27_at_2.40.03_PM-09272021170036-10062021150520.png (ETA: 7m)
+      🔄 [1%] Asset 25/2154: Screen_Shot_2021-05-26_at_5.25.02_PM-10062021160421.png (ETA: 7m)
+      🔄 [1%] Asset 26/2154: Screen_Shot_2021-06-21_at_10.53.18_AM-10062021151711.png (ETA: 7m)
+      🔄 [1%] Asset 27/2154: Screen_Shot_2021-06-21_at_11.22.57_AM-10062021154955.png (ETA: 7m)
+      🔄 [1%] Asset 28/2154: Screen_Shot_2021-07-27_at_12.21.52_PM-10062021160410.png (ETA: 7m)
+      🔄 [1%] Asset 29/2154: Screen_Shot_2021-07-27_at_12.40.14_PM-10062021160257.png (ETA: 7m)
+      🔄 [1%] Asset 30/2154: Screen_Shot_2021-07-27_at_12.40.54_PM-10062021160336.png (ETA: 7m)
+      ✅ Progress: 30/2154 assets (1%) - 30 success, 0 failed - Elapsed: 0m
+      🔄 [1%] Asset 31/2154: Screen_Shot_2021-07-27_at_12.41.43_PM-10062021160353.png (ETA: 7m)
+      🔄 [1%] Asset 32/2154: Screen-Shot-2021-03-11-at-12.57.25-PM-09292021142839-10062021160230.png (ETA: 7m)
+      🔄 [2%] Asset 33/2154: Screen-Shot-2021-03-11-at-12.58.19-PM-09292021142900-10062021160238.png (ETA: 7m)
+      🔄 [2%] Asset 34/2154: Screen-Shot-2021-10-06-at-11.12.51-AM-10062021151256.png (ETA: 7m)
+      🔄 [2%] Asset 35/2154: image-09222021190917.png (ETA: 7m)
+      🔄 [2%] Asset 36/2154: image-09222021190942.png (ETA: 7m)
+      🔄 [2%] Asset 37/2154: image-09222021191852.png (ETA: 7m)
+      🔄 [2%] Asset 38/2154: image-09222021191905.png (ETA: 7m)
+      🔄 [2%] Asset 39/2154: image-09222021192014.png (ETA: 7m)
+      🔄 [2%] Asset 40/2154: image-09222021192034.png (ETA: 7m)
+      ✅ Progress: 40/2154 assets (2%) - 40 success, 0 failed - Elapsed: 0m
+      🔄 [2%] Asset 41/2154: image-09222021192131.png (ETA: 7m)
+      🔄 [2%] Asset 42/2154: image-09222021192140.png (ETA: 7m)
+      🔄 [2%] Asset 43/2154: image-10072021132349.png (ETA: 7m)
+      🔄 [2%] Asset 44/2154: image-10072021132542.png (ETA: 7m)
+      🔄 [2%] Asset 45/2154: image-10072021132632.png (ETA: 7m)
+      🔄 [2%] Asset 46/2154: image-10072021132655.png (ETA: 7m)
+      🔄 [2%] Asset 47/2154: image-10072021132744.png (ETA: 7m)
+      🔄 [2%] Asset 48/2154: image-10072021132803.png (ETA: 7m)
+      🔄 [2%] Asset 49/2154: 10-10122021210412.PNG (ETA: 7m)
+      🔄 [2%] Asset 50/2154: 1-10122021205121.PNG (ETA: 7m)
+      ✅ Progress: 50/2154 assets (2%) - 50 success, 0 failed - Elapsed: 0m
+      🔄 [2%] Asset 51/2154: 12-10122021210643.PNG (ETA: 7m)
+      🔄 [2%] Asset 52/2154: 12-10122021210705.PNG (ETA: 7m)
+      🔄 [2%] Asset 53/2154: 2-10122021205243.PNG (ETA: 7m)
+      🔄 [3%] Asset 54/2154: 3-10122021205411.PNG (ETA: 7m)
+      🔄 [3%] Asset 55/2154: 4-10122021205520.PNG (ETA: 7m)
+      🔄 [3%] Asset 56/2154: 5-10122021205639.PNG (ETA: 7m)
+      🔄 [3%] Asset 57/2154: 7-10122021210010.PNG (ETA: 7m)
+      🔄 [3%] Asset 58/2154: 8-10122021210140.PNG (ETA: 7m)
+      🔄 [3%] Asset 59/2154: 9-10122021210245.PNG (ETA: 7m)
+      🔄 [3%] Asset 60/2154: agility-banner-09032021174241.png (ETA: 7m)
+      ✅ Progress: 60/2154 assets (3%) - 60 success, 0 failed - Elapsed: 0m
+      🔄 [3%] Asset 61/2154: agility-banner-3-09022021163812.jpg (ETA: 7m)
+      🔄 [3%] Asset 62/2154: algolia-1-10052021154845.png (ETA: 7m)
+      🔄 [3%] Asset 63/2154: algolia-1-10052021154848.png (ETA: 7m)
+      🔄 [3%] Asset 64/2154: algolia-2-10052021154703.png (ETA: 7m)
+      🔄 [3%] Asset 65/2154: algolia-2-10052021154727.png (ETA: 7m)
+      🔄 [3%] Asset 66/2154: algolia-2-10052021154751.png (ETA: 7m)
+      🔄 [3%] Asset 67/2154: algolia-2-10052021154824.png (ETA: 7m)
+      🔄 [3%] Asset 68/2154: algolia-3-10052021154703.png (ETA: 7m)
+      🔄 [3%] Asset 69/2154: algolia-3-10052021154727.png (ETA: 7m)
+      🔄 [3%] Asset 70/2154: algolia-3-10052021154750.png (ETA: 7m)
+      ✅ Progress: 70/2154 assets (3%) - 70 success, 0 failed - Elapsed: 0m
+      🔄 [3%] Asset 71/2154: api-forms-01202022205932.png (ETA: 7m)
+      🔄 [3%] Asset 72/2154: Api-link-01202022205454.png (ETA: 7m)
+      🔄 [3%] Asset 73/2154: cloudinary-v2-1-10082021141515.png (ETA: 7m)
+      🔄 [3%] Asset 74/2154: cZ6y55hRRl-11172021204347.gif (ETA: 7m)
+      🔄 [3%] Asset 75/2154: gettingAccessToken-01252022200711.png (ETA: 7m)
+      🔄 [4%] Asset 76/2154: Group_2_copy-10132021185113.png (ETA: 7m)
+      🔄 [4%] Asset 77/2154: Group_2-10132021185102.png (ETA: 7m)
+      🔄 [4%] Asset 78/2154: Group_3-10132021185347.png (ETA: 7m)
+      🔄 [4%] Asset 79/2154: image-09152021153045.png (ETA: 7m)
+      🔄 [4%] Asset 80/2154: image-09152021153503.png (ETA: 7m)
+      ✅ Progress: 80/2154 assets (4%) - 80 success, 0 failed - Elapsed: 0m
+      🔄 [4%] Asset 81/2154: image-09152021154312.png (ETA: 7m)
+      🔄 [4%] Asset 82/2154: image-09152021161400.png (ETA: 7m)
+      🔄 [4%] Asset 83/2154: image-09152021161513.png (ETA: 7m)
+      🔄 [4%] Asset 84/2154: image-09152021161536.png (ETA: 7m)
+      🔄 [4%] Asset 85/2154: image-09152021161704.png (ETA: 7m)
+      🔄 [4%] Asset 86/2154: image-09152021161914.png (ETA: 7m)
+      🔄 [4%] Asset 87/2154: image-09152021162009.png (ETA: 7m)
+      🔄 [4%] Asset 88/2154: image-09152021162128.png (ETA: 7m)
+      🔄 [4%] Asset 89/2154: image-09152021193221.png (ETA: 7m)
+      🔄 [4%] Asset 90/2154: image-09152021193329.png (ETA: 7m)
+      ✅ Progress: 90/2154 assets (4%) - 90 success, 0 failed - Elapsed: 0m
+      🔄 [4%] Asset 91/2154: image-09152021193738.png (ETA: 7m)
+      🔄 [4%] Asset 92/2154: image-09152021194027.png (ETA: 7m)
+      🔄 [4%] Asset 93/2154: image-09152021194239.png (ETA: 7m)
+      🔄 [4%] Asset 94/2154: image-09152021195003.png (ETA: 7m)
+      🔄 [4%] Asset 95/2154: image-09152021195526.png (ETA: 7m)
+      🔄 [4%] Asset 96/2154: image-09152021195740.png (ETA: 7m)
+      🔄 [5%] Asset 97/2154: image-09152021200020.png (ETA: 7m)
+      🔄 [5%] Asset 98/2154: image-09152021200442.png (ETA: 7m)
+      🔄 [5%] Asset 99/2154: image-09152021200608.png (ETA: 7m)
+      🔄 [5%] Asset 100/2154: image-09152021200952.png (ETA: 7m)
+      ✅ Progress: 100/2154 assets (5%) - 100 success, 0 failed - Elapsed: 0m
+      🔄 [5%] Asset 101/2154: image-09152021201133.png (ETA: 7m)
+      🔄 [5%] Asset 102/2154: image-09152021201518.png (ETA: 7m)
+      🔄 [5%] Asset 103/2154: image-09202021191046.png (ETA: 7m)
+      🔄 [5%] Asset 104/2154: image-09202021191124.png (ETA: 7m)
+      🔄 [5%] Asset 105/2154: image-09202021192044.png (ETA: 7m)
+      🔄 [5%] Asset 106/2154: image-09202021192142.png (ETA: 7m)
+      🔄 [5%] Asset 107/2154: image-09202021192226.png (ETA: 7m)
+      🔄 [5%] Asset 108/2154: image-09202021192242.png (ETA: 7m)
+      🔄 [5%] Asset 109/2154: image-09202021192302.png (ETA: 7m)
+      🔄 [5%] Asset 110/2154: image-09202021192403.png (ETA: 7m)
+      ✅ Progress: 110/2154 assets (5%) - 110 success, 0 failed - Elapsed: 0m
+      🔄 [5%] Asset 111/2154: image-09202021192416.png (ETA: 7m)
+      🔄 [5%] Asset 112/2154: image-09202021203421.png (ETA: 7m)
+      🔄 [5%] Asset 113/2154: image-09202021204048.png (ETA: 7m)
+      🔄 [5%] Asset 114/2154: image-09202021204423.png (ETA: 7m)
+      🔄 [5%] Asset 115/2154: image-09212021195802.png (ETA: 7m)
+      🔄 [5%] Asset 116/2154: image-09212021195837.png (ETA: 7m)
+      🔄 [5%] Asset 117/2154: image-09212021195915.png (ETA: 7m)
+      🔄 [5%] Asset 118/2154: image-09212021195943.png (ETA: 7m)
+      🔄 [6%] Asset 119/2154: image-09212021200023.png (ETA: 7m)
+      🔄 [6%] Asset 120/2154: image-09212021200132.png (ETA: 7m)
+      ✅ Progress: 120/2154 assets (6%) - 120 success, 0 failed - Elapsed: 0m
+      🔄 [6%] Asset 121/2154: image-09212021200149.png (ETA: 7m)
+      🔄 [6%] Asset 122/2154: image-09212021200215.png (ETA: 7m)
+      🔄 [6%] Asset 123/2154: image-09212021200512.png (ETA: 7m)
+      🔄 [6%] Asset 124/2154: image-09232021185626.png (ETA: 7m)
+      🔄 [6%] Asset 125/2154: image-09232021185748.png (ETA: 7m)
+      🔄 [6%] Asset 126/2154: image-09232021185754.png (ETA: 7m)
+      🔄 [6%] Asset 127/2154: image-09232021185956.png (ETA: 7m)
+      🔄 [6%] Asset 128/2154: image-09232021190056.png (ETA: 7m)
+      🔄 [6%] Asset 129/2154: image-09232021205047.png (ETA: 7m)
+      🔄 [6%] Asset 130/2154: image-09232021205817.png (ETA: 7m)
+      ✅ Progress: 130/2154 assets (6%) - 130 success, 0 failed - Elapsed: 0m
+      🔄 [6%] Asset 131/2154: image-09232021210612.png (ETA: 7m)
+      🔄 [6%] Asset 132/2154: image-09232021210735.png (ETA: 7m)
+      🔄 [6%] Asset 133/2154: image-09232021213133.png (ETA: 7m)
+      🔄 [6%] Asset 134/2154: image-09232021213210.png (ETA: 7m)
+      🔄 [6%] Asset 135/2154: image-09232021213917.png (ETA: 7m)
+      🔄 [6%] Asset 136/2154: image-09232021214003.png (ETA: 7m)
+      🔄 [6%] Asset 137/2154: image-09232021215231.png (ETA: 7m)
+      🔄 [6%] Asset 138/2154: image-09232021215419.png (ETA: 7m)
+      🔄 [6%] Asset 139/2154: image-09232021215523.png (ETA: 7m)
+      🔄 [6%] Asset 140/2154: image-09232021215618.png (ETA: 7m)
+      ✅ Progress: 140/2154 assets (6%) - 140 success, 0 failed - Elapsed: 0m
+      🔄 [7%] Asset 141/2154: image-09232021215630.png (ETA: 7m)
+      🔄 [7%] Asset 142/2154: image-09242021130414.png (ETA: 7m)
+      🔄 [7%] Asset 143/2154: image-09242021130436.png (ETA: 7m)
+      🔄 [7%] Asset 144/2154: image-09242021130519.png (ETA: 7m)
+      🔄 [7%] Asset 145/2154: image-09242021130540.png (ETA: 7m)
+      🔄 [7%] Asset 146/2154: image-09242021141144.png (ETA: 7m)
+      🔄 [7%] Asset 147/2154: image-09242021141506.png (ETA: 7m)
+      🔄 [7%] Asset 148/2154: image-09242021141545.png (ETA: 7m)
+      🔄 [7%] Asset 149/2154: image-09242021141632.png (ETA: 7m)
+      🔄 [7%] Asset 150/2154: image-09242021141805.png (ETA: 7m)
+      ✅ Progress: 150/2154 assets (7%) - 150 success, 0 failed - Elapsed: 1m
+      🔄 [7%] Asset 151/2154: image-09242021141953.png (ETA: 7m)
+      🔄 [7%] Asset 152/2154: image-09242021142048.png (ETA: 7m)
+      🔄 [7%] Asset 153/2154: image-09242021142110.png (ETA: 7m)
+      🔄 [7%] Asset 154/2154: image-09242021142242.png (ETA: 7m)
+      🔄 [7%] Asset 155/2154: image-09242021142318.png (ETA: 7m)
+      🔄 [7%] Asset 156/2154: image-09242021145253.png (ETA: 7m)
+      🔄 [7%] Asset 157/2154: image-09242021145721.png (ETA: 7m)
+      🔄 [7%] Asset 158/2154: image-09242021145731.png (ETA: 7m)
+      🔄 [7%] Asset 159/2154: image-09242021145746.png (ETA: 7m)
+      🔄 [7%] Asset 160/2154: image-09242021145958.png (ETA: 7m)
+      ✅ Progress: 160/2154 assets (7%) - 160 success, 0 failed - Elapsed: 1m
+      🔄 [7%] Asset 161/2154: image-09242021154338.png (ETA: 7m)
+      🔄 [8%] Asset 162/2154: image-09242021154946.png (ETA: 7m)
+      🔄 [8%] Asset 163/2154: image-09242021155149.png (ETA: 7m)
+      🔄 [8%] Asset 164/2154: image-09242021155325.png (ETA: 7m)
+      🔄 [8%] Asset 165/2154: image-09242021155804.png (ETA: 7m)
+      🔄 [8%] Asset 166/2154: image-09242021160519.png (ETA: 7m)
+      🔄 [8%] Asset 167/2154: image-09242021161039.png (ETA: 7m)
+      🔄 [8%] Asset 168/2154: image-09242021161131.png (ETA: 7m)
+      🔄 [8%] Asset 169/2154: image-09242021161156.png (ETA: 7m)
+      🔄 [8%] Asset 170/2154: image-09242021161311.png (ETA: 7m)
+      ✅ Progress: 170/2154 assets (8%) - 170 success, 0 failed - Elapsed: 1m
+      🔄 [8%] Asset 171/2154: image-09242021161433.png (ETA: 7m)
+      🔄 [8%] Asset 172/2154: image-09242021161634.png (ETA: 7m)
+      🔄 [8%] Asset 173/2154: image-09282021183318.png (ETA: 7m)
+      🔄 [8%] Asset 174/2154: image-09282021183406.png (ETA: 7m)
+      🔄 [8%] Asset 175/2154: image-10012021155438.png (ETA: 7m)
+      🔄 [8%] Asset 176/2154: image-10012021155535.png (ETA: 7m)
+      🔄 [8%] Asset 177/2154: image-10012021155759.png (ETA: 7m)
+      🔄 [8%] Asset 178/2154: image-10012021155957.png (ETA: 7m)
+      🔄 [8%] Asset 179/2154: image-10012021160014.png (ETA: 7m)
+      🔄 [8%] Asset 180/2154: image-10012021160149.png (ETA: 7m)
+      ✅ Progress: 180/2154 assets (8%) - 180 success, 0 failed - Elapsed: 1m
+      🔄 [8%] Asset 181/2154: image-10012021160249.png (ETA: 7m)
+      🔄 [8%] Asset 182/2154: image-10012021160501.png (ETA: 7m)
+      🔄 [8%] Asset 183/2154: image-10012021160638.png (ETA: 7m)
+      🔄 [9%] Asset 184/2154: image-10042021211533.png (ETA: 7m)
+      🔄 [9%] Asset 185/2154: image-10052021204243.png (ETA: 7m)
+      🔄 [9%] Asset 186/2154: image-10052021205020.png (ETA: 7m)
+      🔄 [9%] Asset 187/2154: image-10052021205151.png (ETA: 7m)
+      🔄 [9%] Asset 188/2154: image-10052021205257.png (ETA: 7m)
+      🔄 [9%] Asset 189/2154: image-10052021205330.png (ETA: 7m)
+      🔄 [9%] Asset 190/2154: image-11172021041142.png (ETA: 7m)
+      ✅ Progress: 190/2154 assets (9%) - 190 success, 0 failed - Elapsed: 1m
+      🔄 [9%] Asset 191/2154: image-11172021041221.png (ETA: 7m)
+      🔄 [9%] Asset 192/2154: image-11172021041240.png (ETA: 7m)
+      🔄 [9%] Asset 193/2154: image-11172021041258.png (ETA: 7m)
+      🔄 [9%] Asset 194/2154: image-11172021041448.png (ETA: 7m)
+      🔄 [9%] Asset 195/2154: image-11172021041448-11192021010319.png (ETA: 7m)
+      🔄 [9%] Asset 196/2154: image-11172021041600.png (ETA: 7m)
+      🔄 [9%] Asset 197/2154: image-11172021041809.png (ETA: 7m)
+      🔄 [9%] Asset 198/2154: image-11172021041848.png (ETA: 7m)
+      🔄 [9%] Asset 199/2154: image-11172021041856.png (ETA: 7m)
+      🔄 [9%] Asset 200/2154: image-11172021041917.png (ETA: 7m)
+      ✅ Progress: 200/2154 assets (9%) - 200 success, 0 failed - Elapsed: 1m
+      🔄 [9%] Asset 201/2154: image-11172021042037.png (ETA: 7m)
+      🔄 [9%] Asset 202/2154: image-11172021042045.png (ETA: 7m)
+      🔄 [9%] Asset 203/2154: image-11172021042219.png (ETA: 7m)
+      🔄 [9%] Asset 204/2154: image-11172021042305.png (ETA: 7m)
+      🔄 [10%] Asset 205/2154: image-11172021044933.png (ETA: 7m)
+      🔄 [10%] Asset 206/2154: image-11172021045018.png (ETA: 7m)
+      🔄 [10%] Asset 207/2154: image-11172021045031.png (ETA: 7m)
+      🔄 [10%] Asset 208/2154: image-11172021045406.png (ETA: 7m)
+      🔄 [10%] Asset 209/2154: IMG_0473-01272022175110.jpeg (ETA: 7m)
+      🔄 [10%] Asset 210/2154: mceclip0-09212021192614.png (ETA: 7m)
+      ✅ Progress: 210/2154 assets (10%) - 210 success, 0 failed - Elapsed: 1m
+      🔄 [10%] Asset 211/2154: mceclip0-09212021195431.png (ETA: 7m)
+      🔄 [10%] Asset 212/2154: mceclip0-10182021165340.png (ETA: 7m)
+      🔄 [10%] Asset 213/2154: mceclip0-10202021140500.png (ETA: 7m)
+      🔄 [10%] Asset 214/2154: mceclip1-09212021195151.png (ETA: 7m)
+      🔄 [10%] Asset 215/2154: mceclip1-09212021195432.png (ETA: 7m)
+      🔄 [10%] Asset 216/2154: mceclip14-09212021195431.png (ETA: 6m)
+      🔄 [10%] Asset 217/2154: mceclip2-09212021195431.png (ETA: 6m)
+      🔄 [10%] Asset 218/2154: mceclip2-09212021200754.png (ETA: 6m)
+      🔄 [10%] Asset 219/2154: mceclip2-09242021154712.png (ETA: 6m)
+      🔄 [10%] Asset 220/2154: mceclip3-09212021195431.png (ETA: 6m)
+      ✅ Progress: 220/2154 assets (10%) - 220 success, 0 failed - Elapsed: 1m
+      🔄 [10%] Asset 221/2154: mceclip3-09212021200937.png (ETA: 6m)
+      🔄 [10%] Asset 222/2154: mceclip3-09242021154712.png (ETA: 6m)
+      🔄 [10%] Asset 223/2154: mceclip3-09242021154712.png (ETA: 6m)
+      🔄 [10%] Asset 224/2154: mceclip4-09242021154712.png (ETA: 6m)
+      🔄 [10%] Asset 225/2154: mceclip5-09212021195431.png (ETA: 6m)
+      🔄 [10%] Asset 226/2154: mceclip7-09242021154712.png (ETA: 6m)
+      🔄 [11%] Asset 227/2154: PHXqkPkcIu-12092021224647.gif (ETA: 6m)
+      🔄 [11%] Asset 228/2154: Salesforce-lead-02032022212832.png (ETA: 6m)
+      🔄 [11%] Asset 229/2154: salesforce-register-02032022211448.png (ETA: 6m)
+      🔄 [11%] Asset 230/2154: salesforce-ss-02032022213025.png (ETA: 6m)
+      ✅ Progress: 230/2154 assets (11%) - 230 success, 0 failed - Elapsed: 1m
+      🔄 [11%] Asset 231/2154: Screen_Shot_2020-10-27_at_2.40.03_PM-09272021170036-11082021174220.png (ETA: 6m)
+      🔄 [11%] Asset 232/2154: Screen_Shot_2020-10-27_at_2.40.03_PM-09272021170036-11082021180439.png (ETA: 6m)
+      🔄 [11%] Asset 233/2154: Screen_Shot_2020-11-26_at_1.50.05_PM-10182021155909.png (ETA: 6m)
+      🔄 [11%] Asset 234/2154: Screen_Shot_2020-11-26_at_1.50.05_PM-10182021155938.png (ETA: 6m)
+      🔄 [11%] Asset 235/2154: Screen_Shot_2020-11-26_at_1.50.05_PM-10182021160038.png (ETA: 6m)
+      🔄 [11%] Asset 236/2154: Screen_Shot_2020-11-26_at_3.22.28_PM-10182021155947.png (ETA: 6m)
+      🔄 [11%] Asset 237/2154: Screen_Shot_2020-11-26_at_3.32.59_PM-10182021160046.png (ETA: 6m)
+      🔄 [11%] Asset 238/2154: Screen_Shot_2020-11-27_at_10.49.19_AM-09212021195431.png (ETA: 6m)
+      🔄 [11%] Asset 239/2154: Screen_Shot_2020-11-27_at_10.49.32_AM-09212021195431.png (ETA: 6m)
+      🔄 [11%] Asset 240/2154: Screen_Shot_2020-11-27_at_10.50.33_AM-09212021195431.png (ETA: 6m)
+      ✅ Progress: 240/2154 assets (11%) - 240 success, 0 failed - Elapsed: 1m
+      🔄 [11%] Asset 241/2154: Screen_Shot_2020-11-27_at_10.53.59_AM-09212021195431.png (ETA: 6m)
+      🔄 [11%] Asset 242/2154: Screen_Shot_2020-11-27_at_10.54.58_AM-09212021195431.png (ETA: 6m)
+      🔄 [11%] Asset 243/2154: Screen_Shot_2021-01-04_at_5.11.31_PM-10182021162031.png (ETA: 6m)
+      🔄 [11%] Asset 244/2154: Screen_Shot_2021-01-04_at_5.14.13_PM-10182021162056.png (ETA: 6m)
+      🔄 [11%] Asset 245/2154: Screen_Shot_2021-01-04_at_5.17.49_PM-10182021162109.png (ETA: 6m)
+      🔄 [11%] Asset 246/2154: Screen_Shot_2021-01-05_at_10.51.25_AM-10182021165406.png (ETA: 6m)
+      🔄 [11%] Asset 247/2154: Screen_Shot_2021-01-05_at_10.52.49_AM-10182021165414.png (ETA: 6m)
+      🔄 [12%] Asset 248/2154: Screen_Shot_2021-02-08_at_12.30.13_PM-09242021141347.png (ETA: 6m)
+      🔄 [12%] Asset 249/2154: Screen_Shot_2021-02-08_at_3.07.28_PM-09242021141711.png (ETA: 6m)
+      🔄 [12%] Asset 250/2154: Screen_Shot_2021-02-08_at_3.43.58_PM-09242021142349.png (ETA: 6m)
+      ✅ Progress: 250/2154 assets (12%) - 250 success, 0 failed - Elapsed: 1m
+      🔄 [12%] Asset 251/2154: Screen_Shot_2021-02-08_at_3.46.24_PM-09242021142349.png (ETA: 6m)
+      🔄 [12%] Asset 252/2154: Screen_Shot_2021-02-08_at_3.48.00_PM-09242021142349.png (ETA: 6m)
+      🔄 [12%] Asset 253/2154: Screen_Shot_2021-02-08_at_3.51.40_PM-09242021142442.png (ETA: 6m)
+      🔄 [12%] Asset 254/2154: Screen_Shot_2021-02-08_at_3.54.01_PM-09242021142442.png (ETA: 6m)
+      🔄 [12%] Asset 255/2154: Screen_Shot_2021-02-08_at_4.01.07_PM-09242021142442.png (ETA: 6m)
+      🔄 [12%] Asset 256/2154: Screen_Shot_2021-02-08_at_4.03.21_PM-09242021142443.png (ETA: 6m)
+      🔄 [12%] Asset 257/2154: Screen_Shot_2021-02-08_at_4.10.10_PM-09242021142443.png (ETA: 6m)
+      🔄 [12%] Asset 258/2154: Screen_Shot_2021-02-08_at_4.11.17_PM-09242021142443.png (ETA: 6m)
+      🔄 [12%] Asset 259/2154: Screen_Shot_2021-02-10_at_4.26.06_PM-09242021161943.png (ETA: 6m)
+      🔄 [12%] Asset 260/2154: Screen_Shot_2021-02-10_at_4.27.05_PM-09242021161943.png (ETA: 6m)
+      ✅ Progress: 260/2154 assets (12%) - 260 success, 0 failed - Elapsed: 1m
+      🔄 [12%] Asset 261/2154: Screen_Shot_2021-02-26_at_1.12.53_PM-09242021154713.png (ETA: 6m)
+      🔄 [12%] Asset 262/2154: Screen_Shot_2021-03-11_at_12.58.19_PM-09272021175855-11082021180426.png (ETA: 6m)
+      🔄 [12%] Asset 263/2154: Screen_Shot_2021-05-26_at_5.25.02_PM-10132021185122.png (ETA: 6m)
+      🔄 [12%] Asset 264/2154: Screen_Shot_2021-06-10_at_4.41.49_PM-10202021143339.png (ETA: 6m)
+      🔄 [12%] Asset 265/2154: Screen_Shot_2021-06-10_at_4.45.24_PM-10202021143350.png (ETA: 6m)
+      🔄 [12%] Asset 266/2154: Screen_Shot_2021-06-10_at_4.57.23_PM-10202021144130.png (ETA: 6m)
+      🔄 [12%] Asset 267/2154: Screen_Shot_2021-06-10_at_5.18.02_PM-10202021144712.png (ETA: 6m)
+      🔄 [12%] Asset 268/2154: Screen_Shot_2021-06-10_at_5.26.05_PM-10202021144755.png (ETA: 6m)
+      🔄 [12%] Asset 269/2154: Screen_Shot_2021-06-10_at_5.26.55_PM-10202021144807.png (ETA: 6m)
+      🔄 [13%] Asset 270/2154: Screen_Shot_2021-06-10_at_5.27.16_PM-10202021144818.png (ETA: 6m)
+      ✅ Progress: 270/2154 assets (13%) - 270 success, 0 failed - Elapsed: 1m
+      🔄 [13%] Asset 271/2154: Screen_Shot_2021-06-10_at_5.29.33_PM-10202021144915.png (ETA: 6m)
+      🔄 [13%] Asset 272/2154: Screen_Shot_2021-06-15_at_3.18.56_PM-10182021161418-10202021151014.png (ETA: 6m)
+      🔄 [13%] Asset 273/2154: Screen_Shot_2021-06-15_at_3.19.51_PM-10182021161426-10202021151029.png (ETA: 6m)
+      🔄 [13%] Asset 274/2154: Screen_Shot_2021-06-15_at_3.23.10_PM-10182021161453-10202021151103.png (ETA: 6m)
+      🔄 [13%] Asset 275/2154: Screen_Shot_2021-07-15_at_11.23.44_AM-09212021211601.png (ETA: 6m)
+      🔄 [13%] Asset 276/2154: Screen_Shot_2021-07-15_at_11.33.51_AM-09212021211601.png (ETA: 6m)
+      🔄 [13%] Asset 277/2154: Screen_Shot_2021-07-15_at_11.34.24_AM-09212021211601.png (ETA: 6m)
+      🔄 [13%] Asset 278/2154: Screen_Shot_2021-07-15_at_11.49.48_AM-09212021211601.png (ETA: 6m)
+      🔄 [13%] Asset 279/2154: Screen_Shot_2021-07-15_at_11.53.21_AM-09212021211601.png (ETA: 6m)
+      🔄 [13%] Asset 280/2154: Screen_Shot_2021-08-09_at_1.04.53_PM-09242021150002.png (ETA: 6m)
+      ✅ Progress: 280/2154 assets (13%) - 280 success, 0 failed - Elapsed: 1m
+      🔄 [13%] Asset 281/2154: Screen_Shot_2021-08-09_at_12.14.08_PM-09242021145448.png (ETA: 6m)
+      🔄 [13%] Asset 282/2154: Screen_Shot_2021-08-09_at_12.18.42_PM-09242021145449.png (ETA: 6m)
+      🔄 [13%] Asset 283/2154: Screen_Shot_2021-08-09_at_12.22.36_PM-09242021145502.png (ETA: 6m)
+      🔄 [13%] Asset 284/2154: Screen_Shot_2021-08-09_at_12.47.28_PM-09242021145754.png (ETA: 6m)
+      🔄 [13%] Asset 285/2154: Screen_Shot_2021-10-04_at_12.37.19_PM-10132021184955.png (ETA: 6m)
+      🔄 [13%] Asset 286/2154: Screen_Shot_2021-10-04_at_12.38.57_PM-10132021185025.png (ETA: 6m)
+      🔄 [13%] Asset 287/2154: Screen_Shot_2021-10-04_at_12.43.42_PM-10132021185036.png (ETA: 6m)
+      🔄 [13%] Asset 288/2154: Screen_Shot_2021-10-04_at_12.44.07_PM-10132021185050.png (ETA: 6m)
+      🔄 [13%] Asset 289/2154: Screen_Shot_2021-10-04_at_12.44.07_PM-10132021185336.png (ETA: 6m)
+      🔄 [13%] Asset 290/2154: Screen_Shot_2021-10-05_at_10.17.41_AM-10132021185203.png (ETA: 6m)
+      ✅ Progress: 290/2154 assets (13%) - 290 success, 0 failed - Elapsed: 1m
+      🔄 [14%] Asset 291/2154: Screen_Shot_2021-10-05_at_10.20.26_AM-10132021185214.png (ETA: 6m)
+      🔄 [14%] Asset 292/2154: Screen_Shot_2021-10-05_at_10.31.15_AM-10132021185228.png (ETA: 6m)
+      🔄 [14%] Asset 293/2154: Screen_Shot_2021-10-05_at_11.20.03_AM-10132021185409.png (ETA: 6m)
+      🔄 [14%] Asset 294/2154: Screen-Shot-2021-01-14-at-3.40.44-PM-09212021192710.png (ETA: 6m)
+      🔄 [14%] Asset 295/2154: Screen-Shot-2021-01-20-at-4.09.49-PM-09222021144322.png (ETA: 6m)
+      🔄 [14%] Asset 296/2154: Screen-Shot-2021-03-11-at-1.01.26-PM-09292021143042-11112021190000.png (ETA: 6m)
+      🔄 [14%] Asset 297/2154: Screen-Shot-2021-03-11-at-12.57.25-PM-09292021142839-11112021185354.png (ETA: 6m)
+      🔄 [14%] Asset 298/2154: Screen-Shot-2021-03-11-at-12.58.19-PM-09292021142900-11112021185506.png (ETA: 6m)
+      🔄 [14%] Asset 299/2154: Screen-Shot-2021-05-13-at-12.44.04-PM-09222021144748.png (ETA: 6m)
+      🔄 [14%] Asset 300/2154: Screen-Shot-2021-07-13-at-12.49.54-PM-09292021142919-11112021185555.png (ETA: 6m)
+      ✅ Progress: 300/2154 assets (14%) - 300 success, 0 failed - Elapsed: 1m
+      🔄 [14%] Asset 301/2154: Screen-Shot-2021-07-13-at-12.51.04-PM-09292021142944-11112021185731.png (ETA: 6m)
+      🔄 [14%] Asset 302/2154: Screen-Shot-2021-07-13-at-12.51.49-PM-09292021143030-11112021185937.png (ETA: 6m)
+      🔄 [14%] Asset 303/2154: Screen-Shot-2021-07-19-at-11.47.15-AM-09292021144017-11112021192909.png (ETA: 6m)
+      🔄 [14%] Asset 304/2154: Screen-Shot-2021-07-19-at-11.49.20-AM-09292021144030-11112021193012.png (ETA: 6m)
+      🔄 [14%] Asset 305/2154: Screen-Shot-2021-07-19-at-11.50.33-AM-09292021144044-11112021193152.png (ETA: 6m)
+      🔄 [14%] Asset 306/2154: Screen-Shot-2021-07-19-at-12.04.31-PM-09292021144126-11112021193211.png (ETA: 6m)
+      🔄 [14%] Asset 307/2154: Screen-Shot-2021-07-19-at-12.15.17-PM-09292021144214-11112021193301.png (ETA: 6m)
+      🔄 [14%] Asset 308/2154: Screen-Shot-2021-07-19-at-12.38.40-PM-09292021144225-11112021193315.png (ETA: 6m)
+      🔄 [14%] Asset 309/2154: Screen-Shot-2021-09-22-at-10.29.56-AM-09222021143022.png (ETA: 6m)
+      🔄 [14%] Asset 310/2154: Screen-Shot-2021-09-27-at-1.01.33-PM-09272021170538-11082021174354.png (ETA: 6m)
+      ✅ Progress: 310/2154 assets (14%) - 310 success, 0 failed - Elapsed: 1m
+      🔄 [14%] Asset 311/2154: Screen-Shot-2021-10-18-at-3.21.13-PM-10182021192203.png (ETA: 6m)
+      🔄 [14%] Asset 312/2154: Screen-Shot-2021-10-18-at-3.21.13-PM-10182021192203-10182021194020.png (ETA: 6m)
+      🔄 [15%] Asset 313/2154: Screen-Shot-2021-10-18-at-3.22.44-PM-10182021192310.png (ETA: 6m)
+      🔄 [15%] Asset 314/2154: Screen-Shot-2021-10-18-at-3.23.29-PM-10182021192403.png (ETA: 6m)
+      🔄 [15%] Asset 315/2154: Screen-Shot-2021-10-18-at-3.41.41-PM-10182021194205.png (ETA: 6m)
+      🔄 [15%] Asset 316/2154: Screen-Shot-2021-10-18-at-3.47.39-PM-10182021194824.png (ETA: 6m)
+      🔄 [15%] Asset 317/2154: Screen-Shot-2021-10-18-at-3.49.18-PM-10182021195020.png (ETA: 6m)
+      🔄 [15%] Asset 318/2154: Screen-Shot-2021-10-18-at-3.50.58-PM-10182021195138.png (ETA: 6m)
+      🔄 [15%] Asset 319/2154: Screen-Shot-2021-10-20-at-10.00.27-AM-10202021140046.png (ETA: 6m)
+      🔄 [15%] Asset 320/2154: Screen-Shot-2021-10-20-at-10.01.16-AM-10202021140143.png (ETA: 6m)
+      ✅ Progress: 320/2154 assets (15%) - 320 success, 0 failed - Elapsed: 1m
+      🔄 [15%] Asset 321/2154: Screen-Shot-2021-10-20-at-10.01.16-AM-10202021140330.png (ETA: 6m)
+      🔄 [15%] Asset 322/2154: Screen-Shot-2021-10-20-at-10.36.47-AM-10202021143717.png (ETA: 6m)
+      🔄 [15%] Asset 323/2154: Screen-Shot-2021-10-20-at-10.37.05-AM-10202021143748.png (ETA: 6m)
+      🔄 [15%] Asset 324/2154: Screen-Shot-2021-10-20-at-10.38.21-AM-10202021143831.png (ETA: 6m)
+      🔄 [15%] Asset 325/2154: Screen-Shot-2021-10-20-at-10.38.40-AM-10202021143853.png (ETA: 6m)
+      🔄 [15%] Asset 326/2154: Screen-Shot-2021-10-20-at-10.41.46-AM-10202021144152.png (ETA: 6m)
+      🔄 [15%] Asset 327/2154: Screen-Shot-2021-10-20-at-10.42.29-AM-10202021144234.png (ETA: 6m)
+      🔄 [15%] Asset 328/2154: Screen-Shot-2021-10-20-at-10.45.16-AM-10202021144526.png (ETA: 6m)
+      🔄 [15%] Asset 329/2154: Screen-Shot-2021-10-20-at-10.46.10-AM-10202021144618.png (ETA: 6m)
+      🔄 [15%] Asset 330/2154: Screen-Shot-2021-10-20-at-10.46.45-AM-10202021144707.png (ETA: 6m)
+      ✅ Progress: 330/2154 assets (15%) - 330 success, 0 failed - Elapsed: 1m
+      🔄 [15%] Asset 331/2154: Screen-Shot-2021-10-20-at-10.48.49-AM-10202021144906.png (ETA: 6m)
+      🔄 [15%] Asset 332/2154: Screen-Shot-2021-10-20-at-10.52.20-AM-10202021145332.png (ETA: 6m)
+      🔄 [15%] Asset 333/2154: Screen-Shot-2021-10-20-at-10.52.41-AM-10202021145250.png (ETA: 6m)
+      🔄 [16%] Asset 334/2154: Screen-Shot-2021-10-20-at-10.53.19-AM-10202021145326.png (ETA: 6m)
+      🔄 [16%] Asset 335/2154: Screen-Shot-2021-10-20-at-10.53.56-AM-10202021145401.png (ETA: 6m)
+      🔄 [16%] Asset 336/2154: Screen-Shot-2021-10-20-at-11.16.02-AM-10202021151637.png (ETA: 6m)
+      🔄 [16%] Asset 337/2154: Screen-Shot-2021-10-20-at-9.57.51-AM-10202021135955.png (ETA: 6m)
+      🔄 [16%] Asset 338/2154: Screen-Shot-2021-11-08-at-2.50.13-PM-11082021195023.png (ETA: 6m)
+      🔄 [16%] Asset 339/2154: Screen-Shot-2021-11-08-at-2.57.32-PM-11082021200412.png (ETA: 6m)
+      🔄 [16%] Asset 340/2154: Screen-Shot-2021-11-08-at-3.04.30-PM-11082021200710.png (ETA: 6m)
+      ✅ Progress: 340/2154 assets (16%) - 340 success, 0 failed - Elapsed: 1m
+      🔄 [16%] Asset 341/2154: Screen-Shot-2021-11-08-at-3.16.53-PM-11082021201912.png (ETA: 6m)
+      🔄 [16%] Asset 342/2154: Screen-Shot-2021-11-08-at-3.25.32-PM-11082021202704.png (ETA: 6m)
+      🔄 [16%] Asset 343/2154: Screen-Shot-2021-11-08-at-3.42.57-PM-11082021204356.png (ETA: 6m)
+      🔄 [16%] Asset 344/2154: Screen-Shot-2021-11-08-at-3.47.03-PM-11082021204858.png (ETA: 6m)
+      🔄 [16%] Asset 345/2154: Screen-Shot-2021-11-16-at-11.38.36-AM-11162021164006.png (ETA: 6m)
+      🔄 [16%] Asset 346/2154: Screen-Shot-2021-11-16-at-11.41.27-AM-11162021164246.png (ETA: 6m)
+      🔄 [16%] Asset 347/2154: Screen-Shot-2021-11-16-at-11.43.32-AM-11162021164425.png (ETA: 6m)
+      🔄 [16%] Asset 348/2154: Screen-Shot-2021-11-16-at-11.53.05-AM-11162021165332.png (ETA: 6m)
+      🔄 [16%] Asset 349/2154: Screen-Shot-2021-11-16-at-11.57.13-AM-11162021170014.png (ETA: 6m)
+      🔄 [16%] Asset 350/2154: Screen-Shot-2021-11-16-at-12.05.59-PM-11162021171013.png (ETA: 6m)
+      ✅ Progress: 350/2154 assets (16%) - 350 success, 0 failed - Elapsed: 1m
+      🔄 [16%] Asset 351/2154: Screen-Shot-2021-11-16-at-12.13.19-PM-11162021171554.png (ETA: 6m)
+      🔄 [16%] Asset 352/2154: Screen-Shot-2021-11-17-at-3.27.16-PM-11172021202813.png (ETA: 6m)
+      🔄 [16%] Asset 353/2154: Screen-Shot-2021-11-17-at-3.30.32-PM-11172021203053.png (ETA: 6m)
+      🔄 [16%] Asset 354/2154: Screen-Shot-2021-11-17-at-3.32.34-PM-11172021203308.png (ETA: 6m)
+      🔄 [16%] Asset 355/2154: Screen-Shot-2021-11-18-at-11.26.54-PM-11192021042719.png (ETA: 6m)
+      🔄 [17%] Asset 356/2154: Screen-Shot-2021-11-18-at-6.52.49-PM-11182021235344.png (ETA: 6m)
+      🔄 [17%] Asset 357/2154: Screen-Shot-2021-11-18-at-6.54.14-PM-11182021235439.png (ETA: 6m)
+      🔄 [17%] Asset 358/2154: Screen-Shot-2021-11-18-at-6.56.08-PM-11182021235620.png (ETA: 6m)
+      🔄 [17%] Asset 359/2154: Screen-Shot-2021-11-18-at-7.38.47-PM-11192021003930.png (ETA: 6m)
+      🔄 [17%] Asset 360/2154: Screen-Shot-2021-11-18-at-7.40.29-PM-11192021004129.png (ETA: 6m)
+      ✅ Progress: 360/2154 assets (17%) - 360 success, 0 failed - Elapsed: 1m
+      🔄 [17%] Asset 361/2154: Screen-Shot-2021-11-18-at-7.42.27-PM-11192021004253.png (ETA: 6m)
+      🔄 [17%] Asset 362/2154: Screen-Shot-2021-11-18-at-7.45.04-PM-11192021004525.png (ETA: 6m)
+      🔄 [17%] Asset 363/2154: Screen-Shot-2021-11-18-at-7.46.01-PM-11192021004747.png (ETA: 6m)
+      🔄 [17%] Asset 364/2154: Screen-Shot-2021-11-18-at-7.48.28-PM-1-11192021004950.png (ETA: 6m)
+      🔄 [17%] Asset 365/2154: Screen-Shot-2021-11-18-at-8.07.03-PM-11192021010723.png (ETA: 6m)
+      🔄 [17%] Asset 366/2154: Screen-Shot-2021-11-18-at-8.09.20-PM-11192021010943.png (ETA: 6m)
+      🔄 [17%] Asset 367/2154: Screen-Shot-2021-11-18-at-8.25.35-PM-11192021012631.png (ETA: 6m)
+      🔄 [17%] Asset 368/2154: Screen-Shot-2021-11-18-at-8.28.20-PM-11192021012836.png (ETA: 6m)
+      🔄 [17%] Asset 369/2154: Screen-Shot-2021-11-18-at-8.30.00-PM-11192021013200.png (ETA: 6m)
+      🔄 [17%] Asset 370/2154: Screen-Shot-2021-11-18-at-8.33.38-PM-11192021013429.png (ETA: 6m)
+      ✅ Progress: 370/2154 assets (17%) - 370 success, 0 failed - Elapsed: 1m
+      🔄 [17%] Asset 371/2154: Screen-Shot-2021-11-18-at-9.17.23-PM-1-11192021021808.png (ETA: 6m)
+      🔄 [17%] Asset 372/2154: Screen-Shot-2021-11-18-at-9.19.30-PM-11192021022049.png (ETA: 6m)
+      🔄 [17%] Asset 373/2154: Screen-Shot-2021-11-23-at-2.22.41-PM-11232021192259.png (ETA: 6m)
+      🔄 [17%] Asset 374/2154: Screen-Shot-2021-11-23-at-2.24.22-PM-11232021192530.png (ETA: 6m)
+      🔄 [17%] Asset 375/2154: Screen-Shot-2021-11-23-at-2.27.01-PM-11232021193227.png (ETA: 6m)
+      🔄 [17%] Asset 376/2154: Screen-Shot-2021-11-23-at-2.33.49-PM-11232021193439.png (ETA: 6m)
+      🔄 [18%] Asset 377/2154: Screen-Shot-2021-11-23-at-2.36.19-PM-11232021193707.png (ETA: 6m)
+      🔄 [18%] Asset 378/2154: Screen-Shot-2021-11-24-at-10.30.51-AM-11242021153106.png (ETA: 6m)
+      🔄 [18%] Asset 379/2154: Screen-Shot-2021-11-24-at-10.51.39-AM-11242021155146.png (ETA: 6m)
+      🔄 [18%] Asset 380/2154: Screen-Shot-2021-12-09-at-4.27.24-PM-12092021212729.png (ETA: 6m)
+      ✅ Progress: 380/2154 assets (18%) - 380 success, 0 failed - Elapsed: 1m
+      🔄 [18%] Asset 381/2154: Screen-Shot-2021-12-09-at-4.28.34-PM-12092021212930.png (ETA: 6m)
+      🔄 [18%] Asset 382/2154: Screen-Shot-2021-12-09-at-4.30.28-PM-12092021213047.png (ETA: 6m)
+      🔄 [18%] Asset 383/2154: Screen-Shot-2021-12-09-at-4.39.11-PM-12092021214004.png (ETA: 6m)
+      🔄 [18%] Asset 384/2154: Screen-Shot-2021-12-09-at-4.40.47-PM-12092021214243.png (ETA: 6m)
+      🔄 [18%] Asset 385/2154: Screen-Shot-2021-12-09-at-4.43.37-PM-12092021214516.png (ETA: 6m)
+      🔄 [18%] Asset 386/2154: Screen-Shot-2021-12-09-at-4.43.37-PM-12092021214601.png (ETA: 6m)
+      🔄 [18%] Asset 387/2154: Screen-Shot-2021-12-09-at-4.53.49-PM-12092021215429.png (ETA: 6m)
+      🔄 [18%] Asset 388/2154: Screen-Shot-2021-12-09-at-4.55.09-PM-12092021215514.png (ETA: 6m)
+      🔄 [18%] Asset 389/2154: Screen-Shot-2021-12-09-at-4.55.55-PM-12092021215659.png (ETA: 6m)
+      🔄 [18%] Asset 390/2154: Screen-Shot-2021-12-09-at-4.57.44-PM-12092021215829.png (ETA: 6m)
+      ✅ Progress: 390/2154 assets (18%) - 390 success, 0 failed - Elapsed: 1m
+      🔄 [18%] Asset 391/2154: Screen-Shot-2021-12-09-at-5.46.12-PM-12092021224708.png (ETA: 6m)
+      🔄 [18%] Asset 392/2154: Screen-Shot-2022-01-11-at-11.52.08-PM-01122022045219.png (ETA: 6m)
+      🔄 [18%] Asset 393/2154: Screen-Shot-2022-01-11-at-11.56.04-PM-01122022045657.png (ETA: 6m)
+      🔄 [18%] Asset 394/2154: Screen-Shot-2022-01-11-at-11.59.19-PM-01122022045937.png (ETA: 6m)
+      🔄 [18%] Asset 395/2154: Screen-Shot-2022-01-11-at-8.44.06-PM-01122022014435.png (ETA: 6m)
+      🔄 [18%] Asset 396/2154: Screen-Shot-2022-01-11-at-9.07.55-PM-01122022020938.png (ETA: 6m)
+      🔄 [18%] Asset 397/2154: Screen-Shot-2022-01-11-at-9.12.44-PM-01122022021322.png (ETA: 6m)
+      🔄 [18%] Asset 398/2154: Screen-Shot-2022-01-11-at-9.15.13-PM-01122022021525.png (ETA: 6m)
+      🔄 [19%] Asset 399/2154: Screen-Shot-2022-01-11-at-9.16.44-PM-01122022021718.png (ETA: 6m)
+      🔄 [19%] Asset 400/2154: Screen-Shot-2022-01-25-at-3.21.15-PM-01252022202655.png (ETA: 6m)
+      ✅ Progress: 400/2154 assets (19%) - 400 success, 0 failed - Elapsed: 1m
+      🔄 [19%] Asset 401/2154: Screen-Shot-2022-01-25-at-3.31.20-PM-01252022203417.png (ETA: 6m)
+      🔄 [19%] Asset 402/2154: Screen-Shot-2022-02-03-at-4.17.55-PM-02032022211847.png (ETA: 6m)
+      🔄 [19%] Asset 403/2154: Screen-Shot-2022-02-03-at-4.19.15-PM-02032022212226.png (ETA: 6m)
+      🔄 [19%] Asset 404/2154: Screen-Shot-2022-03-15-at-9.16.55-AM-03152022133310.png (ETA: 6m)
+      🔄 [19%] Asset 405/2154: Screen-Shot-2022-03-15-at-9.16.55-AM-03152022133513.png (ETA: 6m)
+      🔄 [19%] Asset 406/2154: Screen-Shot-2022-07-08-at-1.59.35-PM-07082022180000.png (ETA: 6m)
+      🔄 [19%] Asset 407/2154: Screen-Shot-2022-07-08-at-2.02.09-PM-07082022180212.png (ETA: 6m)
+      🔄 [19%] Asset 408/2154: Screen-Shot-2022-07-08-at-2.04.44-PM-07082022180449.png (ETA: 6m)
+      🔄 [19%] Asset 409/2154: Screen-Shot-2022-07-08-at-2.06.51-PM-07082022180700.png (ETA: 6m)
+      🔄 [19%] Asset 410/2154: Screen-Shot-2022-07-08-at-2.11.04-PM-07082022181112.png (ETA: 6m)
+      ✅ Progress: 410/2154 assets (19%) - 410 success, 0 failed - Elapsed: 1m
+      🔄 [19%] Asset 411/2154: Screen-Shot-2022-07-08-at-2.11.49-PM-07082022181250.png (ETA: 6m)
+      🔄 [19%] Asset 412/2154: Screen-Shot-2022-07-08-at-2.12.08-PM-07082022181244.png (ETA: 6m)
+      🔄 [19%] Asset 413/2154: Screen-Shot-2022-07-08-at-2.12.08-PM-07082022181325.png (ETA: 6m)
+      🔄 [19%] Asset 414/2154: Screen-Shot-2022-07-08-at-2.12.08-PM-07082022193525.png (ETA: 6m)
+      🔄 [19%] Asset 415/2154: Screen-Shot-2022-07-08-at-2.16.09-PM-07082022181612.png (ETA: 6m)
+      🔄 [19%] Asset 416/2154: Screen-Shot-2022-07-08-at-2.16.46-PM-07082022181659.png (ETA: 6m)
+      🔄 [19%] Asset 417/2154: Screen-Shot-2022-07-08-at-4.48.11-PM-07082022205153.png (ETA: 6m)
+      🔄 [19%] Asset 418/2154: Screen-Shot-2022-07-08-at-4.48.11-PM-07082022205549.png (ETA: 6m)
+      🔄 [19%] Asset 419/2154: Screen-Shot-2022-07-08-at-4.48.11-PM-07082022205552.png (ETA: 6m)
+      🔄 [19%] Asset 420/2154: Screen-Shot-2022-07-08-at-4.48.31-PM-07082022205533.png (ETA: 6m)
+      ✅ Progress: 420/2154 assets (19%) - 420 success, 0 failed - Elapsed: 1m
+      🔄 [20%] Asset 421/2154: Screen-Shot-2022-07-08-at-4.49.05-PM-07082022205354.png (ETA: 6m)
+      🔄 [20%] Asset 422/2154: Screen-Shot-2022-07-08-at-4.51.17-PM-07082022205212.png (ETA: 6m)
+      🔄 [20%] Asset 423/2154: Screen-Shot-2022-07-08-at-4.53.15-PM-07082022205328.png (ETA: 6m)
+      🔄 [20%] Asset 424/2154: Screen-Shot-2022-07-08-at-4.54.45-PM-07082022205513.png (ETA: 6m)
+      🔄 [20%] Asset 425/2154: Screen-Shot-2022-07-08-at-4.57.32-PM-07082022205816.png (ETA: 6m)
+      🔄 [20%] Asset 426/2154: Screen-Shot-2022-07-08-at-4.58.05-PM-07082022205825.png (ETA: 6m)
+      🔄 [20%] Asset 427/2154: Screen-Shot-2022-07-08-at-4.58.05-PM-07082022205839.png (ETA: 6m)
+      🔄 [20%] Asset 428/2154: 1605027417_microsoft_net_story-09222021144234.jpg (ETA: 6m)
+      🔄 [20%] Asset 429/2154: agility-banner-09032021174241-09222021143823.png (ETA: 6m)
+      🔄 [20%] Asset 430/2154: 1605027417_microsoft_net_story-09222021150513.jpg (ETA: 6m)
+      ✅ Progress: 430/2154 assets (20%) - 430 success, 0 failed - Elapsed: 1m
+      🔄 [20%] Asset 431/2154: cdnlogo.com_c-09232021172204.svg (ETA: 6m)
+      🔄 [20%] Asset 432/2154: csharplogo-09232021172116.png (ETA: 6m)
+      🔄 [20%] Asset 433/2154: csharp-agility-09232021172808.png (ETA: 6m)
+      🔄 [20%] Asset 434/2154: dotnet-agility-09232021173126.png (ETA: 6m)
+      🔄 [20%] Asset 435/2154: dotnet-agility.png (ETA: 6m)
+      🔄 [20%] Asset 436/2154: image-09232021135333.png (ETA: 6m)
+      🔄 [20%] Asset 437/2154: image-09232021141343.png (ETA: 6m)
+      🔄 [20%] Asset 438/2154: image-09232021142024.png (ETA: 6m)
+      🔄 [20%] Asset 439/2154: image-09232021150219.png (ETA: 6m)
+      🔄 [20%] Asset 440/2154: image-09232021150321.png (ETA: 6m)
+      ✅ Progress: 440/2154 assets (20%) - 440 success, 0 failed - Elapsed: 1m
+      🔄 [20%] Asset 441/2154: image-09232021164323.png (ETA: 6m)
+      🔄 [21%] Asset 442/2154: image-09232021164337.png (ETA: 6m)
+      🔄 [21%] Asset 443/2154: image-09232021164519.png (ETA: 6m)
+      🔄 [21%] Asset 444/2154: image-09232021164528.png (ETA: 6m)
+      🔄 [21%] Asset 445/2154: 1-08232021165841.PNG (ETA: 6m)
+      🔄 [21%] Asset 446/2154: 1-08242021160833.PNG (ETA: 6m)
+      🔄 [21%] Asset 447/2154: 1-08242021171343.PNG (ETA: 6m)
+      🔄 [21%] Asset 448/2154: 1-08262021140057.PNG (ETA: 6m)
+      🔄 [21%] Asset 449/2154: 1-08302021201109.PNG (ETA: 6m)
+      🔄 [21%] Asset 450/2154: 1-08312021135352.PNG (ETA: 6m)
+      ✅ Progress: 450/2154 assets (21%) - 450 success, 0 failed - Elapsed: 2m
+      🔄 [21%] Asset 451/2154: 1-08312021183806.PNG (ETA: 6m)
+      🔄 [21%] Asset 452/2154: 1-08312021184719.PNG (ETA: 6m)
+      🔄 [21%] Asset 453/2154: 1-09022021192325.PNG (ETA: 6m)
+      🔄 [21%] Asset 454/2154: 1-09092021141005.PNG (ETA: 6m)
+      🔄 [21%] Asset 455/2154: 1-09092021145322.PNG (ETA: 6m)
+      🔄 [21%] Asset 456/2154: 1-09092021145411.PNG (ETA: 6m)
+      🔄 [21%] Asset 457/2154: 1-09092021145544.PNG (ETA: 6m)
+      🔄 [21%] Asset 458/2154: 1-09092021145705.PNG (ETA: 6m)
+      🔄 [21%] Asset 459/2154: 1-09092021150837.PNG (ETA: 6m)
+      🔄 [21%] Asset 460/2154: 1-09142021135848.PNG (ETA: 6m)
+      ✅ Progress: 460/2154 assets (21%) - 460 success, 0 failed - Elapsed: 2m
+      🔄 [21%] Asset 461/2154: 1-09142021140020.PNG (ETA: 6m)
+      🔄 [21%] Asset 462/2154: 1-09142021140130.PNG (ETA: 6m)
+      🔄 [21%] Asset 463/2154: 1-09142021140235.PNG (ETA: 6m)
+      🔄 [22%] Asset 464/2154: 1-09172021184924.PNG (ETA: 6m)
+      🔄 [22%] Asset 465/2154: 1-09172021185030.PNG (ETA: 6m)
+      🔄 [22%] Asset 466/2154: 1-09172021185124.PNG (ETA: 6m)
+      🔄 [22%] Asset 467/2154: 1-09172021185224.PNG (ETA: 6m)
+      🔄 [22%] Asset 468/2154: 1-09172021185327.PNG (ETA: 6m)
+      🔄 [22%] Asset 469/2154: 1-09172021185429.PNG (ETA: 6m)
+      🔄 [22%] Asset 470/2154: 1-09242021181546.PNG (ETA: 6m)
+      ✅ Progress: 470/2154 assets (22%) - 470 success, 0 failed - Elapsed: 2m
+      🔄 [22%] Asset 471/2154: 1-09242021181744.PNG (ETA: 6m)
+      🔄 [22%] Asset 472/2154: 1-09242021181851.PNG (ETA: 6m)
+      🔄 [22%] Asset 473/2154: 1-09242021181935.PNG (ETA: 6m)
+      🔄 [22%] Asset 474/2154: 1-09242021194534.PNG (ETA: 6m)
+      🔄 [22%] Asset 475/2154: 1-09292021185709.PNG (ETA: 6m)
+      🔄 [22%] Asset 476/2154: 1-09292021190358.PNG (ETA: 6m)
+      🔄 [22%] Asset 477/2154: 1-09292021191214.PNG (ETA: 6m)
+      🔄 [22%] Asset 478/2154: 2-08232021170051.PNG (ETA: 6m)
+      🔄 [22%] Asset 479/2154: 2-08242021160937.PNG (ETA: 6m)
+      🔄 [22%] Asset 480/2154: 2-08242021171421.PNG (ETA: 6m)
+      ✅ Progress: 480/2154 assets (22%) - 480 success, 0 failed - Elapsed: 2m
+      🔄 [22%] Asset 481/2154: 2-08262021140134.PNG (ETA: 6m)
+      🔄 [22%] Asset 482/2154: 2-08302021201156.PNG (ETA: 6m)
+      🔄 [22%] Asset 483/2154: 2-08312021135703.PNG (ETA: 6m)
+      🔄 [22%] Asset 484/2154: 2-08312021184902.PNG (ETA: 6m)
+      🔄 [23%] Asset 485/2154: 2-09022021192331.PNG (ETA: 6m)
+      🔄 [23%] Asset 486/2154: 2-09092021141015.PNG (ETA: 6m)
+      🔄 [23%] Asset 487/2154: 2-09092021145329.PNG (ETA: 6m)
+      🔄 [23%] Asset 488/2154: 2-09092021145329-09092021145333.PNG (ETA: 6m)
+      🔄 [23%] Asset 489/2154: 2-09092021145329-09092021145333-09092021145338.PNG (ETA: 6m)
+      🔄 [23%] Asset 490/2154: 2-09092021145419.PNG (ETA: 6m)
+      ✅ Progress: 490/2154 assets (23%) - 490 success, 0 failed - Elapsed: 2m
+      🔄 [23%] Asset 491/2154: 2-09092021145432.PNG (ETA: 6m)
+      🔄 [23%] Asset 492/2154: 2-09092021145547.PNG (ETA: 6m)
+      🔄 [23%] Asset 493/2154: 2-09092021145709.PNG (ETA: 6m)
+      🔄 [23%] Asset 494/2154: 2-09092021150842.PNG (ETA: 6m)
+      🔄 [23%] Asset 495/2154: 2-09142021135857.PNG (ETA: 6m)
+      🔄 [23%] Asset 496/2154: 2-09142021140027.PNG (ETA: 6m)
+      🔄 [23%] Asset 497/2154: 2-09142021140136.PNG (ETA: 6m)
+      🔄 [23%] Asset 498/2154: 2-09142021140240.PNG (ETA: 6m)
+      🔄 [23%] Asset 499/2154: 2-09172021184939.PNG (ETA: 6m)
+      🔄 [23%] Asset 500/2154: 2-09172021185035.PNG (ETA: 6m)
+      ✅ Progress: 500/2154 assets (23%) - 500 success, 0 failed - Elapsed: 2m
+      🔄 [23%] Asset 501/2154: 2-09172021185128.PNG (ETA: 6m)
+      🔄 [23%] Asset 502/2154: 2-09172021185228.PNG (ETA: 6m)
+      🔄 [23%] Asset 503/2154: 2-09172021185331.PNG (ETA: 6m)
+      🔄 [23%] Asset 504/2154: 2-09172021185434.PNG (ETA: 6m)
+      🔄 [23%] Asset 505/2154: 2-09242021181702.PNG (ETA: 6m)
+      🔄 [23%] Asset 506/2154: 2-09242021181749.PNG (ETA: 6m)
+      🔄 [24%] Asset 507/2154: 2-09242021181856.PNG (ETA: 6m)
+      🔄 [24%] Asset 508/2154: 2-09242021181939.PNG (ETA: 6m)
+      🔄 [24%] Asset 509/2154: 2-09242021194541.PNG (ETA: 6m)
+      🔄 [24%] Asset 510/2154: 2-09242021194708.PNG (ETA: 6m)
+      ✅ Progress: 510/2154 assets (24%) - 510 success, 0 failed - Elapsed: 2m
+      🔄 [24%] Asset 511/2154: 2-09292021185715.PNG (ETA: 6m)
+      🔄 [24%] Asset 512/2154: 2-09292021190404.PNG (ETA: 6m)
+      🔄 [24%] Asset 513/2154: 2-09292021191219.PNG (ETA: 6m)
+      🔄 [24%] Asset 514/2154: 3-08232021170506.PNG (ETA: 6m)
+      🔄 [24%] Asset 515/2154: 3-08242021161018.PNG (ETA: 6m)
+      🔄 [24%] Asset 516/2154: 3-08242021171514.PNG (ETA: 6m)
+      🔄 [24%] Asset 517/2154: 3-08262021141111.PNG (ETA: 6m)
+      🔄 [24%] Asset 518/2154: 3-08302021201320.PNG (ETA: 6m)
+      🔄 [24%] Asset 519/2154: 3-08312021135731.PNG (ETA: 6m)
+      🔄 [24%] Asset 520/2154: 3-08312021191043.PNG (ETA: 6m)
+      ✅ Progress: 520/2154 assets (24%) - 520 success, 0 failed - Elapsed: 2m
+      🔄 [24%] Asset 521/2154: 3-09022021192350.PNG (ETA: 5m)
+      🔄 [24%] Asset 522/2154: 3-09092021141052.PNG (ETA: 5m)
+      🔄 [24%] Asset 523/2154: 3-09092021145453.PNG (ETA: 5m)
+      🔄 [24%] Asset 524/2154: 3-09092021145551.PNG (ETA: 5m)
+      🔄 [24%] Asset 525/2154: 3-09092021145714.PNG (ETA: 5m)
+      🔄 [24%] Asset 526/2154: 3-09092021150847.PNG (ETA: 5m)
+      🔄 [24%] Asset 527/2154: 3-09142021135908.PNG (ETA: 5m)
+      🔄 [25%] Asset 528/2154: 3-09142021140033.PNG (ETA: 5m)
+      🔄 [25%] Asset 529/2154: 3-09142021140141.PNG (ETA: 5m)
+      🔄 [25%] Asset 530/2154: 3-09142021140246.PNG (ETA: 5m)
+      ✅ Progress: 530/2154 assets (25%) - 530 success, 0 failed - Elapsed: 2m
+      🔄 [25%] Asset 531/2154: 3-09172021184945.PNG (ETA: 5m)
+      🔄 [25%] Asset 532/2154: 3-09172021185039.PNG (ETA: 5m)
+      🔄 [25%] Asset 533/2154: 3-09172021185133.PNG (ETA: 5m)
+      🔄 [25%] Asset 534/2154: 3-09172021185232.PNG (ETA: 5m)
+      🔄 [25%] Asset 535/2154: 3-09172021185336.PNG (ETA: 5m)
+      🔄 [25%] Asset 536/2154: 3-09172021185437.PNG (ETA: 5m)
+      🔄 [25%] Asset 537/2154: 3-09202021204357.PNG (ETA: 5m)
+      🔄 [25%] Asset 538/2154: 3-09242021181757.PNG (ETA: 5m)
+      🔄 [25%] Asset 539/2154: 3-09242021181900.PNG (ETA: 5m)
+      🔄 [25%] Asset 540/2154: 3-09242021194546.PNG (ETA: 5m)
+      ✅ Progress: 540/2154 assets (25%) - 540 success, 0 failed - Elapsed: 2m
+      🔄 [25%] Asset 541/2154: 3-09292021185719.PNG (ETA: 5m)
+      🔄 [25%] Asset 542/2154: 3-09292021190408.PNG (ETA: 5m)
+      🔄 [25%] Asset 543/2154: 3-09292021191225.PNG (ETA: 5m)
+      🔄 [25%] Asset 544/2154: 4-08242021161044.PNG (ETA: 5m)
+      🔄 [25%] Asset 545/2154: 4-08242021171607.PNG (ETA: 5m)
+      🔄 [25%] Asset 546/2154: 4-08262021141145.PNG (ETA: 5m)
+      🔄 [25%] Asset 547/2154: 4-08302021201350.PNG (ETA: 5m)
+      🔄 [25%] Asset 548/2154: 4-08312021135821.PNG (ETA: 5m)
+      🔄 [25%] Asset 549/2154: 4-08312021191135.PNG (ETA: 5m)
+      🔄 [26%] Asset 550/2154: 4-09022021192354.PNG (ETA: 5m)
+      ✅ Progress: 550/2154 assets (26%) - 550 success, 0 failed - Elapsed: 2m
+      🔄 [26%] Asset 551/2154: 4-09092021141103.PNG (ETA: 5m)
+      🔄 [26%] Asset 552/2154: 4-09092021145556.PNG (ETA: 5m)
+      🔄 [26%] Asset 553/2154: 4-09092021145718.PNG (ETA: 5m)
+      🔄 [26%] Asset 554/2154: 4-09092021150852.PNG (ETA: 5m)
+      🔄 [26%] Asset 555/2154: 4-09142021135914.PNG (ETA: 5m)
+      🔄 [26%] Asset 556/2154: 4-09142021140039.PNG (ETA: 5m)
+      🔄 [26%] Asset 557/2154: 4-09142021140147.PNG (ETA: 5m)
+      🔄 [26%] Asset 558/2154: 4-09142021140252.PNG (ETA: 5m)
+      🔄 [26%] Asset 559/2154: 4-09172021184950.PNG (ETA: 5m)
+      🔄 [26%] Asset 560/2154: 4-09172021185043.PNG (ETA: 5m)
+      ✅ Progress: 560/2154 assets (26%) - 560 success, 0 failed - Elapsed: 2m
+      🔄 [26%] Asset 561/2154: 4-09172021185138.PNG (ETA: 5m)
+      🔄 [26%] Asset 562/2154: 4-09172021185237.PNG (ETA: 5m)
+      🔄 [26%] Asset 563/2154: 4-09172021185340.PNG (ETA: 5m)
+      🔄 [26%] Asset 564/2154: 4-09172021185441.PNG (ETA: 5m)
+      🔄 [26%] Asset 565/2154: 4-09242021181803.PNG (ETA: 5m)
+      🔄 [26%] Asset 566/2154: 4-09292021185723.PNG (ETA: 5m)
+      🔄 [26%] Asset 567/2154: 4-09292021190412.PNG (ETA: 5m)
+      🔄 [26%] Asset 568/2154: 4-09292021191232.PNG (ETA: 5m)
+      🔄 [26%] Asset 569/2154: 5-08242021161112.PNG (ETA: 5m)
+      🔄 [26%] Asset 570/2154: 5-08242021171647.PNG (ETA: 5m)
+      ✅ Progress: 570/2154 assets (26%) - 570 success, 0 failed - Elapsed: 2m
+      🔄 [27%] Asset 571/2154: 5-08262021141208.PNG (ETA: 5m)
+      🔄 [27%] Asset 572/2154: 5-08312021135919.PNG (ETA: 5m)
+      🔄 [27%] Asset 573/2154: 5-08312021191230.PNG (ETA: 5m)
+      🔄 [27%] Asset 574/2154: 5-09022021192358.PNG (ETA: 5m)
+      🔄 [27%] Asset 575/2154: 5-09092021141111.PNG (ETA: 5m)
+      🔄 [27%] Asset 576/2154: 5-09092021145600.PNG (ETA: 5m)
+      🔄 [27%] Asset 577/2154: 5-09092021145723.PNG (ETA: 5m)
+      🔄 [27%] Asset 578/2154: 5-09092021150857.PNG (ETA: 5m)
+      🔄 [27%] Asset 579/2154: 5-09142021140045.PNG (ETA: 5m)
+      🔄 [27%] Asset 580/2154: 5-09142021140154.PNG (ETA: 5m)
+      ✅ Progress: 580/2154 assets (27%) - 580 success, 0 failed - Elapsed: 2m
+      🔄 [27%] Asset 581/2154: 5-09172021185143.PNG (ETA: 5m)
+      🔄 [27%] Asset 582/2154: 5-09172021185242.PNG (ETA: 5m)
+      🔄 [27%] Asset 583/2154: 5-09172021185344.PNG (ETA: 5m)
+      🔄 [27%] Asset 584/2154: 5-09172021185446.PNG (ETA: 5m)
+      🔄 [27%] Asset 585/2154: 5-09242021181808.PNG (ETA: 5m)
+      🔄 [27%] Asset 586/2154: 5-09292021185728.PNG (ETA: 5m)
+      🔄 [27%] Asset 587/2154: 5-09292021190415.PNG (ETA: 5m)
+      🔄 [27%] Asset 588/2154: 5-09292021191237.PNG (ETA: 5m)
+      🔄 [27%] Asset 589/2154: 6-08242021161207.PNG (ETA: 5m)
+      🔄 [27%] Asset 590/2154: 6-08312021140519.PNG (ETA: 5m)
+      ✅ Progress: 590/2154 assets (27%) - 590 success, 0 failed - Elapsed: 2m
+      🔄 [27%] Asset 591/2154: 6-08312021191310.PNG (ETA: 5m)
+      🔄 [27%] Asset 592/2154: 6-09022021192401.PNG (ETA: 5m)
+      🔄 [28%] Asset 593/2154: 6-09092021141131.PNG (ETA: 5m)
+      🔄 [28%] Asset 594/2154: 6-09092021145605.PNG (ETA: 5m)
+      🔄 [28%] Asset 595/2154: 6-09092021145727.PNG (ETA: 5m)
+      🔄 [28%] Asset 596/2154: 6-09092021150902.PNG (ETA: 5m)
+      🔄 [28%] Asset 597/2154: 6-09172021185246.PNG (ETA: 5m)
+      🔄 [28%] Asset 598/2154: 6-09172021185450.PNG (ETA: 5m)
+      🔄 [28%] Asset 599/2154: 6-09242021181814.PNG (ETA: 5m)
+      🔄 [28%] Asset 600/2154: 6-09292021185733.PNG (ETA: 5m)
+      ✅ Progress: 600/2154 assets (28%) - 600 success, 0 failed - Elapsed: 2m
+      🔄 [28%] Asset 601/2154: 6-09292021190418.PNG (ETA: 5m)
+      🔄 [28%] Asset 602/2154: 7-08242021161230.PNG (ETA: 5m)
+      🔄 [28%] Asset 603/2154: 7-08312021140556.PNG (ETA: 5m)
+      🔄 [28%] Asset 604/2154: 7-08312021191331.PNG (ETA: 5m)
+      🔄 [28%] Asset 605/2154: 7-09022021192405.PNG (ETA: 5m)
+      🔄 [28%] Asset 606/2154: 7-09092021145731.PNG (ETA: 5m)
+      🔄 [28%] Asset 607/2154: 7-09092021150908.PNG (ETA: 5m)
+      🔄 [28%] Asset 608/2154: 7-09172021185454.PNG (ETA: 5m)
+      🔄 [28%] Asset 609/2154: 7-09242021181820.PNG (ETA: 5m)
+      🔄 [28%] Asset 610/2154: 8-08312021140636.PNG (ETA: 5m)
+      ✅ Progress: 610/2154 assets (28%) - 610 success, 0 failed - Elapsed: 2m
+      🔄 [28%] Asset 611/2154: 8-09022021192408.PNG (ETA: 5m)
+      🔄 [28%] Asset 612/2154: 8-09092021150913.PNG (ETA: 5m)

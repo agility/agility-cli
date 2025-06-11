@@ -10,10 +10,10 @@ import {
     SourceEntities, 
     SyncAnalysisContext, 
     ChainAnalysisService 
-} from './types';
+} from '../../../types/syncAnalysis';
 import { AssetReferenceExtractor } from './asset-reference-extractor';
 import { DependencyFinder } from './dependency-finder';
-import { PageChainDisplay } from '../dependency-analyzer/page-chain-display';
+import { PageChainDisplay } from './page-chain-display';
 
 export class PageChainAnalyzer implements ChainAnalysisService {
     private context?: SyncAnalysisContext;
@@ -34,13 +34,14 @@ export class PageChainAnalyzer implements ChainAnalysisService {
         this.assetExtractor.initialize(context);
         this.dependencyFinder.initialize(context);
         
-        // Initialize hierarchical display
+        // Initialize hierarchical display with context for model tracking
         this.hierarchicalDisplay = new PageChainDisplay(
             context.rootPath,
             context.sourceGuid,
             context.locale,
             context.isPreview,
-            context.debug
+            context.debug,
+            context // Pass context for model tracking
         );
     }
 

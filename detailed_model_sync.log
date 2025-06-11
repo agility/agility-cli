@@ -1,0 +1,500 @@
+[33mWelcome to Agility CLI.[39m
+[32m● Authenticated to Agility servers.[39m
+[32m[39m
+🔒 Target instance validation enabled. 5 approved targets loaded.
+[32m✅ Target instance validated: Target Instance 1 (90c39c80-u)[39m
+[36m[39m
+[36m🚀 Starting Simplified Pusher-Based Sync[39m
+============================================================
+[33m📥 Loading source data and performing dependency analysis...[39m
+[32m✅ Loaded 72 entities from local files[39m
+[36m[39m
+[36m📊 6-STEP DEPENDENCY CHAIN ANALYSIS[39m
+==================================================
+[34m[39m
+[34m📐 1. CIRCULAR MODEL CHAINS (BASELINE)[39m
+==================================================
+[33mFound 12 independent model-to-model chains:[39m
+[32m[39m
+[32m  Model:Post (Post)[39m
+[32m    ├─ Model:Category (Category)[39m
+[32m[39m
+[32m  Model:player (player)[39m
+[32m    ├─ Model:playerContactDetails (playerContactDetails)[39m
+[32m[39m
+[32m  Model:MobilePOCTranslation (Mobile-POC-Translation)[39m
+[32m    ├─ Model:MobilePOCGroup (Mobile-POC-Group)[39m
+[32m[39m
+[32m  Model:checkYourTicket (checkYourTicket)[39m
+[32m    ├─ Model:checkDrawTicket (checkDrawTicket)[39m
+[32m    ├─ Model:checkInstantTicket (checkInstantTicket)[39m
+[32m[39m
+[32m  Model:MobileAppFeatureCarousel (Mobile App - Feature Carousel)[39m
+[32m    ├─ Model:MobileAppFeatureCarouselItem (Mobile App - Feature Carousel Item)[39m
+[32m[39m
+[32m  Model:CarouselConfiguration (CarouselConfiguration)[39m
+[32m    ├─ Model:jackpotBannerConfiguration (jackpotBannerConfiguration)[39m
+[32m    ├─ Model:marketingBannersConfiguration (marketingBannersConfiguration)[39m
+[32m    ├─ Model:MarketingBannerItem (MarketingBannerItem)[39m
+[32m[39m
+[32m  Model:PortalFooter (Portal - Footer)[39m
+[32m    ├─ Model:PortalFooterUsefulLinks (Portal - Footer Useful Links)[39m
+[32m    │  ├─ Model:PortalFooterLink (Portal - Footer Link)[39m
+[32m    ├─ Model:PortalFooterLink (Portal - Footer Link)[39m
+[32m    ├─ Model:PortalFooterResponsibleGaming (Portal - Footer Responsible Gaming)[39m
+[32m    ├─ Model:FooterDownloadOptions (Footer Download Options)[39m
+[32m    │  ├─ Model:FooterDownloadButtons (Footer Download Buttons)[39m
+[32m    │  ├─ Model:FooterDownloadButtons (Footer Download Buttons)[39m
+[32m    ├─ Model:FooterLogos (Footer Logos)[39m
+[32m[39m
+[32m  Model:PortalFooterUsefulLinks (Portal - Footer Useful Links)[39m
+[32m    ├─ Model:PortalFooterLink (Portal - Footer Link)[39m
+[32m[39m
+[32m  Model:FooterDownloadOptions (Footer Download Options)[39m
+[32m    ├─ Model:FooterDownloadButtons (Footer Download Buttons)[39m
+[32m    ├─ Model:FooterDownloadButtons (Footer Download Buttons)[39m
+[32m[39m
+[32m  Model:TXAppLaunchData (TXAppLaunchData)[39m
+[32m    ├─ Model:TXAppLaunchDataPromotion (TXAppLaunchDataPromotion)[39m
+[32m    ├─ Model:TXAppLaunchDataAppVersion (TXAppLaunchDataAppVersion)[39m
+[32m    ├─ Model:TXAppLaunchDataActiveGames (TXAppLaunchDataActiveGames)[39m
+[32m    │  ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    │  ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    │  ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    │  ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    │  ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    │  ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    │  ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    │  ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    │  ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    ├─ Model:TXAppLaunchDataClaim (TXAppLaunchDataClaim)[39m
+[32m    ├─ Model:TXAppLaunchDataLocalStorageCache (TXAppLaunchDataLocalStorageCache)[39m
+[32m[39m
+[32m  Model:TXAppLaunchDataActiveGames (TXAppLaunchDataActiveGames)[39m
+[32m    ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m    ├─ Model:TXAppLaunchDataActiveGame (TXAppLaunchDataActiveGame)[39m
+[32m[39m
+[32m  Model:MobileAppmenuMainBanner (Mobile App - Menu Main Banner)[39m
+[32m    ├─ Model:MobileAppBannerActionItem (Mobile App - Banner Action Item)[39m
+[34m[39m
+[34m📄 2. ALL PAGE CHAINS[39m
+==================================================
+[90m  No pages found in source data[39m
+[34m[39m
+[34m📦 3. ALL CONTAINER CHAINS[39m
+==================================================
+[90m  No containers found in source data[39m
+[34m[39m
+[34m📊 5. ITEMS OUTSIDE OF CHAINS[39m
+==================================================
+[33mItems that exist but are not referenced by any chains:[39m
+[32m[39m
+[32m  📐 MODELS: 41 items[39m
+[90m    - Model:RichTextArea (Rich Text Area)[39m
+[90m    - Model:SiteHeader (Site Header)[39m
+[90m    - Model:TextBlockWithImage (Text Block With Image)[39m
+[90m    - Model:FeaturedPost (Featured Post)[39m
+[90m    - Model:Heading (Heading)[39m
+[90m    - Model:HeroBanner (HeroBanner)[39m
+[90m    - Model:Employee (Employee)[39m
+[90m    - Model:Footer (Footer)[39m
+[90m    - Model:ImageSlider (Image Slider poc)[39m
+[90m    - Model:AgilityCSS (Agility CSS)[39m
+[90m    - Model:i18Model (i18Model)[39m
+[90m    - Model:i18nJson (i18nJson)[39m
+[90m    - Model:testi18n (testi18n)[39m
+[90m    - Model:RetailerBanner (RetailerBanner)[39m
+[90m    - Model:AgilityCodeTemplate (Agility Code Template)[39m
+[90m    - Model:CheckDrawTickets (CheckDrawTickets)[39m
+[90m    - Model:CheckInstantTickets (CheckInstantTickets)[39m
+[90m    - Model:TestingCli (TestingCli)[39m
+[90m    - Model:testjson (testjson)[39m
+[90m    - Model:PromoBanner (PromoBanner)[39m
+[90m    - Model:PromoBanner (PromoBanner)[39m
+[90m    - Model:PlayCard (PlayCard)[39m
+[90m    - Model:AgilityJavascript (Agility Javascript)[39m
+[90m    - Model:eInstants (eInstants)[39m
+[90m    - Model:retailerLocator (retailerLocator)[39m
+[90m    - Model:EInstantRecentWinners (EInstantRecentWinners)[39m
+[90m    - Model:WinningNumbersCarousel (WinningNumbersCarousel)[39m
+[90m    - Model:TicketInquiry (TicketInquiry)[39m
+[90m    - Model:WinningNumbersSection (WinningNumbersSection)[39m
+[90m    - Model:DrawGamesConfig (Draw Games Config)[39m
+[90m    - Model:mobilebuttonSkin (Mobile buttonSkin)[39m
+[90m    - Model:MobileAppFeatureCarousel1 (Mobile App - Feature Carousel1)[39m
+[90m    - Model:MobileAppdashboardBannerContent (Mobile App - Dashboard Banner Content)[39m
+[90m    - Model:HomeBanner (HomeBanner)[39m
+[90m    - Model:EdTestModel (Ed Test Model)[39m
+[90m    - Model:PostsListing (Posts Listing)[39m
+[90m    - Model:HomepageCarouselBanner (HomepageCarouselBanner)[39m
+[90m    - Model:PortalSecondarytopNavigation (Portal - Secondary (top) Navigation)[39m
+[90m    - Model:SideNavigation (SideNavigation)[39m
+[90m    - Model:MobileAppMenuPromoBanner (Mobile App - Menu Promo Banner)[39m
+[90m    - Model:PostDetails (Post Details)[39m
+[36m[39m
+[36m  📊 Total non-chained items: 41[39m
+[36m[39m
+[36m🔍 6. RECONCILIATION SUMMARY[39m
+==================================================
+[36m📊 SYNC READINESS SUMMARY[39m
+[37m   Total entities: 72[39m
+[32m   Ready to sync: 72 items[39m
+[90m[39m
+[90m   Entity breakdown:[39m
+[90m     - Models: 31 in chains, 41 out, 100% accounted for[39m
+[36m[39m
+[36m   🚀 Do you want to proceed to sync 72 items?[39m
+[33m🎯 Initializing API client and reference mapper...[39m
+[32m[39m
+[32m🎯 Executing Proven Pushers in Dependency Order...[39m
+[36m[39m
+[36m📋 Pushing Models...[39m
+[34m[Mapper] Updated model mapping: 1 → 896[39m
+✓ Normal Model [4mRichTextArea[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m896[39m
+  Models: 1/72 ✅
+[34m[Mapper] Updated model mapping: 11 → 889[39m
+✓ Normal Model [4mSiteHeader[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m889[39m
+  Models: 2/72 ✅
+[34m[Mapper] Updated model mapping: 13 → 890[39m
+✓ Normal Model [4mCategory[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m890[39m
+  Models: 3/72 ✅
+[34m[Mapper] Updated model mapping: 19 → 902[39m
+✓ Normal Model [4mTextBlockWithImage[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m902[39m
+  Models: 4/72 ✅
+[34m[Mapper] Updated model mapping: 21 → 903[39m
+✓ Normal Model [4mFeaturedPost[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m903[39m
+  Models: 5/72 ✅
+[34m[Mapper] Updated model mapping: 22 → 904[39m
+✓ Normal Model [4mHeading[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m904[39m
+  Models: 6/72 ✅
+[34m[Mapper] Updated model mapping: 24 → 948[39m
+✓ Normal Model [4mHeroBanner[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m948[39m
+  Models: 7/72 ✅
+[34m[Mapper] Updated model mapping: 25 → 949[39m
+✓ Normal Model [4mEmployee[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m949[39m
+  Models: 8/72 ✅
+[34m[Mapper] Updated model mapping: 27 → 941[39m
+✓ Normal Model [4mFooter[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m941[39m
+  Models: 9/72 ✅
+[34m[Mapper] Updated model mapping: 28 → 950[39m
+✓ Normal Model [4mplayerContactDetails[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m950[39m
+  Models: 10/72 ✅
+[34m[Mapper] Updated model mapping: 29 → 951[39m
+✓ Normal Model [4mImageSlider[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m951[39m
+  Models: 11/72 ✅
+[34m[Mapper] Updated model mapping: 3 → 897[39m
+✓ Normal Model [4mAgilityCSS[24m [1m[90mis a system model - skipped update[39m[22m - Mapped to target ID: [32m897[39m
+  Models: 12/72 ✅
+[34m[Mapper] Updated model mapping: 30 → 952[39m
+✓ Normal Model [4mMobilePOCGroup[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m952[39m
+  Models: 13/72 ✅
+[34m[Mapper] Updated model mapping: 32 → 953[39m
+✓ Normal Model [4mi18Model[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m953[39m
+  Models: 14/72 ✅
+[34m[Mapper] Updated model mapping: 33 → 954[39m
+✓ Normal Model [4mi18nJson[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m954[39m
+  Models: 15/72 ✅
+[34m[Mapper] Updated model mapping: 34 → 955[39m
+✓ Normal Model [4mtesti18n[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m955[39m
+  Models: 16/72 ✅
+[34m[Mapper] Updated model mapping: 36 → 956[39m
+✓ Normal Model [4mRetailerBanner[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m956[39m
+  Models: 17/72 ✅
+[34m[Mapper] Updated model mapping: 38 → 957[39m
+✓ Normal Model [4mcheckDrawTicket[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m957[39m
+  Models: 18/72 ✅
+[34m[Mapper] Updated model mapping: 39 → 958[39m
+✓ Normal Model [4mcheckInstantTicket[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m958[39m
+  Models: 19/72 ✅
+[34m[Mapper] Updated model mapping: 4 → 898[39m
+✓ Normal Model [4mAgilityCodeTemplate[24m [1m[90mis a system model - skipped update[39m[22m - Mapped to target ID: [32m898[39m
+  Models: 20/72 ✅
+[34m[Mapper] Updated model mapping: 40 → 959[39m
+✓ Normal Model [4mCheckDrawTickets[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m959[39m
+  Models: 21/72 ✅
+[34m[Mapper] Updated model mapping: 43 → 960[39m
+✓ Normal Model [4mCheckInstantTickets[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m960[39m
+  Models: 22/72 ✅
+[34m[Mapper] Updated model mapping: 44 → 961[39m
+✓ Normal Model [4mTestingCli[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m961[39m
+  Models: 23/72 ✅
+[34m[Mapper] Updated model mapping: 45 → 962[39m
+✓ Normal Model [4mtestjson[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m962[39m
+  Models: 24/72 ✅
+[34m[Mapper] Updated model mapping: 46 → 963[39m
+[34m[Mapper] Updated model mapping: 46 → 963[39m
+✓ Normal Model [1m[36mupdated[39m[22m [4mPromoBanner[24m (ID: 963) on target.
+  Models: 25/72 ✅
+[34m[Mapper] Updated model mapping: 48 → 963[39m
+✓ Normal Model [4mPromoBanner[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m963[39m
+  Models: 26/72 ✅
+[34m[Mapper] Updated model mapping: 49 → 964[39m
+✓ Normal Model [4mPlayCard[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m964[39m
+  Models: 27/72 ✅
+[34m[Mapper] Updated model mapping: 5 → 899[39m
+✓ Normal Model [4mAgilityJavascript[24m [1m[90mis a system model - skipped update[39m[22m - Mapped to target ID: [32m899[39m
+  Models: 28/72 ✅
+[34m[Mapper] Updated model mapping: 51 → 965[39m
+✓ Normal Model [4meInstants[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m965[39m
+  Models: 29/72 ✅
+[34m[Mapper] Updated model mapping: 52 → 966[39m
+✓ Normal Model [4mretailerLocator[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m966[39m
+  Models: 30/72 ✅
+[34m[Mapper] Updated model mapping: 53 → 967[39m
+✓ Normal Model [4mEInstantRecentWinners[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m967[39m
+  Models: 31/72 ✅
+[34m[Mapper] Updated model mapping: 54 → 968[39m
+✓ Normal Model [4mWinningNumbersCarousel[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m968[39m
+  Models: 32/72 ✅
+[34m[Mapper] Updated model mapping: 55 → 969[39m
+✓ Normal Model [4mTicketInquiry[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m969[39m
+  Models: 33/72 ✅
+[34m[Mapper] Updated model mapping: 56 → 970[39m
+✓ Normal Model [4mWinningNumbersSection[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m970[39m
+  Models: 34/72 ✅
+[34m[Mapper] Updated model mapping: 57 → 971[39m
+✓ Normal Model [4mDrawGamesConfig[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m971[39m
+  Models: 35/72 ✅
+[34m[Mapper] Updated model mapping: 58 → 972[39m
+✓ Normal Model [4mMobileAppFeatureCarouselItem[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m972[39m
+  Models: 36/72 ✅
+[34m[Mapper] Updated model mapping: 59 → 973[39m
+✓ Normal Model [4mmobilebuttonSkin[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m973[39m
+  Models: 37/72 ✅
+[34m[Mapper] Updated model mapping: 61 → 974[39m
+✓ Normal Model [4mMobileAppFeatureCarousel1[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m974[39m
+  Models: 38/72 ✅
+[34m[Mapper] Updated model mapping: 63 → 975[39m
+✓ Normal Model [4mMobileAppdashboardBannerContent[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m975[39m
+  Models: 39/72 ✅
+[34m[Mapper] Updated model mapping: 64 → 976[39m
+✓ Normal Model [4mjackpotBannerConfiguration[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m976[39m
+  Models: 40/72 ✅
+[34m[Mapper] Updated model mapping: 65 → 977[39m
+✓ Normal Model [4mmarketingBannersConfiguration[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m977[39m
+  Models: 41/72 ✅
+[34m[Mapper] Updated model mapping: 67 → 978[39m
+✓ Normal Model [4mMarketingBannerItem[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m978[39m
+  Models: 42/72 ✅
+[34m[Mapper] Updated model mapping: 70 → 979[39m
+✓ Normal Model [4mPortalFooterLink[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m979[39m
+  Models: 43/72 ✅
+[34m[Mapper] Updated model mapping: 71 → 980[39m
+✓ Normal Model [4mHomeBanner[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m980[39m
+  Models: 44/72 ✅
+[34m[Mapper] Updated model mapping: 72 → 981[39m
+✓ Normal Model [4mPortalFooterResponsibleGaming[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m981[39m
+  Models: 45/72 ✅
+[34m[Mapper] Updated model mapping: 73 → 982[39m
+✓ Normal Model [4mEdTestModel[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m982[39m
+  Models: 46/72 ✅
+[34m[Mapper] Updated model mapping: 74 → 983[39m
+✓ Normal Model [4mFooterDownloadButtons[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m983[39m
+  Models: 47/72 ✅
+[34m[Mapper] Updated model mapping: 77 → 984[39m
+✓ Normal Model [4mTXAppLaunchDataPromotion[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m984[39m
+  Models: 48/72 ✅
+[34m[Mapper] Updated model mapping: 78 → 985[39m
+✓ Normal Model [4mTXAppLaunchDataAppVersion[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m985[39m
+  Models: 49/72 ✅
+[34m[Mapper] Updated model mapping: 79 → 986[39m
+✓ Normal Model [4mTXAppLaunchDataActiveGame[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m986[39m
+  Models: 50/72 ✅
+[34m[Mapper] Updated model mapping: 8 → 900[39m
+✓ Normal Model [4mPostsListing[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m900[39m
+  Models: 51/72 ✅
+[34m[Mapper] Updated model mapping: 81 → 987[39m
+✓ Normal Model [4mTXAppLaunchDataClaim[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m987[39m
+  Models: 52/72 ✅
+[34m[Mapper] Updated model mapping: 82 → 988[39m
+✓ Normal Model [4mTXAppLaunchDataLocalStorageCache[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m988[39m
+  Models: 53/72 ✅
+[34m[Mapper] Updated model mapping: 83 → 989[39m
+✓ Normal Model [4mFooterLogos[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m989[39m
+  Models: 54/72 ✅
+[34m[Mapper] Updated model mapping: 84 → 990[39m
+✓ Normal Model [4mHomepageCarouselBanner[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m990[39m
+  Models: 55/72 ✅
+[34m[Mapper] Updated model mapping: 85 → 991[39m
+✓ Normal Model [4mPortalSecondarytopNavigation[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m991[39m
+  Models: 56/72 ✅
+[34m[Mapper] Updated model mapping: 86 → 992[39m
+✓ Normal Model [4mSideNavigation[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m992[39m
+  Models: 57/72 ✅
+[34m[Mapper] Updated model mapping: 88 → 993[39m
+✓ Normal Model [4mMobileAppBannerActionItem[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m993[39m
+  Models: 58/72 ✅
+[34m[Mapper] Updated model mapping: 89 → 994[39m
+✓ Normal Model [4mMobileAppMenuPromoBanner[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m994[39m
+  Models: 59/72 ✅
+[34m[Mapper] Updated model mapping: 9 → 901[39m
+✓ Normal Model [4mPostDetails[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m901[39m
+  Models: 60/72 ✅
+[34m[Mapper] Updated model mapping: 87 → 995[39m
+✓ Linked Model [4mMobileAppmenuMainBanner[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m995[39m
+  Models: 61/72 ✅
+[34m[Mapper] Updated model mapping: 80 → 996[39m
+✓ Linked Model [4mTXAppLaunchDataActiveGames[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m996[39m
+  Models: 62/72 ✅
+[34m[Mapper] Updated model mapping: 76 → 997[39m
+✓ Linked Model [4mTXAppLaunchData[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m997[39m
+  Models: 63/72 ✅
+[34m[Mapper] Updated model mapping: 75 → 998[39m
+✓ Linked Model [4mFooterDownloadOptions[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m998[39m
+  Models: 64/72 ✅
+[34m[Mapper] Updated model mapping: 69 → 999[39m
+✓ Linked Model [4mPortalFooterUsefulLinks[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m999[39m
+  Models: 65/72 ✅
+[34m[Mapper] Updated model mapping: 68 → 1000[39m
+✓ Linked Model [4mPortalFooter[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m1000[39m
+  Models: 66/72 ✅
+[34m[Mapper] Updated model mapping: 66 → 1001[39m
+✓ Linked Model [4mCarouselConfiguration[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m1001[39m
+  Models: 67/72 ✅
+[34m[Mapper] Updated model mapping: 60 → 1002[39m
+✓ Linked Model [4mMobileAppFeatureCarousel[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m1002[39m
+  Models: 68/72 ✅
+[34m[Mapper] Updated model mapping: 37 → 1003[39m
+✓ Linked Model [4mcheckYourTicket[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m1003[39m
+  Models: 69/72 ✅
+[34m[Mapper] Updated model mapping: 31 → 1004[39m
+✓ Linked Model [4mMobilePOCTranslation[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m1004[39m
+  Models: 70/72 ✅
+[34m[Mapper] Updated model mapping: 26 → 1005[39m
+✓ Linked Model [4mplayer[24m [1m[90mexists and is identical[39m[22m - Skipping update. [32m90c39c80-u[39m: [32m1005[39m
+  Models: 71/72 ✅
+[34m[Mapper] Updated model mapping: 10 → 892[39m
+[31mError updating linked model Post (Target ID: 892):[39m Error: Unable to save the model.
+    at new Exception (/Users/aaron/Documents/GitHub/agility-cms-management-sdk-typescript/dist/models/exception.js:22:28)
+    at ModelMethods.<anonymous> (/Users/aaron/Documents/GitHub/agility-cms-management-sdk-typescript/dist/apiMethods/modelMethods.js:142:31)
+    at step (/Users/aaron/Documents/GitHub/agility-cms-management-sdk-typescript/dist/apiMethods/modelMethods.js:33:23)
+    at Object.throw (/Users/aaron/Documents/GitHub/agility-cms-management-sdk-typescript/dist/apiMethods/modelMethods.js:14:53)
+    at rejected (/Users/aaron/Documents/GitHub/agility-cms-management-sdk-typescript/dist/apiMethods/modelMethods.js:6:65)
+    at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+  innerError: AxiosError: Request failed with status code 500
+      at settle (/Users/aaron/Documents/node_modules/axios/dist/node/axios.cjs:2031:12)
+      at IncomingMessage.handleStreamEnd (/Users/aaron/Documents/node_modules/axios/dist/node/axios.cjs:3148:11)
+      at IncomingMessage.emit (node:events:530:35)
+      at endReadableNT (node:internal/streams/readable:1698:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:90:21)
+      at Axios.request (/Users/aaron/Documents/node_modules/axios/dist/node/axios.cjs:4258:41)
+      at process.processTicksAndRejections (node:internal/process/task_queues:105:5) {
+    code: 'ERR_BAD_RESPONSE',
+    config: {
+      transitional: [Object],
+      adapter: [Array],
+      transformRequest: [Array],
+      transformResponse: [Array],
+      timeout: 0,
+      xsrfCookieName: 'XSRF-TOKEN',
+      xsrfHeaderName: 'X-XSRF-TOKEN',
+      maxContentLength: Infinity,
+      maxBodyLength: Infinity,
+      env: [Object],
+      validateStatus: [Function: validateStatus],
+      headers: [Object [AxiosHeaders]],
+      baseURL: 'https://mgmt.aglty.io/api/v1/instance/90c39c80-u',
+      method: 'post',
+      url: 'model',
+      data: '{"id":892,"displayName":"Post","referenceName":"Post","contentDefinitionTypeID":1,"fields":[{"name":"Title","label":"Title","type":"Text","settings":{"Required":"True","Unique":"False","CopyAcrossAllLanguages":"False","Length":"128"},"labelHelpDescription":"","designerOnly":false,"isDataField":true,"editable":true,"hiddenField":false,"description":""},{"name":"Slug","label":"URL Slug","type":"Text","settings":{"Required":"True","Unique":"False","CopyAcrossAllLanguages":"False","Length":"1024"},"labelHelpDescription":"The URL slug for this page.","designerOnly":false,"isDataField":true,"editable":true,"hiddenField":false,"description":""},{"name":"Date","label":"Date","type":"Date","settings":{"Required":"True","Unique":"False","CopyAcrossAllLanguages":"False","ShowTime":"True","DefaultToCurrentDate":"True"},"labelHelpDescription":"","designerOnly":false,"isDataField":true,"editable":true,"hiddenField":false,"description":""},{"name":"Category","label":"Blog Category","type":"Content","settings":{"ContentDefinition":"Category","RenderAs":"dropdown","SharedContent":"Categories","LinkeContentDropdownValueField":"CategoryID","DisplayColumn":"Title"},"labelHelpDescription":"","designerOnly":false,"isDataField":true,"editable":true,"hiddenField":false,"description":""},{"name":"Image","label":"Blog Featured Image","type":"ImageAttachment","settings":{"ImageSizeCheck":"bigger","ImageWidthCheck":"bigger","ImageWidth":"0","ImageHeightCheck":"bigger","ImageHeight":"0","ValidFileTypes":"*.jpg, *.gif, *.png, *.svg","Required":"True","Unique":"False","CopyAcrossAllLanguages":"False","DefaultUploadFolderPath":"posts/","AltTextRequired":"False"},"labelHelpDescription":"","designerOnly":false,"isDataField":true,"editable":true,"hiddenField":false,"description":""},{"name":"Content","label":"Blog Content","type":"HTML","settings":{"Required":"True","Unique":"False","CopyAcrossAllLanguages":"False","Length":"0"},"labelHelpDescription":"","designerOnly":false,"isDataField":true,"editable":true,"hiddenField":false,"description":""},{"name":"AuthorID","label":"AuthorID","type":"Integer","settings":{"Required":"False","Unique":"False","CopyAcrossAllLanguages":"False"},"labelHelpDescription":"","designerOnly":false,"isDataField":true,"editable":true,"hiddenField":true,"description":""},{"name":"CategoryID","label":"CategoryID","type":"Text","settings":{"Required":"False","Unique":"False","CopyAcrossAllLanguages":"False","Length":"0"},"labelHelpDescription":"","designerOnly":false,"isDataField":true,"editable":true,"hiddenField":true,"description":""}],"description":"Defines a blog post."}',
+      allowAbsoluteUrls: true
+    },
+    request: ClientRequest {
+      _events: [Object: null prototype],
+      _eventsCount: 7,
+      _maxListeners: undefined,
+      outputData: [],
+      outputSize: 0,
+      writable: true,
+      destroyed: true,
+      _last: false,
+      chunkedEncoding: false,
+      shouldKeepAlive: true,
+      maxRequestsOnConnectionReached: false,
+      _defaultKeepAlive: true,
+      useChunkedEncodingByDefault: true,
+      sendDate: false,
+      _removedConnection: false,
+      _removedContLen: false,
+      _removedTE: false,
+      strictContentLength: false,
+      _contentLength: '2612',
+      _hasBody: true,
+      _trailer: '',
+      finished: true,
+      _headerSent: true,
+      _closed: true,
+      _header: 'POST /api/v1/instance/90c39c80-u/model HTTP/1.1\r\n' +
+        'Accept: application/json, text/plain, */*\r\n' +
+        'Content-Type: application/json\r\n' +
+        'Authorization: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCIsImtpZCI6IlFUSkZOak5EUXpVMU1UTTRRVFJCUWpFNFFrUXhPRFkyUVVZeFJESTVSRGMxTmpGQk1FTXdPQSJ9.eyJpc3MiOiJodHRwczovL2xvZ2luLmFnaWxpdHljbXMuY29tLyIsInN1YiI6Im9hdXRoMnxNaWNyb3NvZnR8ZF9uaU14d0ZpOGZZYktBVnA4cEl2ZU9aaG5DNkQ5U1I4NE5oaWVzR3BsRSIsImF1ZCI6WyJodHRwczovL2FnaWxpdHljbXMuYXV0aDAuY29tL2FwaS92Mi8iLCJodHRwczovL2FnaWxpdHljbXMuYXV0aDAuY29tL3VzZXJpbmZvIl0sImlhdCI6MTc0OTE1MjA2MywiZXhwIjoxNzQ5MjM4NDYzLCJzY29wZSI6Im9wZW5pZCBwcm9maWxlIGVtYWlsIiwiYXpwIjoiQmZ5UXN2VGl5empENlFjR05TdjVwZURvSHJFRW5haUwifQ.q-DFc79jk29mqFbFvIck4_ooVOQzL103hGzLbsh9R0ht_nN89ErCbCdOCo_UJ3ftNzVhhrwfr-G7uOwJ3zTUnFch1Du6Owik7Kb2BEZCYM6RsbtXHd4fQjTUoEb4fdtuZluvms1fU8UocCenIU1pLhGCAXrBeXbnUvSvHk21UMEF-nQxQZubTxrhpLztpfxlXPz_DakvmdTVAfnGdErZtVtIwqfw76ZW_l78haHolO8a48jroo-1V03W5tsG_hVIl65r0vfuiWYqiC9f2f30pWMlI8xNvlqp7hAvv1UvQiVondQ1rcNYm4Ks-nfbNTFFeMTDqAP3FXjVkGvG0mvWFQ\r\n' +
+        'Cache-Control: no-cache\r\n' +
+        'User-Agent: axios/1.8.1\r\n' +
+        'Content-Length: 2612\r\n' +
+        'Accept-Encoding: gzip, compress, deflate, br\r\n' +
+        'Host: mgmt.aglty.io\r\n' +
+        'Connection: keep-alive\r\n' +
+        '\r\n',
+      _keepAliveTimeout: 0,
+      _onPendingData: [Function: nop],
+      agent: [Agent],
+      socketPath: undefined,
+      method: 'POST',
+      maxHeaderSize: undefined,
+      insecureHTTPParser: undefined,
+      joinDuplicateHeaders: undefined,
+      path: '/api/v1/instance/90c39c80-u/model',
+      _ended: true,
+      res: [IncomingMessage],
+      aborted: false,
+      timeoutCb: null,
+      upgradeOrConnect: false,
+      parser: null,
+      maxHeadersCount: null,
+      reusedSocket: true,
+      host: 'mgmt.aglty.io',
+      protocol: 'https:',
+      _redirectable: [Writable],
+      [Symbol(shapeMode)]: false,
+      [Symbol(kCapture)]: false,
+      [Symbol(kBytesWritten)]: 0,
+      [Symbol(kNeedDrain)]: false,
+      [Symbol(corked)]: 0,
+      [Symbol(kChunkedBuffer)]: [],
+      [Symbol(kChunkedLength)]: 0,
+      [Symbol(kSocket)]: [TLSSocket],
+      [Symbol(kOutHeaders)]: [Object: null prototype],
+      [Symbol(errored)]: null,
+      [Symbol(kHighWaterMark)]: 65536,
+      [Symbol(kRejectNonStandardBodyWrites)]: false,
+      [Symbol(kUniqueHeaders)]: null
+    },
+    response: {
+      status: 500,
+      statusText: 'Internal Server Error',
+      headers: [Object [AxiosHeaders]],
+      config: [Object],
+      request: [ClientRequest],
+      data: [Object]
+    },
+    status: 500
+  }
+}
+  Models: 73/72 ❌
+[33m73 model processing attempts completed for 72 unique models (2 failed attempts)[39m
+  Models: 72/72 ❌
+[32m[39m
+[32m🎉 Pusher-Based Sync Complete![39m
+✅ Total Success: 71
+❌ Total Failures: 2
+📊 Success Rate: 97.3%
+[33m⚠️ Sync completed with 2 failures. Check logs for details.[39m
+[32m[39m
+[32m✅ Sync operation completed successfully![39m

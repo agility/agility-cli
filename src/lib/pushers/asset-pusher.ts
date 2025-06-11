@@ -1,6 +1,6 @@
 import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapper } from "../mapper";
+import { ReferenceMapper } from "../reference-mapper";
 import * as fs from 'fs';
 import * as path from 'path';
 import { getAssetFilePath } from "../utilities/asset-utils"; // Import the utility
@@ -52,21 +52,36 @@ export async function pushAssets(
                     const absoluteLocalFilePath = path.join(basePath, relativeFilePath);
                     const folderPath = path.dirname(relativeFilePath) === '.' ? '/' : path.dirname(relativeFilePath);
 
-                    const existingMedia = await referenceMapper.checkExistingAsset(
-                        media, 
-                        apiClient, 
-                        targetGuid,
-                        defaultContainer?.originUrl || '' // Pass default container origin URL
-                        // DO NOT pass getAssetFilePath here, it's used internally by checkExistingAsset
-                    );
+                    // Check if asset exists in mapper or target instance
+                    let existingMedia = referenceMapper.getMapping('asset', media.mediaID);
+                    
+                    if (!existingMedia) {
+                        // Asset not in mapper, check target instance directly
+                        try {
+                            const mediaList = await apiClient.assetMethods.getMediaList(1000, 0, targetGuid);
+                            existingMedia = mediaList.assetMedias?.find((a: any) => 
+                                a.fileName === media.fileName ||
+                                a.originUrl === media.originUrl ||
+                                a.edgeUrl === media.originUrl
+                            );
+                            
+                            if (existingMedia) {
+                                // Add to mapper for future reference
+                                referenceMapper.addRecord('asset', media, existingMedia);
+                            }
+                        } catch (error) {
+                            // If asset lookup fails, continue with upload attempt
+                            existingMedia = null;
+                        }
+                    }
 
                     if (existingMedia) {
                         // If checkExistingAsset found it via API and cached it, this addRecord might be redundant if keys are identical
                         // but it's safer to ensure the mapping uses the exact `media` object from the input array as the source key.
                         referenceMapper.addRecord('asset', media, existingMedia); 
                         const sourceFileName = media.originUrl.split('/').pop()?.split('?')[0];
-                        const targetFileName = existingMedia.originUrl.split('/').pop()?.split('?')[0];
-                        console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: mediaID:${existingMedia.mediaID} (${targetFileName})`);
+                        const targetFileName = (existingMedia as any).originUrl?.split('/').pop()?.split('?')[0];
+                        console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: mediaID:${(existingMedia as any).mediaID} (${targetFileName})`);
                         successfulAssets++; // Count existing as success for progress
                     } else {
                          // Handle gallery if present
@@ -97,10 +112,9 @@ export async function pushAssets(
                                      }
                                 }
                              } catch (error: any) {
-                                if (!(error.response && error.response.status === 404)) {
-                                    console.warn(`Warning: Could not find or map gallery ${media.mediaGroupingName} for asset ${media.fileName}: ${error.message}`);
-                                }
-                                 // Gallery not found, will upload without gallery
+                                // Gallery doesn't exist - this is normal, asset will upload without gallery
+                                console.log(`[Asset] Gallery ${media.mediaGroupingName} not found - asset will upload without gallery association`);
+                                // Gallery not found, will upload without gallery
                              }
                          }
 

@@ -7,11 +7,11 @@
 
 import ansiColors from 'ansi-colors';
 import { 
-    AssetReference, 
     SourceEntities, 
-    SyncAnalysisContext, 
-    ReferenceExtractionService 
-} from './types';
+    SyncAnalysisContext,
+    AssetReference,
+    ReferenceExtractionService
+} from '../../../types/syncAnalysis';
 
 export class AssetReferenceExtractor implements ReferenceExtractionService {
     private context?: SyncAnalysisContext;

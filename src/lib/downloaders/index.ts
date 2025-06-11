@@ -4,4 +4,6 @@ export * from './download-content';
 export * from './download-galleries';
 export * from './download-models';
 export * from './download-pages';
+export * from './download-redirections';
+export * from './download-sitemaps';
 export * from './download-templates'; 

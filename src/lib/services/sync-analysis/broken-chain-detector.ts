@@ -10,7 +10,12 @@ import {
     SourceEntities, 
     SyncAnalysisContext, 
     ChainAnalysisService,
-    BrokenChain 
+    BrokenChain
+} from '../../../types/syncAnalysis';
+import { 
+    getContentStateInfo,
+    getStateSyncImpact,
+    CONTENT_STATES
 } from './types';
 import { ContainerReferenceExtractor } from './container-reference-extractor';
 import { DependencyFinder } from './dependency-finder';
@@ -68,7 +73,7 @@ export class BrokenChainDetector implements ChainAnalysisService {
             containersNotInPages.forEach((container: any) => {
                 const missing = this.dependencyFinder.findMissingDependenciesForContainer(container, sourceEntities);
                 if (missing.length > 0) {
-                    brokenContainerChains.push({ entity: container, missing });
+                    brokenContainerChains.push({ entity: container, missing, type: 'container' });
                 }
             });
         }
@@ -82,7 +87,7 @@ export class BrokenChainDetector implements ChainAnalysisService {
             modelToModelChains.forEach((model: any) => {
                 const missing = this.dependencyFinder.findMissingDependenciesForModel(model, sourceEntities);
                 if (missing.length > 0) {
-                    brokenModelChains.push({ entity: model, missing });
+                    brokenModelChains.push({ entity: model, missing, type: 'model' });
                 }
             });
         }
@@ -160,6 +165,106 @@ export class BrokenChainDetector implements ChainAnalysisService {
                     modelsInOtherChains.add(container.contentDefinitionID);
                 }
             });
+        }
+    }
+
+    displayBrokenChainAnalysis(results: { brokenItems: any[] }): void {
+        console.log(`\n🔍 Step 4: Broken Chain Analysis`);
+        console.log(`============================`);
+        
+        if (results.brokenItems.length === 0) {
+            console.log(`✅ No broken chains detected - all entities have valid sources!`);
+            return;
+        }
+
+        console.log(`❌ Found ${results.brokenItems.length} broken dependency chains:\n`);
+
+        // Enhanced display with state analysis
+        const stateAnalysis = new Map<number, { count: number; items: any[] }>();
+        
+        results.brokenItems.forEach(item => {
+            console.log(`❌ ${item.type}: ${item.name}`);
+            console.log(`   Missing: ${item.missing.join(', ')}`);
+            
+            // Enhanced content state analysis for broken content
+            if (item.type.startsWith('Content') && item.entity?.properties?.state) {
+                const state = item.entity.properties.state;
+                const stateInfo = getContentStateInfo(state);
+                const syncImpact = getStateSyncImpact(state);
+                
+                console.log(`   📊 Content State: ${stateInfo.formatted}`);
+                console.log(`   📝 Description: ${stateInfo.description}`);
+                console.log(`   🎯 Sync Impact: ${this.getSyncImpactLabel(syncImpact)}`);
+                
+                // Track state distribution
+                if (!stateAnalysis.has(state)) {
+                    stateAnalysis.set(state, { count: 0, items: [] });
+                }
+                stateAnalysis.get(state)!.count++;
+                stateAnalysis.get(state)!.items.push(item);
+                
+                // Additional context for problematic states
+                if (syncImpact === 'unsyncable') {
+                    console.log(`   ⚠️  This content will be SKIPPED during sync (${stateInfo.label.toLowerCase()} content)`);
+                } else if (syncImpact === 'problematic') {
+                    console.log(`   ⚠️  This content may cause sync issues`);
+                }
+                
+                // Show modification date for context
+                if (item.entity.properties.modified) {
+                    console.log(`   📅 Last Modified: ${item.entity.properties.modified}`);
+                }
+            }
+            
+            console.log('');
+        });
+
+        // Display state distribution analysis
+        if (stateAnalysis.size > 0) {
+            console.log(`\n📊 Broken Chain State Analysis:`);
+            console.log(`==============================`);
+            
+            let totalUnsyncable = 0;
+            let totalProblematic = 0;
+            let totalNormal = 0;
+            
+            for (const [state, data] of Array.from(stateAnalysis.entries())) {
+                const stateInfo = getContentStateInfo(state);
+                const syncImpact = getStateSyncImpact(state);
+                const percentage = ((data.count / results.brokenItems.length) * 100).toFixed(1);
+                
+                console.log(`   ${stateInfo.formatted}: ${data.count} items (${percentage}%)`);
+                console.log(`     Impact: ${this.getSyncImpactLabel(syncImpact)}`);
+                
+                if (syncImpact === 'unsyncable') totalUnsyncable += data.count;
+                else if (syncImpact === 'problematic') totalProblematic += data.count;
+                else totalNormal += data.count;
+            }
+            
+            console.log(`\n📈 Sync Impact Summary:`);
+            console.log(`   🚫 Unsyncable (will be skipped): ${totalUnsyncable} items`);
+            console.log(`   ⚠️  Problematic (may cause issues): ${totalProblematic} items`);
+            console.log(`   ✅ Normal (should sync fine): ${totalNormal} items`);
+            
+            if (totalUnsyncable > 0) {
+                console.log(`\n💡 Root Cause Analysis:`);
+                console.log(`   • Deleted content (state 3): Content was deleted but references remain`);
+                console.log(`   • Unpublished content (state 7): Content was unpublished but dependencies exist`);
+                console.log(`   • This is typical in development/staging environments with content churn`);
+                console.log(`   • Production sites usually have cleaner referential integrity`);
+            }
+        }
+
+        console.log(`\n📋 Recommendation: ${results.brokenItems.length} entities will be skipped during sync due to missing dependencies`);
+    }
+
+    private getSyncImpactLabel(impact: 'normal' | 'problematic' | 'unsyncable' | 'pending'): string {
+        switch (impact) {
+            case 'normal': return '✅ Normal (will sync)';
+            case 'problematic': return '⚠️  Problematic (may fail)';
+            case 'unsyncable': return '🚫 Unsyncable (will be skipped)';
+            case 'pending': return '⏳ Pending (workflow dependent)';
+            default: return '❓ Unknown';
         }
     }
 } 

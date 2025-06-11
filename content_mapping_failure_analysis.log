@@ -1,0 +1,162 @@
+🔍 DETAILED CONTENT MAPPING FAILURE ANALYSIS
+==========================================
+🎯 OBJECTIVE: Identify the specific 3 failing content items and understand why they fail
+
+📥 Loading and transforming data...
+[32m✅ Loaded 3623 entities from local files[39m
+   📄 Pages: 38
+   🏗️  Templates: 4
+   📦 Containers: 341
+   📋 Models: 35
+   📝 Content: 1042
+   📎 Assets: 2159
+   🖼️  Galleries: 4
+✅ Transformed 35 models
+
+🔍 BUILDING COMPREHENSIVE MAPPING ANALYSIS
+=========================================
+📋 Model index contains 35 models:
+   1: Rich Text Area
+   10: Doc Category
+   11: Doc Section
+   12: Doc Concept
+   13: Doc Article
+   15: Dynamic Article Details
+   16: Sidebar Nav
+   17: Block Editor
+   18: Hero Categories
+   2: Form
+   20: Listed Link
+   21: List of Links
+   22: Right Or Left Aligned Links
+   23: Article Listing
+   24: Listed Article
+   25: Hero Heading
+   26: Header
+   27: Link
+   28: Change Log
+   29: Release
+   3: Agility CSS
+   31: Right Or Left Aligned Image Links
+   32: Image Link
+   33: SDK's & Frameworks
+   34: Text Blocks with Images
+   35: Footer
+   36: Changelog
+   37: Change Log Tag
+   38: Sidebar Filter
+   4: Agility Code Template
+   40: New Test Model
+   41: Markdown
+   42: CodeFeature
+   5: Agility Javascript
+   6: Form Builder
+
+📦 Container analysis:
+   ✅ Containers with models: 341
+   ❌ Containers without models: 0
+   📊 Total enriched containers: 341
+
+📊 Containers grouped by model:
+   Rich Text Area: 8 containers
+   Agility CSS: 1 containers
+   Agility Code Template: 3 containers
+   Agility Javascript: 1 containers
+   Doc Article: 15 containers
+   Doc Section: 15 containers
+   Release: 1 containers
+   Change Log Tag: 1 containers
+   Change Log: 76 containers
+   Doc Category: 1 containers
+   Doc Concept: 1 containers
+   Footer: 1 containers
+   Link: 5 containers
+   Header: 1 containers
+   List of Links: 20 containers
+   Right Or Left Aligned Links: 28 containers
+   Article Listing: 11 containers
+   Listed Article: 11 containers
+   Hero Heading: 17 containers
+   Listed Link: 47 containers
+   Sidebar Nav: 36 containers
+   Dynamic Article Details: 19 containers
+   Block Editor: 8 containers
+   Changelog: 2 containers
+   Sidebar Filter: 1 containers
+   CodeFeature: 3 containers
+   Image Link: 2 containers
+   Right Or Left Aligned Image Links: 1 containers
+   SDK's & Frameworks: 1 containers
+   Hero Categories: 1 containers
+   Text Blocks with Images: 2 containers
+   New Test Model: 1 containers
+
+🔍 DETAILED CONTENT MAPPING ANALYSIS
+===================================
+
+📊 DETAILED MAPPING RESULTS (1042 content items analyzed):
+   ✅ Exact matches: 1
+   ✅ Case-insensitive matches: 1038
+   ✅ Model-aware matches: 0
+   ❌ No matches: 3
+   ⚠️ Invalid content: 0
+   📈 Success rate: 99.7%
+
+🔍 DETAILED FAILURE ANALYSIS
+============================
+
+❌ Content Items with No Matches (3):
+
+   1. Content 1138:
+      definitionName: "CodeTabs"
+      referenceName: "home_codetabs"
+      hasMatchingModel: false
+      containersForModel: 0
+      availableContainers: NONE
+      🔍 Available models: Rich Text Area, Agility CSS, Agility Code Template, Agility Javascript, Doc Article, Doc Section, Release, Change Log Tag, Change Log, Doc Category...
+
+   2. Content 28:
+      definitionName: "DocCategory"
+      referenceName: "alldoccategories_deleted"
+      hasMatchingModel: false
+      containersForModel: 0
+      availableContainers: NONE
+      🔍 Available models: Rich Text Area, Agility CSS, Agility Code Template, Agility Javascript, Doc Article, Doc Section, Release, Change Log Tag, Change Log, Doc Category...
+
+   3. Content 30:
+      definitionName: "DocCategory"
+      referenceName: "alldoccategories_deleted"
+      hasMatchingModel: false
+      containersForModel: 0
+      availableContainers: NONE
+      🔍 Available models: Rich Text Area, Agility CSS, Agility Code Template, Agility Javascript, Doc Article, Doc Section, Release, Change Log Tag, Change Log, Doc Category...
+
+🔍 INVESTIGATING WHY MODEL-AWARE MATCHING SHOWS 0
+===============================================
+
+🧪 Testing content 10:
+   definitionName: "DocSection"
+   referenceName: "developersections"
+   hasMatchingModel: false
+
+🧪 Testing content 1000:
+   definitionName: "ChangeLog"
+   referenceName: "changelog_changelogadde2186"
+   hasMatchingModel: false
+
+🧪 Testing content 1001:
+   definitionName: "ChangeLog"
+   referenceName: "changelog_changelogadde2186"
+   hasMatchingModel: false
+
+🧪 Testing content 1002:
+   definitionName: "ChangeLog"
+   referenceName: "changelog_changelogadde2186"
+   hasMatchingModel: false
+
+🧪 Testing content 1003:
+   definitionName: "DocSection"
+   referenceName: "astrosections"
+   hasMatchingModel: false
+
+✅ Content mapping failure analysis complete

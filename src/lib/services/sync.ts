@@ -67,7 +67,9 @@ export class sync {
       },
     });
 
-    const syncResult = await syncClient.runSync();
+    // TODO: Temporarily disabled for pure Management SDK testing
+    // const syncResult = await syncClient.runSync();
+    const syncResult = { status: 'disabled', message: 'runSync temporarily disabled for Management SDK testing' };
     return syncResult;
   }
 

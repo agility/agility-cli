@@ -17,7 +17,9 @@ import { downloadAllGalleries,
     downloadAllContainers, 
     downloadAllContent, 
     downloadAllTemplates, 
-    downloadAllPages
+    downloadAllPages,
+    downloadAllSitemaps,
+    downloadAllRedirections
 } from "../downloaders/index";
 import ansiColors from "ansi-colors";
 
@@ -243,7 +245,7 @@ export class Pull {
     }
 
     // Define pullSteps and updateProgress function (essential for all modes for status tracking)
-    const availableSteps = [ 'Galleries', 'Assets','Models','Containers', 'Content', 'Templates', 'Pages'];
+    const availableSteps = [ 'Galleries', 'Assets','Models','Containers', 'Content', 'Templates', 'Sitemaps', 'Redirections', 'Pages'];
     const pullSteps = availableSteps.filter(step => this._elements.includes(step));
     const totalSteps = pullSteps.length;
     let stepStatuses = new Array(totalSteps).fill(0); // 0: pending, 1: success, 2: error
@@ -386,7 +388,8 @@ export class Pull {
 
 
                 try {
-                    await syncClient.runSync();
+                    // TODO: Temporarily disabled for pure Management SDK testing
+                // await syncClient.runSync();
                     
                     // MODIFICATION: Group stats by itemType before logging individually
                     if (storeInterfaceFileSystem.getAndClearSavedItemStats && typeof storeInterfaceFileSystem.getAndClearSavedItemStats === 'function') {
@@ -460,6 +463,8 @@ export class Pull {
                 case 'Models': await downloadAllModels(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
                 case 'Containers': await downloadAllContainers(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
                 case 'Templates': await downloadAllTemplates(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
+                case 'Sitemaps': await downloadAllSitemaps(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
+                case 'Redirections': await downloadAllRedirections(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
                 case 'Pages': await downloadAllPages(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
             }
             
