@@ -2,7 +2,6 @@ import * as mgmtApi from '@agility/management-sdk';
 import ansiColors from 'ansi-colors';
 import { fileOperations } from '../services/fileOperations';
 import { ComprehensiveAnalysisRunner } from '../services/sync-analysis/comprehensive-analysis-runner';
-import { TargetInstanceMapper } from '../services/target-instance-mapper';
 import { ChainBuilder } from '../services/chain-builder';
 import { TopologicalTwoPassOrchestrator } from '../services/topological-two-pass-orchestrator';
 import { ReferenceMapper } from '../reference-mapper';
@@ -165,43 +164,15 @@ export class TopologicalContentSync {
             analysisRunner.initialize(analysisContext);
             const analysisResults = analysisRunner.runComprehensiveAnalysis(sourceData);
             
-            // Set up API client and reference mapper
+            // Set up API client and reference mapper  
             const apiClient = new mgmtApi.ApiClient(this.options);
             referenceMapper = new ReferenceMapper(this.sourceGuid, this.targetGuid);
             
-            // Target instance discovery (moved bulk checking to individual pushers)
-            let discoveryResult = null;
-            if (this.targetGuid !== 'test' && this.options.token !== 'test-token') {
-                const targetMapper = new TargetInstanceMapper(apiClient, this.targetGuid, referenceMapper);
-                discoveryResult = await targetMapper.discoverAndMapExistingEntities(sourceData);
-            } else if (this.options.token === 'test-token') {
-                console.log(ansiColors.yellow('🔍 Skipping target discovery - test mode authentication detected'));
-                console.log(ansiColors.gray('   💡 To test target discovery, use real authentication without --test flag'));
-            }
-            
-            // Dry run or test mode - show mapping status and exit
+            // Dry run or test mode - show analysis results and exit
             if (this.dryRun || this.targetGuid === 'test') {
-                const existingStats = referenceMapper.getDetailedStats();
-                const hasExistingMappings = Object.values(existingStats).some(stat => stat.total > 0);
-                
-                if (hasExistingMappings || discoveryResult?.mappingsFound > 0) {
-                    console.log(ansiColors.green('\\n📋 Existing Mappings Found:'));
-                    if (discoveryResult?.mappingsFound > 0) {
-                        console.log(ansiColors.cyan(`🔍 Target Discovery: Found ${discoveryResult.mappingsFound} existing entities`));
-                    }
-                    for (const [type, stats] of Object.entries(existingStats)) {
-                        if (stats.total > 0) {
-                            const percentage = stats.withTargets > 0 ? ((stats.withTargets / stats.total) * 100).toFixed(1) : '0.0';
-                            console.log(`  ${type}: ${stats.withTargets}/${stats.total} cached mappings (${percentage}%)`);
-                        }
-                    }
-                } else {
-                    console.log(ansiColors.yellow('\\n📋 No existing mappings found'));
-                    console.log(ansiColors.red.bold('⚠️  Fresh sync - new mappings would be created for all entities'));
-                }
-                
                 const targetDisplay = this.targetGuid === 'test' ? 'TEST MODE (no actual sync)' : this.targetGuid;
-                console.log(ansiColors.blue(`\\n✅ Ready to sync from ${this.sourceGuid} → ${targetDisplay}`));
+                console.log(ansiColors.blue(`\\n✅ Analysis complete - Ready to sync from ${this.sourceGuid} → ${targetDisplay}`));
+                console.log(ansiColors.gray('   💡 Individual pushers will handle existence checking using: mapper → SDK pattern'));
                 return;
             }
 
