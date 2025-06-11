@@ -146,11 +146,44 @@ export class ChainDataLoader {
         }
 
         if (this.options.elements!.includes('Containers')) {
-            // FIXED: Load containers from BOTH sources - Management SDK + Sync SDK
-            // Load containers from Management SDK only (more reliable and complete)
-            console.log('📦 Loading containers from Management SDK containers/ directory only');
-            sourceEntities.containers = this.loadJsonFiles('containers');
-            console.log(`   📁 Management SDK containers/: ${sourceEntities.containers.length} containers`);
+            // Load containers from Content Sync SDK /list directory
+            // Each file in /list represents a container with its content items
+            console.log('📦 Loading containers from Content Sync SDK list/ directory');
+            
+            const containerLists = this.loadJsonFiles('list');
+            const containerMetadata: any[] = [];
+            
+            // Load models first to resolve definitionName to model ID
+            const rawModels = this.loadJsonFiles('models');
+            const models = this.transformModelsToStructuredEra(rawModels);
+            
+            // Derive container metadata from list files and their contents
+            containerLists.forEach((contentList: any, index: number) => {
+                if (Array.isArray(contentList) && contentList.length > 0) {
+                    // Get container metadata from the first content item's properties
+                    const firstItem = contentList[0];
+                    if (firstItem.properties) {
+                        // Find the model ID by matching definitionName with model referenceName
+                        const matchingModel = models.find((model: any) => 
+                            model.referenceName === firstItem.properties.definitionName
+                        );
+                        
+                        const container = {
+                            // Use referenceName as the container identifier
+                            referenceName: firstItem.properties.referenceName,
+                            contentViewID: index + 1000, // Generate unique ID for analysis
+                            contentDefinitionID: matchingModel ? matchingModel.id : null, // Proper model ID reference
+                            contentCount: contentList.length,
+                            // Store the list contents for reference
+                            _contentItems: contentList
+                        };
+                        containerMetadata.push(container);
+                    }
+                }
+            });
+            
+            sourceEntities.containers = containerMetadata;
+            console.log(`   📁 Content Sync SDK list/: ${sourceEntities.containers.length} containers derived from ${containerLists.length} list files`);
         }
 
         if (this.options.elements!.includes('Content')) {

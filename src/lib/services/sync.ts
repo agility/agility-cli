@@ -77,7 +77,7 @@ export class sync {
   // Its logic is now in: src/lib/downloaders/download-templates.ts
 
   // getPages method has been ENTIRELY REMOVED.
-  // Its logic is now in: src/lib/downloaders/download-pages.ts
+  // Pages are now handled by the Content Sync SDK directly in the sync() method
 
   /**
    * DEPRECATED_CANDIDATE

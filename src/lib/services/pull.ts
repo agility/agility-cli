@@ -14,12 +14,7 @@ import { fileOperations } from "./fileOperations"; // Added import
 import { downloadAllGalleries, 
     downloadAllAssets, 
     downloadAllModels, 
-    downloadAllContainers, 
-    downloadAllContent, 
-    downloadAllTemplates, 
-    downloadAllPages,
-    downloadAllSitemaps,
-    downloadAllRedirections
+    downloadAllTemplates
 } from "../downloaders/index";
 import ansiColors from "ansi-colors";
 
@@ -388,8 +383,8 @@ export class Pull {
 
 
                 try {
-                    // TODO: Temporarily disabled for pure Management SDK testing
-                // await syncClient.runSync();
+                    // Content Sync SDK handles pages, containers, content, sitemaps, redirections
+                    await syncClient.runSync();
                     
                     // MODIFICATION: Group stats by itemType before logging individually
                     if (storeInterfaceFileSystem.getAndClearSavedItemStats && typeof storeInterfaceFileSystem.getAndClearSavedItemStats === 'function') {
@@ -461,11 +456,24 @@ export class Pull {
                 case 'Galleries': await downloadAllGalleries(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
                 case 'Assets': await downloadAllAssets(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
                 case 'Models': await downloadAllModels(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
-                case 'Containers': await downloadAllContainers(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
                 case 'Templates': await downloadAllTemplates(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
-                case 'Sitemaps': await downloadAllSitemaps(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
-                case 'Redirections': await downloadAllRedirections(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
-                case 'Pages': await downloadAllPages(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
+                // Note: Containers, Sitemaps, Redirections, and Pages are now handled by Content Sync SDK in the 'Content' step
+                case 'Containers': 
+                    console.log(`${stepName} are now handled by Content Sync SDK in the 'Content' step`);
+                    updateProgress(currentStepIndex, 'success', 100);
+                    break;
+                case 'Sitemaps': 
+                    console.log(`${stepName} are now handled by Content Sync SDK in the 'Content' step`);
+                    updateProgress(currentStepIndex, 'success', 100);
+                    break;
+                case 'Redirections': 
+                    console.log(`${stepName} are now handled by Content Sync SDK in the 'Content' step`);
+                    updateProgress(currentStepIndex, 'success', 100);
+                    break;
+                case 'Pages': 
+                    console.log(`${stepName} are now handled by Content Sync SDK in the 'Content' step`);
+                    updateProgress(currentStepIndex, 'success', 100);
+                    break;
             }
             
             if (stepStatuses[currentStepIndex] === 0) { 

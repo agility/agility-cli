@@ -1,7 +1,0 @@
-🔍 LIST vs ITEM CONTAINER BEHAVIOR INVESTIGATION
-===============================================
-
-🔑 Setting up API client...
-📥 Loading target instance containers...
-❌ Failed to investigate target instance: Unable to retreive the contianer list
-💡 Make sure AGILITY_API_KEY environment variable is set
