@@ -894,6 +894,13 @@ yargs.command({
       describe: "Provide the locale to sync your instance. If not provided, will use AGILITY_LOCALES from .env file if available.",
       demandOption: false,
       type: "string",
+      default: "en-us"
+    },
+    channel: {
+      describe: "Provide the channel to sync your instance. If not provided, will use AGILITY_WEBSITE from .env file if available.",
+      demandOption: false,
+      type: "string",
+      default: "website"
     },
     preview: {
       describe: "Whether to sync to preview or live environment data from source.",

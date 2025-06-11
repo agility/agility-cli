@@ -129,7 +129,7 @@ export class ComprehensiveAnalysisRunner {
         
         // Initialize reference mapper
         const sourceGuid = this.context?.sourceGuid || 'unknown';
-        this.referenceMapper = new ReferenceMapper(sourceGuid, targetGuid);
+        this.referenceMapper = new ReferenceMapper(sourceGuid, targetGuid, this.context?.rootPath || 'agility-files', this.context?.legacyFolders || false);
     }
 
     /**
@@ -166,6 +166,11 @@ export class ComprehensiveAnalysisRunner {
                         console.log(ansiColors.cyan(`  ${entityType}: ${breakdown.skip} skip, ${breakdown.update} update, ${breakdown.create} create`));
                     }
                 }
+
+                // Save mappings to disk after successful discovery
+                console.log(ansiColors.blue('\n💾 Saving reference mappings to disk...'));
+                await this.referenceMapper.saveAllMappings();
+                
             } catch (error: any) {
                 console.error(ansiColors.red(`❌ Target discovery failed: ${error.message}`));
                 console.log(ansiColors.yellow('📊 Continuing with source-only analysis...'));

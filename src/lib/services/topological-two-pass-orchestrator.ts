@@ -107,7 +107,11 @@ export class TopologicalTwoPassOrchestrator {
                 await this.executePassForLevel(level, 2, levelBatches, 'full population');
             }
 
-            // Step 5: Calculate final results
+            // Step 5: Save mappings to disk for future runs
+            console.log(ansiColors.blue('\n💾 Saving reference mappings to disk...'));
+            await this.config.referenceMapper.saveAllMappings();
+
+            // Step 6: Calculate final results
             const totalDuration = Date.now() - startTime;
             const result = this.calculateFinalResults(totalDuration);
 

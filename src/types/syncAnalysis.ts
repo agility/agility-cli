@@ -20,6 +20,7 @@ export interface SyncAnalysisContext {
     locale: string;
     isPreview: boolean;
     rootPath: string;
+    legacyFolders?: boolean;
     debug: boolean;
     elements: string[];
     modelTracker?: ModelTracker; // Optional model tracking for duplicate detection

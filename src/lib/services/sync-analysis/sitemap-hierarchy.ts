@@ -10,15 +10,15 @@ export class SitemapHierarchy {
     private sourceGuid: string;
     private locale: string;
     private isPreview: boolean;
+    private legacyFolders: boolean;
 
-    constructor(rootPath: string, sourceGuid: string, locale: string, isPreview: boolean) {
-        // Ensure rootPath points to agility-files directory (same pattern as chain-data-loader.ts)
-        this.rootPath = rootPath.endsWith('agility-files') 
-            ? rootPath 
-            : path.join(rootPath, 'agility-files');
+    constructor(rootPath: string, sourceGuid: string, locale: string, isPreview: boolean, legacyFolders: boolean = false) {
+        // Use rootPath directly - it should point to the correct base directory
+        this.rootPath = rootPath;
         this.sourceGuid = sourceGuid;
         this.locale = locale;
         this.isPreview = isPreview;
+        this.legacyFolders = legacyFolders;
     }
 
     /**
@@ -26,14 +26,22 @@ export class SitemapHierarchy {
      */
     loadNestedSitemap(): SitemapNode[] | null {
         try {
-            const sitemapPath = path.join(
-                this.rootPath,
-                this.sourceGuid,
-                this.locale,
-                this.isPreview ? 'preview' : 'live',
-                'nestedsitemap',
-                'website.json'
-            );
+            let sitemapPath: string;
+            
+            if (this.legacyFolders) {
+                // Legacy mode: flat structure {rootPath}/nestedsitemap/website.json
+                sitemapPath = path.join(this.rootPath, 'nestedsitemap', 'website.json');
+            } else {
+                // Normal mode: nested structure {rootPath}/{guid}/{locale}/{mode}/nestedsitemap/website.json
+                sitemapPath = path.join(
+                    this.rootPath,
+                    this.sourceGuid,
+                    this.locale,
+                    this.isPreview ? 'preview' : 'live',
+                    'nestedsitemap',
+                    'website.json'
+                );
+            }
 
             if (!fs.existsSync(sitemapPath)) {
                 console.warn(`Nested sitemap not found at: ${sitemapPath}`);

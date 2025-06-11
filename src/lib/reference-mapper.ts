@@ -1,10 +1,12 @@
 /**
- * Core Reference Mapper - Lightweight mapping service
+ * Core Reference Mapper - Lightweight mapping service with fileOperations integration
  * 
  * Focuses purely on mapping source entities to target entities
- * without the bloated URL processing, file persistence, and asset finding logic
- * from the original 904-line ReferenceMapper
+ * Uses enhanced fileOperations for clean disk persistence
+ * No bloated URL processing or complex asset finding logic
  */
+
+import { fileOperations } from './services/fileOperations';
 
 interface CoreReferenceRecord {
     type: 'model' | 'container' | 'content' | 'asset' | 'gallery' | 'template' | 'page' | 'container-name';
@@ -28,6 +30,7 @@ export class ReferenceMapper {
     private records: CoreReferenceRecord[] = [];
     private sourceGUID: string;
     private targetGUID: string;
+    private fileOps: fileOperations;
 
     // Multi-level mapping relationships for direct ID lookups
     public modelIds: Map<number, number> = new Map();
@@ -38,9 +41,15 @@ export class ReferenceMapper {
     public assetIds: Map<number, number> = new Map();
     public galleryIds: Map<number, number> = new Map();
 
-    constructor(sourceGUID: string, targetGUID: string) {
+    constructor(sourceGUID: string, targetGUID: string, rootPath: string = 'agility-files', legacyFolders: boolean = false) {
         this.sourceGUID = sourceGUID;
         this.targetGUID = targetGUID;
+        
+        // Create fileOperations service for disk persistence
+        this.fileOps = new fileOperations(rootPath, sourceGUID, 'en-us', true, legacyFolders);
+        
+        // Automatically load existing mappings on construction
+        this.loadMappingsFromDisk();
     }
 
     /**
@@ -496,5 +505,65 @@ export class ReferenceMapper {
             return sourceValue.toLowerCase() === targetValue.toLowerCase();
         }
         return sourceValue === targetValue;
+    }
+
+    /**
+     * Save mappings to disk using fileOperations
+     */
+    saveMappingsToDisk(): void {
+        try {
+            const mappingData = {
+                sourceGUID: this.sourceGUID,
+                targetGUID: this.targetGUID,
+                records: this.records,
+                modelIds: Array.from(this.modelIds.entries()),
+                contentIds: Array.from(this.contentIds.entries()),
+                containerIds: Array.from(this.containerIds.entries()),
+                templateIds: Array.from(this.templateIds.entries()),
+                pageIds: Array.from(this.pageIds.entries()),
+                assetIds: Array.from(this.assetIds.entries()),
+                galleryIds: Array.from(this.galleryIds.entries())
+            };
+
+            this.fileOps.saveMappingFile(this.targetGUID, mappingData);
+        } catch (error) {
+            console.warn('Warning: Could not save mappings to disk:', error);
+        }
+    }
+
+    /**
+     * Load mappings from disk using fileOperations
+     */
+    private loadMappingsFromDisk(): void {
+        try {
+            const mappingData = this.fileOps.loadMappingFile(this.targetGUID);
+            
+            if (mappingData) {
+                this.records = mappingData.records || [];
+                
+                // Restore ID mappings
+                this.modelIds = new Map(mappingData.modelIds || []);
+                this.contentIds = new Map(mappingData.contentIds || []);
+                this.containerIds = new Map(mappingData.containerIds || []);
+                this.templateIds = new Map(mappingData.templateIds || []);
+                this.pageIds = new Map(mappingData.pageIds || []);
+                this.assetIds = new Map(mappingData.assetIds || []);
+                this.galleryIds = new Map(mappingData.galleryIds || []);
+            }
+        } catch (error) {
+            console.warn('Warning: Could not load mappings from disk:', error);
+        }
+    }
+
+    /**
+     * Clear mappings cache using fileOperations
+     */
+    clearMappingsCache(): void {
+        try {
+            this.fileOps.clearMappingFile(this.targetGUID);
+            this.clear(); // Clear in-memory mappings too
+        } catch (error) {
+            console.warn('Warning: Could not clear mappings cache:', error);
+        }
     }
 } 

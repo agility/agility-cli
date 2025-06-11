@@ -90,12 +90,21 @@ export class ChainBuilder {
         const workingRootPath = rootPath || process.cwd();
         this.rootPath = workingRootPath; // Store for later use
         
-        // Initialize data loader
+        // Initialize data loader with path resolver
+        const { resolveInstancePaths } = await import('../utilities/path-resolver');
+        const resolvedPaths = resolveInstancePaths({
+            rootPath: workingRootPath,
+            legacyFolders: false, // Default to false for chain-builder
+            guid: guid,
+            locale: locale,
+            isPreview: isPreview
+        });
+        
         this.dataLoader = new ChainDataLoader({
             sourceGuid: guid,
             locale: locale,
             isPreview: isPreview,
-            rootPath: workingRootPath,
+            resolvedPaths,
             elements: ['Pages', 'Templates', 'Containers', 'Models', 'Content', 'Assets', 'Galleries']
         });
 
@@ -133,16 +142,13 @@ export class ChainBuilder {
     async performChainAnalysis(sourceData: SourceData): Promise<ChainAnalysisResults> {
         console.log(ansiColors.cyan('🔗 Performing chain analysis...'));
 
-        // Create analysis context
-        const analysisRootPath = this.rootPath?.endsWith('agility-files') 
-            ? this.rootPath 
-            : path.join(this.rootPath || process.cwd(), 'agility-files');
-            
+        // Create analysis context - use rootPath directly
         const context: SyncAnalysisContext = {
             sourceGuid: sourceData.metadata.sourceGuid,
             locale: sourceData.metadata.locale,
             isPreview: sourceData.metadata.isPreview,
-            rootPath: analysisRootPath,
+            rootPath: this.rootPath || process.cwd(),
+            legacyFolders: false, // Default to false for chain-builder
             debug: false,
             elements: ['Pages', 'Templates', 'Containers', 'Models', 'Content', 'Assets', 'Galleries'],
             modelTracker: this.modelTracker

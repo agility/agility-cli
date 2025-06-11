@@ -85,10 +85,10 @@ export class push {
         this.processedAssets = {};
         this.processedContainers = {};
         this._apiClient = new mgmtApi.ApiClient(this._options);
-        this._referenceMapper = new ReferenceMapper(this._guid, this._targetGuid);
+        this.rootPath = rootPath || 'agility-files';
+        this._referenceMapper = new ReferenceMapper(this._guid, this._targetGuid, this.rootPath, this.legacyFolders);
         this._useBlessedUI = useBlessedUI ?? false;
         this.elements = elements ?? [];
-        this.rootPath = rootPath;
         this.legacyFolders = legacyFolders ?? false;
         this.dryRun = dryRun ?? false;
         this.contentFolder = contentFolder ?? null;

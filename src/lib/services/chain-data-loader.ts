@@ -13,6 +13,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import ansiColors from 'ansi-colors';
 import { fileOperations } from './fileOperations';
+import { ResolvedPath, getDataFolderPath } from '../utilities/path-resolver';
 
 export interface SourceEntities {
     pages?: any[];
@@ -28,14 +29,14 @@ export interface ChainDataLoaderOptions {
     sourceGuid: string;
     locale: string;
     isPreview: boolean;
-    rootPath: string;
+    resolvedPaths: ResolvedPath;
     elements?: string[];
 }
 
 export class ChainDataLoader {
     private options: ChainDataLoaderOptions;
     private fileOps: fileOperations;
-    private rootPath: string;
+    private resolvedPaths: ResolvedPath;
 
     constructor(options: ChainDataLoaderOptions) {
         this.options = {
@@ -43,17 +44,21 @@ export class ChainDataLoader {
             ...options
         };
         
-        // Ensure rootPath points to agility-files directory
-        this.rootPath = options.rootPath.endsWith('agility-files') 
-            ? options.rootPath 
-            : path.join(options.rootPath, 'agility-files');
-            
-        this.fileOps = new fileOperations(
-            this.rootPath, 
-            this.options.sourceGuid, 
-            this.options.locale, 
-            this.options.isPreview
-        );
+        this.resolvedPaths = options.resolvedPaths;
+        
+        if (this.resolvedPaths.isLegacy) {
+            // Legacy mode: flat structure at resolved root level
+            // Don't use fileOperations for legacy mode as it enforces guid/locale/mode structure
+            this.fileOps = new fileOperations(this.resolvedPaths.resolvedRootPath, '', '', true); // Dummy params
+        } else {
+            // Normal mode: let fileOperations handle guid/locale/mode nesting
+            this.fileOps = new fileOperations(
+                this.resolvedPaths.resolvedRootPath, 
+                this.options.sourceGuid, 
+                this.options.locale, 
+                this.options.isPreview
+            );
+        }
     }
 
     /**
@@ -236,14 +241,21 @@ export class ChainDataLoader {
      */
     private loadJsonFiles(folderPath: string): any[] {
         try {
-            // Construct the full path using the fileOps basePath structure
-            const fullPath = `${this.options.sourceGuid}/${this.options.locale}/${this.options.isPreview ? 'preview' : 'live'}/${folderPath}`;
+            let fullPath: string;
             
-            if (!this.fileOps.folderExists(fullPath, this.rootPath)) {
+            if (this.resolvedPaths.isLegacy) {
+                // Legacy mode: flat structure {instancePath}/folderPath
+                fullPath = folderPath;
+            } else {
+                // Normal mode: nested structure {instancePath}/folderPath
+                fullPath = `${this.options.sourceGuid}/${this.options.locale}/${this.options.isPreview ? 'preview' : 'live'}/${folderPath}`;
+            }
+            
+            if (!this.fileOps.folderExists(fullPath, this.resolvedPaths.resolvedRootPath)) {
                 return [];
             }
             
-            const fileContents = this.fileOps.readDirectory(fullPath, this.rootPath);
+            const fileContents = this.fileOps.readDirectory(fullPath, this.resolvedPaths.resolvedRootPath);
             return fileContents
                 .map(content => {
                     try {
@@ -289,10 +301,18 @@ export class ChainDataLoader {
      * Validate that the source data directory exists and contains expected structure
      */
     validateSourceDataStructure(): boolean {
-        const basePath = `${this.options.sourceGuid}/${this.options.locale}/${this.options.isPreview ? 'preview' : 'live'}`;
+        let basePath: string;
+        
+        if (this.resolvedPaths.isLegacy) {
+            // Legacy mode: check if instancePath contains data files directly
+            basePath = '';
+        } else {
+            // Normal mode: check nested structure
+            basePath = `${this.options.sourceGuid}/${this.options.locale}/${this.options.isPreview ? 'preview' : 'live'}`;
+        }
             
-        if (!this.fileOps.folderExists(basePath, this.rootPath)) {
-            console.error(ansiColors.red(`❌ Source data directory not found: ${basePath}`));
+        if (!this.fileOps.folderExists(basePath, this.resolvedPaths.resolvedRootPath)) {
+            console.error(ansiColors.red(`❌ Source data directory not found: ${this.resolvedPaths.resolvedRootPath}/${basePath}`));
             console.log(ansiColors.yellow(`💡 Make sure you have pulled data first:`));
             console.log(`   node dist/index.js pull --guid ${this.options.sourceGuid} --locale ${this.options.locale} --channel website --verbose`);
             return false;

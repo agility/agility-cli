@@ -39,7 +39,8 @@ export class PageChainDisplay {
         }
 
         // Load sitemap hierarchy
-        const sitemapHierarchy = new SitemapHierarchy(this.rootPath, this.sourceGuid, this.locale, this.isPreview);
+        const legacyFolders = this.context?.legacyFolders ?? false;
+        const sitemapHierarchy = new SitemapHierarchy(this.rootPath, this.sourceGuid, this.locale, this.isPreview, legacyFolders);
         const sitemap = sitemapHierarchy.loadNestedSitemap();
         
         if (!sitemap) {

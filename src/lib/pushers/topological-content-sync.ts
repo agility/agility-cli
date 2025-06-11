@@ -158,6 +158,7 @@ export class TopologicalContentSync {
                 locale: this.locale,
                 isPreview: this.isPreview,
                 rootPath: this.rootPath,
+                legacyFolders: this.legacyFolders,
                 debug: this.syncOptions.debug || false,
                 elements: this.elements
             };
@@ -166,7 +167,7 @@ export class TopologicalContentSync {
             
             // Set up API client and reference mapper  
             const apiClient = new mgmtApi.ApiClient(this.options);
-            referenceMapper = new ReferenceMapper(this.sourceGuid, this.targetGuid);
+            referenceMapper = new ReferenceMapper(this.sourceGuid, this.targetGuid, this.rootPath, this.legacyFolders);
             
             // Dry run or test mode - show analysis results and exit
             if (this.dryRun || this.targetGuid === 'test') {
@@ -456,12 +457,21 @@ export class TopologicalContentSync {
      * Load source data from local file system
      */
     private async loadSourceData(): Promise<any> {
-        // Use ChainDataLoader with field transformation bridge
+        // Use ChainDataLoader with path resolver
+        const { resolveInstancePaths } = await import('../utilities/path-resolver');
+        const resolvedPaths = resolveInstancePaths({
+            rootPath: this.rootPath,
+            legacyFolders: this.legacyFolders,
+            guid: this.sourceGuid,
+            locale: this.locale,
+            isPreview: this.isPreview
+        });
+        
         const loader = new ChainDataLoader({
             sourceGuid: this.sourceGuid,
             locale: this.locale,
             isPreview: this.isPreview,
-            rootPath: this.rootPath,
+            resolvedPaths,
             elements: this.elements
         });
 

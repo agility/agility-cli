@@ -40,8 +40,8 @@ async function main() {
         process.exit(1);
     }
     
-    // Initialize mapper and clean up
-    const mapper = new ReferenceMapper(sourceGUID, targetGUID);
+    // Initialize mapper and clean up (use default agility-files path)
+    const mapper = new ReferenceMapper(sourceGUID, targetGUID, 'agility-files');
     
     // Wait for initial load to complete
     await new Promise(resolve => setTimeout(resolve, 1000));

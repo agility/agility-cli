@@ -10,18 +10,54 @@ export class fileOperations{
   private _guid: string;
   private _locale: string;
   private _isPreview: boolean;
+  private _legacyFolders: boolean;
+  private _resolvedRootPath: string;
   private _basePath: string;
   private _instanceLogDir: string;
   private _currentLogFilePath: string;
+  private _mappingsPath: string;
 
-  constructor(rootPath: string, guid: string, locale: string, isPreview: boolean) {
+  constructor(rootPath: string, guid: string, locale: string, isPreview: boolean, legacyFolders: boolean = false) {
     this._rootPath = rootPath;
     this._guid = guid;
     this._locale = locale;
     this._isPreview = isPreview;
-    this._basePath = path.join(this._rootPath, this._guid, this._locale, this._isPreview ? 'preview' : 'live');
-    this._instanceLogDir = path.join(this._rootPath, this._guid, this._locale, this._isPreview ? 'preview' : 'live', 'logs');
+    this._legacyFolders = legacyFolders;
+    
+    // Resolve the root path to absolute path
+    this._resolvedRootPath = path.resolve(process.cwd(), rootPath);
+    
+    // Calculate paths based on legacy mode
+    if (legacyFolders) {
+      // Legacy mode: flat structure
+      this._basePath = this._resolvedRootPath;
+      this._mappingsPath = path.join(this._resolvedRootPath, 'mappings');
+      this._instanceLogDir = path.join(this._resolvedRootPath, 'logs');
+    } else {
+      // Normal mode: nested structure  
+      this._basePath = path.join(this._resolvedRootPath, this._guid, this._locale, this._isPreview ? 'preview' : 'live');
+      this._mappingsPath = path.join(this._resolvedRootPath, this._guid, 'mappings');
+      this._instanceLogDir = path.join(this._basePath, 'logs');
+    }
+    
     this._currentLogFilePath = path.join(this._instanceLogDir, 'instancelog.txt');
+  }
+
+  // Public getters for path access
+  public get instancePath(): string {
+    return this._basePath;
+  }
+
+  public get mappingsPath(): string {
+    return this._mappingsPath;
+  }
+
+  public get isLegacyMode(): boolean {
+    return this._legacyFolders;
+  }
+
+  public get resolvedRootPath(): string {
+    return this._resolvedRootPath;
   }
 
     exportFiles(folder: string, fileIdentifier: any, extractedObject: any, baseFolder?: string) {
@@ -201,9 +237,65 @@ export class fileOperations{
       }
     }
 
-    deleteFile(fileName: string) {
-      fs.unlinkSync(fileName);
-  }
+        deleteFile(fileName: string) {
+        fs.unlinkSync(fileName);
+    }
+
+    // Mapping file operations
+    getMappingFilePath(targetGuid: string): string {
+        return path.join(this._mappingsPath, `${targetGuid}.json`);
+    }
+
+    saveMappingFile(targetGuid: string, mappingData: any): void {
+        // Ensure mappings directory exists using recursive creation
+        if (!fs.existsSync(this._mappingsPath)) {
+            fs.mkdirSync(this._mappingsPath, { recursive: true });
+        }
+        
+        const mappingFilePath = this.getMappingFilePath(targetGuid);
+        this.createFile(mappingFilePath, JSON.stringify(mappingData, null, 2));
+    }
+
+    loadMappingFile(targetGuid: string): any | null {
+        const mappingFilePath = this.getMappingFilePath(targetGuid);
+        
+        if (!this.checkFileExists(mappingFilePath)) {
+            return null;
+        }
+        
+        try {
+            const content = this.readFile(mappingFilePath);
+            return JSON.parse(content);
+        } catch (error) {
+            console.error(`Error loading mapping file ${mappingFilePath}:`, error);
+            return null;
+        }
+    }
+
+    clearMappingFile(targetGuid: string): void {
+        const mappingFilePath = this.getMappingFilePath(targetGuid);
+        
+        if (this.checkFileExists(mappingFilePath)) {
+            this.deleteFile(mappingFilePath);
+        }
+    }
+
+    // Data folder path utilities
+    getDataFolderPath(folderName: string): string {
+        return path.join(this._basePath, folderName);
+    }
+
+    getNestedSitemapPath(): string {
+        return path.join(this._basePath, 'nestedsitemap', 'website.json');
+    }
+
+    // Path utilities
+    resolveFilePath(relativePath: string): string {
+        if (path.isAbsolute(relativePath)) {
+            return relativePath;
+        }
+        return path.resolve(this._basePath, relativePath);
+    }
 
   readTempFile(fileName: string){
       let appName = 'mgmt-cli-code';

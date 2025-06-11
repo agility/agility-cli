@@ -161,37 +161,45 @@ This file tracks current and upcoming development tasks.
 
 ### **📋 PATH RESOLUTION INTEGRATION PLAN**:
 
-- [ ] **Task 28.1**: Analyze Current FileServices Usage ⚡ **UNDERSTANDING**
-    - [ ] **Sub-task 28.1.1**: Audit how push operations use fileServices
-    - [ ] **Sub-task 28.1.2**: Audit how sync operations use fileServices  
-    - [ ] **Sub-task 28.1.3**: Identify where path-resolver.ts is being used vs fileServices
-    - [ ] **Sub-task 28.1.4**: Document the intended vs actual file operation patterns
-    - [ ] **Sub-task 28.1.5**: Identify overlapping responsibilities between services
-    - **Goal**: Complete understanding of current file operation patterns
+- [x] **Task 28.1**: Analyze Current FileServices Usage ⚡ **UNDERSTANDING** ✅ **COMPLETE**
+    - [x] **Sub-task 28.1.1**: Audit how push operations use fileServices ✅
+    - [x] **Sub-task 28.1.2**: Audit how sync operations use fileServices ✅
+    - [x] **Sub-task 28.1.3**: Identify where path-resolver.ts is being used vs fileServices ✅
+    - [x] **Sub-task 28.1.4**: Document the intended vs actual file operation patterns ✅
+    - [x] **Sub-task 28.1.5**: Identify overlapping responsibilities between services ✅
+    - **Goal**: Complete understanding of current file operation patterns ✅
+    - **📊 ANALYSIS**: Created `.cursor/task-28-analysis.md` - identified dual path systems causing bloat
+    - **🚨 ROOT CAUSE**: path-resolver.ts created to solve legacyFolders, but fileOperations not enhanced = architecture debt
 
-- [ ] **Task 28.2**: Design Unified Path Resolution Strategy ⚡ **ARCHITECTURE**
-    - [ ] **Sub-task 28.2.1**: Define single source of truth for path management (likely fileServices)
-    - [ ] **Sub-task 28.2.2**: Design legacyFolders support within fileServices directly
-    - [ ] **Sub-task 28.2.3**: Plan instancePath as function of fileServices 
-    - [ ] **Sub-task 28.2.4**: Standardize naming conventions (remove "paths" pluralization)
-    - [ ] **Sub-task 28.2.5**: Define clean interfaces between services
-    - **Goal**: Clear architectural plan for unified file operations
+- [x] **Task 28.2**: Design Unified Path Resolution Strategy ⚡ **ARCHITECTURE** ✅ **COMPLETE**
+    - [x] **Sub-task 28.2.1**: Define single source of truth for path management (enhanced fileOperations) ✅
+    - [x] **Sub-task 28.2.2**: Design legacyFolders support within fileOperations directly ✅
+    - [x] **Sub-task 28.2.3**: Plan instancePath as function of fileOperations ✅
+    - [x] **Sub-task 28.2.4**: Standardize naming conventions (remove "paths" pluralization) ✅
+    - [x] **Sub-task 28.2.5**: Define clean interfaces between services ✅
+    - **Goal**: Clear architectural plan for unified file operations ✅
+    - **📊 DESIGN**: Created `.cursor/task-28-design.md` - complete enhanced fileOperations interface design
+    - **🎯 DECISION**: Make fileOperations single source of truth with legacyFolders + mapping operations
 
-- [ ] **Task 28.3**: Enhance FileServices with Path Resolution ⚡ **IMPLEMENTATION**
-    - [ ] **Sub-task 28.3.1**: Add legacyFolders support directly to fileServices constructor
-    - [ ] **Sub-task 28.3.2**: Add instancePath generation methods to fileServices
-    - [ ] **Sub-task 28.3.3**: Add mappings path support to fileServices
-    - [ ] **Sub-task 28.3.4**: Ensure fileServices handles both absolute and relative paths consistently
-    - [ ] **Sub-task 28.3.5**: Remove need for external path construction
-    - **Goal**: FileServices becomes complete file operation solution
+- [x] **Task 28.3**: Enhance FileServices with Path Resolution ⚡ **IMPLEMENTATION** ✅ **COMPLETE**
+    - [x] **Sub-task 28.3.1**: Add legacyFolders support directly to fileOperations constructor ✅
+    - [x] **Sub-task 28.3.2**: Add instancePath generation methods to fileOperations ✅
+    - [x] **Sub-task 28.3.3**: Add mappings path support to fileOperations ✅
+    - [x] **Sub-task 28.3.4**: Ensure fileOperations handles both absolute and relative paths consistently ✅
+    - [x] **Sub-task 28.3.5**: Remove need for external path construction ✅
+    - **Goal**: FileOperations becomes complete file operation solution ✅
+    - **🔧 IMPLEMENTATION**: Enhanced fileOperations with legacyFolders + 8 new mapping/path methods
+    - **⚠️ BUILD ERROR**: ReferenceMapper constructor interface mismatch needs Task 28.4 first
 
-- [ ] **Task 28.4**: Refactor Reference Mapper to Use FileServices ⚡ **INTEGRATION**
-    - [ ] **Sub-task 28.4.1**: Remove direct `fs` import from reference mapper
-    - [ ] **Sub-task 28.4.2**: Remove path-resolver.ts dependency from reference mapper
-    - [ ] **Sub-task 28.4.3**: Use enhanced fileServices for all file operations
-    - [ ] **Sub-task 28.4.4**: Ensure disk persistence works with both legacy and normal modes
-    - [ ] **Sub-task 28.4.5**: Test reference mapper works cleanly with just fileServices
-    - **Goal**: Reference mapper uses only fileServices, no manual path construction
+- [x] **Task 28.4**: Refactor Reference Mapper to Use FileServices ⚡ **INTEGRATION** ✅ **COMPLETE**
+    - [x] **Sub-task 28.4.1**: Remove direct `fs` import from reference mapper ✅
+    - [x] **Sub-task 28.4.2**: Remove path-resolver.ts dependency from reference mapper ✅
+    - [x] **Sub-task 28.4.3**: Use enhanced fileOperations for all file operations ✅
+    - [x] **Sub-task 28.4.4**: Ensure disk persistence works with both legacy and normal modes ✅
+    - [x] **Sub-task 28.4.5**: Test reference mapper works cleanly with just fileOperations ✅
+    - **Goal**: Reference mapper uses only fileOperations, no manual path construction ✅
+    - **🔧 IMPLEMENTATION**: Added fileOperations integration to ReferenceMapper with 4-parameter constructor
+    - **🧪 VERIFIED**: Integration test confirms disk persistence works correctly in both modes
 
 - [ ] **Task 28.5**: Refactor Chain Data Loader Integration ⚡ **CONSISTENCY**
     - [ ] **Sub-task 28.5.1**: Update ChainDataLoader to use enhanced fileServices  
