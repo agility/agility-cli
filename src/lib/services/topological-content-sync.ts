@@ -22,12 +22,6 @@ export interface TopologicalContentSyncOptions {
     debug: boolean;
     maxDepth?: number;
     forceSync?: boolean; // Full sync mode - force update all items
-    // Add early exit options
-    failFast?: boolean;           // Exit on first critical failure
-    maxFailures?: number;         // Exit after N failures
-    timeout?: number;             // Exit after N seconds  
-    testMode?: boolean;           // Enhanced early exit for testing
-    criticalFailureThreshold?: number; // % of critical dependencies that can fail
 }
 
 /**
@@ -58,10 +52,6 @@ export class TopologicalContentSync {
     private dryRun: boolean;
     private syncOptions: TopologicalContentSyncOptions;
     private fileOps: fileOperations;
-    private startTime: number = 0;
-    private totalFailures: number = 0;
-    private criticalFailures: number = 0;
-    private batchFailures: number = 0; // Track batch API failures
 
     constructor(
         options: mgmtApi.Options,
@@ -139,7 +129,6 @@ export class TopologicalContentSync {
      * Sophisticated topological dependency analysis and reference-aware sync execution
      */
     async syncInstance(): Promise<void> {
-        this.startTime = Date.now();
         let referenceMapper: ReferenceMapper | null = null;
         
         try {
@@ -169,11 +158,10 @@ export class TopologicalContentSync {
             const apiClient = new mgmtApi.ApiClient(this.options);
             referenceMapper = new ReferenceMapper(this.sourceGuid, this.targetGuid, this.rootPath, this.legacyFolders);
             
-            // Dry run or test mode - show analysis results and exit
-            if (this.dryRun || this.targetGuid === 'test') {
-                const targetDisplay = this.targetGuid === 'test' ? 'TEST MODE (no actual sync)' : this.targetGuid;
-                console.log(ansiColors.blue(`\\n✅ Analysis complete - Ready to sync from ${this.sourceGuid} → ${targetDisplay}`));
-                console.log(ansiColors.gray('   💡 Individual pushers will handle existence checking using: mapper → SDK pattern'));
+            // Debug mode - show analysis results and exit
+            if (this.syncOptions.debug) {
+                console.log(ansiColors.blue(`\n🔍 DEBUG MODE: Analysis complete - Ready to sync from ${this.sourceGuid} → ${this.targetGuid}`));
+                console.log(ansiColors.gray('   💡 Use sync without --debug flag to proceed with actual sync operation'));
                 return;
             }
 
@@ -210,69 +198,9 @@ export class TopologicalContentSync {
                 }
             }
 
-            if (error.message.includes('EARLY_EXIT')) {
-                console.log(ansiColors.yellow(`\n⏹️ Sync stopped early: ${error.message}`));
-                return;
-            }
+
             console.error(ansiColors.red(`❌ Error during topological sync: ${error.message}`));
             throw error;
-        }
-    }
-
-    private checkEarlyExitConditions(stepName: string, failures: number, successes: number): void {
-        const options = this.syncOptions;
-        const elapsed = Date.now() - this.startTime;
-        
-        // Update counters
-        this.totalFailures += failures;
-        if (['Models', 'Containers'].includes(stepName)) {
-            this.criticalFailures += failures;
-        }
-
-        // Check for batch API failures
-        if (['Content', 'Templates', 'Pages'].includes(stepName) && failures > 0) {
-            this.batchFailures += failures;
-            
-            // FAIL FAST: If we have many batch failures, likely API issue
-            if (this.batchFailures >= 5) {
-                throw new Error(`EARLY_EXIT: Too many batch failures (${this.batchFailures}) - likely batch API unavailable`);
-            }
-        }
-
-        // Early exit conditions
-        if (options.timeout && elapsed > options.timeout * 1000) {
-            throw new Error(`EARLY_EXIT: Timeout reached (${options.timeout}s)`);
-        }
-
-        if (options.failFast && failures > 0) {
-            throw new Error(`EARLY_EXIT: Fail-fast mode - ${failures} failures in ${stepName}`);
-        }
-
-        if (options.maxFailures && this.totalFailures >= options.maxFailures) {
-            throw new Error(`EARLY_EXIT: Max failures reached (${this.totalFailures}/${options.maxFailures})`);
-        }
-
-        // Critical dependency threshold
-        if (options.criticalFailureThreshold && stepName === 'Models') {
-            const total = successes + failures;
-            const failureRate = (failures / total) * 100;
-            if (failureRate > options.criticalFailureThreshold) {
-                throw new Error(`EARLY_EXIT: Critical model failure rate ${failureRate.toFixed(1)}% > ${options.criticalFailureThreshold}%`);
-            }
-        }
-
-        // Test mode early exits
-        if (options.testMode) {
-            // Exit early if models are mostly failing
-            if (stepName === 'Models' && failures > successes) {
-                throw new Error(`EARLY_EXIT: Test mode - Model failures (${failures}) exceed successes (${successes})`);
-            }
-            
-            // Exit after models in test mode if mostly successful
-            if (stepName === 'Models' && failures <= 2 && successes > 10) {
-                console.log(ansiColors.cyan(`\n🧪 Test mode: Models looking good (${successes} success, ${failures} failures) - stopping early`));
-                throw new Error(`EARLY_EXIT: Test mode - Models validated successfully`);
-            }
         }
     }
 
@@ -292,12 +220,7 @@ export class TopologicalContentSync {
         // Declare shared variables for dependencies
         let galleries: any[] = [];
 
-        // 🔍 DEBUG: Show actual sync options being used
-        console.log(ansiColors.magenta('\n🔍 DEBUG SYNC OPTIONS:'));
-        console.log(ansiColors.magenta(`  forceSync: ${this.syncOptions.forceSync}`));
-        console.log(ansiColors.magenta(`  debug: ${this.syncOptions.debug}`));
-        console.log(ansiColors.magenta(`  maxDepth: ${this.syncOptions.maxDepth}`));
-        console.log(ansiColors.magenta(`  elements: ${this.elements.join(', ')}`));
+
 
         // Dependency Order (based on analysis system findings):
         // 1. Models (no dependencies)
@@ -324,7 +247,6 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += modelResult.successfulModels;
                 totalFailures += modelResult.failedModels;
-                this.checkEarlyExitConditions('Models', modelResult.failedModels, modelResult.successfulModels);
             }
 
             // 2. Push Galleries (independent)
@@ -342,7 +264,6 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += galleryResult.successfulGroupings;
                 totalFailures += galleryResult.failedGroupings;
-                this.checkEarlyExitConditions('Galleries', galleryResult.failedGroupings, galleryResult.successfulGroupings);
             }
 
             // 3. Push Assets (depend on galleries)
@@ -364,7 +285,6 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += assetResult.successfulAssets;
                 totalFailures += assetResult.failedAssets;
-                this.checkEarlyExitConditions('Assets', assetResult.failedAssets, assetResult.successfulAssets);
             }
 
             // 4. Push Containers (depend on models)
@@ -381,7 +301,6 @@ export class TopologicalContentSync {
                 
                 totalSuccess += containerResult.successfulContainers;
                 totalFailures += containerResult.failedContainers;
-                this.checkEarlyExitConditions('Containers', containerResult.failedContainers, containerResult.successfulContainers);
             }
 
             // 5. Push Content Items (SINGLE-PASS WITH CONTAINER INFERENCE)
@@ -398,7 +317,6 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += contentResult.successfulItems;
                 totalFailures += contentResult.failedItems;
-                this.checkEarlyExitConditions('Content', contentResult.failedItems, contentResult.successfulItems);
             }
 
             // 6. Push Templates (depend on containers, models)
@@ -415,7 +333,6 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += templateResult.successfulTemplates;
                 totalFailures += templateResult.failedTemplates;
-                this.checkEarlyExitConditions('Templates', templateResult.failedTemplates, templateResult.successfulTemplates);
             }
 
             // 7. Push Pages (depend on templates, content)
@@ -433,7 +350,6 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += pageResult.successfulPages;
                 totalFailures += pageResult.failedPages;
-                this.checkEarlyExitConditions('Pages', pageResult.failedPages, pageResult.successfulPages);
             }
 
         } catch (error) {

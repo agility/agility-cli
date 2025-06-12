@@ -19,7 +19,6 @@ import { BrokenChainDetector } from './broken-chain-detector';
 import { NonChainedItemsAnalyzer } from './non-chained-items-analyzer';
 import { ReconciliationReporter } from './reconciliation-reporter';
 import { AssetValidationAnalyzer, AssetValidationResult } from './asset-validation-analyzer';
-import { NestedContainerAnalyzer } from './nested-container-analyzer';
 import { TargetInstanceDiscovery, SyncPlan } from './target-instance-discovery';
 import { ReferenceMapper } from '../../reference-mapper';
 import { UniversalReferenceExtractor } from './universal-reference-extractor';
@@ -101,8 +100,7 @@ export class ComprehensiveAnalysisRunner {
         // Step 3: Container Chains  
         this.coordinator.registerService('container-chains', new ContainerChainAnalyzer());
         
-        // Step 3.5: Nested Container Analysis (NEW - Task 23.1)
-        this.coordinator.registerService('nested-container-analysis', new NestedContainerAnalyzer());
+
         
         // Step 4: Broken Chains (only shows if there are broken items)
         this.coordinator.registerService('broken-chains', new BrokenChainDetector());
@@ -194,7 +192,7 @@ export class ComprehensiveAnalysisRunner {
         console.log('==================================================');
         this.executeStepWithModelTracking('container-chains', sourceEntities);
 
-        // Nested container analysis removed - main container chains now show detailed visualization
+
 
         // Step 3.6: Enhanced Relationship Analysis (NEW - Task 23.10 - ALL missing relationship types)
         console.log(ansiColors.magenta('\n🔗 3.6. UNIVERSAL RELATIONSHIP ANALYSIS'));

@@ -943,14 +943,8 @@ yargs.command({
       type: "boolean",
       default: false,
     },
-    dryRun: {
-      describe: "Dry run the sync operation if able.",
-      demandOption: false,
-      type: "boolean",
-      default: false,
-    },
     debug: {
-      describe: "Enable debug logging for dependency analysis.",
+      describe: "Show detailed dependency analysis and exit without syncing.",
       demandOption: false,
       type: "boolean",
       default: false,
@@ -961,49 +955,15 @@ yargs.command({
       type: "number",
       default: 10,
     },
-    test: {
-      describe: "Test mode - bypasses authentication for local testing.",
-      demandOption: false,
-      type: "boolean",
-      default: false,
-    },
     forceSync: {
       describe: "Force sync mode - updates ALL items to ensure 100% consistency (vs incremental mode which only updates changed items).",
       demandOption: false,
       type: "boolean",
       default: false,
-    },
-    failFast: {
-      describe: "Exit immediately on first critical failure for faster testing.",
-      demandOption: false,
-      type: "boolean",
-      default: false,
-    },
-    maxFailures: {
-      describe: "Exit after N total failures to avoid long-running failing syncs.",
-      demandOption: false,
-      type: "number",
-    },
-    timeout: {
-      describe: "Exit after N seconds to avoid extremely long-running syncs.",
-      demandOption: false,
-      type: "number",
-    },
-    testMode: {
-      describe: "Enhanced early exit for testing - stops after validating models if mostly successful.",
-      demandOption: false,
-      type: "boolean",
-      default: false,
-    },
-    criticalFailureThreshold: {
-      describe: "Exit if critical dependency (model) failure rate exceeds this percentage.",
-      demandOption: false,
-      type: "number",
-      default: 50,
     }
   },
   handler: async function (argv) {
-    const { headless, verbose, local, debug, test, maxDepth, forceSync, failFast, maxFailures, timeout, testMode, criticalFailureThreshold } = argv;
+    const { headless, verbose, local, debug, maxDepth, forceSync } = argv;
     const useBlessed = !headless && !verbose;
     blessedUIEnabled = useBlessed;
 
@@ -1014,8 +974,8 @@ yargs.command({
     configureSSL();
 
     let auth = new Auth();
-
-    if (!test) {
+    
+    if (!debug) {
       const isAuthorized = await auth.checkAuthorization();
       if (!isAuthorized) {
         return;
@@ -1026,32 +986,33 @@ yargs.command({
       options = new mgmtApi.Options();
       options.token = token;
     } else {
-      console.log(colors.yellow("🧪 TEST MODE: Bypassing authentication..."));
+      console.log(colors.yellow("🔍 DEBUG MODE: Bypassing authentication..."));
       options = new mgmtApi.Options();
-      options.token = "test-token";
+      options.token = "debug-token";
     }
 
     let sourceGuid: string = argv.sourceGuid as string;
     const targetGuid: string = argv.targetGuid as string;
-
-    // 🔒 SAFETY CHECK: Validate target instance before any operations
-    const { TargetInstanceValidator } = await import('./lib/services/target-instance-validator');
-    const validator = new TargetInstanceValidator();
-    const validation = validator.validateTargetInstance(targetGuid);
-
-    if (!validation.isValid) {
-      console.log(colors.red(validation.message));
-      console.log(colors.yellow(validator.getSuggestions(targetGuid)));
-      return;
-    }
-
-    console.log(colors.green(validation.message));
     let locale: string = argv.locale as string;
     const isPreview: boolean = argv.preview as boolean;
     const elements: string[] = (argv.elements as string).split(",");
     const rootPath: string = argv.rootPath as string;
     const legacyFolders: boolean = argv.legacyFolders as boolean;
-    const dryRun: boolean = argv.dryRun as boolean;
+
+    // 🔒 SAFETY CHECK: Validate target instance (bypass in debug mode for testing)
+    if (!debug) {
+      const { TargetInstanceValidator } = await import('./lib/services/target-instance-validator');
+      const validator = new TargetInstanceValidator();
+      const validation = validator.validateTargetInstance(targetGuid);
+
+      if (!validation.isValid) {
+        console.log(colors.red(validation.message));
+        console.log(colors.yellow(validator.getSuggestions(targetGuid)));
+        return;
+      }
+
+      console.log(colors.green(validation.message));
+    }
 
     // Check for .env file values
     const envCheck = auth.checkForEnvFile();
@@ -1087,7 +1048,7 @@ yargs.command({
     let multibar = createMultibar({ name: "Sync (2-Pass)" });
 
     try {
-      if (!test) {
+      if (!debug) {
         const userOnSource = await auth.getUser(sourceGuid);
         const userOnTarget = await auth.getUser(targetGuid);
 
@@ -1112,21 +1073,16 @@ yargs.command({
           return;
         }
       } else {
-        console.log(colors.yellow("🧪 TEST MODE: Bypassing permission checks..."));
+        console.log(colors.yellow("🔍 DEBUG MODE: Bypassing permission checks..."));
       }
 
       // Import and use the new 2-pass sync system
-                  const { TopologicalContentSync } = await import('./lib/services/topological-content-sync');
+      const { TopologicalContentSync } = await import('./lib/services/topological-content-sync');
 
-            const syncOperation = new TopologicalContentSync(options, multibar, sourceGuid, targetGuid, locale, isPreview, blessedUIEnabled, elements, rootPath, legacyFolders, dryRun, {
+      const syncOperation = new TopologicalContentSync(options, multibar, sourceGuid, targetGuid, locale, isPreview, blessedUIEnabled, elements, rootPath, legacyFolders, false, {
         debug,
         maxDepth: maxDepth,
-        forceSync: forceSync,
-        failFast: failFast,
-        maxFailures: maxFailures,
-        timeout: timeout,
-        testMode: testMode,
-        criticalFailureThreshold: criticalFailureThreshold
+        forceSync: forceSync
       });
 
       await syncOperation.syncInstance();
@@ -1134,8 +1090,8 @@ yargs.command({
       // Clean up and exit successfully
       multibar.stop();
 
-      // Only show success message for actual syncs, not test/dry-run modes
-      if (!test && targetGuid !== 'test' && !dryRun) {
+      // Show success message for completed syncs
+      if (!debug) {
         console.log(colors.green('\n✅ Sync operation completed successfully!'));
       }
 

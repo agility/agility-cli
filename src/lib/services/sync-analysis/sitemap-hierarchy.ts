@@ -196,7 +196,7 @@ export class SitemapHierarchy {
      * Debug: Log hierarchy structure
      */
     debugLogHierarchy(hierarchy: PageHierarchy): void {
-        console.log('\n🔍 DEBUG: Page Hierarchy Structure');
+
         Object.entries(hierarchy).forEach(([parentId, childIds]) => {
             console.log(`  Parent ${parentId} has children: ${childIds.join(', ')}`);
         });

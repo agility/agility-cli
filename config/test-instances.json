@@ -129,7 +129,7 @@
     "debugging": {
       "verbose": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"e67929d5-u\" --locale=\"en-us\" --verbose",
       "quiet": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"e67929d5-u\" --locale=\"en-us\"",
-      "testMode": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"test\" --locale=\"en-us\" --verbose --test",
+      "debugMode": "agility sync --sourceGuid=\"13a8b394-u\" --targetGuid=\"test\" --locale=\"en-us\" --verbose --debug",
       "description": "Different logging levels and test modes"
     },
     "production": {

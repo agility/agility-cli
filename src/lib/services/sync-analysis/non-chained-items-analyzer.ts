@@ -135,7 +135,7 @@ export class NonChainedItemsAnalyzer implements ChainAnalysisService {
 
         // Debug output for relationship mapping issues
         if (this.context?.debug && nonChainedContent.length > 0) {
-            console.log(ansiColors.gray(`\n  🔍 DEBUG: Analyzing non-chained content relationships...`));
+    
             
             // Show some sample non-chained content with their referenceName
             console.log(ansiColors.gray(`    Sample non-chained content items:`));
@@ -260,13 +260,7 @@ export class NonChainedItemsAnalyzer implements ChainAnalysisService {
                     if (hasMatchingContent) {
                         referencedContainers.add(container.contentViewID);
                         
-                        if (this.context?.debug) {
-                            const contentCount = sourceEntities.content.filter((content: any) => 
-                                content.properties?.referenceName && 
-                                content.properties.referenceName.toLowerCase() === container.referenceName.toLowerCase()
-                            ).length;
-                            console.log(`🔍 DEBUG: Added container "${container.referenceName}" (ID:${container.contentViewID}) - has ${contentCount} content items`);
-                        }
+
                     }
                 }
             });
@@ -358,10 +352,7 @@ export class NonChainedItemsAnalyzer implements ChainAnalysisService {
                         content.properties.referenceName.toLowerCase() === container.referenceName.toLowerCase()
                     );
                     
-                    // Debug logging for container-content relationships
-                    if (this.context?.debug && containerContent.length > 0) {
-                        console.log(`🔍 DEBUG: Container "${container.referenceName}" (ID:${container.contentViewID}) has ${containerContent.length} content items`);
-                    }
+
                     
                     containerContent.forEach((content: any) => {
                         entitiesInChains.content.add(content.contentID);
@@ -393,9 +384,7 @@ export class NonChainedItemsAnalyzer implements ChainAnalysisService {
                         entitiesInChains.containers.add(container.contentViewID);
                         entitiesInChains.models.add(model.referenceName);
                         
-                        if (this.context?.debug && !referencedContainers.has(container.contentViewID)) {
-                            console.log(`🔍 DEBUG: Added standalone container "${container.referenceName}" (ID:${container.contentViewID}) - has valid model: ${model.referenceName}`);
-                        }
+
                     }
                 }
             });
