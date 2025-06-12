@@ -16,7 +16,7 @@ import fileSystemPrompt from "../prompts/file-system-prompt";
 
 
 
-import { AgilityInstance } from "../../types/Instance";
+import { AgilityInstance } from "../../types/agilityInstance";
 const axios = require("axios");
 
 let AI_ENDPOINT: string = "https://4a3b-2607-fea8-7d60-2b00-1d24-b69c-b93f-b227.ngrok-free.app/api/ai/cli/react-components";

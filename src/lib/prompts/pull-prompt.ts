@@ -10,7 +10,7 @@ import { channelPrompt } from "./channel-prompt";
 import { getBaseURLfromGUID } from "./base-url-prompt";
 import { isPreviewPrompt } from "./isPreview-prompt";
 import { elementsPrompt } from "./elements-prompt";
-import { AgilityInstance } from "../../types/Instance";
+import { AgilityInstance } from "../../types/agilityInstance";
 import * as fs from 'fs';
 import { promises as fsPromises } from 'fs';
 import { Pull } from "../services/pull";

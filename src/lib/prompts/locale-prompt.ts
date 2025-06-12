@@ -1,7 +1,7 @@
 import inquirer from 'inquirer';
 import { Auth } from '../services/auth';
 import { fileOperations } from '../services/fileOperations';
-import { AgilityInstance } from '../../types/Instance';
+import { AgilityInstance } from '../../types/agilityInstance';
 import * as mgmtApi from '@agility/management-sdk';
 import { getBaseURLfromGUID } from './base-url-prompt';
 const FormData = require("form-data");

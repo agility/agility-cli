@@ -10,7 +10,7 @@ import { localePrompt } from "./locale-prompt";
 import { generateEnv } from "../utilities/generate-env";
 import { generateSitemap } from "../utilities/generate-sitemap";
 import generateReactComponents from "../utilities/generate-components";
-import { AgilityInstance } from "../../types/Instance";
+import { AgilityInstance } from "../../types/agilityInstance";
 const FormData = require("form-data");
 
 inquirer.registerPrompt("search-list", require("inquirer-search-list"));

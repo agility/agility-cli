@@ -10,7 +10,7 @@ import { fileOperations } from "../services/fileOperations";
 import { exec } from "child_process";
 import { homePrompt } from "./home-prompt";
 import { instancesPrompt } from "./instance-prompt";
-import { AgilityInstance } from "../../types/Instance";
+import { AgilityInstance } from "../../types/agilityInstance";
 import ansiColors from "ansi-colors";
 import { blessedUIEnabled } from "../../index";
 import rootPathPrompt from "./root-path-prompt";

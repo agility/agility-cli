@@ -6,7 +6,7 @@ import * as path from "path";
 import ansiColors = require("ansi-colors");
 import { homePrompt } from "../prompts/home-prompt";
 import fileSystemPrompt from "../prompts/file-system-prompt";
-import { AgilityInstance } from "../../types/Instance";
+import { AgilityInstance } from "../../types/agilityInstance";
 import { forceDevMode } from "../../index";
 const axios = require("axios");
 

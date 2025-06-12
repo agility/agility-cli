@@ -19,7 +19,7 @@ import { homePrompt } from "./lib/prompts/home-prompt";
 import { generateEnv } from "./lib/utilities/generate-env";
 import { exit } from "process";
 import { instancesPrompt } from "./lib/prompts/instance-prompt";
-import { AgilityInstance } from "./types/Instance";
+import { AgilityInstance } from "./types/agilityInstance";
 import { websiteListing } from "types/websiteListing";
 import Clean from "./lib/services/clean";
 import { instanceSelector } from "./lib/instances/instance-list";

@@ -4,7 +4,7 @@ import { fileOperations } from "./fileOperations";
 import { serverUser } from "../../types/serverUser";
 import { WebsiteUser } from "../../types/websiteUser";
 import { forceDevMode, forceLocalMode, forcePreProdMode } from "../..";
-import { AgilityInstance } from "../../types/Instance";
+import { AgilityInstance } from "../../types/agilityInstance";
 const open = require("open");
 const FormData = require("form-data");
 import fs from 'fs';
