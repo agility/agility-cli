@@ -552,7 +552,7 @@ yargs.command({
     blessed: {
       describe: "Use Blessed UI for rich terminal output. (Deprecated in favor of default behavior)",
       type: "boolean",
-      default: true
+      default: false
     },
     headless: {
       describe: "Run in headless mode: no console output, logs to file. Overrides verbose and Blessed UI.",
@@ -562,7 +562,7 @@ yargs.command({
     verbose: {
       describe: "Run in verbose mode: all logs to console, no UI elements. Overridden by headless.",
       type: "boolean",
-      default: false
+      default: true
     },
     overwrite: {
       describe: "Force overwrite existing local files and metadata.",
