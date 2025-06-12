@@ -27,9 +27,9 @@ export async function pushContainers(
         const sourceRefName = container.referenceName;
 
         try {
-            // Skip if already processed
-            if (referenceMapper.getMapping('container', sourceRefName)) {
-                console.log(`Skipping already mapped container ${sourceRefName}`);
+            // Skip if already processed - check using original container object
+            const existingMapping = referenceMapper.getMapping('container', container);
+            if (existingMapping) {
                 successfulContainers++;
                 processedCount++;
                 if (onProgress) {
@@ -38,19 +38,15 @@ export async function pushContainers(
                 continue;
             }
 
-            console.log(`Processing container ${sourceRefName}...`);
-
-            // Check if container exists on target using proper finder (checks mappings then SDK)
+            // Check if container exists on target using finder
             let targetContainer = await findContainerInTargetInstance(container, apiClient, targetGuid, referenceMapper);
 
             if (targetContainer) {
-                console.log(`  Container ${sourceRefName} already exists on target. Mapping it.`);
-                referenceMapper.addMapping('container', { referenceName: sourceRefName }, targetContainer);
+                console.log(`✓ Container ${ansiColors.underline(sourceRefName)} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: ID:${targetContainer.contentViewID}`);
+                referenceMapper.addMapping('container', container, targetContainer);
                 successfulContainers++;
             } else {
-                console.log(`  Container ${sourceRefName} does not exist. Creating it...`);
                 // Prepare payload (needs model mapping first!)
-                // For now, let's assume model is mapped for simplicity
                 const modelMapping = referenceMapper.getMapping('model', container.contentDefinitionID);
                 if (!modelMapping) {
                     throw new Error (`Cannot create container ${sourceRefName} because its model (ID: ${container.contentDefinitionID}) has not been mapped yet.`);
@@ -67,8 +63,8 @@ export async function pushContainers(
 
                 const newContainer = await apiClient.containerMethods.saveContainer(payload, targetGuid);
                 
-                console.log(`  Successfully created container ${newContainer.referenceName}`);
-                referenceMapper.addMapping('container', { referenceName: sourceRefName }, newContainer);
+                console.log(`✓ Container created: ${sourceRefName} - ${ansiColors.green('Source')}: ${container.contentViewID} ${ansiColors.green(targetGuid)}: ${newContainer.contentViewID}`);
+                referenceMapper.addMapping('container', container, newContainer);
                 successfulContainers++;
             }
 

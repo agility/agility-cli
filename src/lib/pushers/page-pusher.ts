@@ -587,28 +587,21 @@ export async function pushPages(
         }
     });
 
-    console.log(`[Page Pusher Debug] Starting with ${Object.keys(processedContentIds).length} content ID mappings`);
-    console.log(`[Page Pusher Debug] Sample mappings:`, Object.keys(processedContentIds).slice(0, 5).map(sourceId =>
-        `${sourceId} -> ${processedContentIds[parseInt(sourceId)]}`));
-
     let totalPages = pages.length;
     let processedPagesCount = 0;
     let successfulPages = 0;
     let failedPages = 0;
     let overallStatus: 'success' | 'error' = 'success';
 
-    // LEGACY PATTERN: Process parent pages first, then child pages
+    // Process parent pages first, then child pages
     let parentPages = pages.filter(p => !p.parentPageID || p.parentPageID < 0);
     let childPages = pages.filter(p => p.parentPageID && p.parentPageID > 0);
-
-    console.log(`[Page Pusher Debug] Processing ${parentPages.length} parent pages, then ${childPages.length} child pages`);
 
     // Process parent pages first
     for (let i = 0; i < parentPages.length; i++) {
         const page = parentPages[i];
-        console.log(`[Page Legacy] Processing parent page: ${page.name} (ID: ${page.pageID})`);
 
-        const success = await processPageLegacy(page, targetGuid, locale, false, apiClient, processedPages, processedContentIds);
+        const success = await processPageLegacy(page, targetGuid, locale, false, apiClient, processedPages, processedContentIds, referenceMapper);
         if (success) {
             successfulPages++;
         } else {
@@ -617,17 +610,13 @@ export async function pushPages(
         }
         processedPagesCount++;
         if (onProgress) {
-            onProgress(processedPagesCount, totalPages, overallStatus);
+            onProgress(processedPagesCount, totalPages, overallStatus === 'success' ? 'success' : 'error');
         }
     }
 
-    // Process child pages, skipping pages that we don't have parentPage mapped for
-    // and continue looping until all child pages are processed, or we haven't processed a child page in a full pass
-    console.log(`[Page Legacy] Starting child page processing...`);
-
+    // Process child pages with dependency resolution
     let remainingChildPages = childPages.filter(p => !processedPages[p.pageID]);
     while (remainingChildPages.length > 0) {
-        console.log(`[Page Legacy] Remaining child pages to process: ${remainingChildPages.length}`);
         const currentChildPages = remainingChildPages.slice(); // Copy current state
         for (let i = 0; i < currentChildPages.length; i++) {
             const page = currentChildPages[i];
@@ -635,8 +624,7 @@ export async function pushPages(
             //check if the page's parent has been processed
             if (!processedPages[page.parentPageID]) continue;
 
-            console.log(`[Page Legacy] Processing child page: ${page.name} (ID: ${page.pageID}, Parent: ${page.parentPageID})`);
-            const success = await processPageLegacy(page, targetGuid, locale, true, apiClient, processedPages, processedContentIds);
+            const success = await processPageLegacy(page, targetGuid, locale, true, apiClient, processedPages, processedContentIds, referenceMapper);
             if (success) {
                 successfulPages++;
             } else {
@@ -645,7 +633,7 @@ export async function pushPages(
             }
             processedPagesCount++;
             if (onProgress) {
-                onProgress(processedPagesCount, totalPages, overallStatus);
+                onProgress(processedPagesCount, totalPages, overallStatus === 'success' ? 'success' : 'error');
             }
             // If this child page was processed successfully, remove it from remaining list
             if (success) {
@@ -653,16 +641,13 @@ export async function pushPages(
             }
         }
 
-        console.log(`[Page Legacy] Remaining child pages after processing: ${remainingChildPages.length}`);
         // If no child pages were processed in this pass, break to avoid infinite loop
         if (remainingChildPages.length === currentChildPages.length) {
-            console.warn(`[Page Legacy] No child pages processed in this pass, breaking to avoid infinite loop`);
             break;
         }
     }
 
-
-    console.log(ansiColors.yellow(`Processed ${successfulPages}/${totalPages} pages (${failedPages} failed)`));
+    console.log(`Processed ${successfulPages}/${totalPages} pages (${failedPages} failed)`);
     return { status: overallStatus, successfulPages, failedPages };
 }
 
@@ -674,7 +659,8 @@ async function processPageLegacy(
     isChildPage: boolean,
     apiClient: mgmtApi.ApiClient,
     processedPages: { [oldPageId: number]: number },
-    processedContentIds: { [oldContentId: number]: number }
+    processedContentIds: { [oldContentId: number]: number },
+    referenceMapper: ReferenceMapper
 ): Promise<boolean> {
     try {
         const pageName = page.name;
@@ -684,56 +670,39 @@ async function processPageLegacy(
         // Create a copy to avoid modifying original
         let pageToProcess = JSON.parse(JSON.stringify(page));
 
-        // CRITICAL FIX #1: Get target instance sitemap and channel ID
-        let channelID = -1;
+        // Check if page already exists using getPageByID (much faster than sitemap lookup)
         let existingPage: mgmtApi.PageItem | null = null;
-        let existingPageID = -1;
-
-        console.log(`[Page Legacy] Getting target sitemap for channel discovery...`);
-        const sitemap = await apiClient.pageMethods.getSitemap(targetGuid, locale);
-        const websiteChannel = sitemap?.find(channel => channel.digitalChannelTypeName === 'Website');
-        if (websiteChannel) {
-            channelID = websiteChannel.digitalChannelID;
-            console.log(`[Page Legacy] Found website channel ID: ${channelID}`);
-
-            // CRITICAL FIX #2: Check if page already exists on target instance
-            const pageInSitemap = websiteChannel.pages.find(p =>
-                p.pageName === page.name &&
-                p.parentPageID === page.parentPageID &&
-                p.pageType === page.pageType
-            );
-            if (pageInSitemap) {
-                existingPageID = pageInSitemap.pageID;
-                console.log(`[Page Legacy] Found existing page in sitemap: ${page.name} (ID: ${existingPageID})`);
-                // Try to fetch the full existing page data
-                try {
-                    existingPage = await apiClient.pageMethods.getPage(existingPageID, targetGuid, locale);
-                    console.log(`[Page Legacy] Successfully fetched existing page data for ${page.name}`);
-                } catch (fetchError: any) {
-                    if (!(fetchError.response && fetchError.response.status === 404)) {
-                        console.warn(`[Page Legacy] Warning: Could not fetch existing page ${existingPageID} for ${page.name}: ${fetchError.message}`);
-                    }
-                }
-            } else {
-                console.log(`[Page Legacy] Page ${page.name} not found in target sitemap - will create new`);
-            }
-        } else {
-            console.log(`[Page Legacy] No website channel found in target sitemap`);
+        let channelID = 1; // Default to website channel
+        
+        try {
+            existingPage = await apiClient.pageMethods.getPage(pageId, targetGuid, locale);
+        } catch (error: any) {
+            // Page doesn't exist, will create new
+            existingPage = null;
         }
 
-        // LEGACY PATTERN: Handle child pages
+        // Handle child pages - map parent ID
         if (isChildPage) {
             if (processedPages[page.parentPageID]) {
                 parentPageID = processedPages[page.parentPageID];
-                pageToProcess.parentPageID = parentPageID; // Update to target parent ID
-                console.log(`[Page Legacy] Mapped parent: Source ${page.parentPageID} -> Target ${parentPageID}`);
+                pageToProcess.parentPageID = parentPageID;
             } else {
-                console.error(`[Page Legacy] ✗ Parent page (Source ID: ${page.parentPageID}) not found for child page: ${page.name}`);
                 return false; // Can't process child without parent
             }
         }
 
-        // LEGACY PATTERN: Map content IDs in zones
+        // Map template ID if page has a template
+        if (pageToProcess.pageTemplateID && pageToProcess.pageTemplateID > 0) {
+            // Look up template by source pageTemplateID
+            const templateMapping = referenceMapper.getRecordsByType('template').find(record => 
+                record.source?.pageTemplateID === pageToProcess.pageTemplateID
+            );
+            if (templateMapping && templateMapping.target) {
+                pageToProcess.pageTemplateID = templateMapping.target.pageTemplateID;
+            }
+        }
+
+        // Map content IDs in zones
         if (pageToProcess.zones) {
             const keys = Object.keys(pageToProcess.zones);
             const zones = pageToProcess.zones;
@@ -741,7 +710,6 @@ async function processPageLegacy(
             for (let k = 0; k < keys.length; k++) {
                 const zone = zones[keys[k]];
                 for (let z = 0; z < zone.length; z++) {
-                    // CRITICAL FIX: Check both contentid (lowercase) and contentId (camelCase)
                     const sourceContentId = zone[z].item.contentid || zone[z].item.contentId;
 
                     if (sourceContentId && processedContentIds[sourceContentId]) {
@@ -751,123 +719,75 @@ async function processPageLegacy(
                         } else if (zone[z].item.contentId !== undefined) {
                             zone[z].item.contentId = processedContentIds[sourceContentId];
                         }
-                        console.log(`[Page Legacy] ✅ Mapped content: ${sourceContentId} -> ${processedContentIds[sourceContentId]}`);
-                    } else if (sourceContentId) {
-                        console.error(`[Page Legacy] ✗ Content ID ${sourceContentId} not found in mappings for page ${page.name}`);
-                        // Continue processing - don't fail entire page for missing content
                     }
                 }
             }
         }
 
-        // LEGACY PATTERN: Prepare page for API call
+        // Prepare page for API call
         const oldPageId = pageToProcess.pageID;
-        // CRITICAL FIX #3: Use existing page ID for updates, -1 for new pages
         pageToProcess.pageID = existingPage ? existingPage.pageID : -1;
-        // CRITICAL FIX #4: Use discovered channel ID instead of -1
-        pageToProcess.channelID = channelID > 0 ? channelID : (existingPage ? existingPage.channelID : -1);
+        pageToProcess.channelID = existingPage ? existingPage.channelID : channelID;
 
-        console.log(`[Page Legacy] Using pageID: ${pageToProcess.pageID} (${existingPage ? 'UPDATE' : 'CREATE'}), channelID: ${pageToProcess.channelID}`);
-
-        // CRITICAL: Ensure zones is always present (API requirement)
+        // Ensure required fields
         if (!pageToProcess.zones) {
             pageToProcess.zones = {};
         }
-
-        // CRITICAL: Ensure title field is present and valid
         if (!pageToProcess.title || pageToProcess.title.trim() === '') {
             pageToProcess.title = pageToProcess.menuText || pageToProcess.name || 'Untitled Page';
         }
-
-        // CRITICAL: Ensure pageTemplateID is properly set for folder pages
         if (pageToProcess.pageType === 'folder' || !pageToProcess.templateName || pageToProcess.templateName === '') {
-            pageToProcess.pageTemplateID = null; // Folder pages have null template
+            pageToProcess.pageTemplateID = null;
         }
-
-        // CRITICAL: Ensure visible fields are present
         if (!pageToProcess.visible) {
-            pageToProcess.visible = {
-                menu: true,
-                sitemap: true
-            };
+            pageToProcess.visible = { menu: true, sitemap: true };
         }
 
-        console.log(`[Page Legacy] Calling savePage for: ${pageName}`);
-        console.log(`[Page Legacy] Page type: ${pageToProcess.pageType}, Title: "${pageToProcess.title}", Template: ${pageToProcess.templateName || 'None'}`);
-        console.log(`[Page Legacy] Channel ID: ${pageToProcess.channelID}, Parent ID: ${parentPageID}`);
-
-        // LEGACY API CALL PATTERN - Simple parameters
+        // Save page
         const createdPage = await apiClient.pageMethods.savePage(pageToProcess, targetGuid, locale, parentPageID, -1);
 
-        console.log(`[Page Legacy] API Response for ${pageName}:`, JSON.stringify(createdPage, null, 2));
-
-        // CRITICAL FIX #5: Handle both simple array AND batch responses (like main function)
+        // Handle response
         if (createdPage && Array.isArray(createdPage) && createdPage[0]) {
-            // Simple array response [12345] - legacy pattern
+            // Simple array response [12345]
             if (createdPage[0] > 0) {
                 processedPages[oldPageId] = createdPage[0];
-                console.log(`✓ ${isChildPage ? 'Child ' : ''}Page ${ansiColors.underline(pageName)} ${existingPage ? 'Updated' : 'Created'} - Target ID: ${createdPage[0]}`);
-                console.log(`[Page Legacy] Added page mapping: Source ${oldPageId} -> Target ${createdPage[0]}`);
+                console.log(`✓ Page ${existingPage ? 'updated' : 'created'}: ${pageName} - Source: ${oldPageId} ${targetGuid}: ${createdPage[0]}`);
+                
+                // Add to reference mapper using the passed instance
+                referenceMapper.addRecord('page', page, { pageID: createdPage[0], name: pageName });
+                
                 return true;
-            } else {
-                console.error(`[Page Legacy] ✗ Invalid page ID returned for ${pageName}: ${createdPage[0]}`);
-                return false;
             }
         } else if (createdPage && typeof createdPage === 'object' && 'batchID' in createdPage) {
-            // ✅ SIMPLIFIED BATCH HANDLING - Extract info directly instead of polling
+            // Batch response - extract page ID if completed
             const batchResponse = createdPage as any;
-            console.log(`[Page Legacy] Batch response for ${pageName}: batchID ${batchResponse.batchID}, state: ${batchResponse.batchState}`);
-
-            // Check if batch completed immediately with errors
+            
             if (batchResponse.batchState === 3) {
-                // Batch is already complete, check for success or failure
                 if (batchResponse.errorData && batchResponse.errorData.trim()) {
-                    // Batch completed with errors
-                    console.error(`[Page Legacy] ✗ Batch ${batchResponse.batchID} completed with errors for ${pageName}`);
-                    const wrapped = wrapLines(batchResponse.errorData, 80);
-                    console.error(`[Page Legacy] Batch Error: ${wrapped}`);
+                    console.log(`✗ Page failed: ${pageName} - ${batchResponse.errorData}`);
                     return false;
                 } else if (batchResponse.items && Array.isArray(batchResponse.items)) {
-                    // Try to extract page ID directly from batch response
-                    const pageItem = batchResponse.items.find((item: any) => item.itemType === 1); // itemType 1 = Page
+                    const pageItem = batchResponse.items.find((item: any) => item.itemType === 1);
                     if (pageItem && pageItem.itemID > 0 && !pageItem.itemNull) {
-                        // Success! We have a valid page ID
                         processedPages[oldPageId] = pageItem.itemID;
-                        console.log(`✓ ${isChildPage ? 'Child ' : ''}Page ${ansiColors.underline(pageName)} ${existingPage ? 'Updated' : 'Created'} - Target ID: ${pageItem.itemID}`);
-                        console.log(`[Page Legacy] Added page mapping: Source ${oldPageId} -> Target ${pageItem.itemID}`);
+                        console.log(`✓ Page ${existingPage ? 'updated' : 'created'}: ${pageName} - Source: ${oldPageId} ${targetGuid}: ${pageItem.itemID}`);
+                        
+                        // Add to reference mapper using the passed instance
+                        referenceMapper.addRecord('page', page, { pageID: pageItem.itemID, name: pageName });
+                        
                         return true;
-                    } else {
-                        // Batch completed but page creation failed
-                        console.error(`[Page Legacy] ✗ Batch ${batchResponse.batchID} completed but page creation failed for ${pageName}`);
-                        console.error(`[Page Legacy] Page item in batch:`, JSON.stringify(pageItem, null, 2));
-                        return false;
                     }
-                } else {
-                    console.error(`[Page Legacy] ✗ Batch ${batchResponse.batchID} completed but no items found for ${pageName}`);
-                    return false;
                 }
-            } else {
-                // Batch is not complete yet, but we can't poll - treat as failure for now
-                console.error(`[Page Legacy] ✗ Batch ${batchResponse.batchID} not completed (state: ${batchResponse.batchState}) and polling unavailable for ${pageName}`);
-                return false;
             }
-        } else if (createdPage && typeof createdPage === 'object' && 'errorData' in createdPage) {
-            // Handle API error response object
-            console.error(`[Page Legacy] ✗ Failed to ${existingPage ? 'update' : 'create'} page ${pageName}`);
-            const wrapped = wrapLines(createdPage.errorData, 80);
-            console.error(`[Page Legacy] API Error: ${wrapped}`);
-            console.error(`[Page Legacy] Full API Error Response:`, JSON.stringify(createdPage, null, 2));
-            return false;
-        } else {
-            console.error(`[Page Legacy] ✗ Unexpected response format for ${pageName}:`, createdPage);
+            console.log(`✗ Page failed: ${pageName} - batch not completed or failed`);
             return false;
         }
 
+        console.log(`✗ Page failed: ${pageName} - invalid response`);
+        return false;
+
     } catch (error: any) {
-        console.error(`[Page Legacy] ✗ Error processing page ${page.name}:`, error.message);
-        if (error.response?.data) {
-            console.error(`[Page Legacy] API Error Data:`, error.response.data);
-        }
+        console.log(`✗ Page failed: ${page.name} - ${error.message}`);
         return false;
     }
 }

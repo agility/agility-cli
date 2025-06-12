@@ -133,8 +133,8 @@ export class ReferenceMapper {
                     break;
 
                 case 'gallery':
-                    if (source.galleryID && target.galleryID) {
-                        this.galleryIds.set(source.galleryID, target.galleryID);
+                    if (source.mediaGroupingID && target.mediaGroupingID) {
+                        this.galleryIds.set(source.mediaGroupingID, target.mediaGroupingID);
                     }
                     break;
             }
@@ -345,10 +345,27 @@ export class ReferenceMapper {
     }
 
     /**
-     * Legacy API compatibility: Save mappings (no-op for in-memory mapper)
+     * Save mappings to disk using fileOperations
      */
     async saveAllMappings(): Promise<void> {
-        // No-op for in-memory mapper - legacy compatibility
+        try {
+            const mappingData = {
+                sourceGUID: this.sourceGUID,
+                targetGUID: this.targetGUID,
+                records: this.records,
+                modelIds: Array.from(this.modelIds.entries()),
+                contentIds: Array.from(this.contentIds.entries()),
+                containerIds: Array.from(this.containerIds.entries()),
+                templateIds: Array.from(this.templateIds.entries()),
+                pageIds: Array.from(this.pageIds.entries()),
+                assetIds: Array.from(this.assetIds.entries()),
+                galleryIds: Array.from(this.galleryIds.entries())
+            };
+
+            this.fileOps.saveMappingFile(this.targetGUID, mappingData);
+        } catch (error) {
+            console.warn('Warning: Could not save mappings to disk:', error);
+        }
     }
 
     /**
@@ -505,30 +522,6 @@ export class ReferenceMapper {
             return sourceValue.toLowerCase() === targetValue.toLowerCase();
         }
         return sourceValue === targetValue;
-    }
-
-    /**
-     * Save mappings to disk using fileOperations
-     */
-    saveMappingsToDisk(): void {
-        try {
-            const mappingData = {
-                sourceGUID: this.sourceGUID,
-                targetGUID: this.targetGUID,
-                records: this.records,
-                modelIds: Array.from(this.modelIds.entries()),
-                contentIds: Array.from(this.contentIds.entries()),
-                containerIds: Array.from(this.containerIds.entries()),
-                templateIds: Array.from(this.templateIds.entries()),
-                pageIds: Array.from(this.pageIds.entries()),
-                assetIds: Array.from(this.assetIds.entries()),
-                galleryIds: Array.from(this.galleryIds.entries())
-            };
-
-            this.fileOps.saveMappingFile(this.targetGUID, mappingData);
-        } catch (error) {
-            console.warn('Warning: Could not save mappings to disk:', error);
-        }
     }
 
     /**

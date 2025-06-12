@@ -99,7 +99,15 @@ export async function pushAssets(
                                 if (sourceGalleryGrouping) {
                                     referenceMapper.addRecord('gallery', sourceGalleryGrouping, gallery);
                                 } else {
-                                    console.warn(`Could not find source gallery grouping named ${media.mediaGroupingName} in the input list.`);
+                                    // Create synthetic source gallery for mapping persistence
+                                    const syntheticSourceGallery = {
+                                        mediaGroupingID: media.mediaGroupingID,
+                                        name: media.mediaGroupingName,
+                                        description: '',
+                                        isActive: true
+                                    };
+                                    referenceMapper.addRecord('gallery', syntheticSourceGallery, gallery);
+                                    console.log(`[Asset] Created synthetic gallery mapping for ${media.mediaGroupingName} (source ID: ${media.mediaGroupingID} -> target ID: ${gallery.mediaGroupingID})`);
                                 }
                             }
                         }
