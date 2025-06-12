@@ -246,6 +246,14 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += modelResult.successfulModels;
                 totalFailures += modelResult.failedModels;
+                
+                // Save mappings after models complete
+                console.log(ansiColors.gray('  💾 Saving model mappings to disk...'));
+                try {
+                    await referenceMapper.saveAllMappings();
+                } catch (saveError) {
+                    console.warn('Warning: Could not save model mappings:', saveError);
+                }
             }
 
             // 2. Push Galleries (independent)
@@ -263,6 +271,14 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += galleryResult.successfulGroupings;
                 totalFailures += galleryResult.failedGroupings;
+                
+                // Save mappings after galleries complete
+                console.log(ansiColors.gray('  💾 Saving gallery mappings to disk...'));
+                try {
+                    await referenceMapper.saveAllMappings();
+                } catch (saveError) {
+                    console.warn('Warning: Could not save gallery mappings:', saveError);
+                }
             }
 
             // 3. Push Assets (depend on galleries)
@@ -284,6 +300,14 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += assetResult.successfulAssets;
                 totalFailures += assetResult.failedAssets;
+                
+                // Save mappings after assets complete
+                console.log(ansiColors.gray('  💾 Saving asset mappings to disk...'));
+                try {
+                    await referenceMapper.saveAllMappings();
+                } catch (saveError) {
+                    console.warn('Warning: Could not save asset mappings:', saveError);
+                }
             }
 
             // 4. Push Containers (depend on models)
@@ -300,6 +324,14 @@ export class TopologicalContentSync {
                 
                 totalSuccess += containerResult.successfulContainers;
                 totalFailures += containerResult.failedContainers;
+                
+                // Save mappings after containers complete
+                console.log(ansiColors.gray('  💾 Saving container mappings to disk...'));
+                try {
+                    await referenceMapper.saveAllMappings();
+                } catch (saveError) {
+                    console.warn('Warning: Could not save container mappings:', saveError);
+                }
             }
 
             // 5. Push Content Items (SINGLE-PASS WITH CONTAINER INFERENCE)
@@ -316,6 +348,14 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += contentResult.successfulItems;
                 totalFailures += contentResult.failedItems;
+                
+                // Save mappings after content complete
+                console.log(ansiColors.gray('  💾 Saving content mappings to disk...'));
+                try {
+                    await referenceMapper.saveAllMappings();
+                } catch (saveError) {
+                    console.warn('Warning: Could not save content mappings:', saveError);
+                }
             }
 
             // 6. Push Templates (depend on containers, models)
@@ -332,6 +372,14 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += templateResult.successfulTemplates;
                 totalFailures += templateResult.failedTemplates;
+                
+                // Save mappings after templates complete
+                console.log(ansiColors.gray('  💾 Saving template mappings to disk...'));
+                try {
+                    await referenceMapper.saveAllMappings();
+                } catch (saveError) {
+                    console.warn('Warning: Could not save template mappings:', saveError);
+                }
             }
 
             // 7. Push Pages (depend on templates, content)
@@ -349,6 +397,14 @@ export class TopologicalContentSync {
                 );
                 totalSuccess += pageResult.successfulPages;
                 totalFailures += pageResult.failedPages;
+                
+                // Save mappings after pages complete
+                console.log(ansiColors.gray('  💾 Saving page mappings to disk...'));
+                try {
+                    await referenceMapper.saveAllMappings();
+                } catch (saveError) {
+                    console.warn('Warning: Could not save page mappings:', saveError);
+                }
             }
 
         } catch (error) {

@@ -24,8 +24,9 @@ export class fileOperations{
     this._isPreview = isPreview;
     this._legacyFolders = legacyFolders;
     
-    // Resolve the root path to absolute path
-    this._resolvedRootPath = path.resolve(process.cwd(), rootPath);
+    // Keep paths relative instead of resolving to absolute paths
+    // This prevents files from being written to /Users/ directories
+    this._resolvedRootPath = rootPath;
     
     // Calculate paths based on legacy mode
     if (legacyFolders) {
@@ -73,8 +74,8 @@ export class fileOperations{
                 // So, the effectiveBase is empty string, and 'folder' will be joined from root.
                 effectiveBase = "";
             } else {
-                // If 'folder' is relative, default to 'agility-files' as the base, relative to CWD.
-                effectiveBase = 'agility-files';
+                // If 'folder' is relative, use the resolved root path as the base
+                effectiveBase = this._resolvedRootPath;
             }
         }
         
@@ -91,17 +92,18 @@ export class fileOperations{
     }
 
     appendFiles(folder: string, fileIdentifier: any, extractedObject: any){
-      if(!fs.existsSync(`agility-files/${folder}`)){
-        fs.mkdirSync(`agility-files/${folder}`);
+      const folderPath = path.join(this._resolvedRootPath, folder);
+      if(!fs.existsSync(folderPath)){
+        fs.mkdirSync(folderPath, { recursive: true });
       }
 
-      let fileName =  `agility-files/${folder}/${fileIdentifier}.json`;
+      let fileName = path.join(folderPath, `${fileIdentifier}.json`);
       fs.appendFileSync(fileName,JSON.stringify(extractedObject));
     }
 
     createLogFile(folder: string, fileIdentifier: any, baseFolder?: string){
       if(baseFolder === undefined || baseFolder === ''){
-        baseFolder = `agility-files`;
+        baseFolder = this._resolvedRootPath;
       }
       if(!fs.existsSync(`${baseFolder}`)){
         fs.mkdirSync(`${baseFolder}`);
@@ -126,7 +128,9 @@ export class fileOperations{
             if (path.isAbsolute(folder)) {
                 fullPath = folder;
             } else {
-                fullPath = path.join('agility-files', folder);
+                // Use the resolved root path instead of hard-coded 'agility-files'
+                // This ensures folders are created relative to the correct base path
+                fullPath = path.join(this._resolvedRootPath, folder);
             }
             
             // Normalize the path and split into segments
@@ -165,7 +169,7 @@ export class fileOperations{
 
     createBaseFolder(folder?: string){
       if(folder === undefined || folder === ''){
-        folder = `agility-files`;
+        folder = this._resolvedRootPath;
       }
       if(!fs.existsSync(folder)){
         fs.mkdirSync(folder);
@@ -328,7 +332,7 @@ export class fileOperations{
 
   readDirectory(folderName: string, baseFolder?: string){
     if(baseFolder === undefined || baseFolder === ''){
-      baseFolder = 'agility-files';
+      baseFolder = this._resolvedRootPath;
     }
     let directory = `${baseFolder}/${folderName}`;
 
@@ -343,7 +347,7 @@ export class fileOperations{
 
   folderExists(folderName: string, baseFolder?: string){
     if(baseFolder === undefined || baseFolder === ''){
-      baseFolder = 'agility-files';
+      baseFolder = this._resolvedRootPath;
     }
     let directory = `${baseFolder}/${folderName}`;
     if(fs.existsSync(directory)){
@@ -406,7 +410,7 @@ export class fileOperations{
   }
 
   cliFolderExists(){
-    if(fs.existsSync('agility-files')){
+    if(fs.existsSync(this._resolvedRootPath)){
       return true;
     } else{
       return false;

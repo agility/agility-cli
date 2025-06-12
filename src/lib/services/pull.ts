@@ -189,21 +189,13 @@ export class Pull {
     let resolvedRootPathForInstances: string;
     const currentWorkingDir = process.cwd();
     // this._rootPath is from constructor (e.g. "agility-files" or user-provided --rootPath)
-    const rootPathName = this._legacyFolders ? this._rootPath : path.basename(this._rootPath);
+    
+    // SIMPLIFIED PATH RESOLUTION: Always use relative paths
+    // No more complex conditional logic that creates absolute paths
+    resolvedRootPathForInstances = this._rootPath; // Keep it relative (e.g., "agility-files")
+    console.log(`Using relative directory as root for Agility instances: ${resolvedRootPathForInstances}`);
 
 
-    if (!this._legacyFolders && path.basename(currentWorkingDir) === rootPathName && this._rootPath === rootPathName) {
-        // We are in a directory that has the same name as the intended root directory (e.g. cwd is /some/path/agility-files and rootPathName is "agility-files")
-        // And we are not using legacy folders, and the _rootPath was just a name (not a path like ../agility-files)
-        resolvedRootPathForInstances = currentWorkingDir;
-        console.log(`Operating within current directory as root for Agility instances: ${resolvedRootPathForInstances}`);
-    } else {
-        // Default behavior: use or create a directory named rootPathName in the current working directory,
-        // or use this._rootPath if it's a more complex path or for legacy mode.
-        const baseForRootPath = this._legacyFolders ? "" : currentWorkingDir; // For legacy, _rootPath might be absolute or already structured
-        resolvedRootPathForInstances = path.resolve(baseForRootPath, this._rootPath);
-        console.log(`Using directory as root for Agility instances: ${resolvedRootPathForInstances}`);
-    }
     
     // Ensure the resolvedRootPathForInstances itself exists (e.g. ./agility-files or ./custom-root)
     // This is the folder that will contain the GUID folders.
