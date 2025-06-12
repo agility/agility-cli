@@ -3,7 +3,7 @@ import colors from "ansi-colors";
 import { instanceSelector } from "../instances/instance-list";
 import { getInstance, instancesPrompt } from "./instance-prompt";
 import { Auth } from "../services/auth";
-import { AgilityInstance } from "types/instance";
+import { AgilityInstance } from "types/Instance";
 
 export async function homePrompt(useBlessedUI: boolean, prompt?: any) {
   await inquirer

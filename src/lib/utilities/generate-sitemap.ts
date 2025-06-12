@@ -3,7 +3,7 @@ import * as path from "path";
 import { localePrompt } from "../prompts/locale-prompt";
 import fileSystemPrompt from "../prompts/file-system-prompt";
 import agilitySDK from "@agility/content-fetch";
-import { AgilityInstance } from "../../types/instance";
+import { AgilityInstance } from "../../types/Instance";
 import { isPreviewPrompt } from "../prompts/isPreview-prompt";
 import { channelPrompt } from "../prompts/channel-prompt";
 import { websiteAddressPrompt } from "../prompts/website-address-prompt";

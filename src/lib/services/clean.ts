@@ -4,7 +4,7 @@ import { Auth } from "./auth";
 import { createMultibar } from "./multibar";
 import { assets } from "./assets";
 import ansiColors from "ansi-colors";
-import { AgilityInstance } from "../../types/instance";
+import { AgilityInstance } from "../../types/Instance";
 const fs = require("fs");
 
 let auth: Auth;

@@ -7,7 +7,7 @@ import * as mgmtApi from "@agility/management-sdk";
 import { fileOperations } from "../services/fileOperations";
 import { localePrompt } from "./locale-prompt";
 import { isPreviewPrompt } from "./isPreview-prompt";
-import { AgilityInstance } from "../../types/instance";
+import { AgilityInstance } from "../../types/Instance";
 import { blessedUIEnabled, modelDiffsEnabled } from "../../index";
 import { elementsPrompt } from "./elements-prompt";
 import { push } from "../services/push";

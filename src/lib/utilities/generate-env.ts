@@ -8,7 +8,7 @@ import { instanceSelector } from "../instances/instance-list";
 import { channelPrompt } from "../prompts/channel-prompt";
 import { getInstance } from "../prompts/instance-prompt";
 import fileSystemPrompt from "../prompts/file-system-prompt";
-import { AgilityInstance } from "../../types/instance";
+import { AgilityInstance } from "../../types/Instance";
 const FormData = require("form-data");
 const fs = require('fs');
 const path = require('path');
