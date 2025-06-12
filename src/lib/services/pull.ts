@@ -14,7 +14,8 @@ import { fileOperations } from "./fileOperations"; // Added import
 import { downloadAllGalleries, 
     downloadAllAssets, 
     downloadAllModels, 
-    downloadAllTemplates
+    downloadAllTemplates,
+    downloadAllContainers
 } from "../downloaders/index";
 import ansiColors from "ansi-colors";
 
@@ -458,9 +459,8 @@ export class Pull {
                 case 'Models': await downloadAllModels(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
                 case 'Templates': await downloadAllTemplates(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
                 // Note: Containers, Sitemaps, Redirections, and Pages are now handled by Content Sync SDK in the 'Content' step
-                case 'Containers': 
-                    console.log(`${stepName} are now handled by Content Sync SDK in the 'Content' step`);
-                    updateProgress(currentStepIndex, 'success', 100);
+                case 'Containers':
+                    await downloadAllContainers(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback);
                     break;
                 case 'Sitemaps': 
                     console.log(`${stepName} are now handled by Content Sync SDK in the 'Content' step`);

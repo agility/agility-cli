@@ -57,8 +57,13 @@ export async function pushContainers(
                 }
 
                 const payload = { ...container };
+
+                // Reset the ids with the correct model so we can create a new container
                 payload.contentDefinitionID = (modelMapping as any).id;
                 payload.contentViewID = -1; // Create as new
+
+                // TODO: create the container group in the API here so we don't have to set the contentViewCategoryID to -1
+                payload.contentViewCategoryID = -1; // Don't bother with categories for now
 
                 const newContainer = await apiClient.containerMethods.saveContainer(payload, targetGuid);
                 
