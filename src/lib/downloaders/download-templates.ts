@@ -11,17 +11,12 @@ export async function downloadAllTemplates(
   isPreview: boolean,
   options: mgmtApi.Options,
   multibar: cliProgress.MultiBar,
-  // basePath will be agility-files/{guid}/{locale}/{isPreview ? "preview" : "live"}
-  // This is constructed by the caller (Pull service)
-  basePath: string,
+  fileOps: fileOperations,
   forceOverwrite: boolean, // New parameter
   progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
 ): Promise<void> {
 
-  // let basePath = path.join(rootPath, guid, locale, isPreview ? "preview" : "live");
-
-  const templatesFolderPath = path.join(basePath, 'templates');
-  const fileOps = new fileOperations(basePath, guid, locale, isPreview);
+  const templatesFolderPath = fileOps.getDataFolderPath('templates');
   // let progressBar: cliProgress.SingleBar; // Old cli-progress bar, remove
 
   if (forceOverwrite) {
@@ -48,14 +43,8 @@ export async function downloadAllTemplates(
     }
   }
 
-  // Ensure base directory exists before trying to write templates
-  if (!fs.existsSync(basePath)) {
-    fs.mkdirSync(basePath, { recursive: true });
-  }
-  // Ensure templates directory exists
-   if (!fs.existsSync(templatesFolderPath)) {
-    fs.mkdirSync(templatesFolderPath, { recursive: true });
-  }
+  // Use fileOperations to create templates folder
+  fileOps.createFolder('templates');
 
   let apiClient = new mgmtApi.ApiClient(options);
   let totalTemplates = 0; // Define totalTemplates in a broader scope for the catch block
@@ -77,7 +66,7 @@ export async function downloadAllTemplates(
 
     for (let i = 0; i < totalTemplates; i++) {
       let template = pageTemplates[i];
-      fileOps.exportFiles(`templates`, template.pageTemplateID, template, basePath);
+      fileOps.exportFiles(`templates`, template.pageTemplateID, template);
       processedCount++;
       if (progressCallback) progressCallback(processedCount, totalTemplates, 'progress');
       console.log(`✓ Downloaded template ${ansiColors.cyan(template.pageTemplateName)} ID: ${template.pageTemplateID}`);

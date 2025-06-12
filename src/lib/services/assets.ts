@@ -8,28 +8,26 @@ export class assets {
   _options: mgmtApi.Options;
   _multibar: cliProgress.MultiBar;
   unProcessedAssets: { [key: number]: string };
-  _rootPath: string;
-  _legacyFolders: boolean;
+  private _fileOps: fileOperations;
   private _progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void;
 
   constructor(
     options: mgmtApi.Options,
     multibar: cliProgress.MultiBar,
-    rootPath?: string,
+    fileOps: fileOperations,
     legacyFolders:boolean = false,
     progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
     ) {
     this._options = options;
     this._multibar = multibar;
     this.unProcessedAssets = {};
-    this._rootPath = rootPath;
-    this._legacyFolders = legacyFolders;
+    this._fileOps = fileOps;
     this._progressCallback = progressCallback;
   }
 
   async getGalleries(guid: string, locale: string, isPreview: boolean = true) {
     let apiClient = new mgmtApi.ApiClient(this._options);
-    let fileExport = new fileOperations(this._rootPath, guid, locale, isPreview);
+    let fileExport = this._fileOps;
 
     let pageSize = 250;
     let rowIndex = 0;
@@ -47,11 +45,9 @@ export class assets {
 
     let totalRecords = initialRecords.totalCount;
 
-    fileExport.createFolder(
-      `${guid}/${locale}/${isPreview ? "preview" : "live"}/assets/galleries`
-    );
+    fileExport.createFolder("assets/galleries");
     fileExport.exportFiles(
-      `${guid}/${locale}/${isPreview ? "preview" : "live"}/assets/galleries`,
+      "assets/galleries",
       index,
       initialRecords
     );
@@ -87,9 +83,7 @@ export class assets {
         );
 
         fileExport.exportFiles(
-          `${guid}/${locale}/${
-            isPreview ? "preview" : "live"
-          }/assets/galleries`,
+          "assets/galleries",
           index,
           galleries
         );
@@ -112,7 +106,7 @@ export class assets {
 
   async getAssets(guid: string, locale: string, isPreview: boolean = true) {
     let apiClient = new mgmtApi.ApiClient(this._options);
-    let fileExport = new fileOperations(this._rootPath, guid, locale, isPreview);
+    let fileExport = this._fileOps;
 
     let pageSize = 250;
     let recordOffset = 0;
@@ -133,18 +127,13 @@ export class assets {
       totalRecords = initialRecords.totalCount;
       if (this._progressCallback) this._progressCallback(totalSuccessfullyDownloaded, totalRecords, 'progress');
 
-      const instanceDataPath = this._rootPath;
+      const assetsRootWithinInstance = fileExport.getDataFolderPath("assets");
+      const assetsJsonPath = fileExport.getDataFolderPath("assets/json");
 
-      const assetsRootWithinInstance = this._legacyFolders 
-        ? path.join(instanceDataPath, 'assets')
-        : path.join(instanceDataPath, "assets");
-
-      const assetsJsonPath = path.join(assetsRootWithinInstance, "json");
-
-      fileExport.createFolder(assetsJsonPath);
+      fileExport.createFolder("assets/json");
 
       fileExport.exportFiles(
-        assetsJsonPath,
+        "assets/json",
         index,
         initialRecords
       );
@@ -174,15 +163,15 @@ export class assets {
 
         // Note: Removed broken isUrlProperlyEncoded check - all valid assets should be downloaded
 
-        const destinationFolderPath = folderPath ? path.join(assetFileDownloadBase, folderPath) : assetFileDownloadBase;
+        const assetFolderPath = folderPath ? `assets/${folderPath}` : "assets";
         if (folderPath) {
-          fileExport.createFolder(destinationFolderPath);
+          fileExport.createFolder(assetFolderPath);
         }
         
         try {
           await fileExport.downloadFile(
             originUrl,
-            path.join(destinationFolderPath, fileName)
+            fileExport.getDataFolderPath(`${assetFolderPath}/${fileName}`)
           );
           console.log('✓ Downloaded file', ansiColors.underline(fileName || originUrl.split('/').pop()));
           totalSuccessfullyDownloaded++;
@@ -204,7 +193,7 @@ export class assets {
             guid
           );
           fileExport.exportFiles(
-            assetsJsonPath,
+            "assets/json",
             index,
             assetsPage
           );
@@ -218,7 +207,6 @@ export class assets {
             const filePath = this.getFilePath(originUrl);
             const folderPath = filePath.split("/").slice(0, -1).join("/");
             let fileName = `${assetMedia.fileName}`;
-            const assetFileDownloadBase = assetsRootWithinInstance;
 
             // Sanitize filename to avoid filesystem issues
             fileName = fileName.replace(/[<>:"|?*]/g, '_'); // Replace invalid filesystem characters
@@ -226,15 +214,15 @@ export class assets {
 
             // Note: Removed broken isUrlProperlyEncoded check - all valid assets should be downloaded
 
-            const destinationFolderPath = folderPath ? path.join(assetFileDownloadBase, folderPath) : assetFileDownloadBase;
+            const assetFolderPath = folderPath ? `assets/${folderPath}` : "assets";
             if (folderPath) {
-              fileExport.createFolder(destinationFolderPath);
+              fileExport.createFolder(assetFolderPath);
             }
 
             try {
               await fileExport.downloadFile(
                 originUrl,
-                path.join(destinationFolderPath, fileName)
+                fileExport.getDataFolderPath(`${assetFolderPath}/${fileName}`)
               );
               console.log('✓ Downloaded file', ansiColors.underline(fileName || originUrl.split('/').pop()));
               totalSuccessfullyDownloaded++;

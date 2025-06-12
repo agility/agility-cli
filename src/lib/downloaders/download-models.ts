@@ -1,6 +1,7 @@
 import * as mgmtApi from "@agility/management-sdk";
 import * as cliProgress from "cli-progress";
 import { models as ModelsService } from "../services/models"; // Renamed import
+import { fileOperations } from "../services/fileOperations";
 import * as fs from "fs";
 import * as path from "path";
 import ansiColors from "ansi-colors"; // For colored logging
@@ -11,13 +12,11 @@ export async function downloadAllModels(
   isPreview: boolean, 
   options: mgmtApi.Options,
   multibar: cliProgress.MultiBar,
-  basePath: string, // e.g., agility-files/{guid}/{locale}/{isPreview ? "preview" : "live"}
+  fileOps: fileOperations,
   forceOverwrite: boolean, // New parameter
   progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
 ): Promise<void> {
-  // let basePath = path.join(rootPath, guid, locale, isPreview ? "preview" : "live");
-  const modelsFolderPath = path.join(basePath, "models");
-  // let progressBar: cliProgress.SingleBar; // Old cli-progress bar, remove
+  const modelsFolderPath = fileOps.getDataFolderPath("models");
 
   console.log("modelsFolderPath", modelsFolderPath);
   if (forceOverwrite) {
@@ -41,17 +40,16 @@ export async function downloadAllModels(
     }
   }
 
-  if (!fs.existsSync(modelsFolderPath)) {
-    fs.mkdirSync(modelsFolderPath, { recursive: true });
-  }
+  // Use fileOperations to create folder instead of fs directly
+  fileOps.createFolder("models");
 
   // Instantiate the models service, passing the progressCallback.
-  const modelsServiceInstance = new ModelsService(options, multibar, basePath, false, progressCallback);
+  const modelsServiceInstance = new ModelsService(options, multibar, fileOps, false, progressCallback);
 
   try {
     // console.log("Starting download of all content and page models...");
     // Initial progress can be set here if desired, but getModels will also call it.
-    await modelsServiceInstance.getModels(guid, locale, isPreview, basePath);
+    await modelsServiceInstance.getModels(guid, locale, isPreview);
     // Final success/error callback is handled by modelsServiceInstance.getModels
   } catch (error) {
     // Error-specific callback is handled by modelsServiceInstance.getModels.

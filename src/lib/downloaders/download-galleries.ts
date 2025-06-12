@@ -1,6 +1,7 @@
 import * as mgmtApi from "@agility/management-sdk";
 import * as cliProgress from "cli-progress";
 import { assets as AssetsService } from "../services/assets";
+import { fileOperations } from "../services/fileOperations";
 import * as fs from "fs";
 import * as path from "path";
 import ansiColors from "ansi-colors"; // For colored logging
@@ -11,12 +12,12 @@ export async function downloadAllGalleries(
   isPreview: boolean,
   options: mgmtApi.Options,
   multibar: cliProgress.MultiBar,
-  basePath: string, 
+  fileOps: fileOperations, 
   forceOverwrite: boolean, // New parameter
   progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
 ): Promise<void> {
-  const galleriesParentPath = path.join(basePath, "assets"); // Parent for galleries
-  const galleriesFolderPath = path.join(galleriesParentPath, "galleries");
+  const galleriesParentPath = fileOps.getDataFolderPath("assets"); // Parent for galleries
+  const galleriesFolderPath = fileOps.getDataFolderPath("assets/galleries");
 
   if (forceOverwrite) {
     // console.log(ansiColors.yellow(`Overwrite selected: Existing galleries will be refreshed.`));
@@ -31,16 +32,11 @@ export async function downloadAllGalleries(
     }
   }
 
-  // Ensure galleries directory exists (it might have been deleted or never existed)
-  if (!fs.existsSync(galleriesFolderPath)) {
-    fs.mkdirSync(galleriesFolderPath, { recursive: true });
-  }
-  // Also ensure the parent 'assets' directory exists, as galleries are nested
-  if (!fs.existsSync(galleriesParentPath)) {
-    fs.mkdirSync(galleriesParentPath, { recursive: true });
-  }
+  // Use fileOperations to create folders instead of fs directly
+  fileOps.createFolder("assets");
+  fileOps.createFolder("assets/galleries");
 
-  const assetsServiceInstance = new AssetsService(options, multibar, basePath, false);
+  const assetsServiceInstance = new AssetsService(options, multibar, fileOps, false);
 
   try {
     if (progressCallback) progressCallback(0, 1, 'progress'); // Initial progress before actual download

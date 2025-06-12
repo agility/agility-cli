@@ -444,15 +444,15 @@ export class Pull {
                 continue; 
             }
 
-            // Call the appropriate downloader with the mode-specific stepProgressCallback
+            // Call the appropriate downloader with fileOperations instance instead of instanceSpecificPath
             switch (stepName) {
-                case 'Galleries': await downloadAllGalleries(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
-                case 'Assets': await downloadAllAssets(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
-                case 'Models': await downloadAllModels(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
-                case 'Templates': await downloadAllTemplates(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback); break;
+                case 'Galleries': await downloadAllGalleries(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceOverwrite, stepProgressCallback); break;
+                case 'Assets': await downloadAllAssets(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceOverwrite, stepProgressCallback); break;
+                case 'Models': await downloadAllModels(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceOverwrite, stepProgressCallback); break;
+                case 'Templates': await downloadAllTemplates(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceOverwrite, stepProgressCallback); break;
                 // Note: Containers, Sitemaps, Redirections, and Pages are now handled by Content Sync SDK in the 'Content' step
                 case 'Containers':
-                    await downloadAllContainers(this._guid, this._locale, this._isPreview, this._options, this._multibar!, instanceSpecificPath, this._forceOverwrite, stepProgressCallback);
+                    await downloadAllContainers(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceOverwrite, stepProgressCallback);
                     break;
                 case 'Sitemaps': 
                     console.log(`${stepName} are now handled by Content Sync SDK in the 'Content' step`);

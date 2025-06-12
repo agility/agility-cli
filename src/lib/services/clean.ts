@@ -3,6 +3,7 @@ import * as mgmtApi from "@agility/management-sdk";
 import { Auth } from "./auth";
 import { createMultibar } from "./multibar";
 import { assets } from "./assets";
+import { fileOperations } from "./fileOperations";
 import ansiColors from "ansi-colors";
 import { AgilityInstance } from "../../types/agilityInstance";
 const fs = require("fs");
@@ -208,7 +209,9 @@ class Clean {
   }
 
   async cleanMedia(multibar: any) {
-    let assetsSync = new assets(options, multibar, 'agility-files');
+    // Create a dummy fileOperations instance for delete operations (not used by delete methods)
+    const dummyFileOps = new fileOperations('temp', this._guid, this._locale, true);
+    let assetsSync = new assets(options, multibar, dummyFileOps);
     await assetsSync.deleteAllAssets(this._guid, this._locale, true);
     await assetsSync.deleteAllGalleries(this._guid, this._locale, true);
     return true;

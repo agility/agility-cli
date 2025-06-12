@@ -8,30 +8,27 @@ import fs from "fs";
 export class models {
     _options: mgmtApi.Options;
     _multibar: cliProgress.MultiBar;
-    _rootPath: string;
-    _legacyFolders: boolean;
+    private _fileOps: fileOperations;
     private _progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void;
 
     constructor(
         options: mgmtApi.Options,
         multibar: cliProgress.MultiBar,
-        rootPath: string,
+        fileOps: fileOperations,
         legacyFolders: boolean,
         progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
     ) {
         this._options = options;
         this._multibar = multibar;
-        this._rootPath = rootPath;
-        this._legacyFolders = legacyFolders;
+        this._fileOps = fileOps;
         this._progressCallback = progressCallback;
     }
 
-    async getModels(guid: string, locale: string, isPreview: boolean, basePathForServiceCall?: string) {
-        const actualBasePath = this._legacyFolders ? (basePathForServiceCall || this._rootPath) : this._rootPath;
-        const modelsDestPath = path.join(actualBasePath, "models");
+    async getModels(guid: string, locale: string, isPreview: boolean) {
+        const modelsDestPath = this._fileOps.getDataFolderPath("models");
 
         let apiClient = new mgmtApi.ApiClient(this._options);
-        let fileExport = new fileOperations(this._rootPath, guid, locale, true);
+        let fileExport = this._fileOps;
         let successfullyDownloadedCount = 0;
         let totalModels = 0;
         let allModels: mgmtApi.Model[] = []; // To store combined list of content and page models
@@ -47,11 +44,8 @@ export class models {
                 this._progressCallback(0, totalModels, 'progress');
             }
 
-            // No need to explicitly create modelsDestPath if exportFiles handles it, 
-            // but ensure it's created for non-legacy before loop if exportFiles relies on pre-existing parent.
-            if (!this._legacyFolders && !fs.existsSync(modelsDestPath)) {
-                fs.mkdirSync(modelsDestPath, { recursive: true });
-            }
+            // Use fileOperations to create folder
+            fileExport.createFolder("models");
 
             for (let i = 0; i < allModels.length; i++) {
                 const modelSummary = allModels[i]; // This is a summary item
@@ -70,13 +64,8 @@ export class models {
                     
                     modelDisplayName = modelDetails.referenceName || modelDetails.displayName || `ID ${modelDetails.id}`;
 
-                    if (this._legacyFolders) {
-                        // actualBasePath here for legacy is typically 'agility-files'
-                        fileExport.exportFiles(`${guid}/${locale}/${isPreview ? "preview" : "live"}/models`, fileName, modelDetails, actualBasePath);
-                    } else {
-                        // modelsDestPath is agility-files/guid/locale/mode/models
-                        fileExport.exportFiles("", fileName, modelDetails, modelsDestPath);
-                    }
+                    // Use fileOperations to export files to models folder
+                    fileExport.exportFiles("models", fileName, modelDetails);
                     console.log(`✓ Downloaded model ${ansiColors.cyan(modelDisplayName)} ID: ${modelSummary.id}`);
                     successfullyDownloadedCount++;
                 } catch (itemError: any) {
@@ -115,8 +104,8 @@ export class models {
         try {
             let apiClient = new mgmtApi.ApiClient(this._options);
 
-            let fileOperation = new fileOperations(this._rootPath, guid, locale, true);
-            let files = fileOperation.readDirectory(`${guid}/${locale}/${isPreview ? 'preview' : 'live'}/models`);
+            let fileOperation = this._fileOps;
+            let files = fileOperation.readDirectory("models");
             let modelStr: string[] = [];
             for (let i = 0; i < files.length; i++) {
                 let model = JSON.parse(files[i]) as mgmtApi.Model;
@@ -136,10 +125,10 @@ export class models {
     }
 
     deleteModelFiles(models: string[], guid: string, locale: string, isPreview: boolean = false) {
-        let file = new fileOperations(this._rootPath, guid, locale, true);
+        let file = this._fileOps;
         for (let i = 0; i < models.length; i++) {
             let fileName = `${models[i]}.json`;
-            file.deleteFile(`agility-files/${guid}/${locale}/${isPreview ? 'preview' : 'live'}/models/${fileName}`);
+            file.deleteFile(file.getDataFolderPath(`models/${fileName}`));
         }
     }
 }

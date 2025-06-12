@@ -1,6 +1,7 @@
 import * as mgmtApi from "@agility/management-sdk";
 import * as cliProgress from "cli-progress";
 import { assets as AssetsService } from "../services/assets";
+import { fileOperations } from "../services/fileOperations";
 import * as fs from "fs";
 import * as path from "path";
 import ansiColors from "ansi-colors"; // For colored logging
@@ -11,11 +12,11 @@ export async function downloadAllAssets(
   isPreview: boolean,
   options: mgmtApi.Options,
   multibar: cliProgress.MultiBar,
-  basePath: string, 
+  fileOps: fileOperations, 
   forceOverwrite: boolean, // New parameter
   progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
 ): Promise<void> {
-  const mainAssetsPath = path.join(basePath, "assets");
+  const mainAssetsPath = fileOps.getDataFolderPath("assets");
   const assetJsonMetaPath = path.join(mainAssetsPath, "json");
 
   if (forceOverwrite) {
@@ -46,16 +47,11 @@ export async function downloadAllAssets(
     }
   }
 
-  // Ensure base assets directory and json metadata directory exist if we proceed
-  if (!fs.existsSync(mainAssetsPath)) {
-    fs.mkdirSync(mainAssetsPath, { recursive: true });
-  }
-  if (!fs.existsSync(assetJsonMetaPath)) {
-    // This might be created by AssetsService too, but ensuring it here is safe if forceOverwrite happened
-    fs.mkdirSync(assetJsonMetaPath, { recursive: true });
-  }
+  // Use fileOperations to create folders instead of fs directly
+  fileOps.createFolder("assets");
+  fileOps.createFolder("assets/json");
 
-  const assetsServiceInstance = new AssetsService(options, multibar, basePath, false, progressCallback);
+  const assetsServiceInstance = new AssetsService(options, multibar, fileOps, false, progressCallback);
 
   try {
     // AssetsService already calls progressCallback internally for its multiple steps.

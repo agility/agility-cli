@@ -11,18 +11,12 @@ export async function downloadAllContainers(
   isPreview: boolean,
   options: mgmtApi.Options,
   multibar: cliProgress.MultiBar,
-  // basePath will be agility-files/{guid}/{locale}/{isPreview ? "preview" : "live"}
-  // This is constructed by the caller (Pull service)
-  basePath: string,
+  fileOps: fileOperations,
   forceOverwrite: boolean, // New parameter
   progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
 ): Promise<void> {
 
-  // let basePath = path.join(rootPath, guid, locale, isPreview ? "preview" : "live");
-
-  const containersFolderPath = path.join(basePath, 'containers');
-  const fileOps = new fileOperations(basePath, guid, locale, isPreview);
-  // let progressBar: cliProgress.SingleBar; // Old cli-progress bar, remove
+  const containersFolderPath = fileOps.getDataFolderPath('containers');
 
   if (forceOverwrite) {
     // REMOVE: fs.rmSync for deleting the folder
@@ -48,14 +42,8 @@ export async function downloadAllContainers(
     }
   }
 
-  // Ensure base directory exists before trying to write containers
-  if (!fs.existsSync(basePath)) {
-    fs.mkdirSync(basePath, { recursive: true });
-  }
-  // Ensure containers directory exists
-  if (!fs.existsSync(containersFolderPath)) {
-    fs.mkdirSync(containersFolderPath, { recursive: true });
-  }
+  // Use fileOperations to create containers folder
+  fileOps.createFolder('containers');
 
   let apiClient = new mgmtApi.ApiClient(options);
   let totalContainers = 0; // Define totalContainers in a broader scope for the catch block
@@ -80,7 +68,7 @@ export async function downloadAllContainers(
 
       let container = await apiClient.containerMethods.getContainerByID(containers[i].contentViewID, guid);
 
-      fileOps.exportFiles(`containers`, container.contentViewID, container, basePath);
+      fileOps.exportFiles(`containers`, container.contentViewID, container);
       processedCount++;
       if (progressCallback) progressCallback(processedCount, totalContainers, 'progress');
       console.log(`✓ Downloaded container ${ansiColors.cyan(container.referenceName)} ID: ${container.contentViewID}`);

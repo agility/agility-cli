@@ -74,8 +74,8 @@ export class fileOperations{
                 // So, the effectiveBase is empty string, and 'folder' will be joined from root.
                 effectiveBase = "";
             } else {
-                // If 'folder' is relative, use the resolved root path as the base
-                effectiveBase = this._resolvedRootPath;
+                // If 'folder' is relative, use the base path (instance-specific path) as the base
+                effectiveBase = this._basePath;
             }
         }
         
@@ -92,7 +92,7 @@ export class fileOperations{
     }
 
     appendFiles(folder: string, fileIdentifier: any, extractedObject: any){
-      const folderPath = path.join(this._resolvedRootPath, folder);
+      const folderPath = path.join(this._basePath, folder);
       if(!fs.existsSync(folderPath)){
         fs.mkdirSync(folderPath, { recursive: true });
       }
@@ -103,7 +103,7 @@ export class fileOperations{
 
     createLogFile(folder: string, fileIdentifier: any, baseFolder?: string){
       if(baseFolder === undefined || baseFolder === ''){
-        baseFolder = this._resolvedRootPath;
+        baseFolder = this._basePath;
       }
       if(!fs.existsSync(`${baseFolder}`)){
         fs.mkdirSync(`${baseFolder}`);
@@ -128,9 +128,9 @@ export class fileOperations{
             if (path.isAbsolute(folder)) {
                 fullPath = folder;
             } else {
-                // Use the resolved root path instead of hard-coded 'agility-files'
-                // This ensures folders are created relative to the correct base path
-                fullPath = path.join(this._resolvedRootPath, folder);
+                // Use the base path (instance-specific path) instead of resolved root path
+                // This ensures folders are created in the correct nested structure
+                fullPath = path.join(this._basePath, folder);
             }
             
             // Normalize the path and split into segments
@@ -169,7 +169,7 @@ export class fileOperations{
 
     createBaseFolder(folder?: string){
       if(folder === undefined || folder === ''){
-        folder = this._resolvedRootPath;
+        folder = this._basePath;
       }
       if(!fs.existsSync(folder)){
         fs.mkdirSync(folder);
@@ -332,7 +332,7 @@ export class fileOperations{
 
   readDirectory(folderName: string, baseFolder?: string){
     if(baseFolder === undefined || baseFolder === ''){
-      baseFolder = this._resolvedRootPath;
+      baseFolder = this._basePath;
     }
     let directory = `${baseFolder}/${folderName}`;
 
@@ -347,7 +347,7 @@ export class fileOperations{
 
   folderExists(folderName: string, baseFolder?: string){
     if(baseFolder === undefined || baseFolder === ''){
-      baseFolder = this._resolvedRootPath;
+      baseFolder = this._basePath;
     }
     let directory = `${baseFolder}/${folderName}`;
     if(fs.existsSync(directory)){
@@ -410,7 +410,7 @@ export class fileOperations{
   }
 
   cliFolderExists(){
-    if(fs.existsSync(this._resolvedRootPath)){
+    if(fs.existsSync(this._basePath)){
       return true;
     } else{
       return false;
