@@ -52,6 +52,8 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 		fs.writeFileSync(absoluteFilePath, json);
         // console.log(`[Debug saveItem] Write successful for: ${absoluteFilePath}`);
 		
+		console.log('Successfully saved', ansiColors.cyan(itemType), ansiColors.white(itemID));
+
 		if (!fs.existsSync(absoluteFilePath)) {
 			throw new Error(`File was not created: ${absoluteFilePath}`);
 		}

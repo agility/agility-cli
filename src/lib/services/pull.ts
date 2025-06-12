@@ -350,24 +350,24 @@ export class Pull {
                     // else if (this._useBlessedUI || this.isHeadless) console.log(refreshMessage);
 
                     // REMOVE: Deletion of sync token, items, and lists
-                    // if (fs.existsSync(syncTokenPath)) {
-                    //     fs.unlinkSync(syncTokenPath);
-                    //     const deletedTokenMsg = `  Deleted sync token: ${syncTokenPath}`;
-                    //     if (this.isVerbose) originalConsoleLog(deletedTokenMsg);
-                    //     else if (this._useBlessedUI || this.isHeadless) console.log(deletedTokenMsg);
-                    // }
-                    // if (fs.existsSync(contentItemsPath)) {
-                    //     fs.rmSync(contentItemsPath, { recursive: true, force: true });
-                    //     const deletedItemsMsg = `  Deleted content items folder: ${contentItemsPath}`;
-                    //     if (this.isVerbose) originalConsoleLog(deletedItemsMsg);
-                    //     else if (this._useBlessedUI || this.isHeadless) console.log(deletedItemsMsg);
-                    // }
-                    // if (fs.existsSync(contentListsPath)) {
-                    //     fs.rmSync(contentListsPath, { recursive: true, force: true });
-                    //     const deletedListsMsg = `  Deleted content lists folder: ${contentListsPath}`;
-                    //     if (this.isVerbose) originalConsoleLog(deletedListsMsg);
-                    //     else if (this._useBlessedUI || this.isHeadless) console.log(deletedListsMsg);
-                    // }
+                    if (fs.existsSync(syncTokenPath)) {
+                        fs.rmSync(syncTokenPath);
+                        const deletedTokenMsg = `  Deleted sync token: ${syncTokenPath}`;
+                        if (this.isVerbose) originalConsoleLog(deletedTokenMsg);
+                        else if (this._useBlessedUI || this.isHeadless) console.log(deletedTokenMsg);
+                    }
+                    if (fs.existsSync(contentItemsPath)) {
+                        fs.rmSync(contentItemsPath, { recursive: true, force: true });
+                        const deletedItemsMsg = `  Deleted content items folder: ${contentItemsPath}`;
+                        if (this.isVerbose) originalConsoleLog(deletedItemsMsg);
+                        else if (this._useBlessedUI || this.isHeadless) console.log(deletedItemsMsg);
+                    }
+                    if (fs.existsSync(contentListsPath)) {
+                        fs.rmSync(contentListsPath, { recursive: true, force: true });
+                        const deletedListsMsg = `  Deleted content lists folder: ${contentListsPath}`;
+                        if (this.isVerbose) originalConsoleLog(deletedListsMsg);
+                        else if (this._useBlessedUI || this.isHeadless) console.log(deletedListsMsg);
+                    }
                 } else {
                     // Logic for non-overwrite: if sync token exists, it implies incremental. If not, it's a full sync naturally.
                     if (fs.existsSync(syncTokenPath)) {
