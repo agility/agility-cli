@@ -510,19 +510,17 @@ export async function pushContent(
     // Load models for content classification (required for legacy pattern)
     let models: mgmtApi.Model[] = [];
     try {
-        // Import the model getter
+        // Import the model getter and fileOperations
         const { getModelsFromFileSystem } = await import('../getters/filesystem/get-models');
+        const { fileOperations } = await import('../services/fileOperations');
         
         // Get source GUID from reference mapper or use a reasonable default approach
         const sourceGuid = await getSourceGuidFromContext(referenceMapper);
         
-        models = getModelsFromFileSystem(
-            sourceGuid,
-            locale,
-            true, // Preview mode
-            'agility-files', // Default root path
-            false // Not legacy folders
-        );
+        // Create fileOperations instance for the source data
+        const fileOps = new fileOperations('agility-files', sourceGuid, locale, true);
+        
+        models = getModelsFromFileSystem(fileOps);
         
         console.log(ansiColors.cyan(`[Content Pusher] Loaded ${models.length} models for classification`));
         
@@ -539,25 +537,13 @@ export async function pushContent(
     // Initialize default asset container URL
     const defaultTargetAssetContainerOriginUrl = await getDefaultAssetContainerUrl(apiClient, targetGuid);
 
-    // Filter out i18 content items to speed up testing
-    const nonI18ContentItems = contentItems.filter(item => {
-        const referenceName = item.properties.referenceName?.toLowerCase() || '';
-        const definitionName = item.properties.definitionName?.toLowerCase() || '';
-        
-        // Skip i18 content items (internationalization/localization items)
-        if (referenceName.includes('i18') || definitionName.includes('i18')) {
-            return false;
-        }
-        
-        return true;
-    });
-
-    const totalItemCount = nonI18ContentItems.length;
+   
+    const totalItemCount = contentItems.length;
     console.log(ansiColors.cyan(`[Content Pusher] Processing ${totalItemCount} content items (filtered ${originalItemCount - totalItemCount} i18 items)`));
 
     // Step 1: Classify content into normal vs linked
     const classifier = new ContentClassifier();
-    const classification = await classifier.classifyContent(nonI18ContentItems, models);
+    const classification = await classifier.classifyContent(contentItems, models);
     
     console.log(ansiColors.cyan(`[Content Pusher] ${classifier.getClassificationStats(classification)}`));
 

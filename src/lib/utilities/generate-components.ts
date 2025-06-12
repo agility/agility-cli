@@ -32,7 +32,7 @@ export default async function generateReactComponents(selectedInstance: AgilityI
 
 
   auth = new Auth();
-  let code = new fileOperations('agility-files', selectedInstance.guid, locale, true);
+  let code = new fileOperations(process.cwd(), selectedInstance.guid, locale, true);
 
   let data = JSON.parse(code.readTempFile("code.json"));
   const form = new FormData();

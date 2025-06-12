@@ -26,7 +26,7 @@ export default async function generateTypes(selectedInstance: AgilityInstance) {
   console.log(ansiColors.yellow("Generating TypeScript interfaces..."));
 
   const auth = new Auth();
-  const code = new fileOperations('agility-files', selectedInstance.guid, locale, true);
+  const code = new fileOperations(process.cwd(), selectedInstance.guid, locale, true);
   let guid: string = selectedInstance.guid as string;
   const token = await auth.getToken();
 

@@ -134,6 +134,9 @@ export class push {
         // Declare galleries variable outside the conditional block
         let galleries: mgmtApi.assetMediaGrouping[] = [];
 
+        // Create fileOperations instance for data loading
+        const fileOps = new fileOperations(this.rootPath, this._guid, this._locale, this._isPreview);
+
         const updateProgress = (currentStepIndex: number, status: 'success' | 'error', percentage?: number) => {
             if (!this._useBlessedUI) return; // Do nothing if UI not enabled
             if (currentStepIndex >= 0 && currentStepIndex < totalSteps) {
@@ -316,13 +319,7 @@ export class push {
                         const percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
                         updateProgress(galleryStepIndex, status || 'success', percentage); 
                     };
-                    galleries = getGalleriesFromFileSystem(
-                        this._guid,
-                        this._locale,
-                        this._isPreview,
-                        this.rootPath,
-                        this.legacyFolders
-                    ) || []; // Ensure galleries is an array
+                    galleries = getGalleriesFromFileSystem(fileOps) || []; // Ensure galleries is an array
                     
                     // Add galleries to reference mapper for tracking
                     galleries.forEach(gallery => {
@@ -355,13 +352,7 @@ export class push {
                         const percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
                         updateProgress(assetStepIndex, status || 'success', percentage);
                     };
-                    const assets = getAssetsFromFileSystem(
-                        this._guid,
-                        this._locale,
-                        this._isPreview,
-                        this.rootPath,
-                        this.legacyFolders
-                    ) || []; 
+                    const assets = getAssetsFromFileSystem(fileOps) || []; 
                     
                     // Add assets to reference mapper for tracking
                     assets.forEach(asset => {
@@ -395,13 +386,7 @@ export class push {
                 const modelStepIndex = currentStep;
                 try {
                     if (!this._useBlessedUI) console.log(ansiColors.yellow("Pushing Models..."));
-                    const models = getModelsFromFileSystem(
-                        this._guid,
-                        this._locale,
-                        this._isPreview,
-                        this.rootPath,
-                        this.legacyFolders
-                    );
+                    const models = getModelsFromFileSystem(fileOps);
                     
                     // Add models to reference mapper for tracking
                     models.forEach(model => {
@@ -438,13 +423,7 @@ export class push {
                 let containerStatus: 'success' | 'error' = 'success';
                 const containerStepIndex = currentStep;
                 try{
-                    const containers = getContainersFromFileSystem(
-                        this._guid,
-                        this._locale,
-                        this._isPreview,
-                        this.rootPath,
-                        this.legacyFolders
-                    );
+                    const containers = getContainersFromFileSystem(fileOps);
                     
                     // Add containers to reference mapper for tracking
                     containers.forEach(container => {
@@ -480,13 +459,7 @@ export class push {
                 let contentStatus: 'success' | 'error' = 'success';
                 const contentStepIndex = currentStep;
                 try{
-                    const allContentItems = getContentItemsFromFileSystem(
-                        this._guid,
-                        this._locale,
-                        this._isPreview,
-                        this.rootPath,
-                        this.legacyFolders
-                    );
+                    const allContentItems = getContentItemsFromFileSystem(fileOps);
                     
                     // Add content items to reference mapper for tracking
                     allContentItems.forEach(content => {
@@ -531,13 +504,7 @@ export class push {
                     if (!this._useBlessedUI) console.log('Processing templates...'); 
                     else logContainer?.log('Processing templates...');
                     
-                    const templates = getTemplatesFromFileSystem(
-                        this._guid,
-                        this._locale,
-                        this._isPreview,
-                        this.rootPath,
-                        this.legacyFolders
-                    );
+                    const templates = getTemplatesFromFileSystem(fileOps);
                     
                     // Add templates to reference mapper for tracking
                     templates.forEach(template => {
@@ -581,13 +548,7 @@ export class push {
                     if (!this._useBlessedUI) console.log('Processing pages...');
                     else logContainer?.log('Processing pages...');
                     
-                    const pages = getPagesFromFileSystem(
-                        this._guid,
-                        this._locale,
-                        this._isPreview,
-                        this.rootPath,
-                        this.legacyFolders
-                    ); 
+                    const pages = getPagesFromFileSystem(fileOps); 
                     
                     // Add pages to reference mapper for tracking
                     pages.forEach(page => {

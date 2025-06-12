@@ -1234,7 +1234,7 @@ yargs.command({
     const locale: string = argv.locale as string;
     const contentItems: number[] = (argv.contentItems as string).split(",").map(Number);
 
-    const code = new fileOperations('agility-files', guid, locale, true);
+    const code = new fileOperations(process.cwd(), guid, locale, true);
     auth = new Auth();
     const codeFileStatus = code.codeFileExists();
 

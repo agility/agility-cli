@@ -1,66 +1,46 @@
 import * as mgmtApi from '@agility/management-sdk';
-import * as fs from 'fs';
-import * as path from 'path';
+import { fileOperations } from '../../services/fileOperations';
 
 /**
  * Get containers from filesystem without side effects
  * Uses Joel's container downloader data from /containers directory
+ * Pure function - no filesystem operations, delegates to fileOperations
  */
 export function getContainersFromFileSystem(
-    guid: string,
-    locale: string,
-    isPreview: boolean,
-    rootPath?: string,
-    legacyFolders?: boolean 
+    fileOps: fileOperations
 ): mgmtApi.Container[] {
-    const baseFolder = rootPath || 'agility-files';
-    let containersPath: string;
-    let listPath: string;
-
-    if (legacyFolders) {
-        containersPath = `${baseFolder}/containers`;
-        listPath = `${baseFolder}/list`;
-    } else {
-        containersPath = `${baseFolder}/${guid}/${locale}/${isPreview ? 'preview':'live'}/containers`;
-        listPath = `${baseFolder}/${guid}/${locale}/${isPreview ? 'preview':'live'}/list`;
-    }
-
-    if (!fs.existsSync(containersPath)) {
-        console.warn(`[Containers] Container directory not found: ${containersPath}`);
-        console.warn(`[Containers] Make sure to run 'pull --elements Containers' first to download container data`);
-        return [];
-    }
-
-    try {
-        // Load container metadata from Joel's downloader
-        const containerFiles = fs.readdirSync(containersPath).filter(file => file.endsWith('.json'));
-        const containers = containerFiles.map(file => {
-            try {
-                const containerData = JSON.parse(fs.readFileSync(path.join(containersPath, file), 'utf8'));
-                
-                // Load content items for this container from /list directory
-                let contentItems: any[] = [];
-                if (fs.existsSync(listPath)) {
-                    const listFile = path.join(listPath, `${containerData.referenceName}.json`);
-                    if (fs.existsSync(listFile)) {
-                        contentItems = JSON.parse(fs.readFileSync(listFile, 'utf8')) || [];
-                    }
+    // Load container metadata from Joel's downloader
+    const containerData = fileOps.readJsonFilesFromFolder('containers');
+    const listData = fileOps.readJsonFilesFromFolder('list');
+    
+    // Create lookup map for list data by reference name
+    const listLookup = new Map<string, any[]>();
+    for (const listFile of listData) {
+        if (Array.isArray(listFile) && listFile.length > 0) {
+            // Try to infer reference name from list file structure
+            // List files are typically named after the container reference name
+            const firstItem = listFile[0];
+            if (firstItem && firstItem.properties) {
+                // Extract container reference from content structure
+                const containerRef = Object.keys(firstItem.properties).find(key => 
+                    firstItem.properties[key] && typeof firstItem.properties[key] === 'object'
+                );
+                if (containerRef) {
+                    listLookup.set(containerRef, listFile);
                 }
-
-                return {
-                    ...containerData,
-                    contentCount: contentItems.length,
-                    _contentItems: contentItems // Store for reference
-                };
-            } catch (error) {
-                console.warn(`[Containers] Error loading container from ${file}: ${error}`);
-                return null;
             }
-        }).filter(container => container !== null);
-
-        return containers;
-    } catch (error: any) {
-        console.warn(`[Containers] Error loading containers from ${containersPath}: ${error.message}`);
-        return [];
+        }
     }
+    
+    // Process containers and enrich with content data
+    return containerData.map(container => {
+        // Load content items for this container from /list directory
+        const contentItems = listLookup.get(container.referenceName) || [];
+        
+        return {
+            ...container,
+            contentCount: contentItems.length,
+            _contentItems: contentItems // Store for reference
+        };
+    });
 } 

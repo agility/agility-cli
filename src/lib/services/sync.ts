@@ -1,9 +1,9 @@
 import * as agilitySync from "@agility/content-sync";
 import * as mgmtApi from "@agility/management-sdk";
 import * as cliProgress from "cli-progress";
-// fs and path might be re-introduced if Pull.pullInstance needs custom file moving for sync output.
+import * as path from "path";
+// fs might be re-introduced if Pull.pullInstance needs custom file moving for sync output.
 // const fs = require("fs");
-// const path = require("path");
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
 export class sync {
@@ -62,7 +62,7 @@ export class sync {
         interface: storeInterfaceFileSystem,
         options: {
           // Sync SDK writes directly to this final structured path
-          rootPath: `agility-files/${this._guid}/${this._locale}/${this._isPreview ? "preview" : "live"}`,
+          rootPath: path.join('agility-files', this._guid, this._locale, this._isPreview ? 'preview' : 'live'),
         },
       },
     });

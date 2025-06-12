@@ -1,39 +1,18 @@
 import * as mgmtApi from '@agility/management-sdk';
-import * as fs from 'fs';
+import { fileOperations } from '../../services/fileOperations';
 
 /**
  * Get models from filesystem without side effects
  * Includes transformation to structured era format (from ChainDataLoader logic)
+ * Pure function - no filesystem operations, delegates to fileOperations
  */
 export function getModelsFromFileSystem(
-    guid: string,
-    locale: string,
-    isPreview: boolean,
-    rootPath?: string,
-    legacyFolders?: boolean 
+    fileOps: fileOperations
 ): mgmtApi.Model[] {
-    const baseFolder = rootPath || 'agility-files';
-    let modelsPath: string;
-
-    if (legacyFolders) {
-        modelsPath = `${baseFolder}/models`;
-    } else {
-        modelsPath = `${baseFolder}/${guid}/${locale}/${isPreview ? 'preview':'live'}/models`;
-    }
-
-    try {
-        const modelFiles = fs.readdirSync(modelsPath).filter(file => file.endsWith('.json'));
-        const rawModels = modelFiles.map(file => {
-            const modelData = JSON.parse(fs.readFileSync(`${modelsPath}/${file}`, 'utf8'));
-            return modelData as mgmtApi.Model;
-        });
-
-        // Apply transformation to structured era format (from ChainDataLoader)
-        return transformModelsToStructuredEra(rawModels);
-    } catch (error: any) {
-        console.warn(`[Models] Error loading models from ${modelsPath}: ${error.message}`);
-        return [];
-    }
+    const rawModels = fileOps.readJsonFilesFromFolder('models');
+    
+    // Apply transformation to structured era format (from ChainDataLoader)
+    return transformModelsToStructuredEra(rawModels);
 }
 
 /**

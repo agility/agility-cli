@@ -5,6 +5,7 @@ import { isPreviewPrompt } from "./isPreview-prompt";
 import { baseUrlPrompt, getBaseURLfromGUID } from "./base-url-prompt";
 import agilitySDK from "@agility/content-fetch";
 import process from "process";
+import * as path from "path";
 
 import { fileOperations } from "../services/fileOperations";
 import { exec } from "child_process";
@@ -62,13 +63,13 @@ export async function fetchCommandsPrompt(
     });
 
     data = sitemap;
+    const sitemapPath = path.join(process.cwd(), 'agility-files', guid, locale, isPreview ? 'preview' : 'live', 'fetch', 'sitemapFlat.json');
     files.createFile(
-      `agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/sitemapFlat.json`,
+      sitemapPath,
       JSON.stringify(sitemap, null, 2)
     );
     console.log(
-      `Sitemap saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"
-      }/fetch/sitemapFlat.json`
+      `Sitemap saved to ${sitemapPath}`
     );
     // fetchCommandsPrompt(selectedInstance, keys, guid, locale, channel, isPreview, baseUrl, apiKey);
     // homePrompt();
@@ -80,13 +81,13 @@ export async function fetchCommandsPrompt(
     });
 
     data = sitemapNested;
+    const nestedSitemapPath = path.join(process.cwd(), 'agility-files', guid, locale, isPreview ? 'preview' : 'live', 'fetch', 'sitemapNested.json');
     files.createFile(
-      `agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/sitemapNested.json`,
+      nestedSitemapPath,
       JSON.stringify(sitemapNested, null, 2)
     );
     console.log(
-      `Sitemap saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"
-      }/fetch/sitemapNested.json`
+      `Sitemap saved to ${nestedSitemapPath}`
     );
     // fetchCommandsPrompt(selectedInstance, keys, guid, locale, channel, isPreview, baseUrl, apiKey);
     // homePrompt();
@@ -107,13 +108,13 @@ export async function fetchCommandsPrompt(
     });
 
     data = contentList;
+    const contentListPath = path.join(process.cwd(), 'agility-files', guid, locale, isPreview ? 'preview' : 'live', 'fetch', `${listAnswer.referenceName}.json`);
     files.createFile(
-      `agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/${listAnswer.referenceName}.json`,
+      contentListPath,
       JSON.stringify(contentList, null, 2)
     );
     console.log(
-      `Content list saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/${listAnswer.referenceName
-      }.json`
+      `Content list saved to ${contentListPath}`
     );
   } else if (answer.apiMethod === "getContentItem") {
     const itemAnswer = await inquirer.prompt([
@@ -131,13 +132,13 @@ export async function fetchCommandsPrompt(
     });
 
     data = contentItem;
+    const contentItemPath = path.join(process.cwd(), 'agility-files', guid, locale, isPreview ? 'preview' : 'live', 'fetch', `contentItem-${itemAnswer.contentItemID}.json`);
     files.createFile(
-      `agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/contentItem-${itemAnswer.contentItemID}.json`,
+      contentItemPath,
       JSON.stringify(contentItem, null, 2)
     );
     console.log(
-      `Content item saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"
-      }/fetch/contentItem-${itemAnswer.contentItemID}.json`
+      `Content item saved to ${contentItemPath}`
     );
   } else if (answer.apiMethod === "getPage (by ID)") {
     const pageAnswer = await inquirer.prompt([
@@ -153,13 +154,13 @@ export async function fetchCommandsPrompt(
       languageCode: locale.toLowerCase(),
     });
     data = page;
+    const pageByIdPath = path.join(process.cwd(), 'agility-files', guid, locale, isPreview ? 'preview' : 'live', 'fetch', `page-${pageAnswer.pageID}.json`);
     files.createFile(
-      `agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/page-${pageAnswer.pageID}.json`,
+      pageByIdPath,
       JSON.stringify(page, null, 2)
     );
     console.log(
-      `Page data saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/page-${pageAnswer.pageID
-      }.json`
+      `Page data saved to ${pageByIdPath}`
     );
   } else if (answer.apiMethod === "getPageByPath") {
     const pathAnswer = await inquirer.prompt([
@@ -178,16 +179,13 @@ export async function fetchCommandsPrompt(
     });
 
     data = page;
+    const pageByPathPath = path.join(process.cwd(), 'agility-files', guid, locale, isPreview ? 'preview' : 'live', 'fetch', `page-${pathAnswer.pagePath.replace(/\//g, "-")}.json`);
     files.createFile(
-      `agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"}/fetch/page-${pathAnswer.pagePath.replace(
-        /\//g,
-        "-"
-      )}.json`,
+      pageByPathPath,
       JSON.stringify(page, null, 2)
     );
     console.log(
-      `Page data saved to ${process.cwd()}/agility-files/${guid}/${locale}/${isPreview ? "preview" : "live"
-      }/fetch/page-${pathAnswer.pagePath.replace(/\//g, "-")}.json`
+      `Page data saved to ${pageByPathPath}`
     );
   } else if (answer.apiMethod === "< Back to Instance") {
     await instancesPrompt(selectedInstance, keys, blessedUIEnabled);

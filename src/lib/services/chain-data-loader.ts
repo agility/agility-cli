@@ -63,85 +63,43 @@ export class ChainDataLoader {
         if (this.options.elements!.includes('Galleries')) {
             // Use pure gallery getter with flattening
             const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
-            sourceEntities.galleries = getGalleriesFromFileSystem(
-                this.options.sourceGuid,
-                this.options.locale, 
-                this.options.isPreview,
-                this.options.rootPath,
-                this.options.legacyFolders
-            ) || [];
+            sourceEntities.galleries = getGalleriesFromFileSystem(this.fileOps) || [];
         }
 
         if (this.options.elements!.includes('Assets')) {
             // Use pure asset getter for consistent loading logic
             const { getAssetsFromFileSystem } = await import('../getters/filesystem/get-assets');
-            sourceEntities.assets = getAssetsFromFileSystem(
-                this.options.sourceGuid,
-                this.options.locale, 
-                this.options.isPreview,
-                this.options.rootPath,
-                this.options.legacyFolders
-            );
+            sourceEntities.assets = getAssetsFromFileSystem(this.fileOps);
         }
 
         if (this.options.elements!.includes('Models')) {
             // Use pure models getter with transformation
             const { getModelsFromFileSystem } = await import('../getters/filesystem/get-models');
-            sourceEntities.models = getModelsFromFileSystem(
-                this.options.sourceGuid,
-                this.options.locale, 
-                this.options.isPreview,
-                this.options.rootPath,
-                this.options.legacyFolders
-            );
+            sourceEntities.models = getModelsFromFileSystem(this.fileOps);
         }
 
         if (this.options.elements!.includes('Containers')) {
             // Use pure containers getter with metadata derivation
             const { getContainersFromFileSystem } = await import('../getters/filesystem/get-containers');
-            sourceEntities.containers = getContainersFromFileSystem(
-                this.options.sourceGuid,
-                this.options.locale, 
-                this.options.isPreview,
-                this.options.rootPath,
-                this.options.legacyFolders
-            );
+            sourceEntities.containers = getContainersFromFileSystem(this.fileOps);
         }
 
         if (this.options.elements!.includes('Content')) {
             // Use pure content getter with deduplication logic
             const { getContentItemsFromFileSystem } = await import('../getters/filesystem/get-content-items');
-            sourceEntities.content = getContentItemsFromFileSystem(
-                this.options.sourceGuid,
-                this.options.locale, 
-                this.options.isPreview,
-                this.options.rootPath,
-                this.options.legacyFolders
-            );
+            sourceEntities.content = getContentItemsFromFileSystem(this.fileOps);
         }
 
         if (this.options.elements!.includes('Templates')) {
             // Use pure templates getter
             const { getTemplatesFromFileSystem } = await import('../getters/filesystem/get-templates');
-            sourceEntities.templates = getTemplatesFromFileSystem(
-                this.options.sourceGuid,
-                this.options.locale, 
-                this.options.isPreview,
-                this.options.rootPath,
-                this.options.legacyFolders
-            );
+            sourceEntities.templates = getTemplatesFromFileSystem(this.fileOps);
         }
 
         if (this.options.elements!.includes('Pages')) {
             // Use pure pages getter
             const { getPagesFromFileSystem } = await import('../getters/filesystem/get-pages');
-            sourceEntities.pages = getPagesFromFileSystem(
-                this.options.sourceGuid,
-                this.options.locale, 
-                this.options.isPreview,
-                this.options.rootPath,
-                this.options.legacyFolders
-            );
+            sourceEntities.pages = getPagesFromFileSystem(this.fileOps);
         }
 
         // Entity loading complete (no console output for cleaner analysis display)

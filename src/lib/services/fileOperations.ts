@@ -301,6 +301,67 @@ export class fileOperations{
         return path.resolve(this._basePath, relativePath);
     }
 
+    // JSON file utilities - centralized JSON parsing
+    readJsonFile(relativePath: string): any | null {
+        try {
+            const fullPath = this.getDataFolderPath(relativePath);
+            if (!fs.existsSync(fullPath)) {
+                return null;
+            }
+            const content = fs.readFileSync(fullPath, 'utf8');
+            return JSON.parse(content);
+        } catch (error: any) {
+            console.warn(`[FileOps] Error reading JSON file ${relativePath}: ${error.message}`);
+            return null;
+        }
+    }
+
+    readJsonFilesFromFolder(folderName: string, fileExtension: string = '.json'): any[] {
+        try {
+            const folderPath = this.getDataFolderPath(folderName);
+            if (!fs.existsSync(folderPath)) {
+                return [];
+            }
+            
+            const files = fs.readdirSync(folderPath).filter(file => file.endsWith(fileExtension));
+            const results: any[] = [];
+            
+            for (const file of files) {
+                try {
+                    const content = fs.readFileSync(path.join(folderPath, file), 'utf8');
+                    const parsed = JSON.parse(content);
+                    results.push(parsed);
+                } catch (error: any) {
+                    console.warn(`[FileOps] Error parsing JSON file ${file}: ${error.message}`);
+                }
+            }
+            
+            return results;
+        } catch (error: any) {
+            console.warn(`[FileOps] Error reading folder ${folderName}: ${error.message}`);
+            return [];
+        }
+    }
+
+    listFilesInFolder(folderName: string, fileExtension?: string): string[] {
+        try {
+            const folderPath = this.getDataFolderPath(folderName);
+            if (!fs.existsSync(folderPath)) {
+                return [];
+            }
+            
+            let files = fs.readdirSync(folderPath);
+            if (fileExtension) {
+                files = files.filter(file => file.endsWith(fileExtension));
+            }
+            
+            return files;
+        } catch (error: any) {
+            console.warn(`[FileOps] Error listing files in ${folderName}: ${error.message}`);
+            return [];
+        }
+    }
+
   readTempFile(fileName: string){
       let appName = 'mgmt-cli-code';
       let tmpFolder = os.tmpDir();
