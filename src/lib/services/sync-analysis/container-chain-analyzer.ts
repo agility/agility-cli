@@ -151,7 +151,11 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
             console.log(ansiColors.white(`  ContainerID:${chain.sourceContainer.contentViewID} (${chain.sourceContainer.referenceName})`));
             console.log(ansiColors.gray(`    Path: ${chain.path.join(' → ')}`));
             
-            chain.contentItems.forEach((item: any) => {
+            // Truncate content items to prevent console spam
+            const displayLimit = 10;
+            const itemsToShow = chain.contentItems.slice(0, displayLimit);
+            
+            itemsToShow.forEach((item: any) => {
                 const contentInfo = `ContentID:${item.content.contentID} (${item.content.properties?.referenceName || 'Unknown'})`;
                 const state = this.getPublicationState(item.content);
                 console.log(ansiColors.blue(`    ├─ ${contentInfo}${state}`));
@@ -165,6 +169,12 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
                     }
                 });
             });
+            
+            // Show truncation message if needed
+            if (chain.contentItems.length > displayLimit) {
+                console.log(ansiColors.gray(`    └─ ... and ${chain.contentItems.length - displayLimit} more content items`));
+            }
+            
             console.log('');
         });
 
@@ -502,7 +512,11 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
             content.properties?.referenceName === container.referenceName
         ) || [];
 
-        containerContent.forEach((content: any) => {
+        // Truncate to first 10 items to prevent console spam
+        const displayLimit = 10;
+        const itemsToShow = containerContent.slice(0, displayLimit);
+        
+        itemsToShow.forEach((content: any) => {
             const contentInfo = `ContentID:${content.contentID} (${content.properties?.referenceName || 'Unknown'})`;
             const state = this.getPublicationState(content);
             console.log(ansiColors.blue(`${indent}└─ ${contentInfo}${state}`));
@@ -510,6 +524,11 @@ export class ContainerChainAnalyzer implements ChainAnalysisService {
             // Show assets if any
             this.showContentAssetDependencies(content, sourceEntities, indent + '   ');
         });
+        
+        // Show truncation message if needed
+        if (containerContent.length > displayLimit) {
+            console.log(ansiColors.gray(`${indent}└─ ... and ${containerContent.length - displayLimit} more content items`));
+        }
     }
 
     /**

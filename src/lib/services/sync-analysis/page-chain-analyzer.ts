@@ -261,9 +261,21 @@ export class PageChainAnalyzer implements ChainAnalysisService {
                 console.log(ansiColors.gray(`${indent}├─ Zone: ${zoneName}`));
                 
                 zoneModules.forEach((module: any, moduleIndex: number) => {
-                    // Each module in a zone represents a container instance
-                    const containerID = module?.contentDefinitionID || module?.containerID;
-                    const container = sourceEntities.containers?.find((c: any) => c.contentViewID === containerID);
+                    // Find container by matching content item to container's content
+                    let container: any = null;
+                    let contentId: number | null = null;
+                    
+                    if (module?.item?.contentid || module?.item?.contentId) {
+                        contentId = module.item.contentid || module.item.contentId;
+                        
+                        // Find container that contains this content item
+                        container = sourceEntities.containers?.find((c: any) => {
+                            if (c._contentItems && Array.isArray(c._contentItems)) {
+                                return c._contentItems.some((item: any) => item.contentID === contentId);
+                            }
+                            return false;
+                        });
+                    }
                     
                     if (container) {
                         console.log(ansiColors.white(`${indent}│  ├─ ContainerID:${container.contentViewID} (${container.referenceName || 'No Name'})`));
@@ -305,9 +317,8 @@ export class PageChainAnalyzer implements ChainAnalysisService {
                         }
                     } else {
                         // Fallback: show content directly if container not found (for debugging)
-                        if (module?.item?.contentid || module?.item?.contentId) {
-                            const contentId = module.item.contentid || module.item.contentId;
-                            console.log(ansiColors.yellow(`${indent}│  ├─ ⚠️  ContainerID:${containerID || 'Unknown'} - MISSING IN SOURCE DATA`));
+                        if (contentId) {
+                            console.log(ansiColors.yellow(`${indent}│  ├─ ⚠️  ContainerID:Unknown - MISSING IN SOURCE DATA`));
                             console.log(ansiColors.blue(`${indent}│  │  ├─ ContentID:${contentId} (content without container)`));
                         } else {
                             console.log(ansiColors.red(`${indent}│  ├─ ⚠️  Module with no container or content reference`));
