@@ -27,10 +27,26 @@ async function mapContentItem(
     
     const fieldMapper = new ContentFieldMapper();
     
+    // Get source and target assets from reference mapper for URL mapping
+    const sourceAssets: any[] = [];
+    const targetAssets: any[] = [];
+    
+    // Extract source and target assets from the reference mapper records
+    const assetMappings = referenceMapper.getRecordsByType('asset');
+    assetMappings.forEach(mapping => {
+        if (mapping.source) {
+            sourceAssets.push(mapping.source);
+        }
+        if (mapping.target) {
+            targetAssets.push(mapping.target);
+        }
+    });
+    
     // Map the content item fields using enhanced reference transformation
     const mappingResult = fieldMapper.mapContentFields(contentItem.fields, {
         referenceMapper,
-        // TODO: Add sourceAssets, targetAssets when available for full asset URL mapping
+        sourceAssets,
+        targetAssets,
         apiClient,
         targetGuid
     });
@@ -130,7 +146,7 @@ async function pushNormalContentItems(
     for (let i = 0; i < normalContentItems.length; i++) {
         const contentItem = normalContentItems[i];
         const itemName = contentItem.properties.referenceName || 'Unknown';
-        
+        let payload: mgmtApi.ContentItem;
         try {
             // CRITICAL: Legacy pattern - get container first, then model from container
             // This ensures proper contentDefinitionTypeID handling (standalone list vs component container)
@@ -144,6 +160,7 @@ async function pushNormalContentItems(
                 );
             } catch (error) {
                 console.log(ansiColors.red(`✗ Normal content ${itemName} failed - container not found: ${contentItem.properties.referenceName}`));
+                console.log(payload)
                 failedItems++;
                 if (onProgress) onProgress(i + 1, normalContentItems.length, itemName, 'error');
                 continue;
@@ -153,6 +170,7 @@ async function pushNormalContentItems(
                 model = await apiClient.modelMethods.getContentModel(container.contentDefinitionID, targetGuid);
             } catch (error) {
                 console.log(ansiColors.red(`✗ Normal content ${itemName} failed - model not found for container: ${container.contentDefinitionID}`));
+                console.log(payload)
                 failedItems++;
                 if (onProgress) onProgress(i + 1, normalContentItems.length, itemName, 'error');
                 continue;
@@ -175,7 +193,7 @@ async function pushNormalContentItems(
             const defaultSeo: mgmtApi.SeoProperties = { metaDescription: null, metaKeywords: null, metaHTML: null, menuVisible: null, sitemapVisible: null };
             const defaultScripts: mgmtApi.ContentScripts = { top: null, bottom: null };
 
-            const payload = {
+            payload = {
                 ...mappedContentItem,
                 contentID: existingContentItem ? existingContentItem.contentID : -1,
                 properties: {
@@ -214,7 +232,10 @@ async function pushNormalContentItems(
             }
 
         } catch (error: any) {
+
             console.error(ansiColors.red(`✗ Error processing normal content ${itemName}:`), error.message);
+            console.log(payload)
+
             failedItems++;
             
             if (onProgress) onProgress(i + 1, normalContentItems.length, itemName, 'error');
