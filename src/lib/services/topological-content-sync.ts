@@ -1,4 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
+import * as agilitySync from '@agility/content-sync';
 import ansiColors from 'ansi-colors';
 import { fileOperations } from '../services/fileOperations';
 import { ComprehensiveAnalysisRunner } from '../services/sync-analysis/comprehensive-analysis-runner';
@@ -16,7 +17,7 @@ import { pushPages } from '../pushers/page-pusher';
 // Replaced simple-page-pusher with regular page-pusher (Task 29.4)
 import { ChainDataLoader } from '../services/chain-data-loader';
 
-
+const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
 export interface TopologicalContentSyncOptions {
     debug: boolean;
@@ -132,7 +133,10 @@ export class TopologicalContentSync {
         let referenceMapper: ReferenceMapper | null = null;
         
         try {
-            // Load source data and perform comprehensive dependency analysis
+            // STEP 1: Run Content Sync SDK to download fresh source data
+            await this.downloadSourceData();
+            
+            // STEP 2: Load source data and perform comprehensive dependency analysis
             const sourceData = await this.loadSourceData();
             
             if (this.hasNoContent(sourceData)) {
@@ -369,7 +373,42 @@ export class TopologicalContentSync {
     }
 
     /**
-     * Load source data from local file system
+     * Download fresh source data using Content Sync SDK
+     */
+    private async downloadSourceData(): Promise<void> {
+        console.log(ansiColors.cyan(`\n📥 Downloading source data from ${this.sourceGuid}...`));
+        
+        // Build instance-specific path for Content Sync SDK
+        const instanceSpecificPath = this.legacyFolders 
+            ? this.rootPath 
+            : `${this.rootPath}/${this.sourceGuid}/${this.locale}/${this.isPreview ? "preview" : "live"}`;
+
+        const syncClient = agilitySync.getSyncClient({
+            guid: this.sourceGuid,
+            apiKey: this.options.token, // Use token from options
+            languages: [`${this.locale}`],
+            channels: ['website'], // Default to website channel
+            isPreview: this.isPreview,
+            store: {
+                interface: storeInterfaceFileSystem,
+                options: {
+                    rootPath: instanceSpecificPath,
+                    forceOverwrite: true // Always get fresh data for sync operations
+                },
+            }
+        });
+
+        try {
+            await syncClient.runSync();
+            console.log(ansiColors.green(`✅ Source data downloaded successfully`));
+        } catch (error) {
+            console.error(ansiColors.red(`❌ Failed to download source data: ${error.message}`));
+            throw error;
+        }
+    }
+
+    /**
+     * Load source data from filesystem using ChainDataLoader
      */
     private async loadSourceData(): Promise<any> {
         // Use ChainDataLoader with enhanced fileOperations
