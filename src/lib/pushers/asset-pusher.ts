@@ -1,6 +1,7 @@
 import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapper } from "../reference-mapper";
+import { findAssetInTargetInstance } from "../finders/asset-finder";
 import * as fs from 'fs';
 import * as path from 'path';
 import { getAssetFilePath } from "../utilities/asset-utils"; // Import the utility
@@ -42,42 +43,21 @@ export async function pushAssets(
     for (const media of assets) {
         let currentStatus: 'success' | 'error' = 'success';
         try {
-            // Add source asset to reference mapper for tracking
-            referenceMapper.addRecord('asset', media, null);
+            // PERFORMANCE FIX: Don't add null records upfront - this pollutes the mapping cache
+            // referenceMapper.addRecord('asset', media, null); // REMOVED
 
             const relativeFilePath = getAssetFilePath(media.originUrl).replace(/%20/g, " "); // Uses imported util
             const absoluteLocalFilePath = path.join(basePath, relativeFilePath);
             const folderPath = path.dirname(relativeFilePath) === '.' ? '/' : path.dirname(relativeFilePath);
 
-            // Check if asset exists in mapper or target instance
-            let existingMedia = referenceMapper.getMapping('asset', media.mediaID);
-            
-            if (!existingMedia) {
-                // Asset not in mapper, check target instance directly
-                try {
-                    const mediaList = await apiClient.assetMethods.getMediaList(1000, 0, targetGuid);
-                    existingMedia = mediaList.assetMedias?.find((a: any) => 
-                        a.fileName === media.fileName ||
-                        a.originUrl === media.originUrl ||
-                        a.edgeUrl === media.originUrl
-                    );
-                    
-                    if (existingMedia) {
-                        // Add to mapper for future reference
-                        referenceMapper.addRecord('asset', media, existingMedia);
-                    }
-                } catch (error) {
-                    // If asset lookup fails, continue with upload attempt
-                    existingMedia = null;
-                }
-            }
+            // SIMPLIFICATION: Use finder function instead of manual mapping/API logic
+            const existingMedia = await findAssetInTargetInstance(media, apiClient, targetGuid, referenceMapper);
 
             if (existingMedia) {
-                // Asset exists, update the reference mapping
-                referenceMapper.addRecord('asset', media, existingMedia); 
+                // Asset exists in target instance
                 const sourceFileName = media.originUrl.split('/').pop()?.split('?')[0];
-                const targetFileName = (existingMedia as any).originUrl?.split('/').pop()?.split('?')[0];
-                console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: mediaID:${(existingMedia as any).mediaID} (${targetFileName})`);
+                const targetFileName = existingMedia.originUrl?.split('/').pop()?.split('?')[0];
+                console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: mediaID:${existingMedia.mediaID} (${targetFileName})`);
                 successfulAssets++; // Count existing as success for progress
             } else {
                 // Handle gallery if present
@@ -133,8 +113,10 @@ export async function pushAssets(
                 }
                 const uploadedMedia = uploadedMediaArray[0]; // Assuming the first item corresponds to our upload
                 
+                // PERFORMANCE FIX: Add mapping only after successful upload
                 referenceMapper.addRecord('asset', media, uploadedMedia);
                 console.log(`✓ Asset uploaded: ${media.fileName} to ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`);
+                console.log(`[Asset Debug] Added uploaded asset to cache for future lookups`);
                 successfulAssets++;
             }
         } catch (error: any) {

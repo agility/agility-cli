@@ -559,4 +559,79 @@ export class ReferenceMapper {
             console.warn('Warning: Could not clear mappings cache:', error);
         }
     }
+
+    /**
+     * Remove specific mapping by type and identifier
+     */
+    removeMapping(type: CoreReferenceRecord['type'], identifier: string | number): boolean {
+        const indexToRemove = this.records.findIndex(record => {
+            if (record.type !== type) return false;
+            return this.matchesIdentifier(record.source, type, identifier);
+        });
+
+        if (indexToRemove !== -1) {
+            const removedRecord = this.records[indexToRemove];
+            this.records.splice(indexToRemove, 1);
+            
+            // Also remove from ID mappings if applicable
+            if (removedRecord.source && removedRecord.target) {
+                this.removeIdMapping(type, removedRecord.source, removedRecord.target);
+            }
+            
+            return true; // Successfully removed
+        }
+        
+        return false; // No mapping found to remove
+    }
+
+    /**
+     * Remove ID mapping for specific entity
+     */
+    private removeIdMapping(type: CoreReferenceRecord['type'], source: any, target: any): void {
+        const sourceId = this.extractId(source);
+        
+        if (sourceId) {
+            switch (type) {
+                case 'model':
+                    this.modelIds.delete(sourceId);
+                    break;
+                case 'content':
+                    this.contentIds.delete(sourceId);
+                    break;
+                case 'container':
+                    this.containerIds.delete(sourceId);
+                    break;
+                case 'template':
+                    this.templateIds.delete(sourceId);
+                    break;
+                case 'page':
+                    this.pageIds.delete(sourceId);
+                    break;
+                case 'asset':
+                    this.assetIds.delete(sourceId);
+                    break;
+                case 'gallery':
+                    this.galleryIds.delete(sourceId);
+                    break;
+            }
+        }
+    }
+
+    /**
+     * Extract ID from entity based on type
+     */
+    private extractId(entity: any): number | null {
+        if (!entity) return null;
+        
+        // Try common ID field patterns
+        if (typeof entity.id === 'number') return entity.id;
+        if (typeof entity.contentID === 'number') return entity.contentID;
+        if (typeof entity.contentViewID === 'number') return entity.contentViewID;
+        if (typeof entity.pageID === 'number') return entity.pageID;
+        if (typeof entity.mediaID === 'number') return entity.mediaID;
+        if (typeof entity.galleryID === 'number') return entity.galleryID;
+        if (typeof entity.pageTemplateID === 'number') return entity.pageTemplateID;
+        
+        return null;
+    }
 } 

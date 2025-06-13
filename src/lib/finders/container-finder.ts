@@ -1,55 +1,102 @@
 import * as mgmtApi from '@agility/management-sdk';
 import { ReferenceMapper } from '../reference-mapper';
 
+// Function overloads to handle both Container object and string referenceName
 export async function findContainerInTargetInstance(
     container: mgmtApi.Container, 
     apiClient: mgmtApi.ApiClient, 
     guid: string,
     referenceMapper: ReferenceMapper
+): Promise<mgmtApi.Container | null>;
+
+export async function findContainerInTargetInstance(
+    referenceName: string, 
+    apiClient: mgmtApi.ApiClient, 
+    guid: string,
+    referenceMapper: ReferenceMapper
+): Promise<mgmtApi.Container | null>;
+
+export async function findContainerInTargetInstance(
+    containerOrReferenceName: mgmtApi.Container | string, 
+    apiClient: mgmtApi.ApiClient, 
+    guid: string,
+    referenceMapper: ReferenceMapper
 ): Promise<mgmtApi.Container | null> {
     try {
+        // Extract referenceName from either Container object or string
+        const referenceName = typeof containerOrReferenceName === 'string' 
+            ? containerOrReferenceName 
+            : containerOrReferenceName.referenceName;
+        
+        const contentDefinitionID = typeof containerOrReferenceName === 'string' 
+            ? undefined 
+            : containerOrReferenceName.contentDefinitionID;
+
         // Check mapper cache first
-        const mapping = referenceMapper.getMapping<mgmtApi.Container>('container', 'referenceName', container.referenceName);
+        const mapping = referenceMapper.getMapping<mgmtApi.Container>('container', 'referenceName', referenceName);
         if (mapping?.target) {
+            console.log(`[Container Finder] ✓ Found in cache: ${referenceName} → ID:${mapping.target.contentViewID}`);
             return mapping.target;
         }
 
         // Try to find container by reference name in target instance
         try {
-            const targetContainer = await apiClient.containerMethods.getContainerByReferenceName(container.referenceName, guid);
+            const targetContainer = await apiClient.containerMethods.getContainerByReferenceName(referenceName, guid);
             if (targetContainer) {
+                console.log(`[Container Finder] ✓ Found by API: ${referenceName} → ID:${targetContainer.contentViewID}`);
                 return targetContainer;
             }
         } catch (error: any) {
-            // Container not found - this is normal, will create new one
-        }
-
-        // Try to find by model mapping (for containers with model dependencies)
-        const modelMapping = referenceMapper.getMapping<mgmtApi.Model>('model', 'id', container.contentDefinitionID);
-        if (modelMapping?.target) {
+            // Container not found with exact case - try case-insensitive search
             try {
-                // Get all containers and find one with matching model ID
                 const allContainers = await apiClient.containerMethods.getContainerList(guid);
-                const potentialMatch = allContainers.find(c => 
-                    c.contentDefinitionID === modelMapping.target.id &&
-                    (c.referenceName === container.referenceName || 
-                     c.referenceName.startsWith(container.referenceName.split(/[A-F0-9]{6}$/)[0])) // Handle hashed names
+                const caseInsensitiveMatch = allContainers.find(c => 
+                    c.referenceName && referenceName &&
+                    c.referenceName.toLowerCase() === referenceName.toLowerCase()
                 );
-
-                if (potentialMatch) {
-                    return potentialMatch;
+                
+                if (caseInsensitiveMatch) {
+                    console.log(`[Container Finder] ✓ Found case-insensitive: "${referenceName}" → "${caseInsensitiveMatch.referenceName}" ID:${caseInsensitiveMatch.contentViewID}`);
+                    return caseInsensitiveMatch;
                 }
-            } catch (error: any) {
-                // Continue - will create new container
+            } catch (listError: any) {
+                // Continue to model-based lookup
             }
         }
 
+        // Try to find by model mapping (for containers with model dependencies) - only if we have contentDefinitionID
+        if (contentDefinitionID) {
+            const modelMapping = referenceMapper.getMapping<mgmtApi.Model>('model', 'id', contentDefinitionID);
+            if (modelMapping?.target) {
+                try {
+                    // Get all containers and find one with matching model ID
+                    const allContainers = await apiClient.containerMethods.getContainerList(guid);
+                    const potentialMatch = allContainers.find(c => 
+                        c.contentDefinitionID === modelMapping.target.id &&
+                        (c.referenceName === referenceName || 
+                         (c.referenceName && referenceName && 
+                          c.referenceName.toLowerCase() === referenceName.toLowerCase()) ||
+                         c.referenceName.startsWith(referenceName.split(/[A-F0-9]{6}$/)[0])) // Handle hashed names
+                    );
+
+                    if (potentialMatch) {
+                        console.log(`[Container Finder] ✓ Found by model mapping: ${referenceName} → ID:${potentialMatch.contentViewID}`);
+                        return potentialMatch;
+                    }
+                } catch (error: any) {
+                    // Continue - will create new container
+                }
+            }
+        }
+
+        console.log(`[Container Finder] ✗ Not found: ${referenceName}`);
         return null;
 
     } catch (error: any) {
         if (error.response && error.response.status === 404) {
             return null;
         }
+        console.error(`[Container Finder] Error searching for ${typeof containerOrReferenceName === 'string' ? containerOrReferenceName : containerOrReferenceName.referenceName}:`, error.message);
         throw error;
     }
 }

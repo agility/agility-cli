@@ -610,7 +610,7 @@ export async function pushPages(
         }
         processedPagesCount++;
         if (onProgress) {
-            onProgress(processedPagesCount, totalPages, overallStatus === 'success' ? 'success' : 'error');
+            onProgress(processedPagesCount, totalPages, success ? 'success' : 'error');
         }
     }
 
@@ -633,7 +633,7 @@ export async function pushPages(
             }
             processedPagesCount++;
             if (onProgress) {
-                onProgress(processedPagesCount, totalPages, overallStatus === 'success' ? 'success' : 'error');
+                onProgress(processedPagesCount, totalPages, success ? 'success' : 'error');
             }
             // If this child page was processed successfully, remove it from remaining list
             if (success) {
