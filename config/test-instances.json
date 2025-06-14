@@ -64,7 +64,14 @@
       "name": "Target Instance 4",
       "description": "Additional target for sync testing",
       "status": "Available for testing"
+    },
+    "target6": {
+      "guid": "6b22c2ca-u",
+      "name": "Target Instance 5",
+      "description": "Additional target for sync testing",
+      "status": "Available for testing"
     }
+
   },
   "testScenarios": {
     "basic": {
