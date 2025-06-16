@@ -36,7 +36,7 @@ import { channel } from "diagnostics_channel";
 // }
 
 let auth: Auth;
-export let forceDevMode: boolean = false;
+export let forceDevMode: boolean = false; // QA
 export let forceLocalMode: boolean = false;
 export let forcePreProdMode: boolean = false;
 export let localServer: string;
@@ -521,6 +521,12 @@ yargs.command({
       default: "en-us"
 
     },
+    dev: {
+      describe: "Run in dev mode. This will use the dev instance for the pull operation.",
+      demandOption: false,
+      type: "boolean",
+      default: false
+    },
     channel: {
       describe: "Provide the channel to pull your instance from.",
       demandOption: true,
@@ -580,6 +586,8 @@ yargs.command({
 
     let guid: string = argv.guid as string;
     let locale: string = argv.locale as string;
+    forceDevMode = argv.dev as boolean;
+
     const channel: string = argv.channel as string;
     const isPreview: boolean = argv.preview as boolean;
     const elements: string[] = (argv.elements as string).split(",");
@@ -893,6 +901,12 @@ yargs.command({
       demandOption: true,
       type: "string",
     },
+    dev: {
+      describe: "Run in dev mode. This will use the dev instance for the sync operation.",
+      demandOption: false,
+      type: "boolean",
+      default: false
+    },
     locale: {
       describe: "Provide the locale to sync your instance. If not provided, will use AGILITY_LOCALES from .env file if available.",
       demandOption: false,
@@ -965,33 +979,27 @@ yargs.command({
     }
   },
   handler: async function (argv) {
-    const { headless, verbose, local, debug, maxDepth, forceSync } = argv;
+    const { headless, verbose, local, debug, maxDepth, forceSync, dev } = argv;
     const useBlessed = !headless && !verbose;
     blessedUIEnabled = useBlessed;
 
-    if (local) {
-      forceLocalMode = true;
-    }
+    forceLocalMode = local ? true : false;
+    forceDevMode = dev ? true : false;
 
     configureSSL();
 
     let auth = new Auth();
     
-    if (!debug) {
-      const isAuthorized = await auth.checkAuthorization();
-      if (!isAuthorized) {
-        return;
-      }
-
-      // Get token and set up options
-      const token = await auth.getToken();
-      options = new mgmtApi.Options();
-      options.token = token;
-    } else {
-      console.log(colors.yellow("🔍 DEBUG MODE: Bypassing authentication..."));
-      options = new mgmtApi.Options();
-      options.token = "debug-token";
+    const isAuthorized = await auth.checkAuthorization();
+    if (!isAuthorized) {
+      return;
     }
+
+    // Get token and set up options
+    const token = await auth.getToken();
+    options = new mgmtApi.Options();
+    options.token = token;
+   
 
     let sourceGuid: string = argv.sourceGuid as string;
     const targetGuid: string = argv.targetGuid as string;

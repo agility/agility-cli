@@ -15,6 +15,7 @@ import { pushTemplates } from '../pushers/template-pusher';
 import { pushPages } from '../pushers/page-pusher';
 // Replaced simple-page-pusher with regular page-pusher (Task 29.4)
 import { ChainDataLoader } from '../services/chain-data-loader';
+import { MappingDependencyEnforcer } from '../utilities/mapping-dependency-enforcer';
 
 export interface TopologicalContentSyncOptions {
     debug: boolean;
@@ -50,6 +51,8 @@ export class TopologicalContentSync {
     private dryRun: boolean;
     private syncOptions: TopologicalContentSyncOptions;
     private fileOps: fileOperations;
+    private originalConsoleLog: typeof console.log;
+    private originalConsoleError: typeof console.error;
 
     constructor(
         options: mgmtApi.Options,
@@ -72,28 +75,72 @@ export class TopologicalContentSync {
         this.locale = locale;
         this.isPreview = isPreview;
         this.blessedUIEnabled = blessedUIEnabled;
-        this.elements = this.enforceElementDependencies(elements); // Apply dependency enforcement
+        this.elements = elements // Apply dependency enforcement
         this.rootPath = rootPath;
         this.legacyFolders = legacyFolders;
         this.dryRun = dryRun;
         this.syncOptions = syncOptions;
         this.fileOps = new fileOperations(rootPath, sourceGuid, locale, isPreview);
+        
+        // Store original console methods for restoration
+        this.originalConsoleLog = console.log;
+        this.originalConsoleError = console.error;
+    }
+
+    /**
+     * Log messages to file with timestamp
+     */
+    private _logToFile(message: string, isError: boolean = false): void {
+        const timestamp = new Date().toISOString();
+        const logType = isError ? 'ERROR' : 'INFO';
+        const logEntry = `[${timestamp}] [${logType}] ${message}\n`;
+        this.fileOps.appendLogFile(logEntry);
+    }
+
+    /**
+     * Set up console logging to capture all output to file
+     */
+    private _setupConsoleLogging(): void {
+        // Override console.log to capture all output
+        console.log = (...args: any[]) => {
+            const message = args.map(arg => String(arg)).join(' ');
+            this.originalConsoleLog(...args); // Still output to console
+            this._logToFile(message);
+        };
+
+        // Override console.error to capture all errors
+        console.error = (...args: any[]) => {
+            const message = args.map(arg => String(arg)).join(' ');
+            this.originalConsoleError(...args); // Still output to console
+            this._logToFile(message, true);
+        };
+    }
+
+    /**
+     * Restore original console methods
+     */
+    private _restoreConsole(): void {
+        console.log = this.originalConsoleLog;
+        console.error = this.originalConsoleError;
     }
 
     /**
      * Enforce element dependencies - automatically include required dependencies
+     * 
+     * @deprecated This approach forces download of ALL dependency data
+     * @todo Replace with mapping-based dependency checking
      */
     private enforceElementDependencies(requestedElements: string[]): string[] {
         const enforcedElements = new Set(requestedElements);
 
         // Dependency rules based on legacy sync insights
-        if (enforcedElements.has('Pages')) {
-            enforcedElements.add('Templates');
-            enforcedElements.add('Containers'); 
-            enforcedElements.add('Content');
-            enforcedElements.add('Assets');
-            enforcedElements.add('Galleries');
-        }
+        // if (enforcedElements.has('Pages')) {
+        //     enforcedElements.add('Templates');
+        //     enforcedElements.add('Containers'); 
+        //     enforcedElements.add('Content');
+        //     enforcedElements.add('Assets');
+        //     enforcedElements.add('Galleries');
+        // }
 
         if (enforcedElements.has('Content')) {
             enforcedElements.add('Containers');
@@ -123,6 +170,41 @@ export class TopologicalContentSync {
     }
 
     /**
+     * NEW: Enforce mapping dependencies instead of data dependencies
+     * 
+     * Conceptual shift: Check if mappings exist for reference resolution
+     * instead of forcing download of all dependency data
+     */
+    private enforceMappingDependencies(requestedElements: string[], referenceMapper: ReferenceMapper): boolean {
+        const mappingEnforcer = new MappingDependencyEnforcer(
+            referenceMapper,
+            this.sourceGuid,
+            this.targetGuid
+        );
+
+        const result = mappingEnforcer.enforceMappingDependencies(requestedElements);
+        
+        if (result.satisfied) {
+            console.log(ansiColors.green('✅ All required mappings are available'));
+            
+            // Show mapping statistics
+            const stats = mappingEnforcer.getMappingStatistics();
+            console.log(ansiColors.cyan('\n📊 Available Mappings:'));
+            Object.entries(stats).forEach(([type, { available }]) => {
+                if (available > 0) {
+                    console.log(ansiColors.gray(`  ${type}: ${available} mappings`));
+                }
+            });
+        } else {
+            console.log(ansiColors.red('\n❌ Missing required mappings for push operation'));
+            console.log(ansiColors.yellow('Push operation cannot proceed without these mappings.'));
+            return false;
+        }
+
+        return true;
+    }
+
+    /**
      * Main sync execution method
      * Sophisticated topological dependency analysis and reference-aware sync execution
      */
@@ -130,6 +212,14 @@ export class TopologicalContentSync {
         let referenceMapper: ReferenceMapper | null = null;
         
         try {
+            // Set up console logging to capture all output to file
+            this._setupConsoleLogging();
+            
+            console.log(ansiColors.blue(`🚀 Starting Topological Content Sync: ${this.sourceGuid} → ${this.targetGuid}`));
+            console.log(ansiColors.gray(`   📅 Sync started at: ${new Date().toISOString()}`));
+            console.log(ansiColors.gray(`   🌍 Locale: ${this.locale}`));
+            console.log(ansiColors.gray(`   📂 Elements: ${this.elements.join(', ')}`));
+            
             // Load source data from filesystem (no downloading - that's pull command's job)
             const sourceData = await this.loadSourceData();
             
@@ -140,29 +230,35 @@ export class TopologicalContentSync {
             }
 
             // Run sophisticated topological dependency analysis
-            const analysisRunner = new ComprehensiveAnalysisRunner();
-            const analysisContext: any = {
-                sourceGuid: this.sourceGuid,
-                locale: this.locale,
-                isPreview: this.isPreview,
-                rootPath: this.rootPath,
-                legacyFolders: this.legacyFolders,
-                debug: this.syncOptions.debug || false,
-                elements: this.elements
-            };
-            analysisRunner.initialize(analysisContext);
-            const analysisResults = analysisRunner.runComprehensiveAnalysis(sourceData);
-            
+            if(this.syncOptions.debug) {
+                // const analysisRunner = new ComprehensiveAnalysisRunner();
+                
+
+                // const analysisContext: any = {
+                //     sourceGuid: this.sourceGuid,
+                //     locale: this.locale,
+                //     isPreview: this.isPreview,
+                //     rootPath: this.rootPath,
+                //     legacyFolders: this.legacyFolders,
+                //     debug: this.syncOptions.debug || false,
+                //     elements: this.elements
+                // };
+                // analysisRunner.initialize(analysisContext);
+                // const analysisResults = analysisRunner.runComprehensiveAnalysis(sourceData);
+             }
+
             // Set up API client and reference mapper  
             const apiClient = new mgmtApi.ApiClient(this.options);
             referenceMapper = new ReferenceMapper(this.sourceGuid, this.targetGuid, this.rootPath, this.legacyFolders);
             
             // Debug mode - show analysis results and exit
-            if (this.syncOptions.debug) {
-                console.log(ansiColors.blue(`\n🔍 DEBUG MODE: Analysis complete - Ready to sync from ${this.sourceGuid} → ${this.targetGuid}`));
-                console.log(ansiColors.gray('   💡 Use sync without --debug flag to proceed with actual sync operation'));
-                return;
-            }
+           
+            // allowing true sync on debug for now
+            // if (this.syncOptions.debug) {
+            //     console.log(ansiColors.blue(`\n🔍 DEBUG MODE: Analysis complete - Ready to sync from ${this.sourceGuid} → ${this.targetGuid}`));
+            //     console.log(ansiColors.gray('   💡 Use sync without --debug flag to proceed with actual sync operation'));
+            //     return;
+            // }
 
             // Real sync execution
             if (this.syncOptions.forceSync) {
@@ -172,7 +268,8 @@ export class TopologicalContentSync {
             const syncResults = await this.executePushersInOrder(
                 sourceData, 
                 apiClient, 
-                referenceMapper
+                referenceMapper,
+                this.elements
             );
 
             await referenceMapper.saveAllMappings();
@@ -182,6 +279,7 @@ export class TopologicalContentSync {
             console.log(`✅ Total Success: ${syncResults.totalSuccess}`);
             console.log(`❌ Total Failures: ${syncResults.totalFailures}`);
             console.log(`📊 Success Rate: ${((syncResults.totalSuccess / (syncResults.totalSuccess + syncResults.totalFailures)) * 100).toFixed(1)}%`);
+            console.log(ansiColors.gray(`   📅 Sync completed at: ${new Date().toISOString()}`));
 
             if (syncResults.totalFailures > 0) {
                 console.log(ansiColors.yellow(`⚠️ Sync completed with ${syncResults.totalFailures} failures. Check logs for details.`));
@@ -197,9 +295,18 @@ export class TopologicalContentSync {
                 }
             }
 
-
             console.error(ansiColors.red(`❌ Error during topological sync: ${error.message}`));
             throw error;
+        } finally {
+            // Always restore console and finalize log file
+            this._restoreConsole();
+            
+            try {
+                const finalizedLogPath = this.fileOps.finalizeLogFile('sync');
+                this.originalConsoleLog(`\n📄 Sync log file written to: ${finalizedLogPath}`);
+            } catch (logError) {
+                this.originalConsoleError('Warning: Could not finalize sync log file:', logError);
+            }
         }
     }
 
@@ -210,7 +317,8 @@ export class TopologicalContentSync {
     private async executePushersInOrder(
         sourceData: any, 
         apiClient: mgmtApi.ApiClient, 
-        referenceMapper: ReferenceMapper
+        referenceMapper: ReferenceMapper,
+        elements: string[]
     ): Promise<{ totalSuccess: number; totalFailures: number }> {
         
         let totalSuccess = 0;
@@ -232,7 +340,7 @@ export class TopologicalContentSync {
 
         try {
             // 1. Push Models first (foundational)
-            if (sourceData.models && sourceData.models.length > 0) {
+            if (sourceData.models && sourceData.models.length > 0 && elements.includes('Models')) {
                 console.log(ansiColors.cyan('\n📋 Pushing Models...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.models.length} models in source data`));
                 
@@ -257,7 +365,7 @@ export class TopologicalContentSync {
             }
 
             // 2. Push Galleries (independent)
-            if (sourceData.galleries && sourceData.galleries.length > 0) {
+            if (sourceData.galleries && sourceData.galleries.length > 0 && elements.includes('Galleries')) {
                 console.log(ansiColors.cyan('\n🖼️ Pushing Galleries...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.galleries.length} galleries in source data`));
                 
@@ -282,7 +390,7 @@ export class TopologicalContentSync {
             }
 
             // 3. Push Assets (depend on galleries)
-            if (sourceData.assets && sourceData.assets.length > 0) {
+            if (sourceData.assets && sourceData.assets.length > 0 && elements.includes('Assets')) {
                 console.log(ansiColors.cyan('\n📎 Pushing Assets...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.assets.length} assets in source data`));
                 
@@ -311,7 +419,7 @@ export class TopologicalContentSync {
             }
 
             // 4. Push Containers (depend on models)
-            if (sourceData.containers && sourceData.containers.length > 0) {
+            if (sourceData.containers && sourceData.containers.length > 0 && elements.includes('Containers')) {
                 console.log(ansiColors.cyan('\n📦 Pushing Containers...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.containers.length} containers in source data`));
                 
@@ -335,16 +443,21 @@ export class TopologicalContentSync {
             }
 
             // 5. Push Content Items (SINGLE-PASS WITH CONTAINER INFERENCE)
-            if (sourceData.content && sourceData.content.length > 0) {
+            if (sourceData.content && sourceData.content.length > 0 && elements.includes('Content')) {
                 console.log(ansiColors.cyan('\n📄 Pushing Content Items...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.content.length} content items in source data`));
+                
+                // Ensure models are available for content processing
+                const models = sourceData.models || [];
+                console.log(ansiColors.yellow(`  📊 Using ${models.length} models for content processing`));
                 
                 const contentResult = await pushContent(
                     sourceData.content,
                     this.targetGuid,
                     this.locale,
                     apiClient,
-                    referenceMapper
+                    referenceMapper,
+                    models // Pass models to pushContent
                 );
                 totalSuccess += contentResult.successfulItems;
                 totalFailures += contentResult.failedItems;
@@ -359,7 +472,7 @@ export class TopologicalContentSync {
             }
 
             // 6. Push Templates (depend on containers, models)
-            if (sourceData.templates && sourceData.templates.length > 0) {
+            if (sourceData.templates && sourceData.templates.length > 0 && elements.includes('Templates')) {
                 console.log(ansiColors.cyan('\n📄 Pushing Templates...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.templates.length} templates in source data`));
                 
@@ -383,7 +496,7 @@ export class TopologicalContentSync {
             }
 
             // 7. Push Pages (depend on templates, content)
-            if (sourceData.pages && sourceData.pages.length > 0) {
+            if (sourceData.pages && sourceData.pages.length > 0 && elements.includes('Pages')) {
                 console.log(ansiColors.cyan('\n📄 Pushing Pages...'));
                 console.log(ansiColors.yellow(`  📊 Found ${sourceData.pages.length} pages in source data`));
                 
@@ -393,7 +506,11 @@ export class TopologicalContentSync {
                     this.locale,
                     apiClient,
                     referenceMapper,
-                    this.multibar
+                    (processed: number, total: number, status?: 'success' | 'error') => {
+                        // Optional progress callback - can be enhanced later if needed
+                        const percentage = Math.round((processed / total) * 100);
+                        console.log(`  📄 Page progress: ${processed}/${total} (${percentage}%) - ${status || 'processing'}`);
+                    }
                 );
                 totalSuccess += pageResult.successfulPages;
                 totalFailures += pageResult.failedPages;
@@ -438,7 +555,80 @@ export class TopologicalContentSync {
         });
 
         const sourceEntities = await loader.loadSourceEntities();
+        
+        // CRITICAL FIX: Enrich pages with parent relationship data from sitemap
+        if (sourceEntities.pages && sourceEntities.pages.length > 0) {
+            sourceEntities.pages = await this.enrichPagesWithSitemapParents(sourceEntities.pages);
+        }
+        
         return sourceEntities;
+    }
+    
+    /**
+     * Enrich page data with parent relationship information from the sitemap
+     * This fixes the issue where pages have no parentPageID/parentID fields
+     */
+    private async enrichPagesWithSitemapParents(pages: any[]): Promise<any[]> {
+        try {
+            console.log(ansiColors.gray(`  🔗 Enriching ${pages.length} pages with sitemap parent relationships...`));
+            
+            // Load sitemap hierarchy using the proven SitemapHierarchy class
+            const { SitemapHierarchy } = await import('./sync-analysis/sitemap-hierarchy');
+            const sitemapHierarchy = new SitemapHierarchy(
+                this.rootPath,
+                this.sourceGuid,
+                this.locale,
+                this.isPreview,
+                this.legacyFolders
+            );
+            
+            const nestedSitemap = sitemapHierarchy.loadNestedSitemap();
+            if (!nestedSitemap || nestedSitemap.length === 0) {
+                console.log(ansiColors.yellow(`  ⚠️ No nested sitemap found - pages will have no parent relationships`));
+                return pages;
+            }
+            
+            const hierarchy = sitemapHierarchy.buildPageHierarchy(nestedSitemap);
+            
+            // Build a reverse lookup: childPageID -> parentPageID
+            const childToParentMap: { [childId: number]: number } = {};
+            Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
+                const parentId = parseInt(parentIdStr);
+                childIds.forEach(childId => {
+                    childToParentMap[childId] = parentId;
+                });
+            });
+            
+            // Enrich each page with parent relationship information
+            let enrichedCount = 0;
+            const enrichedPages = pages.map(page => {
+                const parentId = childToParentMap[page.pageID];
+                if (parentId && parentId > 0) {
+                    // This page has a parent - add both field names for compatibility
+                    enrichedCount++;
+                    return {
+                        ...page,
+                        parentPageID: parentId,  // Standard field name
+                        parentID: parentId       // Alternative field name used in analysis
+                    };
+                } else {
+                    // This page has no parent - ensure parent fields are properly set
+                    return {
+                        ...page,
+                        parentPageID: -1,
+                        parentID: -1
+                    };
+                }
+            });
+            
+            console.log(ansiColors.green(`  ✅ Enriched ${enrichedCount} pages with parent relationships`));
+            return enrichedPages;
+            
+        } catch (error: any) {
+            console.warn(ansiColors.yellow(`  ⚠️ Failed to enrich pages with sitemap parents: ${error.message}`));
+            console.warn(ansiColors.yellow(`  📄 Pages will be processed without parent relationships`));
+            return pages;
+        }
     }
 
     /**

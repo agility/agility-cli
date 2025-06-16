@@ -115,9 +115,9 @@ function areModelsDifferent(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Mod
     delete targetCopy.allowTagging;
     delete sourceCopy.contentDefinitionTypeName;
     delete targetCopy.contentDefinitionTypeName;
-    // CRITICAL FIX: DO NOT delete contentDefinitionTypeID - it distinguishes pageModule vs contentModule
-    // delete (sourceCopy as any).contentDefinitionTypeID;
-    // delete (targetCopy as any).contentDefinitionTypeID;
+    // UPDATED: Remove contentDefinitionTypeID from comparison as it changes between instances
+    delete (sourceCopy as any).contentDefinitionTypeID;
+    delete (targetCopy as any).contentDefinitionTypeID;
     delete sourceCopy.displayName;
     delete targetCopy.displayName;
     

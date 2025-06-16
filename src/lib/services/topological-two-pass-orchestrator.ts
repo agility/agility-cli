@@ -868,7 +868,7 @@ export class TopologicalTwoPassOrchestrator {
      * Execute bulk content upload using saveContentItems API
      */
     private async executeBulkContentUpload(contentEntities: any[], pass: 1 | 2): Promise<{ successCount: number, failureCount: number }> {
-        const batchSize = 100; // Optimal batch size for Management API
+        const batchSize = 250; // Optimal batch size for Management API
         const contentBatches = this.createContentBatches(contentEntities, batchSize);
         
         console.log(`      📦 Processing ${contentEntities.length} content items in ${contentBatches.length} bulk batches (${batchSize} items each)`);

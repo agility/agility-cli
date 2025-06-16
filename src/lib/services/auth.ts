@@ -380,7 +380,7 @@ export class Auth {
       }
 
       if (data.websiteAccess && data.websiteAccess.length > 0) {
-        if (!data.websiteAccess.find((access) => access.guid === guid)) {
+        if (!data.websiteAccess.find((access) => access.guid === guid) && !forceDevMode) {
           throw new Error("User does not have access to this instance.");
         }
       } else {

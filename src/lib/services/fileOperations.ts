@@ -478,7 +478,7 @@ export class fileOperations{
     }
   }
 
-  public finalizeLogFile(operationType: 'pull' | 'push'): string {
+  public finalizeLogFile(operationType: 'pull' | 'push' | 'sync'): string {
     const now = new Date();
     const pad = (num: number) => String(num).padStart(2, '0');
 

@@ -469,6 +469,9 @@ export class push {
                     if (!allContentItems || allContentItems.length === 0) {
                         console.log('No content items found to push');
                     } else {
+                        // Load models for content processing
+                        const models = getModelsFromFileSystem(fileOps);
+                        
                         const contentProgressCallback = (processed: number, total: number, status?: 'success' | 'error') => {
                             const percentage = total > 0 ? Math.round((processed / total) * 100) : 0;
                             updateProgress(contentStepIndex, status || 'success', percentage); 
@@ -479,6 +482,7 @@ export class push {
                             this._locale,
                             this._apiClient,
                             this._referenceMapper,
+                            models,
                             contentProgressCallback
                         );
                         const totalContentItems = allContentItems.length;
