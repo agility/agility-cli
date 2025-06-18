@@ -226,7 +226,7 @@ async function processPage(
             // Add to reference mapper for future lookups
             referenceMapper.addRecord('page', page, existingPage);
             
-            console.log(`Page "${page.name}" was skipped (already exists)`);
+            console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: ID:${existingPage.pageID} (Template:${page.templateName || 'None'})`);
             return true; // Skip processing - page already exists
         } else if (existingPage && forceUpdate) {
             // Force update mode: use existing page ID for update
@@ -546,7 +546,16 @@ async function processPage(
                     pageID: actualPageID
                 } as mgmtApi.PageItem;
                 referenceMapper.addRecord('page', page, createdPageData); // Use original page for source key
-                console.log(`Page "${page.name}" was ${existingPage ? (forceUpdate ? 'updated (forced)' : 'updated') : 'created'}`);
+                
+                if (existingPage) {
+                    if (forceUpdate) {
+                        console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan('updated (forced)')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
+                    } else {
+                        console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan('updated')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
+                    }
+                } else {
+                    console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.green('created')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
+                }
                 return true; // Success
             } else {
                 // Show errorData if available, otherwise generic failure

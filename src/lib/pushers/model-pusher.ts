@@ -330,16 +330,17 @@ export async function pushModels(
         // console.log("SOURCE MODEL:", model);
 
         try {
-            // CRITICAL FIX: Check ReferenceMapper first to avoid unnecessary API calls and diff cycles
-            const existingMapping = referenceMapper.getMappingByKey<mgmtApi.Model>('model', 'referenceName', originalModelReferenceName);
-            if (existingMapping?.target && existingMapping.target.id > 0) {
-                existingModel = existingMapping.target;
+            // CRITICAL FIX: Check ReferenceMapper first to avoid unnecessary API calls
+            // Use same lookup method as addMapping to prevent duplicate mappings
+            existingModel = referenceMapper.getMapping<mgmtApi.Model>('model', model.id);
+            if (existingModel && existingModel.id > 0) {
                 console.log(`✓ Using cached model mapping for ${originalModelReferenceName} (ID: ${existingModel.id})`);
             } else {
                 // Fetch from API only if not in ReferenceMapper
                 existingModel = await apiClient.modelMethods.getModelByReferenceName(originalModelReferenceName, targetGuid);
                 if (existingModel) {
                     referenceMapper.addMapping('model', model, existingModel);
+                    console.log(`➕ Added fresh model mapping for ${originalModelReferenceName} (ID: ${existingModel.id})`);
                 }
             }
 
@@ -436,9 +437,10 @@ export async function pushModels(
                             modelPayload.fields.forEach(payloadField => {
                                 const responseField = updatedModel.fields.find(f => f.name === payloadField.name);
                                 if (responseField) {
-                                    if (payloadField.fieldID !== responseField.fieldID) {
-                                        console.log(`  🔄 ${payloadField.name}: fieldID changed from '${payloadField.fieldID || 'undefined'}' to '${responseField.fieldID}'`);
-                                    }
+                                    // REMOVED: fieldID logging - fieldIDs are technical debt that should be ignored
+                                    // if (payloadField.fieldID !== responseField.fieldID) {
+                                    //     console.log(`  🔄 ${payloadField.name}: fieldID changed from '${payloadField.fieldID || 'undefined'}' to '${responseField.fieldID}'`);
+                                    // }
                                     if (payloadField.label !== responseField.label) {
                                         console.log(`  📝 ${payloadField.name}: label changed from '${payloadField.label}' to '${responseField.label}'`);
                                     }
@@ -446,9 +448,66 @@ export async function pushModels(
                             });
                         }
                         
-                        // Update cache with API response (more reliable than fresh fetch due to API consistency issues)
-                        referenceMapper.addMapping('model', model, updatedModel);
-                        console.log(`🔄 Cache updated for ${originalModelReferenceName} with API response`);
+                        // CRITICAL FIX: Validate update was successful by fetching fresh data
+                        // This ensures our cache reflects the actual API state after the update
+                        try {
+                            console.log(`🔍 Validating update success for ${originalModelReferenceName}...`);
+                            const freshModel = await apiClient.modelMethods.getModelByReferenceName(originalModelReferenceName, targetGuid);
+                            if (freshModel) {
+                                // LOG POST-UPDATE API RESPONSE for debugging
+                                console.log(`📡 [POST-UPDATE API RESPONSE] ${originalModelReferenceName}:`, JSON.stringify(freshModel, null, 2));
+                                console.log(`📡 [POST-UPDATE FIELDS] ${originalModelReferenceName}:`, 
+                                    freshModel?.fields ? freshModel.fields.map(f => `${f.name}(${f.type})`) : 'NO FIELDS');
+                                
+                                // Update cache with fresh API data to ensure accuracy
+                                referenceMapper.addMapping('model', model, freshModel);
+                                console.log(`✅ Cache refreshed with post-update API state for ${originalModelReferenceName}`);
+                                
+                                // Quick validation: check if the update actually took effect
+                                const freshFieldCount = freshModel.fields?.length || 0;
+                                const payloadFieldCount = modelPayload.fields?.length || 0;
+                                const freshFieldNames = freshModel.fields?.map(f => f.name) || [];
+                                const payloadFieldNames = modelPayload.fields?.map(f => f.name) || [];
+                                
+                                if (freshFieldCount !== payloadFieldCount) {
+                                    console.warn(`⚠️  Field count mismatch after update: expected ${payloadFieldCount}, got ${freshFieldCount}`);
+                                    console.warn(`⚠️  This may indicate the API update didn't fully take effect`);
+                                    
+                                    // Show detailed field differences for debugging
+                                    console.warn(`⚠️  Fresh API fields: [${freshFieldNames.join(', ')}]`);
+                                    console.warn(`⚠️  Expected fields: [${payloadFieldNames.join(', ')}]`);
+                                }
+                                
+                                // Additional debugging: compare API response vs fresh fetch
+                                const responseFieldCount = updatedModel.fields?.length || 0;
+                                if (responseFieldCount !== freshFieldCount) {
+                                    console.warn(`⚠️  API response vs fresh fetch field count differs: response=${responseFieldCount}, fresh=${freshFieldCount}`);
+                                    const responseFieldNames = updatedModel.fields?.map(f => f.name) || [];
+                                    console.warn(`⚠️  API response fields: [${responseFieldNames.join(', ')}]`);
+                                    console.warn(`⚠️  Fresh fetch fields: [${freshFieldNames.join(', ')}]`);
+                                }
+                                
+                                // DEBUG: Verify cache update was successful
+                                // Use same lookup method as addMapping (by model ID) to ensure we verify the same record
+                                const verifyTarget = referenceMapper.getMapping<mgmtApi.Model>('model', model.id);
+                                if (verifyTarget) {
+                                    const verifyFieldCount = verifyTarget.fields?.length || 0;
+                                    console.log(`🔍 [CACHE VERIFICATION] ${originalModelReferenceName}: cache now has ${verifyFieldCount} fields`);
+                                    if (verifyTarget.id !== freshModel.id) {
+                                        console.warn(`⚠️  [CACHE VERIFICATION] Cache target ID (${verifyTarget.id}) differs from fresh model ID (${freshModel.id})`);
+                                    }
+                                    if (verifyFieldCount !== freshFieldCount) {
+                                        console.warn(`⚠️  [CACHE VERIFICATION] Cache field count (${verifyFieldCount}) differs from fresh model field count (${freshFieldCount})`);
+                                    }
+                                } else {
+                                    console.warn(`⚠️  [CACHE VERIFICATION] Could not retrieve updated mapping for ${originalModelReferenceName}`);
+                                }
+                            } else {
+                                console.warn(`⚠️  Could not fetch fresh data for validation of ${originalModelReferenceName}`);
+                            }
+                        } catch (validationError: any) {
+                            console.warn(`⚠️  Validation fetch failed for ${originalModelReferenceName}: ${validationError.message}`);
+                        }
                         
                         // Note: Fresh fetch verification disabled due to API consistency issues
                         // The API response is more reliable than immediate fresh fetch
@@ -532,6 +591,15 @@ export async function pushModels(
             delete modelPayload.lastModifiedDate; // Not needed for create
             delete modelPayload.lastModifiedBy;   // Not needed for create
             delete modelPayload.lastModifiedAuthorID; // Not needed for create
+
+            // CRITICAL: Remove fieldIDs from creation payload as well (same as update path)
+            if (modelPayload.fields) {
+                modelPayload.fields = modelPayload.fields.map(field => {
+                    const cleanField = { ...field };
+                    delete cleanField.fieldID; // fieldIDs are technical debt - let API generate new ones
+                    return cleanField;
+                });
+            }
 
             const savedModel = await apiClient.modelMethods.saveModel(modelPayload, targetGuid);
             

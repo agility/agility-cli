@@ -65,6 +65,21 @@ export class ReferenceMapper {
     addMapping(type: CoreReferenceRecord['type'], source: any, target: any | null = null): void {
         const existingIndex = this.findExistingMappingIndex(type, source);
 
+        // DEBUG: Log mapping update operation
+        const sourceId = source?.id || source?.contentID || source?.pageID || 'unknown';
+        const targetId = target?.id || target?.contentID || target?.pageID || 'unknown';
+        
+        if (type === 'model') {
+            console.log(`[ReferenceMapper] ${type} mapping operation: source=${sourceId}, target=${targetId}, existingIndex=${existingIndex}`);
+            if (existingIndex >= 0) {
+                const existingRecord = this.records[existingIndex];
+                const existingTargetId = existingRecord.target?.id || 'null';
+                console.log(`[ReferenceMapper] Updating existing ${type} mapping: ${sourceId} -> ${existingTargetId} to ${sourceId} -> ${targetId}`);
+            } else {
+                console.log(`[ReferenceMapper] Creating new ${type} mapping: ${sourceId} -> ${targetId}`);
+            }
+        }
+
         const mappingRecord: CoreReferenceRecord = {
             type,
             source,
@@ -576,6 +591,20 @@ export class ReferenceMapper {
      * Private: Find existing mapping index for deduplication
      */
     private findExistingMappingIndex(type: CoreReferenceRecord['type'], source: any): number {
+        // DEBUG: Add debugging for model mapping lookups
+        if (type === 'model' && source?.id) {
+            const matchingIndices = this.records.map((r, index) => {
+                if (r.type === 'model' && r.source?.id === source.id) {
+                    return index;
+                }
+                return -1;
+            }).filter(index => index !== -1);
+            
+            if (matchingIndices.length > 1) {
+                console.warn(`[ReferenceMapper] Multiple model mappings found for source ID ${source.id}: indices ${matchingIndices.join(', ')}`);
+            }
+        }
+        
         return this.records.findIndex(r => {
             if (r.type !== type) return false;
             

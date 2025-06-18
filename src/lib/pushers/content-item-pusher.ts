@@ -74,7 +74,7 @@ async function getDefaultAssetContainerUrl(apiClient: mgmtApi.ApiClient, targetG
         const defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid);
         const defaultUrl = defaultContainer?.originUrl || null;
         if (!defaultUrl) {
-            console.warn(ansiColors.yellow(`[Content Pusher] Could not retrieve default asset container origin URL for target GUID ${targetGuid}. Asset URL mapping might be incomplete.`));
+            // console.warn(ansiColors.yellow(`[Content Pusher] Could not retrieve default asset container origin URL for target GUID ${targetGuid}. Asset URL mapping might be incomplete.`));
         }
         return defaultUrl;
     } catch (err: any) {
@@ -277,7 +277,7 @@ async function pushLinkedContentItems(
                         m.referenceName.toLowerCase() === contentItem.properties.definitionName.toLowerCase()
                     );
                     if (sourceModel) {
-                        console.log(`[Content Push] ⚠️ Case-insensitive model match: "${contentItem.properties.definitionName}" → "${sourceModel.referenceName}"`);
+                        // console.log(`[Content Push] ⚠️ Case-insensitive model match: "${contentItem.properties.definitionName}" → "${sourceModel.referenceName}"`);
                     }
                 }
                 
@@ -300,12 +300,12 @@ async function pushLinkedContentItems(
                 const containerMapping = referenceMapper.getMapping<mgmtApi.Container>('container', 'referenceName', contentItem.properties.referenceName);
                 if (containerMapping?.target) {
                     container = containerMapping.target;
-                    console.log(`[Content Push] ✓ Found container in cache: ${contentItem.properties.referenceName} → ID:${container.contentViewID}`);
+                    // console.log(`[Content Push] ✓ Found container in cache: ${contentItem.properties.referenceName} → ID:${container.contentViewID}`);
                 } else {
                     // Fallback to API lookup if not in mapper
                     try {
                         container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, targetGuid);
-                        console.log(`[Content Push] ✓ Found container by API: ${contentItem.properties.referenceName} → ID:${container.contentViewID}`);
+                        // console.log(`[Content Push] ✓ Found container by API: ${contentItem.properties.referenceName} → ID:${container.contentViewID}`);
                     } catch (error: any) {
                         console.log(`[Content Push] ✗ Container lookup failed: ${contentItem.properties.referenceName} - ${error.message}`);
                     }
@@ -373,7 +373,7 @@ async function pushLinkedContentItems(
                 
                 // Extract batch ID from response
                 const batchID = Array.isArray(batchIDResult) ? batchIDResult[0] : batchIDResult;
-                console.log(`📦 Linked content ${itemName} started with batch ID: ${batchID}`);
+                // console.log(`📦 Linked content ${itemName} started with batch ID: ${batchID}`);
                 
                 // Poll batch until completion (pass payload for error matching)
                 const { pollBatchUntilComplete, extractBatchResults } = await import('../utilities/batch-polling');
