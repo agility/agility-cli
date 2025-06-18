@@ -971,15 +971,15 @@ yargs.command({
       type: "number",
       default: 10,
     },
-    forceSync: {
-      describe: "Force sync mode - updates ALL items to ensure 100% consistency (vs incremental mode which only updates changed items).",
+    forceUpdate: {
+      describe: "Force update all items regardless of existing mappings. Updates existing items instead of skipping them. When false (default), only processes unmapped items for much faster syncs.",
       demandOption: false,
       type: "boolean",
       default: false,
     }
   },
   handler: async function (argv) {
-    const { headless, verbose, local, debug, maxDepth, forceSync, dev } = argv;
+    const { headless, verbose, local, debug, maxDepth, forceUpdate, dev } = argv;
     const useBlessed = !headless && !verbose;
     blessedUIEnabled = useBlessed;
 
@@ -1092,7 +1092,7 @@ yargs.command({
       const syncOperation = new TopologicalContentSync(options, multibar, sourceGuid, targetGuid, locale, isPreview, blessedUIEnabled, elements, rootPath, legacyFolders, false, {
         debug,
         maxDepth: maxDepth,
-        forceSync: forceSync
+        forceUpdate: forceUpdate
       });
 
       await syncOperation.syncInstance();

@@ -35,7 +35,7 @@ export async function findContainerInTargetInstance(
         // Check mapper cache first
         const mapping = referenceMapper.getMapping<mgmtApi.Container>('container', 'referenceName', referenceName);
         if (mapping?.target) {
-            console.log(`[Container Finder] ✓ Found in cache: ${referenceName} → ID:${mapping.target.contentViewID}`);
+            // console.log(`[Container Finder] ✓ Found in cache: ${referenceName} → ID:${mapping.target.contentViewID}`);
             return mapping.target;
         }
 
@@ -43,7 +43,7 @@ export async function findContainerInTargetInstance(
         try {
             const targetContainer = await apiClient.containerMethods.getContainerByReferenceName(referenceName, guid);
             if (targetContainer) {
-                console.log(`[Container Finder] ✓ Found by API: ${referenceName} → ID:${targetContainer.contentViewID}`);
+                // console.log(`[Container Finder] ✓ Found by API: ${referenceName} → ID:${targetContainer.contentViewID}`);
                 return targetContainer;
             }
         } catch (error: any) {
@@ -56,7 +56,7 @@ export async function findContainerInTargetInstance(
                 );
                 
                 if (caseInsensitiveMatch) {
-                    console.log(`[Container Finder] ✓ Found case-insensitive: "${referenceName}" → "${caseInsensitiveMatch.referenceName}" ID:${caseInsensitiveMatch.contentViewID}`);
+                    // console.log(`[Container Finder] ✓ Found case-insensitive: "${referenceName}" → "${caseInsensitiveMatch.referenceName}" ID:${caseInsensitiveMatch.contentViewID}`);
                     return caseInsensitiveMatch;
                 }
             } catch (listError: any) {
@@ -80,7 +80,7 @@ export async function findContainerInTargetInstance(
                     );
 
                     if (potentialMatch) {
-                        console.log(`[Container Finder] ✓ Found by model mapping: ${referenceName} → ID:${potentialMatch.contentViewID}`);
+                        // console.log(`[Container Finder] ✓ Found by model mapping: ${referenceName} → ID:${potentialMatch.contentViewID}`);
                         return potentialMatch;
                     }
                 } catch (error: any) {
@@ -89,14 +89,14 @@ export async function findContainerInTargetInstance(
             }
         }
 
-        console.log(`[Container Finder] ✗ Not found: ${referenceName}`);
+        // console.log(`[Container Finder] ✗ Not found: ${referenceName}`);
         return null;
 
     } catch (error: any) {
         if (error.response && error.response.status === 404) {
             return null;
         }
-        console.error(`[Container Finder] Error searching for ${typeof containerOrReferenceName === 'string' ? containerOrReferenceName : containerOrReferenceName.referenceName}:`, error.message);
+        // console.error(`[Container Finder] Error searching for ${typeof containerOrReferenceName === 'string' ? containerOrReferenceName : containerOrReferenceName.referenceName}:`, error.message);
         throw error;
     }
 }

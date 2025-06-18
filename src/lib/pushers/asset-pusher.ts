@@ -116,7 +116,7 @@ export async function pushAssets(
                 // PERFORMANCE FIX: Add mapping only after successful upload
                 referenceMapper.addRecord('asset', media, uploadedMedia);
                 console.log(`✓ Asset uploaded: ${media.fileName} to ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`);
-                console.log(`[Asset Debug] Added uploaded asset to cache for future lookups`);
+                // console.log(`[Asset Debug] Added uploaded asset to cache for future lookups`);
                 successfulAssets++;
             }
         } catch (error: any) {

@@ -20,7 +20,7 @@ import { MappingDependencyEnforcer } from '../utilities/mapping-dependency-enfor
 export interface TopologicalContentSyncOptions {
     debug: boolean;
     maxDepth?: number;
-    forceSync?: boolean; // Full sync mode - force update all items
+    forceUpdate?: boolean; // Force update all items regardless of existing mappings
 }
 
 /**
@@ -261,9 +261,8 @@ export class TopologicalContentSync {
             // }
 
             // Real sync execution
-            if (this.syncOptions.forceSync) {
-                await referenceMapper.clearAllMappings();
-            }
+            // Note: Force update should preserve existing mappings and use target IDs
+            // Removed: clearAllMappings() for forceUpdate - this was breaking template lookups
             
             const syncResults = await this.executePushersInOrder(
                 sourceData, 
@@ -350,7 +349,7 @@ export class TopologicalContentSync {
                     this.targetGuid,
                     referenceMapper,
                     this.syncOptions.debug || false,
-                    this.syncOptions.forceSync || false
+                    this.syncOptions.forceUpdate || false
                 );
                 totalSuccess += modelResult.successfulModels;
                 totalFailures += modelResult.failedModels;
@@ -457,7 +456,8 @@ export class TopologicalContentSync {
                     this.locale,
                     apiClient,
                     referenceMapper,
-                    models // Pass models to pushContent
+                    models, // Pass models to pushContent
+                    this.syncOptions.forceUpdate || false
                 );
                 totalSuccess += contentResult.successfulItems;
                 totalFailures += contentResult.failedItems;
@@ -502,14 +502,14 @@ export class TopologicalContentSync {
                 
                 const pageResult = await pushPages(
                     sourceData.pages,
+                    this.sourceGuid,
                     this.targetGuid,
                     this.locale,
                     apiClient,
                     referenceMapper,
+                    this.syncOptions.forceUpdate || false,
                     (processed: number, total: number, status?: 'success' | 'error') => {
-                        // Optional progress callback - can be enhanced later if needed
-                        const percentage = Math.round((processed / total) * 100);
-                        console.log(`  📄 Page progress: ${processed}/${total} (${percentage}%) - ${status || 'processing'}`);
+                        // Silent progress tracking
                     }
                 );
                 totalSuccess += pageResult.successfulPages;

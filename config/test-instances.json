@@ -68,6 +68,24 @@
       "name": "CLI Target 2",
       "description": "New blank instance for sync testing, use --dev to sync to this instance",
       "status": "Available for testing"
+    },
+    "devTarget3": {
+      "guid": "0eeccb97-d",
+      "name": "CLI Target 3",
+      "description": "New blank instance for sync testing, use --dev to sync to this instance",
+      "status": "Available for testing"
+    },
+    "devTarget4": {
+      "guid": "a44557ac-d",
+      "name": "CLI Target 4",
+      "description": "New blank instance for sync testing, use --dev to sync to this instance",
+      "status": "Available for testing"
+    },
+    "devTarget5": {
+      "guid": "12431f25-d",
+      "name": "CLI Target 5",
+      "description": "New blank instance for sync testing, use --dev to sync to this instance",
+      "status": "Available for testing"
     }
   }
 } 

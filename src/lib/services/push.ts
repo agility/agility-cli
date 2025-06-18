@@ -483,6 +483,7 @@ export class push {
                             this._apiClient,
                             this._referenceMapper,
                             models,
+                            false, // forceUpdate - default to false for legacy push
                             contentProgressCallback
                         );
                         const totalContentItems = allContentItems.length;
@@ -569,10 +570,12 @@ export class push {
 
                         const pageResult = await pushPages(
                             pages,
+                            this._guid, // Use sourceGuid from constructor
                             this._targetGuid,
                             this._locale,
                             this._apiClient,
                             this._referenceMapper,
+                            false, // forceUpdate - default to false for legacy push
                             pageProgressCallback
                         );
                         pageStatus = pageResult.status; 

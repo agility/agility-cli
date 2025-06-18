@@ -1,6 +1,8 @@
 import * as mgmtApi from '@agility/management-sdk';
 import { ReferenceMapper } from '../reference-mapper';
 import { ContentFieldMapper } from './content-field-mapper';
+import { pollBatchUntilComplete, extractBatchResults } from './batch-polling';
+import ansiColors from 'ansi-colors';
 
 /**
  * Configuration for content batch processing
@@ -14,6 +16,7 @@ export interface ContentBatchConfig {
     useContentFieldMapper?: boolean; // Whether to use enhanced field mapping
     models?: any[]; // Models for enhanced payload preparation
     defaultAssetUrl?: string; // Default asset URL for content mapping
+    onBatchComplete?: (batchResult: BatchProcessingResult, batchNumber: number) => Promise<void>; // Callback after each batch completes
 }
 
 /**
@@ -108,15 +111,42 @@ export class ContentBatchProcessor {
                 // Prepare content payloads for bulk upload
                 const contentPayloads = await this.prepareContentPayloads(contentBatch, this.config.models, this.config.defaultAssetUrl);
                 
-                // Execute bulk upload using saveContentItems API
-                const bulkResult = await this.config.apiClient.contentMethods.saveContentItems(
+                // Execute bulk upload using saveContentItems API with returnBatchID flag
+                const batchIDResult = await this.config.apiClient.contentMethods.saveContentItems(
                     contentPayloads, 
                     this.config.targetGuid, 
-                    this.config.locale
+                    this.config.locale,
+                    true // returnBatchID flag
                 );
                 
-                // Process bulk upload response
-                const batchResult = this.processBulkContentResponse(bulkResult, contentBatch);
+                // Extract batch ID from array response
+                const batchID = Array.isArray(batchIDResult) ? batchIDResult[0] : batchIDResult;
+                console.log(`📦 Batch ${batchNumber} started with ID: ${batchID}`);
+                
+                // Poll batch until completion (pass payloads for error matching)
+                const completedBatch = await pollBatchUntilComplete(
+                    this.config.apiClient,
+                    batchID,
+                    this.config.targetGuid,
+                    contentPayloads // Pass original payloads for FIFO error matching
+                );
+                
+                // Extract results from completed batch
+                const { successfulItems, failedItems } = extractBatchResults(completedBatch, contentBatch);
+                
+                // Convert to expected format
+                const batchResult = {
+                    successCount: successfulItems.length,
+                    failureCount: failedItems.length,
+                    successfulItems: successfulItems.map(item => ({
+                        originalContent: item.originalItem,
+                        newContentId: item.newId
+                    })),
+                    failedItems: failedItems.map(item => ({
+                        originalContent: item.originalItem,
+                        error: item.error
+                    }))
+                };
                 
                 totalSuccessCount += batchResult.successCount;
                 totalFailureCount += batchResult.failureCount;
@@ -128,6 +158,16 @@ export class ContentBatchProcessor {
                     this.updateContentIdMappings(batchResult.successfulItems);
                 }
                 
+                // Call batch completion callback (for mapping saves, etc.)
+                if (this.config.onBatchComplete) {
+                    try {
+                        await this.config.onBatchComplete(batchResult, batchNumber);
+                    } catch (callbackError: any) {
+                        console.warn(`⚠️ Batch completion callback failed for batch ${batchNumber}: ${callbackError.message}`);
+                        // Don't fail the entire batch due to callback errors
+                    }
+                }
+
                 console.log(`✅ Bulk batch ${batchNumber}: ${batchResult.successCount} success, ${batchResult.failureCount} failed`);
                 
                 if (onProgress) {
@@ -461,7 +501,7 @@ export class ContentBatchProcessor {
             this.config.referenceMapper.addRecord('content', sourceContentItem, targetContentItem);
             
             // Debug logging for mapping updates
-            console.log(`🔗 Content mapping: ${sourceContentItem.contentID} → ${item.newContentId}`);
+            // console.log(`🔗 Content mapping: ${sourceContentItem.contentID} → ${item.newContentId}`);
         });
     }
 
@@ -477,24 +517,42 @@ export class ContentBatchProcessor {
         for (const contentItem of contentBatch) {
             try {
                 const payloads = await this.prepareContentPayloads([contentItem]);
-                const result = await this.config.apiClient.contentMethods.saveContentItem(
+                
+                // Use saveContentItem with returnBatchID flag for SDK v1.30 polling
+                const batchIDResult = await this.config.apiClient.contentMethods.saveContentItem(
                     payloads[0], 
                     this.config.targetGuid, 
-                    this.config.locale
+                    this.config.locale,
+                    true // returnBatchID flag
                 );
                 
-                if (result && typeof result === 'number' && result > 0) {
+                // Extract batch ID from response
+                const batchID = Array.isArray(batchIDResult) ? batchIDResult[0] : batchIDResult;
+                
+                // Poll batch until completion (pass payload for error matching)
+                const completedBatch = await pollBatchUntilComplete(
+                    this.config.apiClient,
+                    batchID,
+                    this.config.targetGuid,
+                    payloads // Pass prepared payload for FIFO error matching
+                );
+                
+                // Extract result from completed batch
+                const { successfulItems: itemResults, failedItems: itemErrors } = extractBatchResults(completedBatch, [contentItem]);
+                
+                if (itemResults.length > 0) {
                     successfulItems.push({
                         originalContent: contentItem,
-                        newContentId: result
+                        newContentId: itemResults[0].newId
                     });
-                    console.log(`✓ Individual upload: ${contentItem.properties.referenceName} → ID:${result}`);
+                    console.log(`✓ Individual upload: ${contentItem.properties.referenceName} → ID:${itemResults[0].newId}`);
                 } else {
+                    const errorMessage = itemErrors.length > 0 ? itemErrors[0].error : 'Unknown error';
                     failedItems.push({
                         originalContent: contentItem,
-                        error: `Invalid individual upload result: ${result}`
+                        error: errorMessage
                     });
-                    console.log(`✗ Individual upload failed: ${contentItem.properties.referenceName}`);
+                    console.log(`✗ Individual upload failed: ${contentItem.properties.referenceName} - ${errorMessage}`);
                 }
                 
             } catch (error: any) {

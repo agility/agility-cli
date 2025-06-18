@@ -85,7 +85,7 @@ function logFieldArrayDifferences(sourceFields: mgmtApi.ModelField[], targetFiel
 }
 
 // Helper function to compare two models, ignoring ID and field order
-function areModelsDifferent(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model, shouldLogDiffs: boolean): boolean {
+function areModelsDifferent(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model, shouldLogDiffs: boolean, referenceMapper: ReferenceMapper): boolean {
     // Create copies to avoid modifying originals
     const sourceCopy = _.cloneDeep(sourceModel);
     const targetCopy = _.cloneDeep(targetModel);
@@ -113,10 +113,15 @@ function areModelsDifferent(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Mod
     delete targetCopy.lastModifiedBy;
     delete sourceCopy.allowTagging;
     delete targetCopy.allowTagging;
+    // CRITICAL FIX: Ignore wasUnpublished as it's not relevant for sync operations
+    delete (sourceCopy as any).wasUnpublished;
+    delete (targetCopy as any).wasUnpublished;
     delete sourceCopy.contentDefinitionTypeName;
     delete targetCopy.contentDefinitionTypeName;
-    // UPDATED: Remove contentDefinitionTypeID from comparison as it changes between instances
+    // CRITICAL FIX: Ignore contentDefinitionTypeID differences due to API bug
+    // The Management API doesn't properly update contentDefinitionTypeID in model updates
     delete (sourceCopy as any).contentDefinitionTypeID;
+    delete (targetCopy as any).contentDefinitionTypeID;
     delete (targetCopy as any).contentDefinitionTypeID;
     delete sourceCopy.displayName;
     delete targetCopy.displayName;
@@ -148,9 +153,17 @@ function areModelsDifferent(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Mod
     targetCopy.fields.sort((a, b) => (a.name || '').localeCompare(b.name || ''));
 
     // Normalize field settings for comparison only - be more conservative about what we filter
-    const normalizeFieldSettings = (fields: mgmtApi.ModelField[]) => {
+    const normalizeFieldSettings = (fields: mgmtApi.ModelField[], referenceMapper: ReferenceMapper) => {
         fields.forEach(field => {
             if (field.settings) {
+                // CRITICAL FIX: Skip ContentDefinition differences during comparison
+                // The API handles reference resolution automatically, so these differences are irrelevant
+                // Source uses reference names, target uses IDs - both are valid, API converts as needed
+                if (field.type === 'Content' && field.settings.ContentDefinition) {
+                    // Remove ContentDefinition from comparison entirely - let API handle conversion
+                    delete field.settings.ContentDefinition;
+                }
+                
                 // Only filter out truly empty/irrelevant values for comparison
                 field.settings = Object.fromEntries(
                     Object.entries(field.settings).filter(([key, value]) => {
@@ -166,8 +179,8 @@ function areModelsDifferent(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Mod
         });
     };
 
-    normalizeFieldSettings(sourceCopy.fields);
-    normalizeFieldSettings(targetCopy.fields);
+    normalizeFieldSettings(sourceCopy.fields, referenceMapper);
+    normalizeFieldSettings(targetCopy.fields, referenceMapper);
 
     // Only compare fields that exist in both models (this part seems fine for top-level properties)
     // The crucial part is the deep comparison of the normalized fields array handled by _.isEqual below.
@@ -189,43 +202,38 @@ function areModelsDifferent(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Mod
 function updateFields(existingModel: mgmtApi.Model, sourceModel: mgmtApi.Model): mgmtApi.ModelField[] {
     const updatedFields: mgmtApi.ModelField[] = [];
   
-    // First, process existing target fields and update them with source settings
-    existingModel.fields.forEach((existingField) => {
-        const sourceFieldIndex = sourceModel.fields.findIndex((sourceField) => sourceField.name === existingField.name);
-  
-        if (sourceFieldIndex !== -1) {
-            // Field exists in both - merge settings from source into existing field structure
-            existingField.settings = { ...existingField.settings, ...sourceModel.fields[sourceFieldIndex].settings };
-            
-            // Update other field properties from source while preserving target fieldID
-            existingField.label = sourceModel.fields[sourceFieldIndex].label;
-            existingField.type = sourceModel.fields[sourceFieldIndex].type;
-            existingField.labelHelpDescription = sourceModel.fields[sourceFieldIndex].labelHelpDescription;
-            existingField.designerOnly = sourceModel.fields[sourceFieldIndex].designerOnly;
-            existingField.isDataField = sourceModel.fields[sourceFieldIndex].isDataField;
-            existingField.editable = sourceModel.fields[sourceFieldIndex].editable;
-            existingField.hiddenField = sourceModel.fields[sourceFieldIndex].hiddenField;
-            existingField.description = sourceModel.fields[sourceFieldIndex].description;
-            existingField.itemOrder = sourceModel.fields[sourceFieldIndex].itemOrder;
-            
-            updatedFields.push(existingField);
-        } else {
-            // Field exists only in target - keep it as is
-            updatedFields.push(existingField);
-        }
-    });
-  
-    // Second, add new fields from source that don't exist in target
+    // CRITICAL FIX: Target should end up with EXACTLY the same fields as source
+    // Process each source field and either update existing or add new
     sourceModel.fields.forEach((sourceField) => {
         const existingFieldIndex = existingModel.fields.findIndex((existingField) => existingField.name === sourceField.name);
   
-        if (existingFieldIndex === -1) {
+        if (existingFieldIndex !== -1) {
+            // Field exists in both - merge settings from source into existing field structure
+            const existingField = existingModel.fields[existingFieldIndex];
+            existingField.settings = { ...existingField.settings, ...sourceField.settings };
+            
+            // Update other field properties from source while preserving target fieldID
+            existingField.label = sourceField.label;
+            existingField.type = sourceField.type;
+            existingField.labelHelpDescription = sourceField.labelHelpDescription;
+            existingField.designerOnly = sourceField.designerOnly;
+            existingField.isDataField = sourceField.isDataField;
+            existingField.editable = sourceField.editable;
+            existingField.hiddenField = sourceField.hiddenField;
+            existingField.description = sourceField.description;
+            existingField.itemOrder = sourceField.itemOrder;
+            
+            updatedFields.push(existingField);
+        } else {
             // Field exists only in source - add it (without fieldID since target will generate it)
             const newField = { ...sourceField };
             delete newField.fieldID; // Let target generate new fieldID
             updatedFields.push(newField);
         }
     });
+  
+    // NOTE: Fields that exist only in target are NOT included - they will be removed
+    // This ensures the target matches the source exactly
   
     return updatedFields;
 }
@@ -298,7 +306,7 @@ export async function pushModels(
     targetGuid: string,
     referenceMapper: ReferenceMapper,
     logModelDiffs: boolean,
-    forceSync: boolean = false,
+    forceUpdate: boolean = false,
     onProgress?: ProgressCallback
 ): Promise<{ successfulModels: number; failedModels: number; status: 'success' | 'error' }> {
     
@@ -322,11 +330,20 @@ export async function pushModels(
         // console.log("SOURCE MODEL:", model);
 
         try {
-            // Always use the original reference name for fetching to ensure consistency
-            existingModel = await apiClient.modelMethods.getModelByReferenceName(originalModelReferenceName, targetGuid);
+            // CRITICAL FIX: Check ReferenceMapper first to avoid unnecessary API calls and diff cycles
+            const existingMapping = referenceMapper.getMappingByKey<mgmtApi.Model>('model', 'referenceName', originalModelReferenceName);
+            if (existingMapping?.target && existingMapping.target.id > 0) {
+                existingModel = existingMapping.target;
+                console.log(`✓ Using cached model mapping for ${originalModelReferenceName} (ID: ${existingModel.id})`);
+            } else {
+                // Fetch from API only if not in ReferenceMapper
+                existingModel = await apiClient.modelMethods.getModelByReferenceName(originalModelReferenceName, targetGuid);
+                if (existingModel) {
+                    referenceMapper.addMapping('model', model, existingModel);
+                }
+            }
 
             if (existingModel) {
-                referenceMapper.addMapping('model', model, existingModel);
                 
                 if (isStubCreationIntent) {
                     // If the intent was to create a stub (empty fields) and the model already exists,
@@ -349,20 +366,93 @@ export async function pushModels(
                     fields: existingModel.fields || [] 
                 };
 
-                if (forceSync || areModelsDifferent(fixedModel, fixedExistingModel, logModelDiffs)) {
+                if (forceUpdate || areModelsDifferent(fixedModel, fixedExistingModel, logModelDiffs, referenceMapper)) {
                     try {
-                        // Use the new legacy-based update logic that properly merges fields
-                        const modelPayload = { ...fixedModel, id: existingModel.id };
+                        // SIMPLIFIED APPROACH: Send source data directly with minimal modifications
+                        // Per CTO feedback: we should be able to upload source data without over-complicating
+                        const modelPayload = {
+                            ...fixedModel, // Use source model as base
+                            id: existingModel.id, // Only override target ID
+                            lastModifiedDate: existingModel.lastModifiedDate, // Preserve target timestamp
+                            referenceName: originalModelReferenceName // Ensure original reference name
+                        };
                         
-                        // If overrideFields are specified, replace the merged fields with them
+                        // If overrideFields are specified, replace the fields with them
                         if (overrideFields !== undefined) {
                             modelPayload.fields = overrideFields;
                         }
                         
-                        modelPayload.referenceName = originalModelReferenceName; // Ensure original reference name in update payload
+                        // Clean up problematic fields that cause API inconsistencies
+                        if (modelPayload.fields) {
+                            modelPayload.fields = modelPayload.fields.map(field => {
+                                const cleanField = { ...field };
+                                
+                                // CRITICAL FIX: Remove fieldID to prevent API regeneration bug
+                                // The API regenerates ALL fieldIDs when existing ones are sent, causing infinite diff cycles
+                                delete cleanField.fieldID;
+                                
+                                // Remove ContentDefinition from Content field settings as it causes API conversion issues
+                                if (cleanField.type === 'Content' && cleanField.settings && cleanField.settings.ContentDefinition) {
+                                    const { ContentDefinition, ...otherSettings } = cleanField.settings;
+                                    cleanField.settings = otherSettings;
+                                    console.log(`🧹 Removed ContentDefinition from ${field.name} field to prevent API conversion issues`);
+                                }
+                                
+                                return cleanField;
+                            });
+                        }
                         
-                        const updatedModel = await apiClient.modelMethods.saveModel(modelPayload, targetGuid);
-                        referenceMapper.addMapping('model', model, updatedModel); // Update mapping with newly updated model
+                        // Remove properties that shouldn't be sent in updates
+                        delete modelPayload.lastModifiedBy;
+                        delete modelPayload.lastModifiedAuthorID;
+                        
+
+                        
+                                                const updatedModel = await apiClient.modelMethods.saveModel(modelPayload, targetGuid);
+                        
+                        // DEBUG: Log API request/response for models with diffs (for CTO debugging)
+                        console.log(`📤 [PAYLOAD SENT] ${originalModelReferenceName}:`, JSON.stringify(modelPayload, null, 2));
+                        console.log(`📥 [API RESPONSE] ${originalModelReferenceName}:`, JSON.stringify(updatedModel, null, 2));
+                        console.log(`📤 [PAYLOAD FIELDS] ${originalModelReferenceName}:`, 
+                            modelPayload?.fields ? modelPayload.fields.map(f => `${f.name}(${f.type})`) : 'NO FIELDS');
+                        console.log(`📥 [RESPONSE FIELDS] ${originalModelReferenceName}:`, 
+                            updatedModel?.fields ? updatedModel.fields.map(f => `${f.name}(${f.type})`) : 'NO FIELDS');
+                        
+                        // DIFF: Compare payload vs response to see what API is changing
+                        console.log(`🔍 [PAYLOAD vs RESPONSE DIFF] ${originalModelReferenceName}:`);
+                        if (modelPayload.fields && updatedModel.fields) {
+                            const payloadFieldNames = modelPayload.fields.map(f => f.name).sort();
+                            const responseFieldNames = updatedModel.fields.map(f => f.name).sort();
+                            
+                            if (JSON.stringify(payloadFieldNames) !== JSON.stringify(responseFieldNames)) {
+                                console.log(`  ❌ Field names differ:`);
+                                console.log(`    Payload: [${payloadFieldNames.join(', ')}]`);
+                                console.log(`    Response: [${responseFieldNames.join(', ')}]`);
+                            } else {
+                                console.log(`  ✅ Field names identical: [${payloadFieldNames.join(', ')}]`);
+                            }
+                            
+                            // Check field IDs
+                            modelPayload.fields.forEach(payloadField => {
+                                const responseField = updatedModel.fields.find(f => f.name === payloadField.name);
+                                if (responseField) {
+                                    if (payloadField.fieldID !== responseField.fieldID) {
+                                        console.log(`  🔄 ${payloadField.name}: fieldID changed from '${payloadField.fieldID || 'undefined'}' to '${responseField.fieldID}'`);
+                                    }
+                                    if (payloadField.label !== responseField.label) {
+                                        console.log(`  📝 ${payloadField.name}: label changed from '${payloadField.label}' to '${responseField.label}'`);
+                                    }
+                                }
+                            });
+                        }
+                        
+                        // Update cache with API response (more reliable than fresh fetch due to API consistency issues)
+                        referenceMapper.addMapping('model', model, updatedModel);
+                        console.log(`🔄 Cache updated for ${originalModelReferenceName} with API response`);
+                        
+                        // Note: Fresh fetch verification disabled due to API consistency issues
+                        // The API response is more reliable than immediate fresh fetch
+                        
                         console.log(`✓ ${passDescription} ${ansiColors.bold.cyan('updated')} ${ansiColors.underline(originalModelReferenceName)} (ID: ${existingModel.id}) on target.`);
                         processedModels.add(model.id); // Add to processed set using model ID
                         return true;

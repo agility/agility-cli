@@ -184,7 +184,8 @@ async function processPage(
     locale: string,
     isChildPage: boolean,
     apiClient: mgmtApi.ApiClient,
-    referenceMapper: ReferenceMapper
+    referenceMapper: ReferenceMapper,
+    forceUpdate: boolean = false
 ): Promise<boolean> { // Returns true on success, false on failure
 
     let existingPage: mgmtApi.PageItem | null = null;
@@ -206,28 +207,34 @@ async function processPage(
             targetTemplate = templateRef.target;
         }
 
-        // Get the sitemap to find existing page ID and channel ID
+        // Check if page already exists in target instance using proper matching
+        const { findPageInTargetInstance } = await import('../finders/page-finder');
+        existingPage = await findPageInTargetInstance(page, apiClient, targetGuid, locale, referenceMapper);
+        
+        // CRITICAL FIX: Always get target instance channel ID to avoid FK constraint errors
+        // Get channel ID from target instance sitemap (not from existing page which may be invalid)
         const sitemap = await apiClient.pageMethods.getSitemap(targetGuid, locale);
         const websiteChannel = sitemap?.find(channel => channel.digitalChannelTypeName === 'Website');
         if (websiteChannel) {
             channelID = websiteChannel.digitalChannelID;
-            // CRITICAL FIX: Match by page ID - most reliable way to find existing pages
-            const pageInSitemap = websiteChannel.pages.find(p => p.pageID === page.pageID);
-            if (pageInSitemap) {
-                correctPageID = pageInSitemap.pageID;
-                console.log(`[Existing Page] Found existing page "${page.name}" with ID ${correctPageID}`);
-                // Attempt to fetch the full existing page data
-                try {
-                    existingPage = await apiClient.pageMethods.getPage(correctPageID, targetGuid, locale);
-                } catch (fetchError: any) {
-                    if (!(fetchError.response && fetchError.response.status === 404)) {
-                        console.warn(`Warning: Could not fetch existing page ${correctPageID} for ${page.name}: ${fetchError.message}`);
-                    }
-                    // If fetch fails (e.g., 404), existingPage remains null, proceed to create
-                }
-            } else {
-                console.log(`[New Page] Page "${page.name}" (ID: ${page.pageID}) not found in target - will create new`);
-            }
+        } else {
+            channelID = sitemap?.[0]?.digitalChannelID || 1; // Fallback to first channel or default
+        }
+
+        if (existingPage && !forceUpdate) {
+            correctPageID = existingPage.pageID;
+            // Add to reference mapper for future lookups
+            referenceMapper.addRecord('page', page, existingPage);
+            
+            console.log(`Page "${page.name}" was skipped (already exists)`);
+            return true; // Skip processing - page already exists
+        } else if (existingPage && forceUpdate) {
+            // Force update mode: use existing page ID for update
+            correctPageID = existingPage.pageID;
+            // Don't add to reference mapper yet - will do after successful update
+        } else {
+            // Page doesn't exist - will create new
+            // Channel ID already set from target sitemap above
         }
 
         // Map Content IDs in Zones
@@ -236,6 +243,23 @@ async function processPage(
 
         // CRITICAL: Translate zone names to match template expectations BEFORE content mapping
         let mappedZones = translateZoneNames(sourceZones, targetTemplate);
+
+        // Content mapping validation - collect all content IDs that need mapping
+        const contentIdsToValidate: number[] = [];
+        for (const [zoneName, zoneModules] of Object.entries(mappedZones)) {
+            if (Array.isArray(zoneModules)) {
+                for (const module of zoneModules) {
+                    if (module.item && typeof module.item === 'object') {
+                        const sourceContentId = module.item.contentid || module.item.contentId;
+                        if (sourceContentId && sourceContentId > 0) {
+                            contentIdsToValidate.push(sourceContentId);
+                        }
+                    }
+                }
+            }
+        }
+
+        // Content mapping validation (silent unless errors)
 
         for (const [zoneName, zoneModules] of Object.entries(mappedZones)) {
             const newZoneContent = [];
@@ -294,6 +318,35 @@ async function processPage(
             mappedZones[zoneName] = newZoneContent;
         }
 
+        // Content mapping validation - check which mappings were successful
+        if (contentIdsToValidate.length > 0) {
+            const mappingResults: { [contentId: number]: { found: boolean; targetId?: number; error?: string } } = {};
+            let foundMappings = 0;
+            let missingMappings = 0;
+
+            contentIdsToValidate.forEach(sourceContentId => {
+                const contentRef = referenceMapper.getContentMappingById(sourceContentId);
+                if (contentRef?.target && (contentRef.target as any).contentID > 0) {
+                    mappingResults[sourceContentId] = { 
+                        found: true, 
+                        targetId: (contentRef.target as any).contentID 
+                    };
+                    foundMappings++;
+                } else {
+                    mappingResults[sourceContentId] = { 
+                        found: false, 
+                        error: contentRef ? 'Invalid target ID' : 'No mapping found' 
+                    };
+                    missingMappings++;
+                }
+            });
+
+            if (missingMappings > 0) {
+                console.error(`✗ Page "${page.name}" failed - ${missingMappings}/${contentIdsToValidate.length} missing content mappings`);
+                return false;
+            }
+        }
+
         // Check if page has any content left after filtering
         const totalModules = Object.values(mappedZones).reduce((sum: number, zone) => {
             return sum + (Array.isArray(zone) ? zone.length : 0);
@@ -330,49 +383,21 @@ async function processPage(
 
         // Check if page has any content left after filtering
         if (totalModules === 0) {
-            if (isLegitimateEmptyPage(page)) {
-                // This is a legitimate empty page (folder, link, redirect, dynamic, etc.) - proceed normally
-                const pageAny = page as any;
-                let pageTypeDescription = page.pageType || 'unknown';
-                if (pageAny.dynamic && pageAny.dynamic.referenceName) {
-                    pageTypeDescription = 'dynamic';
-                } else if (pageAny.dynamicPageContentViewReferenceName) {
-                    pageTypeDescription = 'dynamic';
-                } else if (pageAny.redirectUrl || (pageAny.redirect && pageAny.redirect.url)) {
-                    pageTypeDescription = 'redirect';
-                } else if (pageAny.linkToFileID || pageAny.linkToPageID || pageAny.linkToFile || pageAny.linkToPage) {
-                    pageTypeDescription = 'link';
+            // Many pages legitimately have no modules (folder pages, link pages, etc.)
+            // Only fail if this was a content page that had modules but lost them all during mapping
+            const originalZones = page.zones || {};
+            let originalModuleCount = 0;
+
+            for (const [zoneName, zoneModules] of Object.entries(originalZones)) {
+                if (Array.isArray(zoneModules)) {
+                    originalModuleCount += zoneModules.length;
                 }
-                console.log(`✓ Page ${page.name} has no modules - this is normal for ${pageTypeDescription} pages`);
-            } else if (existingPage) {
-                // Page exists in target but has no modules - allow update (may have been manually cleared)
-                console.log(`⚠ Page ${page.name} has no valid modules but exists in target - proceeding with update (may have been manually created/cleared)`);
-            } else {
-                // This appears to be a content page that lost its modules during mapping - investigate
-                const originalZones = page.zones || {};
-                let originalModuleCount = 0;
-                let skippedModules = 0;
-                let nullModules = 0;
+            }
 
-                for (const [zoneName, zoneModules] of Object.entries(originalZones)) {
-                    if (Array.isArray(zoneModules)) {
-                        originalModuleCount += zoneModules.length;
-
-                        for (const module of zoneModules) {
-                            if (!module.item || module.item.contentId === null || module.item.contentId === undefined) {
-                                nullModules++;
-                            } else {
-                                const contentRef = referenceMapper.getContentMappingById(module.item.contentId);
-                                if (contentRef?.target && (contentRef.target as any).contentID === -1) {
-                                    skippedModules++;
-                                }
-                            }
-                        }
-                    }
-                }
-
-                
-                console.error(`✗ Page ${page.name} has no valid modules after content mapping. Original: ${originalModuleCount}, Failed content: ${skippedModules}, Null modules: ${nullModules}. ${skippedModules > 0 ? 'Content failures likely due to missing assets.' : ''}`);
+            // If the page originally had modules but now has none, that's a problem
+            // If it never had modules, that's fine (folder pages, etc.)
+            if (originalModuleCount > 0 && !existingPage && !isLegitimateEmptyPage(page)) {
+                console.error(`✗ Page "${page.name}" lost all ${originalModuleCount} modules during content mapping`);
                 return false;
             }
         }
@@ -385,62 +410,81 @@ async function processPage(
         // Folder pages often don't have titles, but API requires them
         const pageTitle = page.title || page.menuText || page.name || "Untitled Page";
 
-        const payload = {
+        const payload: mgmtApi.PageItem = {
             ...page,
             pageID: existingPage ? existingPage.pageID : -1,
             title: pageTitle, // CRITICAL: Ensure title is always present
-            pageTemplateID: targetTemplate ? targetTemplate.pageTemplateID : null, // null for folder pages
-            channelID: channelID > 0 ? channelID : (existingPage ? existingPage.channelID : -1), // Use found channel ID or existing
+            // pageTemplateID: targetTemplate ? targetTemplate.pageTemplateID : null, // null for folder pages
+            channelID: channelID, // CRITICAL: Always use target instance channel ID to avoid FK constraint errors
             zones: formattedZones,
+            // CRITICAL: Include path field from sitemap enrichment (API bug: target sitemap returns null paths)
+            path: page.path || "",
+            // CRITICAL: Clean up SEO object - ensure no null values that cause API errors
+            // seo: {
+            //     metaDescription: page.seo?.metaDescription || "",
+            //     metaKeywords: page.seo?.metaKeywords || "",
+            //     metaHTML: page.seo?.metaHTML || "",
+            //     menuVisible: page.seo?.menuVisible ?? true, // Default to true instead of null
+            //     sitemapVisible: page.seo?.sitemapVisible ?? true // Default to true instead of null
+            // },
             // Ensure scripts have proper string values instead of null
-            scripts: {
-                excludedFromGlobal: page.scripts?.excludedFromGlobal || false,
-                top: page.scripts?.top || "",
-                bottom: page.scripts?.bottom || ""
-            },
-            // Ensure visible properties are properly set
-            visible: {
-                menu: page.visible?.menu !== false, // Default to true unless explicitly false
-                sitemap: page.visible?.sitemap !== false // Default to true unless explicitly false
-            },
-            // Remove potentially problematic fields for new page creation
-            ...(existingPage ? {} : {
-                // For new pages, remove fields that might cause validation issues
-                properties: undefined,  // Remove properties with state and versionID
-                modified: undefined,    // Remove timestamps
-                versionID: undefined,   // Remove version tracking
-                // Clean up dynamic page configuration
-                dynamic: page.dynamic ? {
-                    referenceName: page.dynamic.referenceName,
-                    fieldName: page.dynamic.fieldName || "",
-                    titleFormula: null,
-                    menuTextFormula: null,
-                    pageNameFormula: null,
-                    visibleOnMenu: null,
-                    visibleOnSitemap: null
-                } : undefined
-            })
+            // scripts: {
+            //     excludedFromGlobal: page.scripts?.excludedFromGlobal || false,
+            //     top: page.scripts?.top || "",
+            //     bottom: page.scripts?.bottom || ""
+            // },
+            // // Ensure visible properties are properly set
+            // visible: {
+            //     menu: page.visible?.menu !== false, // Default to true unless explicitly false
+            //     sitemap: page.visible?.sitemap !== false // Default to true unless explicitly false
+            // },
+            // // Remove potentially problematic fields for new page creation
+            // ...(existingPage ? {} : {
+            //     // For new pages, remove fields that might cause validation issues
+            //     properties: undefined,  // Remove properties with state and versionID
+            //     modified: undefined,    // Remove timestamps
+            //     versionID: undefined,   // Remove version tracking
+            //     // Clean up dynamic page configuration
+            //     dynamic: page.dynamic ? {
+            //         referenceName: page.dynamic.referenceName,
+            //         fieldName: page.dynamic.fieldName || "",
+            //         titleFormula: null,
+            //         menuTextFormula: null,
+            //         pageNameFormula: null,
+            //         visibleOnMenu: null,
+            //         visibleOnSitemap: null
+            //     } : undefined
+            // })
         };
 
-        // Map parent page ID if present - CRITICAL: Update both parentIDArg AND payload.parentPageID
+        // Map parent page ID if present - CRITICAL: Use parentID field (not parentPageID)
         let parentIDArg = -1;
-        // CRITICAL FIX: Handle both parentID and parentPageID field names
-        const sourceParentId = payload.parentPageID || (payload as any).parentID;
+        // CRITICAL FIX: Use parentID as the correct field name (SDK documentation confirms this)
+        const sourceParentId = payload.parentPageID;
         if (sourceParentId && sourceParentId > 0) {
             const parentPageRef = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourceParentId);
             if (parentPageRef?.target && parentPageRef.target.pageID > 0) {
                 parentIDArg = parentPageRef.target.pageID;
-                // CRITICAL FIX: Update the payload's parentPageID to the target parent ID
+                // CRITICAL FIX: Set parentID in payload (not parentPageID)
                 payload.parentPageID = parentPageRef.target.pageID;
-                console.log(`[Parent Mapping] ${page.name}: source parent ${sourceParentId} -> target parent ${parentIDArg}`);
+                // Parent mapping successful (silent)
             } else {
                 parentIDArg = -1;
                 payload.parentPageID = -1; // No parent
-                console.log(`[Parent Mapping] ${page.name}: parent ${sourceParentId} not found in mappings - using no parent`);
+                // Parent not found - using no parent (silent)
             }
         } else {
             payload.parentPageID = -1; // Ensure no parent
         }
+        
+        // CRITICAL: Remove both parentPageID and parentID fields to avoid API confusion
+        // The API uses parentIDArg parameter, not payload fields
+        const hadParentPageID = !!(payload as any).parentPageID;
+        const hadParentID = !!(payload as any).parentID;
+        // delete (payload as any).parentPageID;
+        delete (payload as any).parentID;
+        
+        // Parent fields cleaned up (silent)
 
         // Map placeBeforePageItemID if present
         let placeBeforeIDArg = -1;
@@ -453,90 +497,85 @@ async function processPage(
             }
         }
 
-        // Save the page
-        const savePageResponse = await apiClient.pageMethods.savePage(payload, targetGuid, locale, parentIDArg, placeBeforeIDArg);
+        // Save the page with returnBatchID flag for consistent batch processing
+        const savePageResponse = await apiClient.pageMethods.savePage(payload, targetGuid, locale, parentIDArg, placeBeforeIDArg, true);
 
-        // Process the response
-        if (Array.isArray(savePageResponse) && savePageResponse.length > 0 && savePageResponse[0] > 0) {
-            const newPageID = savePageResponse[0];
-            const createdPageData = {
-                ...payload, // Use the payload data which has mapped zones
-                pageID: newPageID
-            } as mgmtApi.PageItem;
-            referenceMapper.addRecord('page', page, createdPageData); // Use original page for source key
-            console.log(`✓ ${isChildPage ? 'Child ' : ''}Page ${ansiColors.underline(page.name)} ${existingPage ? 'Updated' : 'Created'} - Target ID: ${newPageID}`);
-            return true; // Success
-        } else if (savePageResponse && typeof savePageResponse === 'object' && 'batchID' in savePageResponse) {
-            // Handle batch processing response - POLL FOR COMPLETION
-            const batchResponse = savePageResponse as any;
-
-            if (batchResponse.batchID) {
-                // Poll batch status until completion
-                const completedBatch = await pollBatchStatus(apiClient, batchResponse.batchID, targetGuid);
-
-                if (completedBatch.success) {
-                    // Extract actual page ID from completed batch
-                    const actualPageID = extractPageIDFromBatch(completedBatch.batch, page.name);
-
-                    if (actualPageID > 0) {
-                        console.log(`✓ ${isChildPage ? 'Child ' : ''}Page ${ansiColors.underline(page.name)} ${existingPage ? 'Updated' : 'Created'} - Target ID: ${actualPageID}`);
-                        const pageData = {
-                            ...payload,
-                            pageID: actualPageID
-                        } as mgmtApi.PageItem;
-                        referenceMapper.addRecord('page', page, pageData);
-                        return true;
-                    } else {
-                        console.error(`✗ Failed to extract page ID from completed batch for ${page.name}`);
-                        console.error(`Batch response:`, JSON.stringify(batchResponse, null, 2));
-                        console.error(`Payload sent:`, JSON.stringify(payload, null, 2));
-                        return false;
+        // Process the response - with returnBatchID=true, we should always get a batch ID
+        if (Array.isArray(savePageResponse) && savePageResponse.length > 0) {
+                    // Final content mapping summary for debugging
+        const finalContentIds: number[] = [];
+        Object.values(payload.zones || {}).forEach((zone: any) => {
+            if (Array.isArray(zone)) {
+                zone.forEach((module: any) => {
+                    if (module.item?.contentid) {
+                        finalContentIds.push(module.item.contentid);
                     }
-                } else {
-                    console.error(`✗ Batch ${batchResponse.batchID} failed for page ${page.name}: ${completedBatch.error}`);
-                    console.error(`Payload sent:`, JSON.stringify(payload, null, 2));
-                    if (completedBatch.batch) {
-                        console.error(`Batch error details:`, JSON.stringify(completedBatch.batch, null, 2));
-                    }
-                    return false;
-                }
+                });
+            }
+        });
+
+        // Final payload prepared (silent)
+
+        // Extract batch ID from response
+        const batchID = savePageResponse[0];
+                    // Page batch processing started (silent)
+            
+            // Poll batch until completion using consistent utility (pass payload for error matching)
+            const { pollBatchUntilComplete, extractBatchResults } = await import('../utilities/batch-polling');
+            const completedBatch = await pollBatchUntilComplete(
+                apiClient,
+                batchID,
+                targetGuid,
+                [payload] // Pass payload for FIFO error matching
+            );
+            
+            // Extract result from completed batch
+            const { successfulItems: batchSuccessItems, failedItems: batchFailedItems } = extractBatchResults(completedBatch, [page]);
+            
+            let actualPageID = -1;
+            if (batchSuccessItems.length > 0) {
+                actualPageID = batchSuccessItems[0].newId;
+            } else if (batchFailedItems.length > 0) {
+                console.error(`✗ Page ${page.name} batch failed: ${batchFailedItems[0].error}`);
+            }
+            
+            if (actualPageID > 0) {
+                // Success case
+                const createdPageData = {
+                    ...payload, // Use the payload data which has mapped zones
+                    pageID: actualPageID
+                } as mgmtApi.PageItem;
+                referenceMapper.addRecord('page', page, createdPageData); // Use original page for source key
+                console.log(`Page "${page.name}" was ${existingPage ? (forceUpdate ? 'updated (forced)' : 'updated') : 'created'}`);
+                return true; // Success
             } else {
-                console.error(`✗ No batch ID received for page ${page.name}`);
-                console.error(`API response:`, JSON.stringify(savePageResponse, null, 2));
-                console.error(`Payload sent:`, JSON.stringify(payload, null, 2));
+                // Show errorData if available, otherwise generic failure
+                if (completedBatch.errorData && completedBatch.errorData.trim()) {
+                    console.error(`✗ Page "${page.name}" failed - ${completedBatch.errorData}`);
+                } else {
+                    console.error(`✗ Page "${page.name}" failed - invalid page ID: ${actualPageID}`);
+                }
                 return false;
             }
-        } else if (savePageResponse && typeof savePageResponse === 'object' && 'errorData' in savePageResponse) {
-            // Handle API error response object
-            console.error(`✗ Failed to ${existingPage ? 'update' : 'create'} page ${page.name}`);
-            const wrapped = wrapLines(savePageResponse.errorData, 80);
-            console.error(ansiColors.red(`API Error: ${wrapped}`));
-            console.error('API Error Response:', JSON.stringify(savePageResponse, null, 2));
-            console.error('Payload that caused error:', JSON.stringify(payload, null, 2));
-            return false; // Failure
         } else {
-            // Handle unexpected response format
-            console.error(`✗ Unexpected response when saving page ${page.name}:`, savePageResponse);
-            console.error('Unexpected response:', JSON.stringify(savePageResponse, null, 2));
-            console.error('Payload that caused unexpected response:', JSON.stringify(payload, null, 2));
+            console.error(`✗ Page "${page.name}" failed - unexpected response format`);
             return false; // Failure
         }
 
     } catch (error: any) {
-        console.error(`✗ Error processing page ${page.name}:`, error.message);
-        if (error.response?.data) {
-            console.error('API Response Data:', error.response.data);
-        }
+        console.error(`✗ Page "${page.name}" failed - ${error.message}`);
         return false; // Failure
     }
 }
 
 export async function pushPages(
     pages: mgmtApi.PageItem[],
+    sourceGuid: string,
     targetGuid: string,
     locale: string,
     apiClient: mgmtApi.ApiClient,
     referenceMapper: ReferenceMapper,
+    forceUpdate: boolean = false,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successfulPages: number, failedPages: number }> {
 
@@ -563,59 +602,78 @@ export async function pushPages(
     let failedPages = 0;
     let overallStatus: 'success' | 'error' = 'success';
 
-    // Process parent pages first, then child pages
-    // CRITICAL FIX: Handle both parentID and parentPageID field names
-    // Analysis data uses parentID, sitemap uses parentPageID
-    const getParentId = (page: any): number => {
-        return page.parentPageID || (page as any).parentID || -1;
-    };
+    // NEW APPROACH: Use sitemap-based hierarchical ordering instead of simple parent/child filtering
+    // Processing pages with hierarchical ordering (silent)
     
-    let parentPages = pages.filter(p => {
-        const parentId = getParentId(p);
-        return !parentId || parentId <= 0;
-    });
-    let childPages = pages.filter(p => {
-        const parentId = getParentId(p);
-        return parentId && parentId > 0;
-    });
-
-    // DEBUG: Check page filtering
-    console.log(`[Page Filter Debug] Total pages: ${pages.length}`);
-    console.log(`[Page Filter Debug] Parent pages: ${parentPages.length}`);
-    console.log(`[Page Filter Debug] Child pages: ${childPages.length}`);
+    let orderedPages: mgmtApi.PageItem[] = [];
+    let depthInfo: Map<number, number> | null = null;
     
-    // DEBUG: Sample a few pages to see their parentPageID values
-    pages.slice(0, 5).forEach(page => {
-        const parentId = getParentId(page);
-        console.log(`[Page Filter Debug] Page "${page.name}": parentID = ${parentId} (parentPageID: ${page.parentPageID}, parentID: ${(page as any).parentID})`);
-    });
-    
-    if (childPages.length > 0) {
-        console.log(`[Page Filter Debug] Sample child pages:`);
-        childPages.slice(0, 3).forEach(page => {
-            const parentId = getParentId(page);
-            console.log(`  - "${page.name}" has parent ${parentId}`);
+    try {
+        // Import and use SitemapHierarchy for intelligent ordering
+        const { SitemapHierarchy } = await import('../services/sync-analysis/sitemap-hierarchy');
+        
+        // Use correct parameters for sitemap hierarchy - passed from calling context
+        const rootPath = process.cwd() + '/agility-files';
+        const isPreview = true; // Default assumption for sync operations
+        
+        // Using sourceGuid for hierarchy (silent)
+        
+        const sitemapHierarchy = new SitemapHierarchy(rootPath, sourceGuid, locale, isPreview, false);
+        const sitemap = sitemapHierarchy.loadNestedSitemap();
+        
+        if (sitemap && sitemap.length > 0) {
+            // Use sitemap hierarchy for intelligent ordering
+            const hierarchy = sitemapHierarchy.buildPageHierarchy(sitemap);
+            const orderingResult = sitemapHierarchy.getProcessingOrder(pages, hierarchy);
+            
+            orderedPages = orderingResult.orderedPages;
+            depthInfo = orderingResult.depthInfo;
+            
+            // Validate processing order is dependency-safe
+            const isValid = sitemapHierarchy.validateProcessingOrder(orderedPages, hierarchy);
+            if (!isValid) {
+                console.warn(`⚠️ [Hierarchy] Processing order validation failed - falling back to simple ordering`);
+                throw new Error('Invalid processing order detected');
+            }
+            
+            // Using sitemap-based depth ordering (silent)
+        } else {
+            throw new Error('No sitemap hierarchy available');
+        }
+    } catch (error: any) {
+        console.warn(`⚠️ [Hierarchy] Sitemap-based ordering failed: ${error.message}`);
+        console.warn(`📋 [Hierarchy] Falling back to simple parent/child ordering`);
+        
+        // Fallback to simple parent/child ordering (original logic)
+        const getParentId = (page: any): number => {
+            return page.parentPageID || -1;
+        };
+        
+        const parentPages = pages.filter(p => {
+            const parentPageID = getParentId(p);
+            return !parentPageID || parentPageID <= 0;
         });
+        const childPages = pages.filter(p => {
+            const parentPageID = getParentId(p);
+            return parentPageID && parentPageID > 0;
+        });
+        
+        // Simple ordering: parents first, then children
+        orderedPages = [...parentPages, ...childPages];
+        // Using fallback ordering (silent)
     }
 
-    // Helper function to check if a parent page has been processed using ReferenceMapper
-    const isParentProcessed = (parentPageID: number): boolean => {
-        const parentPageRecord = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', parentPageID);
-        return !!(parentPageRecord?.target && parentPageRecord.target.pageID > 0);
-    };
-
-    // Process parent pages first
-    for (let i = 0; i < parentPages.length; i++) {
-        const page = parentPages[i];
-
-        const success = await processPage(page, targetGuid, locale, false, apiClient, referenceMapper);
+    // Process all pages in the calculated order
+    for (let i = 0; i < orderedPages.length; i++) {
+        const page = orderedPages[i];
+        
+        // Determine if this is a child page (has parent)
+        const parentPageID = page.parentPageID || -1;
+        const isChildPage = parentPageID > 0;
+        
+        const success = await processPage(page, targetGuid, locale, isChildPage, apiClient, referenceMapper, forceUpdate);
         if (success) {
             successfulPages++;
-            // Update legacy processedPages tracking for backward compatibility
-            const pageRecord = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', page.pageID);
-            if (pageRecord?.target) {
-                processedPages[page.pageID] = pageRecord.target.pageID;
-            }
         } else {
             failedPages++;
             overallStatus = 'error';
@@ -626,85 +684,17 @@ export async function pushPages(
         }
     }
 
-    // Process child pages with dependency resolution using ReferenceMapper
-    let remainingChildPages = [...childPages]; // Start with all child pages
-    let maxAttempts = 5; // Prevent infinite loops
-    let attempt = 0;
-    
-    while (remainingChildPages.length > 0 && attempt < maxAttempts) {
-        attempt++;
-        console.log(`\n[Child Page Processing] Attempt ${attempt}: Processing ${remainingChildPages.length} remaining child pages`);
-        
-        const currentChildPages = remainingChildPages.slice(); // Copy current state
-        let progressMade = false;
-        
-        for (let i = 0; i < currentChildPages.length; i++) {
-            const page = currentChildPages[i];
-
-            // Check if the page's parent has been processed using ReferenceMapper
-            const parentId = getParentId(page);
-            if (!isParentProcessed(parentId)) {
-                console.log(`[Child Page Debug] Skipping "${page.name}" - parent ${parentId} not yet processed`);
-                continue; // Skip this page, parent not ready yet
-            }
-
-            console.log(`[Child Page Debug] Processing "${page.name}" - parent ${parentId} is ready`);
-            const success = await processPage(page, targetGuid, locale, true, apiClient, referenceMapper);
-            if (success) {
-                successfulPages++;
-                // Update legacy processedPages tracking for backward compatibility
-                const pageRecord = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', page.pageID);
-                if (pageRecord?.target) {
-                    processedPages[page.pageID] = pageRecord.target.pageID;
-                }
-                // Remove from remaining list
-                remainingChildPages = remainingChildPages.filter(p => p.pageID !== page.pageID);
-                progressMade = true;
-                console.log(`[Child Page Debug] Successfully processed "${page.name}" - ${remainingChildPages.length} child pages remaining`);
-            } else {
-                failedPages++;
-                overallStatus = 'error';
-                console.log(`[Child Page Debug] Failed to process "${page.name}"`);
-            }
-            processedPagesCount++;
-            if (onProgress && typeof onProgress === 'function') {
-                onProgress(processedPagesCount, totalPages, success ? 'success' : 'error');
-            }
-        }
-
-        // If no child pages were processed in this pass, break to avoid infinite loop
-        if (!progressMade) {
-            console.warn(`[Child Page Processing] No progress made in attempt ${attempt}. ${remainingChildPages.length} child pages could not be processed.`);
-            break;
-        } else {
-            console.log(`[Child Page Processing] Attempt ${attempt} complete. Progress made: ${currentChildPages.length - remainingChildPages.length} pages processed.`);
-        }
-    }
-    
-    // Report any remaining unprocessed child pages
-    if (remainingChildPages.length > 0) {
-        console.warn(`Warning: ${remainingChildPages.length} child pages could not be processed after ${attempt} attempts:`);
-        remainingChildPages.forEach(page => {
-            const parentId = getParentId(page);
-            console.warn(`  - Page "${page.name}" (ID: ${page.pageID}) waiting for parent ${parentId}`);
-            failedPages++;
-            overallStatus = 'error';
-        });
-    }
-
     console.log(`Processed ${successfulPages}/${totalPages} pages (${failedPages} failed)`);
     return { status: overallStatus, successfulPages, failedPages };
 }
 
-// LEGACY-STYLE PAGE PROCESSING
+// LEGACY-STYLE PAGE PROCESSING (DEPRECATED - use processPage instead)
 async function processPageLegacy(
     page: mgmtApi.PageItem,
     targetGuid: string,
     locale: string,
     isChildPage: boolean,
     apiClient: mgmtApi.ApiClient,
-    processedPages: { [oldPageId: number]: number },
-    processedContentIds: { [oldContentId: number]: number },
     referenceMapper: ReferenceMapper
 ): Promise<boolean> {
     try {
@@ -726,10 +716,11 @@ async function processPageLegacy(
             existingPage = null;
         }
 
-        // Handle child pages - map parent ID
+        // Handle child pages - map parent ID using reference mapper
         if (isChildPage) {
-            if (processedPages[page.parentPageID]) {
-                parentPageID = processedPages[page.parentPageID];
+            const parentMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', page.parentPageID);
+            if (parentMapping?.target) {
+                parentPageID = parentMapping.target.pageID;
                 pageToProcess.parentPageID = parentPageID;
             } else {
                 return false; // Can't process child without parent
@@ -757,12 +748,17 @@ async function processPageLegacy(
                 for (let z = 0; z < zone.length; z++) {
                     const sourceContentId = zone[z].item.contentid || zone[z].item.contentId;
 
-                    if (sourceContentId && processedContentIds[sourceContentId]) {
-                        // Map to target content ID - preserve original field name
-                        if (zone[z].item.contentid !== undefined) {
-                            zone[z].item.contentid = processedContentIds[sourceContentId];
-                        } else if (zone[z].item.contentId !== undefined) {
-                            zone[z].item.contentId = processedContentIds[sourceContentId];
+                    if (sourceContentId) {
+                        // Use reference mapper to find content mapping
+                        const contentMapping = referenceMapper.getContentMappingById(sourceContentId);
+                        if (contentMapping?.target && (contentMapping.target as any).contentID) {
+                            const targetContentId = (contentMapping.target as any).contentID;
+                            // Map to target content ID - preserve original field name
+                            if (zone[z].item.contentid !== undefined) {
+                                zone[z].item.contentid = targetContentId;
+                            } else if (zone[z].item.contentId !== undefined) {
+                                zone[z].item.contentId = targetContentId;
+                            }
                         }
                     }
                 }
@@ -795,11 +791,11 @@ async function processPageLegacy(
         if (createdPage && Array.isArray(createdPage) && createdPage[0]) {
             // Simple array response [12345]
             if (createdPage[0] > 0) {
-                processedPages[oldPageId] = createdPage[0];
-                console.log(`✓ Page ${existingPage ? 'updated' : 'created'}: ${pageName} - Source: ${oldPageId} ${targetGuid}: ${createdPage[0]}`);
+                const targetPageData = { pageID: createdPage[0], name: pageName };
+                console.log(`✓ Page ${existingPage ? 'updated' : 'created'}: ${pageName} - Source: ${oldPageId} Target: ${createdPage[0]}`);
                 
                 // Add to reference mapper using the passed instance
-                referenceMapper.addRecord('page', page, { pageID: createdPage[0], name: pageName });
+                referenceMapper.addRecord('page', page, targetPageData);
                 
                 return true;
             }
@@ -814,11 +810,11 @@ async function processPageLegacy(
                 } else if (batchResponse.items && Array.isArray(batchResponse.items)) {
                     const pageItem = batchResponse.items.find((item: any) => item.itemType === 1);
                     if (pageItem && pageItem.itemID > 0 && !pageItem.itemNull) {
-                        processedPages[oldPageId] = pageItem.itemID;
-                        console.log(`✓ Page ${existingPage ? 'updated' : 'created'}: ${pageName} - Source: ${oldPageId} ${targetGuid}: ${pageItem.itemID}`);
+                        const targetPageData = { pageID: pageItem.itemID, name: pageName };
+                        console.log(`✓ Page ${existingPage ? 'updated' : 'created'}: ${pageName} - Source: ${oldPageId} Target: ${pageItem.itemID}`);
                         
                         // Add to reference mapper using the passed instance
-                        referenceMapper.addRecord('page', page, { pageID: pageItem.itemID, name: pageName });
+                        referenceMapper.addRecord('page', page, targetPageData);
                         
                         return true;
                     }

@@ -51,7 +51,7 @@ export class SitemapHierarchy {
             const sitemapData = fs.readFileSync(sitemapPath, 'utf8');
             const sitemap: SitemapNode[] = JSON.parse(sitemapData);
             
-            console.log(`✅ Loaded nested sitemap with ${sitemap.length} top-level nodes`);
+            // Loaded nested sitemap (silent)
             return sitemap;
         } catch (error) {
             console.error(`Error loading nested sitemap: ${error.message}`);
@@ -196,9 +196,142 @@ export class SitemapHierarchy {
      * Debug: Log hierarchy structure
      */
     debugLogHierarchy(hierarchy: PageHierarchy): void {
-
+        console.log(`🔧 [DEBUG] Page hierarchy structure:`);
         Object.entries(hierarchy).forEach(([parentId, childIds]) => {
             console.log(`  Parent ${parentId} has children: ${childIds.join(', ')}`);
         });
+    }
+
+    /**
+     * Calculate depth level for each page in the hierarchy
+     * Depth 0 = root pages (no parents), Depth 1 = direct children, etc.
+     */
+    calculatePageDepths(pages: any[], hierarchy: PageHierarchy): Map<number, number> {
+        const pageDepths = new Map<number, number>();
+        const visited = new Set<number>();
+        
+        // Build reverse lookup: child → parent
+        const childToParent = new Map<number, number>();
+        Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
+            const parentId = parseInt(parentIdStr);
+            childIds.forEach(childId => {
+                childToParent.set(childId, parentId);
+            });
+        });
+        
+        // Calculate depth recursively for each page
+        const calculateDepth = (pageId: number): number => {
+            if (visited.has(pageId)) {
+                // Circular reference detected - return high depth to process early
+                console.warn(`Circular reference detected for page ${pageId}`);
+                return 999;
+            }
+            
+            if (pageDepths.has(pageId)) {
+                return pageDepths.get(pageId)!;
+            }
+            
+            visited.add(pageId);
+            
+            const parentId = childToParent.get(pageId);
+            if (!parentId) {
+                // Root page (no parent)
+                pageDepths.set(pageId, 0);
+                visited.delete(pageId);
+                return 0;
+            }
+            
+            // Parent exists - depth is parent's depth + 1
+            const parentDepth = calculateDepth(parentId);
+            const depth = parentDepth + 1;
+            pageDepths.set(pageId, depth);
+            visited.delete(pageId);
+            return depth;
+        };
+        
+        // Calculate depth for all pages
+        pages.forEach(page => {
+            calculateDepth(page.pageID);
+        });
+        
+        return pageDepths;
+    }
+    
+    /**
+     * Get pages grouped by depth level
+     * Returns map of depth → pages at that depth
+     */
+    getPagesByDepth(pages: any[], pageDepths: Map<number, number>): Map<number, any[]> {
+        const pagesByDepth = new Map<number, any[]>();
+        
+        pages.forEach(page => {
+            const depth = pageDepths.get(page.pageID) || 0;
+            if (!pagesByDepth.has(depth)) {
+                pagesByDepth.set(depth, []);
+            }
+            pagesByDepth.get(depth)!.push(page);
+        });
+        
+        return pagesByDepth;
+    }
+    
+    /**
+     * Generate dependency-safe page processing order
+     * Returns pages ordered by depth (shallowest first) so parents are processed before children
+     */
+    getProcessingOrder(pages: any[], hierarchy: PageHierarchy): { orderedPages: any[]; depthInfo: Map<number, number> } {
+        // Calculate page depths
+        const pageDepths = this.calculatePageDepths(pages, hierarchy);
+        
+        // Group pages by depth
+        const pagesByDepth = this.getPagesByDepth(pages, pageDepths);
+        
+        // Sort depth levels in ascending order (shallowest first = parents before children)
+        const sortedDepths = Array.from(pagesByDepth.keys()).sort((a, b) => a - b);
+        
+        // Build ordered array with shallowest pages first (parents before children)
+        const orderedPages: any[] = [];
+        sortedDepths.forEach(depth => {
+            const pagesAtDepth = pagesByDepth.get(depth) || [];
+            // Sort pages within same depth by pageID for consistency
+            pagesAtDepth.sort((a, b) => a.pageID - b.pageID);
+            orderedPages.push(...pagesAtDepth);
+        });
+        
+        // Page processing order calculated (silent)
+        
+        return { orderedPages, depthInfo: pageDepths };
+    }
+    
+    /**
+     * Validate page processing order is dependency-safe
+     * Ensures no page is processed before its parent
+     */
+    validateProcessingOrder(orderedPages: any[], hierarchy: PageHierarchy): boolean {
+        const processedPageIds = new Set<number>();
+        
+        // Build reverse lookup: child → parent
+        const childToParent = new Map<number, number>();
+        Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
+            const parentId = parseInt(parentIdStr);
+            childIds.forEach(childId => {
+                childToParent.set(childId, parentId);
+            });
+        });
+        
+        for (const page of orderedPages) {
+            const parentId = childToParent.get(page.pageID);
+            
+            if (parentId && !processedPageIds.has(parentId)) {
+                // This page's parent hasn't been processed yet - order is invalid
+                console.error(`❌ Invalid processing order: Page ${page.pageID} scheduled before parent ${parentId}`);
+                return false;
+            }
+            
+            processedPageIds.add(page.pageID);
+        }
+        
+        // Processing order validation passed (silent)
+        return true;
     }
 } 

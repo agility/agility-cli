@@ -23,6 +23,11 @@ interface CoreReferenceResult<T> {
     targetGUID: string;
 }
 
+interface BulkMappingResult {
+    source: number;
+    target: number | null;
+}
+
 /**
  * Entity identification strategies based on data-relationships.md
  */
@@ -323,6 +328,113 @@ export class ReferenceMapper {
     }
 
     /**
+     * Get bulk content mappings for performance optimization
+     * Input: [102, 29, 440]
+     * Output: [{source: 102, target: 404}, {source: 29, target: null}, {source: 440, target: 156}]
+     */
+    getBulkContentMappings(contentIds: number[]): BulkMappingResult[] {
+        return contentIds.map(id => ({
+            source: id,
+            target: this.contentIds.get(id) || null
+        }));
+    }
+
+    /**
+     * Get bulk model mappings for performance optimization
+     */
+    getBulkModelMappings(modelIds: number[]): BulkMappingResult[] {
+        return modelIds.map(id => ({
+            source: id,
+            target: this.modelIds.get(id) || null
+        }));
+    }
+
+    /**
+     * Get bulk container mappings for performance optimization
+     */
+    getBulkContainerMappings(containerIds: number[]): BulkMappingResult[] {
+        return containerIds.map(id => ({
+            source: id,
+            target: this.containerIds.get(id) || null
+        }));
+    }
+
+    /**
+     * Get bulk asset mappings for performance optimization
+     */
+    getBulkAssetMappings(assetIds: number[]): BulkMappingResult[] {
+        return assetIds.map(id => ({
+            source: id,
+            target: this.assetIds.get(id) || null
+        }));
+    }
+
+    /**
+     * Get bulk gallery mappings for performance optimization
+     */
+    getBulkGalleryMappings(galleryIds: number[]): BulkMappingResult[] {
+        return galleryIds.map(id => ({
+            source: id,
+            target: this.galleryIds.get(id) || null
+        }));
+    }
+
+    /**
+     * Get bulk page mappings for performance optimization
+     */
+    getBulkPageMappings(pageIds: number[]): BulkMappingResult[] {
+        return pageIds.map(id => ({
+            source: id,
+            target: this.pageIds.get(id) || null
+        }));
+    }
+
+    /**
+     * Get bulk template mappings for performance optimization
+     */
+    getBulkTemplateMappings(templateIds: number[]): BulkMappingResult[] {
+        return templateIds.map(id => ({
+            source: id,
+            target: this.templateIds.get(id) || null
+        }));
+    }
+
+    /**
+     * Generic bulk mapping function for any entity type
+     */
+    getBulkMappings(type: CoreReferenceRecord['type'], sourceIds: number[]): BulkMappingResult[] {
+        const mappingMap = this.getIdMapForType(type);
+        return sourceIds.map(id => ({
+            source: id,
+            target: mappingMap.get(id) || null
+        }));
+    }
+
+    /**
+     * Get the appropriate ID mapping Map for a given entity type
+     */
+    private getIdMapForType(type: CoreReferenceRecord['type']): Map<number, number> {
+        switch (type) {
+            case 'model':
+                return this.modelIds;
+            case 'content':
+                return this.contentIds;
+            case 'container':
+                return this.containerIds;
+            case 'template':
+                return this.templateIds;
+            case 'page':
+                return this.pageIds;
+            case 'asset':
+                return this.assetIds;
+            case 'gallery':
+                return this.galleryIds;
+            default:
+                return new Map(); // Return empty map for unknown types
+        }
+    }
+
+    /**
      * Clear all mappings
      */
     clear(): void {
@@ -532,9 +644,19 @@ export class ReferenceMapper {
             const mappingData = this.fileOps.loadMappingFile(this.targetGUID);
             
             if (mappingData) {
-                this.records = mappingData.records || [];
+                // Check if this is new format (has records) or old format (only ID arrays)
+                if (mappingData.records && Array.isArray(mappingData.records)) {
+                    // NEW FORMAT: Load directly
+                    this.records = mappingData.records;
+                    console.log(`[ReferenceMapper] Loaded ${this.records.length} records from new format mapping file`);
+                } else {
+                    // OLD FORMAT: Migrate ID arrays to records format
+                    console.log(`[ReferenceMapper] Detected old format mapping file - migrating to new format...`);
+                    this.records = [];
+                    this.migrateOldFormatToRecords(mappingData);
+                }
                 
-                // Restore ID mappings
+                // Load ID mappings (both formats have these)
                 this.modelIds = new Map(mappingData.modelIds || []);
                 this.contentIds = new Map(mappingData.contentIds || []);
                 this.containerIds = new Map(mappingData.containerIds || []);
@@ -542,9 +664,200 @@ export class ReferenceMapper {
                 this.pageIds = new Map(mappingData.pageIds || []);
                 this.assetIds = new Map(mappingData.assetIds || []);
                 this.galleryIds = new Map(mappingData.galleryIds || []);
+                
+                console.log(`[ReferenceMapper] Loaded mappings: ${this.templateIds.size} templates, ${this.modelIds.size} models, ${this.contentIds.size} content, ${this.pageIds.size} pages, ${this.assetIds.size} assets, ${this.galleryIds.size} galleries`);
             }
         } catch (error) {
             console.warn('Warning: Could not load mappings from disk:', error);
+        }
+    }
+
+    /**
+     * Migrate old format mapping file to new records format
+     * Old format only had ID arrays, new format has full records with source/target objects
+     */
+    private migrateOldFormatToRecords(mappingData: any): void {
+        // For old format, we need to load actual source entity data to populate records
+        // This allows getRecordsByType to work with full entity objects instead of just IDs
+        
+        const idMappingTypes = [
+            { type: 'template' as const, idArray: mappingData.templateIds || [] },
+            { type: 'model' as const, idArray: mappingData.modelIds || [] },
+            { type: 'content' as const, idArray: mappingData.contentIds || [] },
+            { type: 'container' as const, idArray: mappingData.containerIds || [] },
+            { type: 'page' as const, idArray: mappingData.pageIds || [] },
+            { type: 'asset' as const, idArray: mappingData.assetIds || [] },
+            { type: 'gallery' as const, idArray: mappingData.galleryIds || [] }
+        ];
+
+        // Try to load actual source entity data from filesystem
+        const sourceEntities = this.loadSourceEntitiesForMigration();
+
+        for (const { type, idArray } of idMappingTypes) {
+            for (const [sourceId, targetId] of idArray) {
+                // Try to find actual source entity data
+                const sourceEntity = this.findSourceEntityById(type, sourceId, sourceEntities);
+                const targetEntity = this.createPlaceholderEntity(type, targetId);
+                
+                // Create record with actual source data (if available) and placeholder target
+                const migrationRecord: CoreReferenceRecord = {
+                    type,
+                    source: sourceEntity || this.createPlaceholderEntity(type, sourceId),
+                    target: targetEntity,
+                    sourceGUID: this.sourceGUID,
+                    targetGUID: this.targetGUID
+                };
+                
+                this.records.push(migrationRecord);
+            }
+        }
+        
+        console.log(`[ReferenceMapper] Migrated ${this.records.length} ID mappings to records format with source entity data`);
+    }
+
+    /**
+     * Load source entities from filesystem for migration
+     */
+    private loadSourceEntitiesForMigration(): any {
+        try {
+            const sourceEntities: any = {
+                templates: [],
+                models: [],
+                content: [],
+                containers: [],
+                pages: [],
+                assets: [],
+                galleries: []
+            };
+
+            // Load templates
+            try {
+                sourceEntities.templates = this.fileOps.readJsonFilesFromFolder('templates');
+            } catch (error) {
+                console.warn('[ReferenceMapper] Could not load templates for migration:', error.message);
+            }
+
+            // Load models
+            try {
+                sourceEntities.models = this.fileOps.readJsonFilesFromFolder('models');
+            } catch (error) {
+                console.warn('[ReferenceMapper] Could not load models for migration:', error.message);
+            }
+
+            // Load content from both item/ and list/ directories
+            try {
+                const itemContent = this.fileOps.readJsonFilesFromFolder('item');
+                const listContent = this.fileOps.readJsonFilesFromFolder('list');
+                sourceEntities.content = [...itemContent];
+                
+                // Extract content from list arrays
+                for (const contentList of listContent) {
+                    if (Array.isArray(contentList)) {
+                        sourceEntities.content.push(...contentList);
+                    }
+                }
+            } catch (error) {
+                console.warn('[ReferenceMapper] Could not load content for migration:', error.message);
+            }
+
+            // Load containers
+            try {
+                sourceEntities.containers = this.fileOps.readJsonFilesFromFolder('containers');
+            } catch (error) {
+                console.warn('[ReferenceMapper] Could not load containers for migration:', error.message);
+            }
+
+            // Load pages
+            try {
+                sourceEntities.pages = this.fileOps.readJsonFilesFromFolder('page');
+            } catch (error) {
+                console.warn('[ReferenceMapper] Could not load pages for migration:', error.message);
+            }
+
+            // Load assets
+            try {
+                const assetData = this.fileOps.readJsonFilesFromFolder('assets/json');
+                sourceEntities.assets = [];
+                for (const data of assetData) {
+                    if (data.assetMedias && Array.isArray(data.assetMedias)) {
+                        sourceEntities.assets.push(...data.assetMedias);
+                    }
+                }
+            } catch (error) {
+                console.warn('[ReferenceMapper] Could not load assets for migration:', error.message);
+            }
+
+            // Load galleries
+            try {
+                const galleryData = this.fileOps.readJsonFilesFromFolder('assets/galleries');
+                sourceEntities.galleries = [];
+                for (const galleryList of galleryData) {
+                    if (galleryList.assetMediaGroupings && Array.isArray(galleryList.assetMediaGroupings)) {
+                        sourceEntities.galleries.push(...galleryList.assetMediaGroupings);
+                    }
+                }
+            } catch (error) {
+                console.warn('[ReferenceMapper] Could not load galleries for migration:', error.message);
+            }
+
+            return sourceEntities;
+        } catch (error) {
+            console.warn('[ReferenceMapper] Error loading source entities for migration:', error.message);
+            return {};
+        }
+    }
+
+    /**
+     * Find source entity by ID for migration
+     */
+    private findSourceEntityById(type: CoreReferenceRecord['type'], id: number, sourceEntities: any): any | null {
+        try {
+            switch (type) {
+                case 'template':
+                    return sourceEntities.templates?.find((t: any) => t.pageTemplateID === id) || null;
+                case 'model':
+                    return sourceEntities.models?.find((m: any) => m.id === id) || null;
+                case 'content':
+                    return sourceEntities.content?.find((c: any) => c.contentID === id) || null;
+                case 'container':
+                    return sourceEntities.containers?.find((c: any) => c.contentViewID === id) || null;
+                case 'page':
+                    return sourceEntities.pages?.find((p: any) => p.pageID === id) || null;
+                case 'asset':
+                    return sourceEntities.assets?.find((a: any) => a.mediaID === id) || null;
+                case 'gallery':
+                    return sourceEntities.galleries?.find((g: any) => g.mediaGroupingID === id) || null;
+                default:
+                    return null;
+            }
+        } catch (error) {
+            console.warn(`[ReferenceMapper] Error finding ${type} with ID ${id}:`, error.message);
+            return null;
+        }
+    }
+
+    /**
+     * Create placeholder entity objects for migrated old format mappings
+     */
+    private createPlaceholderEntity(type: CoreReferenceRecord['type'], id: number): any {
+        // Create minimal entity objects with the ID fields that the system expects
+        switch (type) {
+            case 'template':
+                return { pageTemplateID: id, pageTemplateName: `Template_${id}` };
+            case 'model':
+                return { id: id, referenceName: `Model_${id}` };
+            case 'content':
+                return { contentID: id };
+            case 'container':
+                return { contentViewID: id, referenceName: `Container_${id}` };
+            case 'page':
+                return { pageID: id };
+            case 'asset':
+                return { mediaID: id };
+            case 'gallery':
+                return { mediaGroupingID: id };
+            default:
+                return { id: id };
         }
     }
 

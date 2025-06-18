@@ -62,7 +62,7 @@ export async function pushContainers(
                 }
 
                 const targetModelId = (modelMapping as any).id;
-                console.log(`🔧 Creating container ${sourceRefName} with model mapping: ${container.contentDefinitionID} → ${targetModelId}`);
+                // console.log(`🔧 Creating container ${sourceRefName} with model mapping: ${container.contentDefinitionID} → ${targetModelId}`);
 
                 const payload = { ...container };
 

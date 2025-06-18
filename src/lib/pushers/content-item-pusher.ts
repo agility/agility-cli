@@ -164,7 +164,7 @@ async function pushNormalContentItems(
     
     console.log(ansiColors.cyan(`[Content Pusher] Processing ${normalContentItems.length} normal content items using BATCH PROCESSING`));
     
-    // Configure batch processor
+    // Configure batch processor with mapping save callback
     const batchConfig: ContentBatchConfig = {
         apiClient,
         targetGuid,
@@ -173,7 +173,18 @@ async function pushNormalContentItems(
         batchSize: 250, // Optimal batch size
         useContentFieldMapper: false, // Use simplified mapping for normal content (no complex dependencies)
         models, // Pass models for enhanced payload preparation
-        defaultAssetUrl // Pass default asset URL for content mapping
+        defaultAssetUrl, // Pass default asset URL for content mapping
+        onBatchComplete: async (batchResult, batchNumber) => {
+            // Save mappings after each batch completion for resume capability
+            console.log(ansiColors.gray(`  💾 Saving mappings after batch ${batchNumber} (${batchResult.successCount} items)...`));
+            try {
+                await referenceMapper.saveAllMappings();
+                console.log(ansiColors.gray(`  ✅ Mappings saved successfully after batch ${batchNumber}`));
+            } catch (saveError: any) {
+                console.warn(ansiColors.yellow(`  ⚠️ Failed to save mappings after batch ${batchNumber}: ${saveError.message}`));
+                // Don't fail the batch due to mapping save errors
+            }
+        }
     };
     
     const batchProcessor = new ContentBatchProcessor(batchConfig);
@@ -357,10 +368,31 @@ async function pushLinkedContentItems(
                 //     scripts: mappedContentItem.scripts ?? defaultScripts
                 // };
 
-                const targetContentId = await apiClient.contentMethods.saveContentItem(payload, targetGuid, locale);
+                // Use saveContentItem with returnBatchID flag for SDK v1.30 polling
+                const batchIDResult = await apiClient.contentMethods.saveContentItem(payload, targetGuid, locale, true);
                 
-                // Handle API response
-                const actualContentId = extractContentId(targetContentId);
+                // Extract batch ID from response
+                const batchID = Array.isArray(batchIDResult) ? batchIDResult[0] : batchIDResult;
+                console.log(`📦 Linked content ${itemName} started with batch ID: ${batchID}`);
+                
+                // Poll batch until completion (pass payload for error matching)
+                const { pollBatchUntilComplete, extractBatchResults } = await import('../utilities/batch-polling');
+                const completedBatch = await pollBatchUntilComplete(
+                    apiClient,
+                    batchID,
+                    targetGuid,
+                    [payload] // Pass payload for FIFO error matching
+                );
+                
+                // Extract result from completed batch
+                const { successfulItems: batchSuccessItems, failedItems: batchFailedItems } = extractBatchResults(completedBatch, [contentItem]);
+                
+                let actualContentId = -1;
+                if (batchSuccessItems.length > 0) {
+                    actualContentId = batchSuccessItems[0].newId;
+                } else if (batchFailedItems.length > 0) {
+                    console.log(ansiColors.red(`✗ Linked content ${itemName} batch failed: ${batchFailedItems[0].error}`));
+                }
                 
                 if (actualContentId > 0) {
                     // Success case
@@ -378,7 +410,7 @@ async function pushLinkedContentItems(
                     if (onProgress) onProgress(totalProcessed, linkedContentItems.length, itemName, 'success');
                 } else {
                     console.log(ansiColors.red(`✗ Linked content ${itemName} failed - invalid content ID: ${actualContentId}`));
-                    console.log(`[Debug] API Response:`, targetContentId);
+                    console.log(`[Debug] Batch ID:`, batchID);
                     console.log(`[Debug] Extracted ID:`, actualContentId);
                     
                     // Only log detailed debug info on failure to avoid flooding
@@ -564,12 +596,13 @@ export async function pushContent(
     apiClient: mgmtApi.ApiClient,
     referenceMapper: ReferenceMapper,
     models?: mgmtApi.Model[],
+    forceUpdate: boolean = false,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
-): Promise<{ status: 'success' | 'error', successfulItems: number, failedItems: number }> {
+): Promise<{ status: 'success' | 'error', successfulItems: number, failedItems: number, skippedItems: number }> {
 
     if (!contentItems || contentItems.length === 0) {
         console.log('No content items found to process.');
-        return { status: 'success', successfulItems: 0, failedItems: 0 };
+        return { status: 'success', successfulItems: 0, failedItems: 0, skippedItems: 0 };
     }
 
     // Use passed models or load from filesystem as fallback
@@ -610,12 +643,27 @@ export async function pushContent(
     const defaultTargetAssetContainerOriginUrl = await getDefaultAssetContainerUrl(apiClient, targetGuid);
 
    
-    const totalItemCount = contentItems.length;
+    // BULK MAPPING FILTER: Check for existing mappings unless forceUpdate is enabled
+    const { bulkFilterByExistingMappings } = await import('../utilities/bulk-mapping-filter');
+    const filterResult = await bulkFilterByExistingMappings(contentItems, referenceMapper, forceUpdate);
+    
+    console.log(ansiColors.cyan(
+        `[Content Pusher] Processing ${filterResult.unmappedItems.length}/${filterResult.mappingStats.total} items ` +
+        `(${filterResult.mappingStats.percentMapped}% already mapped, forceUpdate: ${forceUpdate})`
+    ));
+    
+    if (!forceUpdate && filterResult.alreadyMapped.length > 0) {
+        console.log(ansiColors.gray(`  📋 Skipping ${filterResult.alreadyMapped.length} already-mapped content items (use --forceUpdate to process all)`));
+    }
+
+    // Use filtered content items for processing
+    const contentItemsToProcess = filterResult.unmappedItems;
+    const totalItemCount = contentItemsToProcess.length;
     console.log(ansiColors.cyan(`[Content Pusher] Processing ${totalItemCount} content items (filtered ${originalItemCount - totalItemCount} i18 items)`));
 
-    // Step 1: Classify content into normal vs linked
+    // Step 1: Classify content into normal vs linked (using filtered items)
     const classifier = new ContentClassifier();
-    const classification = await classifier.classifyContent(contentItems, resolvedModels);
+    const classification = await classifier.classifyContent(contentItemsToProcess, resolvedModels);
     
     console.log(ansiColors.cyan(`[Content Pusher] ${classifier.getClassificationStats(classification)}`));
 
@@ -670,6 +718,6 @@ export async function pushContent(
         }
     }
 
-    console.log(ansiColors.yellow(`Processed ${overallSuccessfulItems}/${totalItemCount} content items (${overallFailedItems} failed)`));
-    return { status: overallStatus, successfulItems: overallSuccessfulItems, failedItems: overallFailedItems };
+    console.log(ansiColors.yellow(`Processed ${overallSuccessfulItems}/${totalItemCount} content items (${overallFailedItems} failed, ${filterResult.alreadyMapped.length} skipped)`));
+    return { status: overallStatus, successfulItems: overallSuccessfulItems, failedItems: overallFailedItems, skippedItems: filterResult.alreadyMapped.length };
 }
