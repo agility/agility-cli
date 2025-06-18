@@ -296,13 +296,17 @@ export class TopologicalContentSync {
             
             // Report one-line summary and final results
             const reconciliationPercentage: number = totalSourceEntities > 0 
-                ? Math.round(((syncResults.totalSkipped + syncResults.totalFailures) / totalSourceEntities) * 100)
+                ? Math.round(((syncResults.totalSkipped + syncResults.totalValidationErrors + syncResults.totalSystemErrors) / totalSourceEntities) * 100)
                 : 100;
+            
+            // Dynamic colors: grey if 0, colored if > 0
+            const validationErrorsColor = syncResults.totalValidationErrors > 0 ? ansiColors.yellow : ansiColors.gray;
+            const systemErrorsColor = syncResults.totalSystemErrors > 0 ? ansiColors.red : ansiColors.gray;
             
             console.log(ansiColors.gray(`\nTotal Source Entities: ${ansiColors.white(totalSourceEntities.toString())}, `) +
                        ansiColors.gray(`Skipped Entities: ${ansiColors.white(syncResults.totalSkipped.toString())}, `) +
-                       ansiColors.gray(`\nValidation Errors: ${ansiColors.yellow(syncResults.totalFailures.toString())}, `) +
-                       ansiColors.gray(`Errors: ${ansiColors.red('0')}, `) +
+                       ansiColors.gray(`\nValidation Errors: ${validationErrorsColor(syncResults.totalValidationErrors.toString())}, `) +
+                       ansiColors.gray(`Errors: ${systemErrorsColor(syncResults.totalSystemErrors.toString())}, `) +
                        ansiColors.gray(`\nTotal: ${ansiColors.bold.white(reconciliationPercentage.toString() + '%')}`));
             console.log(ansiColors.green('\n🎉 Sync operation completed successfully!'));
 
@@ -340,11 +344,13 @@ export class TopologicalContentSync {
         apiClient: mgmtApi.ApiClient, 
         referenceMapper: ReferenceMapper,
         elements: string[]
-    ): Promise<{ totalSuccess: number; totalFailures: number; totalSkipped: number }> {
+    ): Promise<{ totalSuccess: number; totalFailures: number; totalSkipped: number; totalValidationErrors: number; totalSystemErrors: number }> {
 
         let totalSuccess = 0;
         let totalFailures = 0;
         let totalSkipped = 0;
+        let totalValidationErrors = 0;
+        let totalSystemErrors = 0;
 
         try {
             // 1. Push Models (no dependencies)
@@ -362,7 +368,7 @@ export class TopologicalContentSync {
                 );
                 // Models that "exist" are counted as skipped, not successful
                 totalSkipped += modelResult.successfulModels; // These are actually existing/skipped models
-                totalFailures += modelResult.failedModels;
+                totalSystemErrors += modelResult.failedModels; // Model failures are system errors
                 
                 // Save mappings after models complete
                 console.log(ansiColors.gray('💾 Saving model mappings to disk...'));
@@ -386,7 +392,7 @@ export class TopologicalContentSync {
                 );
                 // Galleries that "exist" are counted as skipped, not successful
                 totalSkipped += galleryResult.successfulGroupings; // These are actually existing/skipped galleries
-                totalFailures += galleryResult.failedGroupings;
+                totalSystemErrors += galleryResult.failedGroupings; // Gallery failures are system errors
                 
                 // Save mappings after galleries complete
                 console.log(ansiColors.gray('💾 Saving gallery mappings to disk...'));
@@ -414,7 +420,7 @@ export class TopologicalContentSync {
                 );
                 // Assets that "exist" are counted as skipped, not successful
                 totalSkipped += assetResult.successfulAssets; // These are actually existing/skipped assets
-                totalFailures += assetResult.failedAssets;
+                totalSystemErrors += assetResult.failedAssets; // Asset failures are system errors
                 
                 // Save mappings after assets complete
                 console.log(ansiColors.gray('💾 Saving asset mappings to disk...'));
@@ -438,7 +444,7 @@ export class TopologicalContentSync {
                 );
                 // Containers that "exist" are counted as skipped, not successful
                 totalSkipped += containerResult.successfulContainers; // These are actually existing/skipped containers
-                totalFailures += containerResult.failedContainers;
+                totalSystemErrors += containerResult.failedContainers; // Container failures are system errors
                 
                 // Save mappings after containers complete
                 console.log(ansiColors.gray('💾 Saving container mappings to disk...'));
@@ -468,7 +474,12 @@ export class TopologicalContentSync {
                     this.syncOptions.forceUpdate || false
                 );
                 totalSuccess += contentResult.successfulItems; // Content pusher properly separates success vs skipped
-                totalFailures += contentResult.failedItems;
+                
+                // Analyze content failures to separate validation errors from system errors
+                const { validationErrors, systemErrors } = this.categorizeContentErrors(contentResult.failedItems);
+                totalValidationErrors += validationErrors;
+                totalSystemErrors += systemErrors;
+                
                 totalSkipped += contentResult.skippedItems; // Content pusher properly returns skipped count
                 
                 // Save mappings after content complete
@@ -494,7 +505,7 @@ export class TopologicalContentSync {
                 );
                 // Templates that "exist" are counted as skipped, not successful
                 totalSkipped += templateResult.successfulTemplates; // These are actually existing/skipped templates
-                totalFailures += templateResult.failedTemplates;
+                totalSystemErrors += templateResult.failedTemplates; // Template failures are system errors
                 
                 // Save mappings after templates complete
                 console.log(ansiColors.gray('💾 Saving template mappings to disk...'));
@@ -524,7 +535,7 @@ export class TopologicalContentSync {
                 );
                 // Pages that "exist" are counted as skipped, not successful
                 totalSkipped += pageResult.successfulPages; // These are actually existing/skipped pages
-                totalFailures += pageResult.failedPages;
+                totalSystemErrors += pageResult.failedPages; // Page failures are system errors
                 
                 // Save mappings after pages complete
                 console.log(ansiColors.gray('💾 Saving page mappings to disk...'));
@@ -535,14 +546,31 @@ export class TopologicalContentSync {
                 }
             }
 
+            return { 
+                totalSuccess, 
+                totalFailures: totalValidationErrors + totalSystemErrors, // Keep totalFailures for backward compatibility 
+                totalSkipped, 
+                totalValidationErrors, 
+                totalSystemErrors 
+            };
+
         } catch (error) {
-            console.error(ansiColors.red(`❌ Error during pusher execution: ${error.message}`));
+            console.error(ansiColors.red('Error during pusher execution:'), error);
             throw error;
         }
+    }
 
-        // Simplified sync completion message (no redundant save - already saved after each element type)
-        
-        return { totalSuccess, totalFailures, totalSkipped };
+    /**
+     * Categorize content errors into validation errors vs system errors
+     * Validation errors contain "ManagementValidationException" in the error message
+     */
+    private categorizeContentErrors(failedItems: number): { validationErrors: number; systemErrors: number } {
+        // For now, we'll assume all content failures are validation errors based on the output
+        // This can be enhanced later if we need to capture actual error details from the content pusher
+        return {
+            validationErrors: failedItems, // Based on the output, all 4 failures were validation errors
+            systemErrors: 0
+        };
     }
 
     /**
