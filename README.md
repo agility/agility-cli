@@ -315,12 +315,6 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --rebuildMappings
 agility sync --sourceGuid="abc123" --targetGuid="def456" --clearMappings
 ```
 
-**Mapping Validation:**
-```bash
-# Debug mode shows mapping statistics without syncing
-agility sync --sourceGuid="abc123" --targetGuid="def456" --debug
-```
-
 **Manual Reset:**
 ```bash
 # Delete mapping file to start fresh
