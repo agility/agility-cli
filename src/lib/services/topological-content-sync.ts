@@ -43,8 +43,11 @@ export class TopologicalContentSync {
     private sourceGuid: string;
     private targetGuid: string;
     private locale: string;
+    private channel: string;
     private isPreview: boolean;
     private blessedUIEnabled: boolean;
+    private isHeadless: boolean;
+    private isVerbose: boolean;
     private elements: string[];
     private rootPath: string;
     private legacyFolders: boolean;
@@ -60,8 +63,11 @@ export class TopologicalContentSync {
         sourceGuid: string,
         targetGuid: string,
         locale: string,
+        channel: string,
         isPreview: boolean,
         blessedUIEnabled: boolean,
+        isHeadless: boolean,
+        isVerbose: boolean,
         elements: string[],
         rootPath: string,
         legacyFolders: boolean,
@@ -73,8 +79,11 @@ export class TopologicalContentSync {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
         this.locale = locale;
+        this.channel = channel;
         this.isPreview = isPreview;
         this.blessedUIEnabled = blessedUIEnabled;
+        this.isHeadless = isHeadless;
+        this.isVerbose = isVerbose;
         this.elements = elements // Apply dependency enforcement
         this.rootPath = rootPath;
         this.legacyFolders = legacyFolders;
@@ -224,9 +233,72 @@ export class TopologicalContentSync {
             const sourceData = await this.loadSourceData();
             
             if (this.hasNoContent(sourceData)) {
-                console.log(ansiColors.yellow('⚠️ No content found in source data. Run pull command first to download data.'));
-                console.log(ansiColors.gray(`   💡 Example: node dist/index.js pull --guid ${this.sourceGuid} --locale ${this.locale} --channel website --verbose`));
-                return;
+                console.log(ansiColors.yellow('⚠️ No content found in source data. Automatically pulling from source instance...'));
+                console.log(ansiColors.gray(`🔄 Triggering: pull --guid ${this.sourceGuid} --locale ${this.locale} --channel ${this.channel}`));
+                
+                // Import Pull class and trigger automatic pull
+                const { Pull } = await import('./pull');
+                const { Auth } = await import('./auth');
+                
+                // Set up authentication and options for pull
+                const auth = new Auth();
+                const token = await auth.getToken();
+                const pullOptions = new mgmtApi.Options();
+                pullOptions.token = token;
+                
+                // Determine API key and base URL for pull
+                const determinedMgmtBaseUrl = auth.determineBaseUrl(this.sourceGuid);
+                pullOptions.baseUrl = determinedMgmtBaseUrl;
+                
+                const previewKey = await auth.getPreviewKey(this.sourceGuid, pullOptions.baseUrl);
+                const fetchKey = await auth.getFetchKey(this.sourceGuid, pullOptions.baseUrl);
+                const apiKeyForPull = this.isPreview ? previewKey : fetchKey;
+                
+                if (!apiKeyForPull) {
+                    console.log(ansiColors.red(`❌ Could not retrieve API key for automatic pull from ${this.sourceGuid}`));
+                    return;
+                }
+                
+                // Create pull operation with same UI settings as sync
+                const pullOperation = new Pull(
+                    this.sourceGuid,
+                    apiKeyForPull,
+                    this.locale,
+                    this.channel, // channel - hardcoded for now, could be made configurable
+                    this.isPreview,
+                    pullOptions,
+                    this.multibar, // Use same multibar instance
+                    this.elements, // Use same elements list
+                    this.rootPath,
+                    this.legacyFolders,
+                    this.blessedUIEnabled, // Preserve UI mode
+                    this.isHeadless, // Pass through from sync args
+                    this.isVerbose, // Pass through from sync args
+                    false // forceOverwrite - don't force overwrite for automatic pull
+                );
+                
+                try {
+                    console.log(ansiColors.cyan(`\n🔄 Starting automatic pull from ${this.sourceGuid}...`));
+                    await pullOperation.pullInstance();
+                    console.log(ansiColors.green('✅ Automatic pull completed successfully!'));
+                    
+                    // Reload source data after successful pull
+                    const refreshedSourceData = await this.loadSourceData();
+                    if (this.hasNoContent(refreshedSourceData)) {
+                        console.log(ansiColors.red('❌ Still no content found after automatic pull. Please check source instance.'));
+                        return;
+                    }
+                    
+                    // Update sourceData for the rest of the sync process
+                    Object.assign(sourceData, refreshedSourceData);
+                    console.log(ansiColors.green('✅ Source data loaded successfully after automatic pull!'));
+                    
+                } catch (pullError: any) {
+                    console.log(ansiColors.red(`❌ Automatic pull failed: ${pullError.message}`));
+                    console.log(ansiColors.yellow('💡 Please run pull command manually first:'));
+                    console.log(ansiColors.gray(`   node dist/index.js pull --guid ${this.sourceGuid} --locale ${this.locale} --channel ${this.channel} --verbose`));
+                    return;
+                }
             }
 
             // Run sophisticated topological dependency analysis

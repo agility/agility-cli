@@ -804,6 +804,7 @@ yargs.command({
     let sourceGuid: string = argv.sourceGuid as string;
     const targetGuid: string = argv.targetGuid as string;
     let locale: string = argv.locale as string;
+    const channel: string = argv.channel as string;
     const isPreview: boolean = argv.preview as boolean;
     const elements: string[] = (argv.elements as string).split(",");
     const rootPath: string = argv.rootPath as string;
@@ -1009,6 +1010,7 @@ yargs.command({
     let sourceGuid: string = argv.sourceGuid as string;
     const targetGuid: string = argv.targetGuid as string;
     let locale: string = argv.locale as string;
+    const channel: string = argv.channel as string;
     const isPreview: boolean = argv.preview as boolean;
     const elements: string[] = (argv.elements as string).split(",");
     const rootPath: string = argv.rootPath as string;
@@ -1094,7 +1096,7 @@ yargs.command({
       // Import and use the new 2-pass sync system
       const { TopologicalContentSync } = await import('./lib/services/topological-content-sync');
 
-      const syncOperation = new TopologicalContentSync(options, multibar, sourceGuid, targetGuid, locale, isPreview, blessedUIEnabled, elements, rootPath, legacyFolders, false, {
+      const syncOperation = new TopologicalContentSync(options, multibar, sourceGuid, targetGuid, locale, channel, isPreview, blessedUIEnabled, headless, verbose, elements, rootPath, legacyFolders, false, {
         debug,
         maxDepth: maxDepth,
         forceUpdate: forceUpdate
