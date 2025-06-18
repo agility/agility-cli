@@ -53,7 +53,7 @@ export async function pollBatchUntilComplete(
                                 
                                 if (batchStatus.errorData) {
                                     console.log(ansiColors.red.italic('🔍 Additional Error Data:'));
-                                    console.log(batchStatus.errorData);
+                                    console.log(batchStatus.errorData + "\n");
                                 }
                             }
                         });

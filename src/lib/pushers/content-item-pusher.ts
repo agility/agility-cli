@@ -162,7 +162,7 @@ async function pushNormalContentItems(
     onProgress?: (processed: number, total: number, item: string, status: 'success' | 'error') => void
 ): Promise<{ successfulItems: number, failedItems: number }> {
     
-    console.log(ansiColors.cyan(`[Content Pusher] Processing ${normalContentItems.length} normal content items using BATCH PROCESSING`));
+    // console.log(ansiColors.cyan(`[Content Pusher] Processing ${normalContentItems.length} normal content items using BATCH PROCESSING`));
     
     // Configure batch processor with mapping save callback
     const batchConfig: ContentBatchConfig = {
@@ -176,12 +176,12 @@ async function pushNormalContentItems(
         defaultAssetUrl, // Pass default asset URL for content mapping
         onBatchComplete: async (batchResult, batchNumber) => {
             // Save mappings after each batch completion for resume capability
-            console.log(ansiColors.gray(`  💾 Saving mappings after batch ${batchNumber} (${batchResult.successCount} items)...`));
+            console.log(ansiColors.gray(`💾 Saving mappings after batch ${batchNumber} (${batchResult.successCount} items)...`));
             try {
                 await referenceMapper.saveAllMappings();
-                console.log(ansiColors.gray(`  ✅ Mappings saved successfully after batch ${batchNumber}`));
+                console.log(ansiColors.gray(`✅ Mappings saved successfully after batch ${batchNumber}`));
             } catch (saveError: any) {
-                console.warn(ansiColors.yellow(`  ⚠️ Failed to save mappings after batch ${batchNumber}: ${saveError.message}`));
+                console.warn(ansiColors.yellow(`⚠️ Failed to save mappings after batch ${batchNumber}: ${saveError.message}`));
                 // Don't fail the batch due to mapping save errors
             }
         }
@@ -243,7 +243,7 @@ async function pushLinkedContentItems(
     const maxAttempts = remainingContentItems.length * 2; // Prevent infinite loops
     let attemptCount = 0;
 
-    console.log(ansiColors.cyan(`[Content Pusher] Processing ${linkedContentItems.length} linked content items (with dependencies)`));
+    // console.log(ansiColors.cyan(`[Content Pusher] Processing ${linkedContentItems.length} linked content items (with dependencies)`));
 
     // Legacy do-while pattern: keep processing until no more progress
     do {
@@ -251,7 +251,7 @@ async function pushLinkedContentItems(
         const processedInThisPass: number[] = [];
         attemptCount++;
 
-        console.log(ansiColors.gray(`[Content Pusher] Linked content pass ${attemptCount}: ${remainingContentItems.length} items remaining`));
+        // console.log(ansiColors.gray(`[Content Pusher] Linked content pass ${attemptCount}: ${remainingContentItems.length} items remaining`));
 
         for (let i = 0; i < remainingContentItems.length; i++) {
             const contentItem = remainingContentItems[i];
@@ -449,7 +449,7 @@ async function pushLinkedContentItems(
         // Break if no progress made or max attempts reached
         if (!progressMade || attemptCount >= maxAttempts) {
             if (!progressMade && remainingContentItems.length > 0) {
-                console.warn(ansiColors.yellow(`[Content Pusher] No progress made on ${remainingContentItems.length} linked content items - marking as skipped`));
+                // console.warn(ansiColors.yellow(`[Content Pusher] No progress made on ${remainingContentItems.length} linked content items - marking as skipped`));
                 remainingContentItems.forEach(item => {
                     skippedContentItems[item.contentID] = item.properties.referenceName || 'Unknown';
                     failedItems++;
@@ -463,7 +463,7 @@ async function pushLinkedContentItems(
     // Report final skipped items
     const skippedCount = Object.keys(skippedContentItems).length;
     if (skippedCount > 0) {
-        console.log(ansiColors.yellow(`[Content Pusher] Skipped ${skippedCount} linked content items with unresolved dependencies:`));
+        // console.log(ansiColors.yellow(`[Content Pusher] Skipped ${skippedCount} linked content items with unresolved dependencies:`));
         Object.entries(skippedContentItems).slice(0, 5).forEach(([contentId, referenceName]) => {
             console.log(ansiColors.gray(`  - ContentID:${contentId} (${referenceName})`));
         });
@@ -609,7 +609,7 @@ export async function pushContent(
     let resolvedModels: mgmtApi.Model[] = models || [];
     
     if (!resolvedModels || resolvedModels.length === 0) {
-        console.log(ansiColors.cyan(`[Content Pusher] Loading models for content classification...`));
+        // console.log(ansiColors.cyan(`[Content Pusher] Loading models for content classification...`));
         
         try {
             // Import the model getter and fileOperations
@@ -624,14 +624,14 @@ export async function pushContent(
             
             resolvedModels = getModelsFromFileSystem(fileOps);
             
-            console.log(ansiColors.cyan(`[Content Pusher] Loaded ${resolvedModels.length} models for classification`));
+            // console.log(ansiColors.cyan(`[Content Pusher] Loaded ${resolvedModels.length} models for classification`));
             
         } catch (error: any) {
             console.warn(ansiColors.yellow(`[Content Pusher] Could not load models: ${error.message}. Using simplified classification.`));
             // Continue with empty models array - classification will treat all content as normal
         }
     } else {
-        console.log(ansiColors.cyan(`[Content Pusher] Using ${resolvedModels.length} models passed from caller`));
+        // console.log(ansiColors.cyan(`[Content Pusher] Using ${resolvedModels.length} models passed from caller`));
     }
 
     const originalItemCount = contentItems.length;
@@ -647,25 +647,25 @@ export async function pushContent(
     const { bulkFilterByExistingMappings } = await import('../utilities/bulk-mapping-filter');
     const filterResult = await bulkFilterByExistingMappings(contentItems, referenceMapper, forceUpdate);
     
-    console.log(ansiColors.cyan(
-        `[Content Pusher] Processing ${filterResult.unmappedItems.length}/${filterResult.mappingStats.total} items ` +
-        `(${filterResult.mappingStats.percentMapped}% already mapped, forceUpdate: ${forceUpdate})`
-    ));
+    // console.log(ansiColors.cyan(
+    //     `[Content Pusher] Processing ${filterResult.unmappedItems.length}/${filterResult.mappingStats.total} items ` +
+    //     `(${filterResult.mappingStats.percentMapped}% already mapped, forceUpdate: ${forceUpdate})`
+    // ));
     
     if (!forceUpdate && filterResult.alreadyMapped.length > 0) {
-        console.log(ansiColors.gray(`  📋 Skipping ${filterResult.alreadyMapped.length} already-mapped content items (use --forceUpdate to process all)`));
+        console.log(ansiColors.gray.italic(`Skipping ${filterResult.alreadyMapped.length} existing content items (use --forceUpdate to process all)`));
     }
 
     // Use filtered content items for processing
     const contentItemsToProcess = filterResult.unmappedItems;
     const totalItemCount = contentItemsToProcess.length;
-    console.log(ansiColors.cyan(`[Content Pusher] Processing ${totalItemCount} content items (filtered ${originalItemCount - totalItemCount} i18 items)`));
+    // console.log(ansiColors.cyan(`[Content Pusher] Processing ${totalItemCount} content items (filtered ${originalItemCount - totalItemCount} i18 items)`));
 
     // Step 1: Classify content into normal vs linked (using filtered items)
     const classifier = new ContentClassifier();
     const classification = await classifier.classifyContent(contentItemsToProcess, resolvedModels);
     
-    console.log(ansiColors.cyan(`[Content Pusher] ${classifier.getClassificationStats(classification)}`));
+    // console.log(ansiColors.cyan(`[Content Pusher] ${classifier.getClassificationStats(classification)}`));
 
     // Step 2: Process normal content items first (no dependencies)
     if (classification.normalContentItems.length > 0) {
@@ -718,6 +718,6 @@ export async function pushContent(
         }
     }
 
-    console.log(ansiColors.yellow(`Processed ${overallSuccessfulItems}/${totalItemCount} content items (${overallFailedItems} failed, ${filterResult.alreadyMapped.length} skipped)`));
+    // console.log(ansiColors.yellow(`Processed ${overallSuccessfulItems}/${totalItemCount} content items (${overallFailedItems} failed, ${filterResult.alreadyMapped.length} skipped)`));
     return { status: overallStatus, successfulItems: overallSuccessfulItems, failedItems: overallFailedItems, skippedItems: filterResult.alreadyMapped.length };
 }

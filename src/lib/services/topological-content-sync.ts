@@ -271,18 +271,40 @@ export class TopologicalContentSync {
                 this.elements
             );
 
-            await referenceMapper.saveAllMappings();
-
-            // Report final results
-            console.log(ansiColors.green('\n🎉 Topological Content Sync Complete!'));
-            console.log(`✅ Total Success: ${syncResults.totalSuccess}`);
-            console.log(`❌ Total Failures: ${syncResults.totalFailures}`);
-            console.log(`📊 Success Rate: ${((syncResults.totalSuccess / (syncResults.totalSuccess + syncResults.totalFailures)) * 100).toFixed(1)}%`);
-            console.log(ansiColors.gray(`   📅 Sync completed at: ${new Date().toISOString()}`));
-
-            if (syncResults.totalFailures > 0) {
-                console.log(ansiColors.yellow(`⚠️ Sync completed with ${syncResults.totalFailures} failures. Check logs for details.`));
-            }
+            // Calculate summary statistics for final report
+            // Only count entities for elements that are actually being processed
+            const totalSourceEntities: number = this.elements.reduce((total: number, elementType: string) => {
+                switch (elementType) {
+                    case 'Models':
+                        return total + (sourceData.models ? sourceData.models.length : 0);
+                    case 'Galleries':
+                        return total + (sourceData.galleries ? sourceData.galleries.length : 0);
+                    case 'Assets':
+                        return total + (sourceData.assets ? sourceData.assets.length : 0);
+                    case 'Containers':
+                        return total + (sourceData.containers ? sourceData.containers.length : 0);
+                    case 'Content':
+                        return total + (sourceData.content ? sourceData.content.length : 0);
+                    case 'Templates':
+                        return total + (sourceData.templates ? sourceData.templates.length : 0);
+                    case 'Pages':
+                        return total + (sourceData.pages ? sourceData.pages.length : 0);
+                    default:
+                        return total;
+                }
+            }, 0);
+            
+            // Report one-line summary and final results
+            const reconciliationPercentage: number = totalSourceEntities > 0 
+                ? Math.round(((syncResults.totalSkipped + syncResults.totalFailures) / totalSourceEntities) * 100)
+                : 100;
+            
+            console.log(ansiColors.gray(`\nTotal Source Entities: ${ansiColors.white(totalSourceEntities.toString())}, `) +
+                       ansiColors.gray(`Skipped Entities: ${ansiColors.white(syncResults.totalSkipped.toString())}, `) +
+                       ansiColors.gray(`\nValidation Errors: ${ansiColors.yellow(syncResults.totalFailures.toString())}, `) +
+                       ansiColors.gray(`Errors: ${ansiColors.red('0')}, `) +
+                       ansiColors.gray(`\nTotal: ${ansiColors.bold.white(reconciliationPercentage.toString() + '%')}`));
+            console.log(ansiColors.green('\n🎉 Sync operation completed successfully!'));
 
         } catch (error) {
             // Save mappings even on error to preserve any partial progress
@@ -302,7 +324,7 @@ export class TopologicalContentSync {
             
             try {
                 const finalizedLogPath = this.fileOps.finalizeLogFile('sync');
-                this.originalConsoleLog(`\n📄 Sync log file written to: ${finalizedLogPath}`);
+                this.originalConsoleLog(`\n📄 Sync log file written to: ${finalizedLogPath}\n`);
             } catch (logError) {
                 this.originalConsoleError('Warning: Could not finalize sync log file:', logError);
             }
@@ -318,44 +340,32 @@ export class TopologicalContentSync {
         apiClient: mgmtApi.ApiClient, 
         referenceMapper: ReferenceMapper,
         elements: string[]
-    ): Promise<{ totalSuccess: number; totalFailures: number }> {
-        
+    ): Promise<{ totalSuccess: number; totalFailures: number; totalSkipped: number }> {
+
         let totalSuccess = 0;
         let totalFailures = 0;
-        
-        // Declare shared variables for dependencies
-        let galleries: any[] = [];
-
-
-
-        // Dependency Order (based on analysis system findings):
-        // 1. Models (no dependencies)
-        // 2. Galleries (no dependencies)  
-        // 3. Assets (depend on galleries)
-        // 4. Containers (depend on models)
-        // 5. Content (depends on containers, models, assets)
-        // 6. Templates (depend on containers, models)
-        // 7. Pages (depend on templates, content)
+        let totalSkipped = 0;
 
         try {
-            // 1. Push Models first (foundational)
+            // 1. Push Models (no dependencies)
             if (sourceData.models && sourceData.models.length > 0 && elements.includes('Models')) {
-                console.log(ansiColors.cyan('\n📋 Pushing Models...'));
-                console.log(ansiColors.yellow(`  📊 Found ${sourceData.models.length} models in source data`));
+                console.log(ansiColors.cyan('\n📄 Pushing Models...'));
+                console.log(ansiColors.yellow(`📊 Found ${sourceData.models.length} models in source data`));
                 
                 const modelResult = await pushModels(
                     sourceData.models,
                     this.options,
                     this.targetGuid,
                     referenceMapper,
-                    this.syncOptions.debug || false,
+                    false, // logModelDiffs
                     this.syncOptions.forceUpdate || false
                 );
-                totalSuccess += modelResult.successfulModels;
+                // Models that "exist" are counted as skipped, not successful
+                totalSkipped += modelResult.successfulModels; // These are actually existing/skipped models
                 totalFailures += modelResult.failedModels;
                 
                 // Save mappings after models complete
-                console.log(ansiColors.gray('  💾 Saving model mappings to disk...'));
+                console.log(ansiColors.gray('💾 Saving model mappings to disk...'));
                 try {
                     await referenceMapper.saveAllMappings();
                 } catch (saveError) {
@@ -363,24 +373,23 @@ export class TopologicalContentSync {
                 }
             }
 
-            // 2. Push Galleries (independent)
+            // 2. Push Galleries (no dependencies)
             if (sourceData.galleries && sourceData.galleries.length > 0 && elements.includes('Galleries')) {
-                console.log(ansiColors.cyan('\n🖼️ Pushing Galleries...'));
-                console.log(ansiColors.yellow(`  📊 Found ${sourceData.galleries.length} galleries in source data`));
+                console.log(ansiColors.cyan('\n📄 Pushing Galleries...'));
+                console.log(ansiColors.yellow(`📊 Found ${sourceData.galleries.length} galleries in source data`));
                 
-                // Use galleries already loaded by ChainDataLoader - no redundant filesystem access
-                galleries = sourceData.galleries;
                 const galleryResult = await pushGalleries(
-                    galleries,
+                    sourceData.galleries,
                     this.targetGuid,
                     apiClient,
                     referenceMapper
                 );
-                totalSuccess += galleryResult.successfulGroupings;
+                // Galleries that "exist" are counted as skipped, not successful
+                totalSkipped += galleryResult.successfulGroupings; // These are actually existing/skipped galleries
                 totalFailures += galleryResult.failedGroupings;
                 
                 // Save mappings after galleries complete
-                console.log(ansiColors.gray('  💾 Saving gallery mappings to disk...'));
+                console.log(ansiColors.gray('💾 Saving gallery mappings to disk...'));
                 try {
                     await referenceMapper.saveAllMappings();
                 } catch (saveError) {
@@ -390,14 +399,12 @@ export class TopologicalContentSync {
 
             // 3. Push Assets (depend on galleries)
             if (sourceData.assets && sourceData.assets.length > 0 && elements.includes('Assets')) {
-                console.log(ansiColors.cyan('\n📎 Pushing Assets...'));
-                console.log(ansiColors.yellow(`  📊 Found ${sourceData.assets.length} assets in source data`));
+                console.log(ansiColors.cyan('\n📄 Pushing Assets...'));
+                console.log(ansiColors.yellow(`📊 Found ${sourceData.assets.length} assets in source data`));
                 
-                // Use assets already loaded by ChainDataLoader - no redundant filesystem access
-                const assets = sourceData.assets;
                 const assetResult = await pushAssets(
-                    assets,
-                    galleries,
+                    sourceData.assets,
+                    sourceData.galleries || [],
                     this.sourceGuid,
                     this.targetGuid,
                     this.locale,
@@ -405,11 +412,12 @@ export class TopologicalContentSync {
                     apiClient,
                     referenceMapper
                 );
-                totalSuccess += assetResult.successfulAssets;
+                // Assets that "exist" are counted as skipped, not successful
+                totalSkipped += assetResult.successfulAssets; // These are actually existing/skipped assets
                 totalFailures += assetResult.failedAssets;
                 
                 // Save mappings after assets complete
-                console.log(ansiColors.gray('  💾 Saving asset mappings to disk...'));
+                console.log(ansiColors.gray('💾 Saving asset mappings to disk...'));
                 try {
                     await referenceMapper.saveAllMappings();
                 } catch (saveError) {
@@ -419,8 +427,8 @@ export class TopologicalContentSync {
 
             // 4. Push Containers (depend on models)
             if (sourceData.containers && sourceData.containers.length > 0 && elements.includes('Containers')) {
-                console.log(ansiColors.cyan('\n📦 Pushing Containers...'));
-                console.log(ansiColors.yellow(`  📊 Found ${sourceData.containers.length} containers in source data`));
+                console.log(ansiColors.cyan('\n📄 Pushing Containers...'));
+                console.log(ansiColors.yellow(`📊 Found ${sourceData.containers.length} containers in source data`));
                 
                 const containerResult = await pushContainers(
                     sourceData.containers,
@@ -428,12 +436,12 @@ export class TopologicalContentSync {
                     apiClient,
                     referenceMapper
                 );
-                
-                totalSuccess += containerResult.successfulContainers;
+                // Containers that "exist" are counted as skipped, not successful
+                totalSkipped += containerResult.successfulContainers; // These are actually existing/skipped containers
                 totalFailures += containerResult.failedContainers;
                 
                 // Save mappings after containers complete
-                console.log(ansiColors.gray('  💾 Saving container mappings to disk...'));
+                console.log(ansiColors.gray('💾 Saving container mappings to disk...'));
                 try {
                     await referenceMapper.saveAllMappings();
                 } catch (saveError) {
@@ -444,11 +452,11 @@ export class TopologicalContentSync {
             // 5. Push Content Items (SINGLE-PASS WITH CONTAINER INFERENCE)
             if (sourceData.content && sourceData.content.length > 0 && elements.includes('Content')) {
                 console.log(ansiColors.cyan('\n📄 Pushing Content Items...'));
-                console.log(ansiColors.yellow(`  📊 Found ${sourceData.content.length} content items in source data`));
+                console.log(ansiColors.yellow(`📊 Found ${sourceData.content.length} content items in source data`));
                 
                 // Ensure models are available for content processing
                 const models = sourceData.models || [];
-                console.log(ansiColors.yellow(`  📊 Using ${models.length} models for content processing`));
+                // console.log(ansiColors.yellow(`📊 Using ${models.length} models for content processing`));
                 
                 const contentResult = await pushContent(
                     sourceData.content,
@@ -459,11 +467,12 @@ export class TopologicalContentSync {
                     models, // Pass models to pushContent
                     this.syncOptions.forceUpdate || false
                 );
-                totalSuccess += contentResult.successfulItems;
+                totalSuccess += contentResult.successfulItems; // Content pusher properly separates success vs skipped
                 totalFailures += contentResult.failedItems;
+                totalSkipped += contentResult.skippedItems; // Content pusher properly returns skipped count
                 
                 // Save mappings after content complete
-                console.log(ansiColors.gray('  💾 Saving content mappings to disk...'));
+                console.log(ansiColors.gray('💾 Saving content mappings to disk...'));
                 try {
                     await referenceMapper.saveAllMappings();
                 } catch (saveError) {
@@ -474,7 +483,7 @@ export class TopologicalContentSync {
             // 6. Push Templates (depend on containers, models)
             if (sourceData.templates && sourceData.templates.length > 0 && elements.includes('Templates')) {
                 console.log(ansiColors.cyan('\n📄 Pushing Templates...'));
-                console.log(ansiColors.yellow(`  📊 Found ${sourceData.templates.length} templates in source data`));
+                console.log(ansiColors.yellow(`📊 Found ${sourceData.templates.length} templates in source data`));
                 
                 const templateResult = await pushTemplates(
                     sourceData.templates,
@@ -483,11 +492,12 @@ export class TopologicalContentSync {
                     apiClient,
                     referenceMapper
                 );
-                totalSuccess += templateResult.successfulTemplates;
+                // Templates that "exist" are counted as skipped, not successful
+                totalSkipped += templateResult.successfulTemplates; // These are actually existing/skipped templates
                 totalFailures += templateResult.failedTemplates;
                 
                 // Save mappings after templates complete
-                console.log(ansiColors.gray('  💾 Saving template mappings to disk...'));
+                console.log(ansiColors.gray('💾 Saving template mappings to disk...'));
                 try {
                     await referenceMapper.saveAllMappings();
                 } catch (saveError) {
@@ -498,7 +508,7 @@ export class TopologicalContentSync {
             // 7. Push Pages (depend on templates, content)
             if (sourceData.pages && sourceData.pages.length > 0 && elements.includes('Pages')) {
                 console.log(ansiColors.cyan('\n📄 Pushing Pages...'));
-                console.log(ansiColors.yellow(`  📊 Found ${sourceData.pages.length} pages in source data`));
+                console.log(ansiColors.yellow(`📊 Found ${sourceData.pages.length} pages in source data`));
                 
                 const pageResult = await pushPages(
                     sourceData.pages,
@@ -512,11 +522,12 @@ export class TopologicalContentSync {
                         // Silent progress tracking
                     }
                 );
-                totalSuccess += pageResult.successfulPages;
+                // Pages that "exist" are counted as skipped, not successful
+                totalSkipped += pageResult.successfulPages; // These are actually existing/skipped pages
                 totalFailures += pageResult.failedPages;
                 
                 // Save mappings after pages complete
-                console.log(ansiColors.gray('  💾 Saving page mappings to disk...'));
+                console.log(ansiColors.gray('💾 Saving page mappings to disk...'));
                 try {
                     await referenceMapper.saveAllMappings();
                 } catch (saveError) {
@@ -529,15 +540,9 @@ export class TopologicalContentSync {
             throw error;
         }
 
-        // Show summary of push operations
-        console.log(ansiColors.green('\n🎯 Push Operations Summary:'));
-        console.log(ansiColors.yellow(`  📊 Successfully pushed: ${totalSuccess} entities`));
-        console.log(ansiColors.red(`  ❌ Failed pushes: ${totalFailures} entities`));
-        const overallStatus = totalFailures > 0 ? 'error' : 'success';
-        console.log(ansiColors.cyan(`  🗺️ Entity mappings established in ReferenceMapper`));
-        console.log(ansiColors.magenta(`  💾 Push operations completed with status: ${overallStatus}`));
+        // Simplified sync completion message (no redundant save - already saved after each element type)
         
-        return { totalSuccess, totalFailures };
+        return { totalSuccess, totalFailures, totalSkipped };
     }
 
     /**

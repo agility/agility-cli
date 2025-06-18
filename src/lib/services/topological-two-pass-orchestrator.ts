@@ -871,7 +871,7 @@ export class TopologicalTwoPassOrchestrator {
         const batchSize = 250; // Optimal batch size for Management API
         const contentBatches = this.createContentBatches(contentEntities, batchSize);
         
-        console.log(`      📦 Processing ${contentEntities.length} content items in ${contentBatches.length} bulk batches (${batchSize} items each)`);
+        console.log(`📦 Processing ${contentEntities.length} content items in ${contentBatches.length} bulk batches (${batchSize} items each)`);
         
         let totalSuccessCount = 0;
         let totalFailureCount = 0;

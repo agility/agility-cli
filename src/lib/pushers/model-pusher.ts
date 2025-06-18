@@ -334,13 +334,13 @@ export async function pushModels(
             // Use same lookup method as addMapping to prevent duplicate mappings
             existingModel = referenceMapper.getMapping<mgmtApi.Model>('model', model.id);
             if (existingModel && existingModel.id > 0) {
-                console.log(`✓ Using cached model mapping for ${originalModelReferenceName} (ID: ${existingModel.id})`);
+                // console.log(`✓ Using cached model mapping for ${originalModelReferenceName} (ID: ${existingModel.id})`);
             } else {
                 // Fetch from API only if not in ReferenceMapper
                 existingModel = await apiClient.modelMethods.getModelByReferenceName(originalModelReferenceName, targetGuid);
                 if (existingModel) {
                     referenceMapper.addMapping('model', model, existingModel);
-                    console.log(`➕ Added fresh model mapping for ${originalModelReferenceName} (ID: ${existingModel.id})`);
+                    // console.log(`➕ Added fresh model mapping for ${originalModelReferenceName} (ID: ${existingModel.id})`);
                 }
             }
 

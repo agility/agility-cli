@@ -80,7 +80,7 @@ export class ContentBatchProcessor {
         const batchSize = this.config.batchSize!;
         const contentBatches = this.createContentBatches(contentItems, batchSize);
         
-        console.log(`📦 Processing ${contentItems.length} content items in ${contentBatches.length} bulk batches (${batchSize} items each)`);
+        console.log(`Processing ${contentItems.length} content items in ${contentBatches.length} bulk batches (${batchSize} items each)`);
         
         let totalSuccessCount = 0;
         let totalFailureCount = 0;
@@ -101,7 +101,7 @@ export class ContentBatchProcessor {
             const etaMinutes = Math.round(etaMs / 60000);
             
             const progress = Math.round((batchNumber / contentBatches.length) * 100);
-            console.log(`🔄 [${progress}%] Bulk batch ${batchNumber}/${contentBatches.length}: Processing ${contentBatch.length} content items (ETA: ${etaMinutes}m)...`);
+            console.log(`[${progress}%] Bulk batch ${batchNumber}/${contentBatches.length}: Processing ${contentBatch.length} content items (ETA: ${etaMinutes}m)...`);
             
             if (onProgress) {
                 onProgress(batchNumber, contentBatches.length, processedSoFar, contentItems.length, 'processing');
@@ -121,7 +121,7 @@ export class ContentBatchProcessor {
                 
                 // Extract batch ID from array response
                 const batchID = Array.isArray(batchIDResult) ? batchIDResult[0] : batchIDResult;
-                console.log(`📦 Batch ${batchNumber} started with ID: ${batchID}`);
+                // console.log(`📦 Batch ${batchNumber} started with ID: ${batchID}`);
                 
                 // Poll batch until completion (pass payloads for error matching)
                 const completedBatch = await pollBatchUntilComplete(
@@ -197,7 +197,7 @@ export class ContentBatchProcessor {
             }
         }
 
-        console.log(`🎯 Content batch processing complete: ${totalSuccessCount} success, ${totalFailureCount} failed`);
+        // console.log(`🎯 Content batch processing complete: ${totalSuccessCount} success, ${totalFailureCount} failed`);
         
         return {
             successCount: totalSuccessCount,
