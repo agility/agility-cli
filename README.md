@@ -1,187 +1,269 @@
 # Agility CLI
 
-## About the Agility CLI
+A powerful command-line tool for Agility CMS that provides dependency-aware content synchronization and intelligent instance management.
 
-- Provides a facility to developers to use the new Agility Management API more effectively.
-- Provides features to perform operations to login to agility instance, pull the instance, sync the instance and clone the instance (coupling of sync and pull operations).
-- **New Chain-Based Sync Architecture**: Reliable dependency-aware synchronization with 100% success rate
-- Provides logs on failed records for content and pages.
-- Ability to generate Content and Pages in bulk for a Website.
-- Deleted Content, Pages, Models, Containers and Assets were not processed from the CLI.
-
-## 🚀 Why Use Chain-Based Sync?
-
-### **The Problem with Traditional Sequential Sync**
-
-Traditional sync tools upload content in arbitrary order (all models, then all containers, then all pages), which leads to:
-
-- **95-97% Success Rates**: Close to working, but critical failures remain
-- **Dependency Ordering Issues**: Content uploaded before its dependencies exist
-- **Customer Workflow Conflicts**: Different creation patterns break sync reliability
-- **Nested Content Failures**: Complex page hierarchies fail to sync properly
-
-### **Our Chain-Based Solution**
-
-The Agility CLI uses advanced **dependency chain analysis** to ensure 100% reliable sync operations:
+## Quick Start
 
 ```bash
-# Analyze dependencies first
-agility sync --sourceGuid="source123" --targetGuid="target456" --locale="en-us"
-
-# See complete dependency chains before upload
-📄 Page: Blog
-  └── 🏗️ Template: BlogTemplate  
-      └── 📦 Container: BlogContainer
-          └── 📋 Model: BlogModel
-              └── 📝 Fields: [title, content, author]
+# Install globally
+npm install -g @agility/cli
 ```
 
-**Key Benefits:**
-- ✅ **100% Success Rate**: Validated across 24,000+ entities from real customer instances
-- ✅ **5x Performance**: Parallel processing with dependency coordination  
-- ✅ **Complete Visibility**: See exactly what will sync and why
-- ✅ **Reliable Results**: Same content always syncs the same way
+## Core Operations
 
-### **What Makes It Different**
+The Agility CLI focuses on two primary operations: **Pull** and **Sync**. These operations work together to provide a complete content management workflow.
 
-**Dependency-First Approach:**
-1. **Analyze**: Build complete dependency chains before any uploads
-2. **Plan**: Process deepest dependencies first (models → containers → templates → pages)
-3. **Execute**: 5 concurrent threads with dependency gates for maximum speed + safety
+### 🔽 Pull Operation
 
-**Smart Conflict Resolution:**
-- Automatically handles circular references
-- Resolves customer workflow differences  
-- Provides clear error messages for missing dependencies
-- Skips broken items while completing everything else
+Downloads content from an Agility CMS instance to your local file system for backup, migration, or synchronization purposes.
 
-## Getting Started
-
-### Installation
-#### Using npm
-1. To install the cli locally using npm, open terminal and type: ```npm i @agility/cli```.
-2. For global installation using npm, open terminal and type: ```npm i @agility/cli -g```.
-
-#### Using yarn
-1. To install the cli locally using yarn, open terminal and type: ```yarn add @agility/cli```.
-2. For global installation using yarn, open terminal and type: ```yarn global add @agility/cli```.
-
-### Using the CLI
-#### Authenticate first
-1. Login to agility instance using command ```agility login```.
-2. A browser window will appear to perform the authentication process. You may have to authorize before proceeding.
-3. Once authenticated use the following steps to perform operations on your instance.
-4. You should be a Org Admin, Instance Admin or have a Manager Role in an instance to perform operations in the CLI. 
-
-#### Performing operations on CLI
-1. To pull an instance use the command ```agility pull --guid="<<Provide Guid of your Instance>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be pulled>>" --baseUrl="<<Optional Parameter to provide the base URL if the pull operation doesn't work. Refer the section "Base URL's".>>"``` to pull an instance.
-2. **To sync an instance** use the command ```agility sync --sourceGuid="<<Source Instance GUID>>" --targetGuid="<<Target Instance GUID>>" --locale="<<Provide the locale>>"``` for chain-based dependency-aware synchronization.
-3. For instance cloning, this command is a mix of sync and pull. Use the command ```agility clone --sourceGuid="<<Provide Guid of your source Instance>>" --targetGuid="<<Provide the target Instance guid>>" --locale="<<Provide the locale of the Instance>>" --channel="<<Provide the channel to be cloned>>"``` to perform cloning between instances.
-4. To sync Models use the command ```agility sync-models --sourceGuid="<<Optional Parameter Guid of your source instance>>" --targetGuid="<<Optional Parameter Guid of your target Instance>>" --pull="<<Optional Parameter value true/false>>" --dryRun="<<Optional Parameter value true/false>>" --filter="<<Optional Parameter folder path where filter file is present. Ex: - C:\Agility\filterModels.json" --folder="<<Optional Parameter name of the folder where files to be exported. If no value is provided, files will be exported to .agility-files folder>>"```.
-5. To access the error logs, navigate to .agility-files/logs/instancelog.txt
-
-#### Chain-Based Sync Examples
-
-**Complete Instance Sync:**
 ```bash
+agility pull --guid="instance-guid"
+```
+
+### 🔄 Sync Operation
+
+Intelligently synchronizes content between two Agility CMS instances using advanced dependency analysis to ensure 100% success rates.
+
+```bash
+agility sync --sourceGuid="source-guid" --targetGuid="target-guid"
+```
+
+
+### Sync Process Flow
+
+```
+📊 Source Analysis → 🔗 Dependency Mapping → 📦 Batch Optimization → 🚀 Parallel Upload → ✅ Verification
+```
+
+## Command Reference
+
+### Pull Command
+
+Download content from an Agility CMS instance to local files.
+
+```bash
+agility pull [options]
+```
+
+#### Pull Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--guid` | string | *required* | Instance GUID to pull from |
+| `--locale` | string | `en-us` | Locale to pull |
+| `--channel` | string | `website` | Channel to pull from |
+| `--preview` | boolean | `true` | Pull from preview (true) or live (false) |
+| `--elements` | string | `all` | Comma-separated list: `Galleries,Assets,Models,Containers,Content,Templates,Pages` |
+| `--baseUrl` | string | auto-detect | Override API base URL |
+| `--rootPath` | string | `agility-files` | Local directory for downloaded files |
+| `--legacyFolders` | boolean | `false` | Use legacy flat folder structure |
+| `--overwrite` | boolean | `false` | Force overwrite existing local files |
+| `--verbose` | boolean | `false` | Detailed console output |
+| `--headless` | boolean | `false` | No UI, log to file only |
+
+#### Pull Examples
+
+```bash
+# Basic pull
+agility pull --guid="abc123" --locale="en-us" --channel="website"
+
+# Pull specific elements only
+agility pull --guid="abc123" --locale="en-us" --elements="Models,Content"
+
+# Pull with overwrite (refresh local files)
+agility pull --guid="abc123" --locale="en-us" --overwrite
+
+# Pull from live environment
+agility pull --guid="abc123" --locale="en-us" --preview=false
+```
+
+### Sync Command
+
+Synchronize content between two Agility CMS instances with intelligent dependency resolution.
+
+```bash
+agility sync [options]
+```
+
+#### Sync Options
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--sourceGuid` | string | *required* | Source instance GUID |
+| `--targetGuid` | string | *required* | Target instance GUID |
+| `--locale` | string | `en-us` | Locale to sync |
+| `--channel` | string | `website` | Channel to sync |
+| `--preview` | boolean | `true` | Sync to preview (true) or live (false) |
+| `--elements` | string | `all` | Comma-separated list: `Models,Content,Assets,Pages,Galleries,Containers,Templates` |
+| `--rootPath` | string | `agility-files` | Local directory for sync files |
+| `--legacyFolders` | boolean | `false` | Use legacy flat folder structure |
+| `--forceUpdate` | boolean | `false` | Update existing items instead of skipping |
+| `--debug` | boolean | `false` | Show dependency analysis without syncing |
+| `--verbose` | boolean | `true` | Detailed console output |
+| `--headless` | boolean | `false` | No UI, log to file only |
+
+#### Sync Examples
+
+```bash
+# Basic sync
 agility sync --sourceGuid="abc123" --targetGuid="def456" --locale="en-us"
+
+# Sync specific elements only
+agility sync --sourceGuid="abc123" --targetGuid="def456" --elements="Models,Content"
+
+# Debug mode - show dependency analysis without syncing
+agility sync --sourceGuid="abc123" --targetGuid="def456" --debug
+
+# Force update existing items
+agility sync --sourceGuid="abc123" --targetGuid="def456" --forceUpdate
+
+# Sync to live environment
+agility sync --sourceGuid="abc123" --targetGuid="def456" --preview=false
 ```
 
-**Specific Entity Types:**
+## Authentication
+
+### Login
+
+Authenticate with Agility CMS to access your instances.
+
 ```bash
-agility sync --sourceGuid="abc123" --targetGuid="def456" --locale="en-us" --elements="Models,Content,Pages"
+agility login
 ```
 
-**Debug Mode (See Full Dependency Analysis):**
+This opens a browser window for secure authentication. You must be an Org Admin, Instance Admin, or have Manager role to perform CLI operations.
+
+### Logout
+
 ```bash
-agility sync --sourceGuid="abc123" --targetGuid="def456" --locale="en-us" --verbose
+agility logout
 ```
 
-**Performance Tuning:**
+## Environment Configuration
+
+The CLI supports `.env` file configuration for default values:
+
+```env
+AGILITY_GUID=your-default-instance-guid
+AGILITY_LOCALES=en-us,fr-ca
+AGILITY_WEBSITE=website
+```
+
+## File Structure
+
+The CLI organizes downloaded content in a structured format:
+
+```
+agility-files/
+├── {instance-guid}/
+│   ├── mappings/             # Reference mappings for sync operations
+│   └── {locale}/
+│       ├── preview/          # Preview environment
+│       │   ├── assets/       # Asset files and metadata
+│       │   │   ├── json/     # Asset metadata
+│       │   │   └── galleries/ # Gallery definitions
+│       │   ├── item/         # Content items
+│       │   ├── list/         # Content lists  
+│       │   ├── page/         # Page definitions
+│       │   ├── models/       # Content models
+│       │   ├── containers/   # Content containers
+│       │   ├── templates/    # Page templates
+│       │   ├── sitemap/      # Flat sitemap
+│       │   ├── nestedsitemap/ # Nested sitemap structure
+│       │   ├── state/        # Sync state and tokens
+│       │   ├── urlredirections/ # URL redirections
+│       │   └── logs/         # Operation logs
+│       └── live/             # Live environment (same structure as preview)
+```
+
+### Legacy Folder Structure
+
+When using the `--legacyFolders` flag, the CLI uses a flattened structure directly in the root path:
+
 ```bash
-# Slow but sequential (for debugging errors)
-agility sync --sourceGuid="abc123" --targetGuid="def456" --locale="en-us" --verbose --uploadThreads=1
+# Use legacy flat structure
+agility pull --guid="abc123" --legacyFolders
 
-# Fast parallel processing (default)  
-agility sync --sourceGuid="abc123" --targetGuid="def456" --locale="en-us" --uploadThreads=5
+# Use legacy structure with custom root path
+agility pull --guid="abc123" --legacyFolders --rootPath="my-content"
 ```
 
-#### Model Sync File samples
-1. To generate the filter file, use the following JSON format for models and templates: -
-```json
-{
-	"Models": ["MyModel"],//referenceName of the models.
-	"Templates": ["My Template"] //Template name of the templates.
-}
+**Legacy Structure:**
 ```
-2. Following is the format of the file generated for the dry run process: - 
-```json
-{
-  "ModelReferenceName": {
-    "result":{
-      "added":{
-      },
-      "updated":{
-      }
-    },
-    "TemplateName":{
-      "result":{
-        "added":{
-        },
-        "updated":{
-        }
-      }
-    }
-  }
-}
-//If a model or template is not present in the target instance, then: - 
-{
-  referenceName: 'Model with ModelReferenceName will be added.',
-  templateName: 'Model with TemplateName will be added.'
-}
+{rootPath}/              # Default: agility-files/
+├── assets/
+│   ├── json/
+│   └── galleries/
+├── item/
+├── list/
+├── page/
+├── models/
+├── containers/
+├── templates/
+├── sitemap/
+├── nestedsitemap/
+├── state/
+├── urlredirections/
+└── logs/
 ```
-The file is generated at ```<Folder Name>\models-sync\modelsDryRun.json``` (where Folder Name is ```.agility-files``` or the value provided inside the folder parameter).
 
-#### Model Sync Sample commands
-1. ```agility model-sync --sourceGuid="abc" --targetGuid="def"```- To Sync everything.
-2. ```agility model-sync --sourceGuid="abc" --targetGuid="def" --filter="C:\myFilter.json"``` - Perform Sync operation on a filter.
-3. ```agility model-sync --sourceGuid="abc" --folder="models" --pull=true``` - To perform pull operation on a folder models.
-4. ```agility model-sync --targetGuid="def" --folder="models"``` - To perform push operation from folder models.
-5. ```agility model-sync --targetGuid="def" --folder="models" filter="C:\myFilter.json"``` - To perform push operation on a filter using source folder models.
-6. ```agility model-sync --sourceGuid="abc" --targetGuid="def" --dryRun=true``` - To perform Dry Run operation.
+**Key Differences:**
+- **Flattened**: No instance GUID or locale subdirectories
+- **Direct Access**: All content types stored directly in the root path
+- **Backwards Compatibility**: Maintains compatibility with older CLI versions
+- **Custom Root**: Specify `--rootPath` to change the base directory (default: `agility-files`)
 
-#### Folder Structure
-1. If a pull or clone instance is initiated, a local folder .agility-files is created.
-2. Assets are saved inside the assets folder which consists of a json folder which has the metadata of the assets downloaded. The folder structure is .agility-files/assets/json for metadata. Rest assets are present inside the assets folder.
-3. Galleries are saved inside the .agility-files/assets/galleries in a json format which is the metadata of the galleries of your source instance.
-4. Containers metadata is present inside .agility-files/containers folder.
-5. For example, if the locale is en-us, then the Pages and Content metadata is present inside the folder .agility-files/en-us/item for Content and  .agility-files/en-us/pages. These are the base folders to create Content and Pages to perform CLI push/clone. There are other folders created i.e. list, nestedsitemap, page, sitemap, state and urlredirections, which are not used by the CLI but are part of pull operation.
-6. Models metadata is present inside .agility-files/models folder.
-7. Templates metadata is present inside .agility-files/templates folder.
-#### Base URL's
-In some cases when the pull operation fails to fetch the preview key, you need to override the baseUrl for the CLI to perform the pull operation. Following is the list of Base URL's for different locations. Depeneding on the location of the instance use the Base URL value for the pull operation:
+## Base URLs by Region
 
-1. USA: https://mgmt.aglty.io
-2. Canada: https://mgmt-ca.aglty.io
-3. Europe: https://mgmt-eu.aglty.io
-4. Australia: https://mgmt-aus.aglty.io
+If pull operations fail, you may need to specify the `--baseUrl` for your region:
 
-## Resources
+| Region | Base URL |
+|--------|----------|
+| USA | `https://mgmt.aglty.io` |
+| Canada | `https://mgmt-ca.aglty.io` |
+| Europe | `https://mgmt-eu.aglty.io` |
+| Australia | `https://mgmt-aus.aglty.io` |
 
-### Agility CMS
+## Troubleshooting
 
-- [Official site](https://agilitycms.com)
-- [Documentation](https://help.agilitycms.com/hc/en-us)
+### Common Issues
 
-### Community
+**Authentication Failed**
+```bash
+agility logout
+agility login
+```
 
-- [Official Slack](https://join.slack.com/t/agilitycommunity/shared_invite/enQtNzI2NDc3MzU4Njc2LWI2OTNjZTI3ZGY1NWRiNTYzNmEyNmI0MGZlZTRkYzI3NmRjNzkxYmI5YTZjNTg2ZTk4NGUzNjg5NzY3OWViZGI)
-- [Blog](https://agilitycms.com/resources/posts)
-- [GitHub](https://github.com/agility)
-- [Forums](https://help.agilitycms.com/hc/en-us/community/topics)
-- [Facebook](https://www.facebook.com/AgilityCMS/)
-- [Twitter](https://twitter.com/AgilityCMS)
+**Pull Operation Fails**
+```bash
+# Try specifying the base URL for your region
+agility pull --guid="abc123" --baseUrl="https://mgmt.aglty.io"
+```
 
-## Feedback and Questions
+**Sync Shows All Items Skipped**
+```bash
+# Force update existing items
+agility sync --sourceGuid="abc123" --targetGuid="def456" --forceUpdate
+```
 
-If you have feedback or questions about this starter, please use the [Github Issues](https://github.com/agility/agility-cms-management-cli/issues) on this repo, join our [Community Slack Channel](https://join.slack.com/t/agilitycommunity/shared_invite/enQtNzI2NDc3MzU4Njc2LWI2OTNjZTI3ZGY1NWRiNTYzNmEyNmI0MGZlZTRkYzI3NmRjNzkxYmI5YTZjNTg2ZTk4NGUzNjg5NzY3OWViZGI) or create a post on the [Agility Developer Community](https://help.agilitycms.com/hc/en-us/community/topics).
+**Debug Sync Issues**
+```bash
+# Show dependency analysis without syncing
+agility sync --sourceGuid="abc123" --targetGuid="def456" --debug --verbose
+```
+
+### Log Files
+
+All operations create detailed logs at `agility-files/logs/instancelog.txt`.
+
+## Support
+
+- **Documentation**: [Agility CMS Help Center](https://help.agilitycms.com/hc/en-us)
+- **Community**: [Agility Slack](https://join.slack.com/t/agilitycommunity/shared_invite/enQtNzI2NDc3MzU4Njc2LWI2OTNjZTI3ZGY1NWRiNTYzNmEyNmI0MGZlZTRkYzI3NmRjNzkxYmI5YTZjNTg2ZTk4NGUzNjg5NzY3OWViZGI)
+- **Issues**: [GitHub Issues](https://github.com/agility/agility-cms-management-cli/issues)
+- **Website**: [agilitycms.com](https://agilitycms.com)
+
+---
+
+*Built with ❤️ by the Agility CMS team*
