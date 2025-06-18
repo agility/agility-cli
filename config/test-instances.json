@@ -86,6 +86,12 @@
       "name": "CLI Target 5",
       "description": "New blank instance for sync testing, use --dev to sync to this instance",
       "status": "Available for testing"
+    },
+    "devTarget6": {
+      "guid": "76c31e6d-u",
+      "name": "CLI Target 6",
+      "description": "New blank instance for sync testing, use --dev to sync to this instance",
+      "status": "Available for testing"
     }
   }
 } 

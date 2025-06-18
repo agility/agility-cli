@@ -942,10 +942,15 @@ yargs.command({
       type: "boolean",
       default: false,
     },
+    blessed: {
+      describe: "Use the experimental Blessed UI for sync operations.",
+      type: "boolean",
+      default: false,
+    },
     verbose: {
       describe: "Run in verbose mode: all logs to console, no UI elements. Overridden by headless.",
       type: "boolean",
-      default: false,
+      default: true,
     },
     rootPath: {
       describe: "Specify the root path for the sync operation.",
