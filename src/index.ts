@@ -1016,8 +1016,8 @@ yargs.command({
     const rootPath: string = argv.rootPath as string;
     const legacyFolders: boolean = argv.legacyFolders as boolean;
 
-    // 🔒 SAFETY CHECK: Validate target instance (bypass in debug mode for testing)
-    if (!debug) {
+    // 🔒 SAFETY CHECK: Validate target instance (enforce in debug mode for safety)
+    if (debug) {
       const { TargetInstanceValidator } = await import('./lib/services/target-instance-validator');
       const validator = new TargetInstanceValidator();
       const validation = validator.validateTargetInstance(targetGuid);
