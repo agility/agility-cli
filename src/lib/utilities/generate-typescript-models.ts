@@ -8,7 +8,6 @@ import { homePrompt } from "../prompts/home-prompt";
 import fileSystemPrompt from "../prompts/file-system-prompt";
 import { AgilityInstance } from "../../types/agilityInstance";
 import { forceDevMode } from "../../index";
-const axios = require("axios");
 
 let AI_ENDPOINT_DEV: string = "https://manager-bff-qa-git-cli-ai.publishwithagility.com/api/ai/cli/typescript-models";
 // let AI_ENDPOINT_DEV:string = "https://bff.publishwithagility.com/api/ai/cli/typescript-models";
@@ -18,7 +17,6 @@ let AI_ENDPOINT_PROD: string = "https://bff.agilitycms.com/api/ai/cli/typescript
 export default async function generateTypes(selectedInstance: AgilityInstance) {
 
   let AI_ENDPOINT: string = forceDevMode ? AI_ENDPOINT_DEV : AI_ENDPOINT_PROD;
-
 
   const locale = await localePrompt(selectedInstance);
   const filesPath = await fileSystemPrompt();
@@ -32,44 +30,54 @@ export default async function generateTypes(selectedInstance: AgilityInstance) {
 
   try {
     // lets hit the AI_ENDPOINT
-    const response = await axios.post(
-      AI_ENDPOINT,
-      {},
-      {
-        headers: {
-          "Authorization": `Bearer ${token}`,
-          "Content-Type": "application/json",
-          "agility-guid": guid,
-          "agility-locale": locale,
-        },
-        responseType: "stream",
-      }
-    );
+    const response = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        "Authorization": `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "agility-guid": guid,
+        "agility-locale": locale,
+      },
+      body: JSON.stringify({})
+    });
 
-    const reader = response.data;
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body;
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
     const decoder = new TextDecoder("utf-8");
-
     let result = "";
-    reader.on("data", (chunk: Buffer) => {
-      result += decoder.decode(chunk, { stream: true });
-    });
 
-    reader.on("end", () => {
-      const modelsFilePath = path.join(filesPath, "models.ts");
-      const cleanedResult = result.replace(/^```typescript\s*/, "").replace(/```$/, "");
-      code.createFile(modelsFilePath, cleanedResult);
-      console.log(ansiColors.green("🚀 TypeScript models generated successfully!"));
-      console.log(`\nResponse written to ${modelsFilePath}`);
-      homePrompt(true);
-    });
+    // Use ReadableStream API for streaming response
+    const readerInstance = reader.getReader();
+    
+    try {
+      while (true) {
+        const { done, value } = await readerInstance.read();
+        if (done) break;
+        result += decoder.decode(value, { stream: true });
+      }
+    } finally {
+      readerInstance.releaseLock();
+    }
 
-    await new Promise((resolve) => reader.on("end", resolve));
+    const modelsFilePath = path.join(filesPath, "models.ts");
+    const cleanedResult = result.replace(/^```typescript\s*/, "").replace(/```$/, "");
+    code.createFile(modelsFilePath, cleanedResult);
+    console.log(ansiColors.green("🚀 TypeScript models generated successfully!"));
+    console.log(`\nResponse written to ${modelsFilePath}`);
+    homePrompt(true);
+
   } catch (error) {
     const timestamp = new Date().toISOString();
     code.appendLogFile(`${timestamp} Error generating TypeScript interfaces: ${error} - ${AI_ENDPOINT}\n`);
     console.log(ansiColors.red(`Error occurred while generating TypeScript interfaces.`));
     homePrompt(true);
-
   }
 
 }

@@ -6,14 +6,85 @@ const path = require('path')
 const {sleep} = require("../util")
 const { lockSync, unlockSync, checkSync, check }  = require("proper-lockfile")
 
-// RE-ADD: Module-scoped array to store stats of saved items
-let _itemsSavedStats: Array<{ itemType: string, itemID: string | number, languageCode: string }> = [];
+// Enhanced progress tracking system
+let _itemsSavedStats: Array<{ itemType: string, itemID: string | number, languageCode: string, timestamp: number }> = [];
+let _progressByType: { [itemType: string]: number } = {};
+let _progressCallback: ((stats: ProgressStats) => void) | null = null;
+let _syncStartTime: number = 0;
+
+// Type definitions for better TypeScript support
+interface ProgressStats {
+    totalItems: number;
+    itemsByType: { [itemType: string]: number };
+    elapsedTime: number;
+    itemsPerSecond: number;
+    recentActivity: Array<{ itemType: string, itemID: string | number, timestamp: number }>;
+}
 
 require("dotenv").config({
 	path: `.env.${process.env.NODE_ENV}`,
 })
 
+/**
+ * Set a progress callback function that will be called whenever items are saved
+ * This allows the BlessedUI to get real-time updates during sync operations
+ */
+const setProgressCallback = (callback: ((stats: ProgressStats) => void) | null) => {
+    _progressCallback = callback;
+};
 
+/**
+ * Initialize progress tracking for a new sync operation
+ */
+const initializeProgress = () => {
+    _itemsSavedStats = [];
+    _progressByType = {};
+    _syncStartTime = Date.now();
+};
+
+/**
+ * Get current progress statistics without clearing the data
+ */
+const getCurrentProgress = (): ProgressStats => {
+    const now = Date.now();
+    const elapsedTime = _syncStartTime > 0 ? now - _syncStartTime : 0;
+    const totalItems = _itemsSavedStats.length;
+    const itemsPerSecond = elapsedTime > 0 ? (totalItems / elapsedTime) * 1000 : 0;
+    
+    // Get recent activity (last 10 items)
+    const recentActivity = _itemsSavedStats.slice(-10).map(item => ({
+        itemType: item.itemType,
+        itemID: item.itemID,
+        timestamp: item.timestamp
+    }));
+
+    return {
+        totalItems,
+        itemsByType: { ..._progressByType },
+        elapsedTime,
+        itemsPerSecond,
+        recentActivity
+    };
+};
+
+/**
+ * Update progress counters and trigger callback if set
+ */
+const updateProgress = (itemType: string, itemID: string | number) => {
+    const timestamp = Date.now();
+    
+    // Update stats array
+    _itemsSavedStats.push({ itemType, itemID, languageCode: 'current', timestamp });
+    
+    // Update type counters
+    _progressByType[itemType] = (_progressByType[itemType] || 0) + 1;
+    
+    // Trigger progress callback if set
+    if (_progressCallback) {
+        const currentStats = getCurrentProgress();
+        _progressCallback(currentStats);
+    }
+};
 
 /**
  * The function to handle saving/updating an item to your storage. This could be a Content Item, Page, Url Redirections, Sync State (state), or Sitemap.
@@ -52,7 +123,7 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 		fs.writeFileSync(absoluteFilePath, json);
         // console.log(`[Debug saveItem] Write successful for: ${absoluteFilePath}`);
 		
-		console.log('Successfully saved', ansiColors.cyan(itemType), ansiColors.white(itemID));
+		console.log('✓ Downloaded ', ansiColors.cyan(itemType), ansiColors.white(itemID));
 
 		if (!fs.existsSync(absoluteFilePath)) {
 			throw new Error(`File was not created: ${absoluteFilePath}`);
@@ -60,7 +131,7 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 
 		// REMOVE direct log, PUSH to stats array
         // console.log(`✓ Downloaded ${ansiColors.cyan(itemType)} (ID: ${itemID})`);
-        _itemsSavedStats.push({ itemType, itemID, languageCode });
+        updateProgress(itemType, itemID);
        
 		
 	} catch (error) {
@@ -240,11 +311,22 @@ const getFilePath = ({ options, itemType, languageCode, itemID }) => {
 		return path.join(options.rootPath, itemType, fileName);
 }
 
-// RE-ADD: New function to get and clear saved item stats
+// Enhanced function to get and clear saved item stats with progress data
 const getAndClearSavedItemStats = () => {
     const stats = [..._itemsSavedStats];
-    _itemsSavedStats = []; // Clear the buffer for the next operation
-    return stats;
+    const progressByType = { ..._progressByType };
+    const finalStats = getCurrentProgress();
+    
+    // Clear the buffers for the next operation
+    _itemsSavedStats = [];
+    _progressByType = {};
+    _syncStartTime = 0;
+    
+    return {
+        items: stats,
+        summary: finalStats,
+        itemsByType: progressByType
+    };
 };
 
 module.exports = {
@@ -254,5 +336,9 @@ module.exports = {
 	getItem,
 	clearItems,
 	mutexLock,
-    getAndClearSavedItemStats // RE-ADD Export
+    getAndClearSavedItemStats, // RE-ADD Export
+    setProgressCallback,
+    initializeProgress,
+    getCurrentProgress,
+    updateProgress
 }

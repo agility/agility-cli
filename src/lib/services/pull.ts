@@ -169,7 +169,11 @@ export class Pull {
         screen.key(['C-c'], (ch: any, key: any) => {
             if (screen && !screen.destroyed) screen.destroy();
             restoreConsole();
+            
+            // Finalize and print log file path before exiting
+            const finalizedLogPath = this.fileOps.finalizeLogFile('pull');
             process.stdout.write('\nPull operation exited via Ctrl+C.\n');
+            process.stdout.write(`Log file written to: ${finalizedLogPath}\n`);
             process.exit(0);
         });
     } else {
@@ -299,6 +303,31 @@ export class Pull {
       }
     });
 
+    // Enhanced progress tracking setup
+    if (this._useBlessedUI) {
+        // Initialize progress tracking
+        storeInterfaceFileSystem.initializeProgress();
+        
+        // Set up real-time progress callback for BlessedUI
+        storeInterfaceFileSystem.setProgressCallback((stats: any) => {
+            const contentStepIndex = pullSteps.indexOf('Content');
+            if (contentStepIndex >= 0) {
+                // Update progress bar based on item types
+                const totalProgress = Math.min(95, stats.totalItems * 2); // Cap at 95% until sync completes
+                updateProgress(contentStepIndex, 'progress', totalProgress);
+                
+                // Log detailed progress to Blessed log
+                const typeBreakdown = Object.entries(stats.itemsByType)
+                    .map(([type, count]) => `${type}: ${count}`)
+                    .join(', ');
+                
+                if (stats.totalItems % 10 === 0) { // Log every 10 items to avoid spam
+                    console.log(`Sync progress: ${stats.totalItems} items (${typeBreakdown}) - ${stats.itemsPerSecond.toFixed(1)}/sec`);
+                }
+            }
+        });
+    }
+
     // console.log(ansiColors.green("Syncing content..."));
     // Main loop for processing steps
     for (let i = 0; i < pullSteps.length; i++) {
@@ -341,7 +370,7 @@ export class Pull {
                     // if (this.isVerbose) originalConsoleLog(refreshMessage);
                     // else if (this._useBlessedUI || this.isHeadless) console.log(refreshMessage);
 
-                    // REMOVE: Deletion of sync token, items, and lists
+
                     if (fs.existsSync(syncTokenPath)) {
                         fs.rmSync(syncTokenPath);
                         const deletedTokenMsg = `  Deleted sync token: ${syncTokenPath}`;
@@ -379,35 +408,30 @@ export class Pull {
                     // Content Sync SDK handles pages, containers, content, sitemaps, redirections
                     await syncClient.runSync();
                     
-                    // MODIFICATION: Group stats by itemType before logging individually
+                    // Get enhanced sync stats
                     if (storeInterfaceFileSystem.getAndClearSavedItemStats && typeof storeInterfaceFileSystem.getAndClearSavedItemStats === 'function') {
-                        const savedItemsStats = storeInterfaceFileSystem.getAndClearSavedItemStats();
-                        if (savedItemsStats.length > 0) {
-                            // console.log("--- Items processed by Content Sync ---");
-
-                            // Group stats by itemType
-                            const groupedByType: { [key: string]: Array<{ itemType: string, itemID: string | number, languageCode: string }> } = {};
-                            savedItemsStats.forEach(stat => {
-                                if (!groupedByType[stat.itemType]) {
-                                    groupedByType[stat.itemType] = [];
-                                }
-                                groupedByType[stat.itemType].push(stat);
+                        const syncResults = storeInterfaceFileSystem.getAndClearSavedItemStats();
+                        
+                        // Log summary by item type
+                        const typeBreakdown = Object.entries(syncResults.itemsByType)
+                            .map(([type, count]) => `${type}: ${count}`)
+                            .join(', ');
+                        
+                        const summary = syncResults.summary;
+                        console.log(`✓ Content Sync completed: ${summary.totalItems} items in ${(summary.elapsedTime / 1000).toFixed(1)}s`);
+                        console.log(`  Breakdown: ${typeBreakdown}`);
+                        console.log(`  Performance: ${summary.itemsPerSecond.toFixed(1)} items/sec`);
+                        
+                        // Detailed logging for verbose mode
+                        if (this.isVerbose) {
+                            console.log("--- Detailed Sync Results ---");
+                            Object.entries(syncResults.itemsByType).forEach(([itemType, count]) => {
+                                console.log(`  ${ansiColors.cyan(itemType)}: ${count} items`);
                             });
-
-                            // Log items, grouped by type
-                            // You might want to define a specific order for itemTypes if needed, e.g., ['item', 'list', 'page', ...]
-                            // For now, it will log based on the order types were encountered or Object.keys order.
-                            for (const itemType in groupedByType) {
-                                groupedByType[itemType].forEach(stat => {
-                                    console.log(`✓ Downloaded ${ansiColors.cyan(stat.itemType)} (ID: ${stat.itemID})`);
-                                });
-                            }
-                            // console.log("-------------------------------------");
                         }
                     }
-                    // END MODIFICATION
 
-                    // After sync, count the items in the 'item' folder
+                    // After sync, count the items in the 'item' folder for verification
                     const itemsPath = path.join(instanceSpecificPath, "item");
                     let itemCount = 0;
                     let itemsFoundMessage = "Content items sync attempted.";
@@ -415,19 +439,15 @@ export class Pull {
                         if (fs.existsSync(itemsPath)) {
                             const files = fs.readdirSync(itemsPath);
                             itemCount = files.filter(file => path.extname(file).toLowerCase() === '.json').length;
-                            itemsFoundMessage = `Found ${itemCount} content item(s).`;
+                            itemsFoundMessage = `Verified ${itemCount} content item(s) on disk.`;
                         }
                     } catch (countError: any) { itemsFoundMessage = `Error counting items: ${countError.message}`; }
 
-                    
-                    const contentSyncMessage = `${stepName} synchronized. ${itemsFoundMessage}`;
-                    // this._forceOverwrite ? console.log(`✓ ${contentSyncMessage}`) : ''; 
+                    console.log(itemsFoundMessage);
                     updateProgress(currentStepIndex, 'success', 100);
 
                 } catch (syncError: any) {
-                    // console.error(`!!!!!! SYNC CLIENT ERROR in pull.ts for Content step !!!!!!`);
-                    // console.error(`Error Name: ${syncError.name}`);
-                    // console.error(`Error Message: ${syncError.message}`);
+                    
                     if (syncError.stack) {
                         console.error(`Error Stack: ${syncError.stack}`);
                     }
@@ -521,7 +541,11 @@ export class Pull {
 
     // restoreConsole(); // Generally handled by Ctrl+C for Blessed, or not needed for others unless errors occurred early.
     const finalizedLogPath = this.fileOps.finalizeLogFile('pull');
-    originalConsoleLog(`
+    
+    // Only show log file path if NOT using Blessed UI
+    if (!this._useBlessedUI) {
+        originalConsoleLog(`
 Log file written to: ${finalizedLogPath}`);
+    }
   }
 }

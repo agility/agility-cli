@@ -2,8 +2,7 @@ import * as agilitySync from "@agility/content-sync";
 import * as mgmtApi from "@agility/management-sdk";
 import * as cliProgress from "cli-progress";
 import * as path from "path";
-// fs might be re-introduced if Pull.pullInstance needs custom file moving for sync output.
-// const fs = require("fs");
+
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
 export class sync {
@@ -67,8 +66,7 @@ export class sync {
       },
     });
 
-    // TODO: Temporarily disabled for pure Management SDK testing
-    // const syncResult = await syncClient.runSync();
+
     const syncResult = { status: 'disabled', message: 'runSync temporarily disabled for Management SDK testing' };
     return syncResult;
   }
@@ -79,27 +77,5 @@ export class sync {
   // getPages method has been ENTIRELY REMOVED.
   // Pages are now handled by the Content Sync SDK directly in the sync() method
 
-  /**
-   * DEPRECATED_CANDIDATE
-   * This method previously handled a full pull, including base sync, file moving, and fetching pages/templates.
-   * Its responsibilities are being superseded by the new `Pull` service (`src/lib/services/pull.ts`).
-   * For now, it can serve as a way to trigger the base sync via `this.sync()`.
-   * The complex file moving logic has been removed as it was likely redundant or problematic.
-   * The `Pull.pullInstance` will manage the overall pull process, including calling the new downloaders.
-   */
-  async pullFiles(guid: string, locale: string, isPreview: boolean = true): Promise<boolean> {
-    console.log(colors.yellow("Note: sync.pullFiles() is being refactored. Prefer using the new Pull service when available."));
-    
-    try {
-      await this.sync(guid, locale, isPreview); // Perform the base sync
-      // Post-sync operations (fetching all pages, templates, assets etc.) will be handled by the Pull service.
-      return true; // Indicates base sync part was attempted.
-    } catch (error) {
-      console.error(colors.red(`Error during base sync in pullFiles for ${guid}/${locale}:`), error);
-      return false;
-    }
-  }
-}
 
-// Adding ansi-colors for the warning message in pullFiles
-const colors = require("ansi-colors");
+}

@@ -173,7 +173,7 @@ export class assets {
             originUrl,
             fileExport.getDataFolderPath(`${assetFolderPath}/${fileName}`)
           );
-          console.log('✓ Downloaded file', ansiColors.underline(fileName || originUrl.split('/').pop()));
+          console.log('✓ Downloaded file', ansiColors.cyan.underline(fileName || originUrl.split('/').pop()));
           totalSuccessfullyDownloaded++;
         } catch (downloadError: any) {
           console.error('✗ Failed to download file', ansiColors.red(fileName || originUrl.split('/').pop()), ansiColors.gray(downloadError.message ? `- ${downloadError.message}` : ''));
@@ -224,7 +224,7 @@ export class assets {
                 originUrl,
                 fileExport.getDataFolderPath(`${assetFolderPath}/${fileName}`)
               );
-              console.log('✓ Downloaded file', ansiColors.underline(fileName || originUrl.split('/').pop()));
+              console.log('✓ Downloaded file', ansiColors.cyan.underline(fileName || originUrl.split('/').pop()));
               totalSuccessfullyDownloaded++;
             } catch (downloadError: any) {
               console.error('✗ Failed to download file', ansiColors.red(fileName || originUrl.split('/').pop()), ansiColors.gray(downloadError.message ? `- ${downloadError.message}` : ''));

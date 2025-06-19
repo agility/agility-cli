@@ -14,22 +14,17 @@ import ansiColors = require("ansi-colors");
 import { homePrompt } from "../prompts/home-prompt";
 import fileSystemPrompt from "../prompts/file-system-prompt";
 
-
-
 import { AgilityInstance } from "../../types/agilityInstance";
-const axios = require("axios");
 
 let AI_ENDPOINT: string = "https://4a3b-2607-fea8-7d60-2b00-1d24-b69c-b93f-b227.ngrok-free.app/api/ai/cli/react-components";
 let auth: Auth;
 
-export default async function generateReactComponents(selectedInstance: AgilityInstance) {
+export default async function generateReactComponents(selectedInstance: AgilityInstance): Promise<boolean> {
   const locale = await localePrompt(selectedInstance);
 
   console.log(locale)
 
   const filesPath = await fileSystemPrompt();
-
-
 
   auth = new Auth();
   let code = new fileOperations(process.cwd(), selectedInstance.guid, locale, true);
@@ -42,57 +37,52 @@ export default async function generateReactComponents(selectedInstance: AgilityI
   let token = await auth.cliPoll(form, guid);
 
   try {
-
     console.log('\n')
     let str = "🤖 AI Generating React Components";
-    // const rainbow = chalkAnimation.pulse(str);
-
-    // // Add a new dot every second
-    // let dotCount = 0;
-    // setInterval(() => {
-    //   if (dotCount === 3) {
-    //   str = "🤖 AI Generating React Components";
-    //   dotCount = 0;
-    //   } else {
-    //   str += '.';
-    //   dotCount++;
-    //   }
-    //   rainbow.replace(str);
-    // }, 1000);
-
 
     // lets hit the AI_ENDPOINT
-    const response = await axios.post(
-      AI_ENDPOINT,
-      {},
-      {
-        headers: {
-          AUTHORIZATION: `Bearer ${token.access_token}`,
-          "Content-Type": "application/json",
-          "agility-guid": guid,
-          "agility-locale": locale,
-        },
-        responseType: "stream",
-      }
-    );
+    const response = await fetch(AI_ENDPOINT, {
+      method: 'POST',
+      headers: {
+        "Authorization": `Bearer ${token.access_token}`,
+        "Content-Type": "application/json",
+        "agility-guid": guid,
+        "agility-locale": locale,
+      },
+      body: JSON.stringify({})
+    });
 
-    const reader = response.data;
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+    }
+
+    const reader = response.body;
+    if (!reader) {
+      throw new Error('No response body');
+    }
+
     const decoder = new TextDecoder("utf-8");
-
     let result = "";
-    reader.on("data", (chunk: Buffer) => {
-      result += decoder.decode(chunk, { stream: true });
-    });
 
-    reader.on("end", () => {
+    // Use ReadableStream API for streaming response
+    const readerInstance = reader.getReader();
+    
+    try {
+      while (true) {
+        const { done, value } = await readerInstance.read();
+        if (done) break;
+        result += decoder.decode(value, { stream: true });
+      }
+    } finally {
+      readerInstance.releaseLock();
+    }
 
-      console.log(result)
+    console.log(result);
+    return true;
 
-    });
-
-    return await new Promise((resolve) => reader.on("end", resolve));
   } catch (error) {
     console.error("Error occurred while hitting AI_ENDPOINT:", error);
+    return false;
   }
 
 }

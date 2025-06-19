@@ -142,14 +142,7 @@ export class TopologicalContentSync {
     private enforceElementDependencies(requestedElements: string[]): string[] {
         const enforcedElements = new Set(requestedElements);
 
-        // Dependency rules based on legacy sync insights
-        // if (enforcedElements.has('Pages')) {
-        //     enforcedElements.add('Templates');
-        //     enforcedElements.add('Containers'); 
-        //     enforcedElements.add('Content');
-        //     enforcedElements.add('Assets');
-        //     enforcedElements.add('Galleries');
-        // }
+        
 
         if (enforcedElements.has('Content')) {
             enforcedElements.add('Containers');
@@ -301,36 +294,13 @@ export class TopologicalContentSync {
                 }
             }
 
-            // Run sophisticated topological dependency analysis
-            if(this.syncOptions.debug) {
-                // const analysisRunner = new ComprehensiveAnalysisRunner();
-                
 
-                // const analysisContext: any = {
-                //     sourceGuid: this.sourceGuid,
-                //     locale: this.locale,
-                //     isPreview: this.isPreview,
-                //     rootPath: this.rootPath,
-                //     legacyFolders: this.legacyFolders,
-                //     debug: this.syncOptions.debug || false,
-                //     elements: this.elements
-                // };
-                // analysisRunner.initialize(analysisContext);
-                // const analysisResults = analysisRunner.runComprehensiveAnalysis(sourceData);
-             }
 
             // Set up API client and reference mapper  
             const apiClient = new mgmtApi.ApiClient(this.options);
             referenceMapper = new ReferenceMapper(this.sourceGuid, this.targetGuid, this.rootPath, this.legacyFolders);
             
-            // Debug mode - show analysis results and exit
-           
-            // allowing true sync on debug for now
-            // if (this.syncOptions.debug) {
-            //     console.log(ansiColors.blue(`\n🔍 DEBUG MODE: Analysis complete - Ready to sync from ${this.sourceGuid} → ${this.targetGuid}`));
-            //     console.log(ansiColors.gray('   💡 Use sync without --debug flag to proceed with actual sync operation'));
-            //     return;
-            // }
+
 
             // Real sync execution
             // Note: Force update should preserve existing mappings and use target IDs

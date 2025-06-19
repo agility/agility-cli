@@ -1,3 +1,4 @@
+import axios, { AxiosInstance } from "axios";
 import { cliToken } from "../../types/cliToken";
 import { fileOperations } from "./fileOperations";
 import { serverUser } from "../../types/serverUser";
@@ -25,52 +26,68 @@ function logReplace(text) {
 }
 
 export class Auth {
-  private insecureMode: boolean = false;
-
-  constructor(insecureMode: boolean = false) {
-    this.insecureMode = insecureMode;
-  }
-
-  setInsecureMode(insecure: boolean) {
-    this.insecureMode = insecure;
-  }
-
+  /**
+   * Creates an HTTPS agent with SSL certificate error handling
+   * This helps resolve "unable to get local issuer certificate" errors
+   */
   private createHttpsAgent() {
-    if (this.insecureMode) {
-      return new https.Agent({
-        rejectUnauthorized: false
-      });
-    }
-    return undefined;
+    return new https.Agent({
+      // In production, we still want to verify certificates but handle common corporate environment issues
+      rejectUnauthorized: true,
+      // Allow self-signed certificates in development/local mode only
+      ...(forceLocalMode && { rejectUnauthorized: false }),
+      // Increase timeout for slow corporate networks
+      timeout: 30000,
+      // Enable SNI (Server Name Indication) support
+      servername: undefined,
+    });
   }
 
-  private getFetchConfig(): RequestInit {
-    const config: RequestInit = {
-      headers: {
-        'Cache-Control': 'no-cache',
-        'User-Agent': 'agility-cli-fetch/1.0'
-      }
+  /**
+   * Creates axios configuration with SSL error handling
+   */
+  private getAxiosConfig(baseURL: string) {
+    const config: any = {
+      baseURL,
+      timeout: 30000, // 30 second timeout
+      // Add HTTPS agent for SSL handling
+      httpsAgent: this.createHttpsAgent(),
     };
 
-    if (this.insecureMode) {
-      // For fetch with Node.js, we need to handle SSL differently
-      // This is a simplified approach - in production, you might need more sophisticated SSL handling
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    // For development/local environments, disable SSL verification
+    if (forceLocalMode || process.env.NODE_ENV === 'development') {
+      config.httpsAgent = new https.Agent({
+        rejectUnauthorized: false
+      });
     }
 
     return config;
   }
 
+  /**
+   * Enhanced error handler for SSL certificate issues
+   */
   private handleSSLError(error: any): never {
     if (error.code === 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY' || 
+        error.code === 'UNABLE_TO_VERIFY_LEAF_SIGNATURE' ||
+        error.code === 'CERT_UNTRUSTED' ||
         error.code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
-        error.message?.includes('certificate')) {
-      console.error('❌ SSL Certificate Error detected.');
-      console.error('This often happens in corporate environments with proxy servers.');
-      console.error('Try running with the --insecure flag to bypass SSL verification:');
-      console.error('  npx agility login --insecure');
-      console.error('  npx agility pull --insecure --guid <your-guid>');
-      console.error('  npx agility sync --insecure --sourceGuid <guid1> --targetGuid <guid2>');
+        error.message?.includes('unable to get local issuer certificate')) {
+      
+      console.error(ansiColors.red('\n❌ SSL Certificate Error Detected'));
+      console.error(ansiColors.yellow('This error commonly occurs in corporate environments with proxy servers or custom certificates.\n'));
+      
+      console.error(ansiColors.cyan('🔧 Potential Solutions:'));
+      console.error(ansiColors.white('1. Set environment variable: ') + ansiColors.green('export NODE_TLS_REJECT_UNAUTHORIZED=0'));
+      console.error(ansiColors.white('2. Use the --local flag for development: ') + ansiColors.green('agility login --local'));
+      console.error(ansiColors.white('3. Configure your system certificate store'));
+      console.error(ansiColors.white('4. Check with your IT department about corporate proxy/firewall settings\n'));
+      
+      console.error(ansiColors.yellow('⚠️  For immediate testing, you can run:'));
+      console.error(ansiColors.green('   export NODE_TLS_REJECT_UNAUTHORIZED=0 && agility login'));
+      console.error(ansiColors.red('   (Warning: This disables SSL verification globally)\n'));
+      
+      throw new Error(`SSL Certificate Error: ${error.message || error.code}`);
     }
     throw error;
   }
@@ -141,6 +158,7 @@ export class Auth {
   }
 
   determineBaseUrl(guid?: string, userBaseUrl: string = null): string {
+
     if (userBaseUrl) {
       return userBaseUrl;
     }
@@ -150,9 +168,11 @@ export class Auth {
     if (forceDevMode) {
       return "https://mgmt-dev.aglty.io";
     }
+
     if (forcePreProdMode) {
       return "https://management-api-us-pre-prod.azurewebsites.net";
     }
+
 
     if (guid?.endsWith("d")) {
       return "https://mgmt-dev.aglty.io";
@@ -168,12 +188,13 @@ export class Auth {
     return "https://mgmt.aglty.io";
   }
 
-  getBaseUrl(guid: string, userBaseUrl: string = null): string {
+  getInstance(guid: string, userBaseUrl: string = null): AxiosInstance {
     let baseUrl = this.determineBaseUrl(guid, userBaseUrl);
-    return `${baseUrl}/oauth`;
+    let instance = axios.create(this.getAxiosConfig(`${baseUrl}/oauth`));
+    return instance;
   }
 
-  getBaseUrlPoll(): string {
+  getInstancePoll(): AxiosInstance {
     let baseURL = "https://mgmt.aglty.io";
 
     if (forceDevMode) {
@@ -188,81 +209,36 @@ export class Auth {
       baseURL = "https://localhost:5050";
     }
 
-    return `${baseURL}/oauth`;
+    let instance = axios.create(this.getAxiosConfig(`${baseURL}/oauth`));
+    return instance;
   }
 
   async executeGet(apiPath: string, guid: string, userBaseUrl: string = null) {
-    const baseUrl = this.getBaseUrl(guid, userBaseUrl);
-    const url = `${baseUrl}${apiPath}`;
-    
+    let instance = this.getInstance(guid, userBaseUrl);
     try {
-      // Get the token for authorization
-      const token = await this.getToken();
-      
-      const response = await fetch(url, {
-        method: 'GET',
+      const resp = await instance.get(apiPath, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'no-cache',
-          'User-Agent': 'agility-cli-fetch/1.0'
-        }
+          "Cache-Control": "no-cache",
+        },
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText} for ${url}`);
-      }
-
-      // Try to parse as JSON first, if that fails, return as text
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        return await response.json();
-      } else {
-        // For non-JSON responses (like preview/fetch keys), return the text directly
-        const textResponse = await response.text();
-        // Handle both quoted and unquoted string responses
-        return textResponse.startsWith('"') && textResponse.endsWith('"') 
-          ? textResponse.slice(1, -1) 
-          : textResponse;
-      }
+      return resp;
     } catch (err) {
+      // Handle SSL certificate errors with helpful messages
       this.handleSSLError(err);
     }
   }
 
   async executePost(apiPath: string, guid: string, data: any) {
-    const baseUrl = this.getBaseUrlPoll();
-    const url = `${baseUrl}${apiPath}`;
-    
+    let instance = this.getInstancePoll();
     try {
-      let body: string | FormData | URLSearchParams;
-      let headers: Record<string, string> = {
-        'Cache-Control': 'no-cache',
-        'User-Agent': 'agility-cli-fetch/1.0'
-      };
-
-      if (data instanceof FormData) {
-        body = data;
-        // Don't set Content-Type for FormData, let fetch set it with boundary
-      } else if (data instanceof URLSearchParams) {
-        body = data;
-        headers['Content-Type'] = 'application/x-www-form-urlencoded';
-      } else {
-        body = JSON.stringify(data);
-        headers['Content-Type'] = 'application/json';
-      }
-
-      const response = await fetch(url, {
-        method: 'POST',
-        body: body,
-        headers: headers
+      const resp = await instance.post(apiPath, data, {
+        headers: {
+          "Cache-Control": "no-cache",
+        },
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText} for ${url}`);
-      }
-
-      return await response.json();
+      return resp;
     } catch (err) {
+      // Handle SSL certificate errors with helpful messages
       this.handleSSLError(err);
     }
   }
@@ -277,7 +253,6 @@ export class Auth {
     await open(authUrl);
     return code;
   }
-
   async checkAuthorization(): Promise<boolean> {
     const env = this.getEnv();
     const key = this.getEnvKey(env);
@@ -313,9 +288,9 @@ export class Auth {
     return new Promise((resolve, reject) => {
       const interval = setInterval(async () => {
         try {
-          const params = new URLSearchParams();
-          params.append("cliCode", cliCode);
-          const token = await this.cliPoll(params);
+          const form = new FormData();
+          form.append("cliCode", cliCode);
+          const token = await this.cliPoll(form);
 
           if (token && token.access_token && token.expires_in && token.timestamp) {
             // Store token in keytar
@@ -334,45 +309,6 @@ export class Auth {
       setTimeout(() => {
         clearInterval(interval);
         reject(new Error("Authorization timed out after 60 seconds."));
-      }, 60000);
-    });
-  }
-
-  async login() {
-    console.log("🔑 Authenticating to Agility CMS...");
-    
-    const env = this.getEnv();
-    const key = this.getEnvKey(env);
-    
-    const cliCode = await this.authorize();
-    logReplace("\rWaiting for authentication in your browser...");
-
-    return new Promise((resolve, reject) => {
-      const interval = setInterval(async () => {
-        try {
-          // Create URLSearchParams directly instead of FormData
-          const params = new URLSearchParams();
-          params.append("cliCode", cliCode);
-          
-          const token = await this.cliPoll(params, "blank-d");
-
-          if (token && token.access_token && token.expires_in && token.timestamp) {
-            // Store token in keytar
-            console.log(ansiColors.green(`\r🔑 Authenticated to ${env} servers.\n`));
-            console.log("----------------------------------\n");
-
-            await keytar.setPassword(SERVICE_NAME, key, JSON.stringify(token));
-            clearInterval(interval);
-            resolve(true);
-          }
-        } catch (err) {
-          // Keep polling - user hasn't completed OAuth yet
-        }
-      }, 2000);
-
-      setTimeout(() => {
-        clearInterval(interval);
-        reject(new Error("Authentication timed out after 60 seconds."));
       }, 60000);
     });
   }
@@ -407,72 +343,79 @@ export class Auth {
     }
   }
 
-  async cliPoll(data: FormData | URLSearchParams, guid: string = "blank-d") {
+
+
+  async cliPoll(formData: FormData, guid: string = "blank-d") {
+    let apiPath = `CliPoll`;
     try {
-      // Just pass the data directly - both FormData and URLSearchParams should work with fetch
-      const result = await this.executePost("/CliPoll", guid, data);
-      
-      // Add timestamp if it's missing
-      if (result.access_token && !result.timestamp) {
-        result.timestamp = new Date().toISOString();
-      }
-      
-      return result;
-    } catch (err) {
-      throw new Error(`during CLI poll: ${err.message}`);
+      const response = await this.executePost(apiPath, guid, formData);
+      return response.data as cliToken;
+    } catch (error) {
+      console.error("Error during CLI poll:", error);
+      throw error;
     }
   }
 
   async getPreviewKey(guid: string, userBaseUrl: string = null) {
+    let baseUrl = this.determineBaseUrl(guid, userBaseUrl);
+    let apiPath = `GetPreviewKey?guid=${guid}`;
     try {
-      const result = await this.executeGet("/GetPreviewKey?guid=" + guid, guid, userBaseUrl);
-      // The API returns a raw string, not a JSON object with a previewKey property
-      return result;
-    } catch (err) {
-      throw err;
+      const response = await this.executeGet(apiPath, guid, baseUrl);
+      return response.data as string;
+    } catch {
+      return null;
     }
   }
 
   async getFetchKey(guid: string, userBaseUrl: string = null) {
+    let baseUrl = this.determineBaseUrl(guid, userBaseUrl);
+    let apiPath = `GetFetchKey?guid=${guid}`;
     try {
-      const result = await this.executeGet("/GetFetchKey?guid=" + guid, guid, userBaseUrl);
-      // The API returns a raw string, not a JSON object with a fetchKey property
-      return result;
-    } catch (err) {
-      throw err;
+      const response = await this.executeGet(apiPath, guid, baseUrl);
+      return response.data as string;
+    } catch {
+      return null;
     }
   }
 
   async checkUserRole(guid: string) {
+    let baseUrl = this.determineBaseUrl(guid);
+    let access = false;
+
+    let instance = axios.create(this.getAxiosConfig(`${baseUrl}/api/v1/`));
+    let apiPath = `/instance/${guid}/user`;
+
+    const token = await this.getToken();
+
     try {
-      // Use the existing getUser method which calls /users/me correctly
-      const userData = await this.getUser(guid);
-      
-      // Find the website access for this specific instance
-      const instanceAccess = userData.websiteAccess?.find(access => access.guid === guid);
-      
-      if (!instanceAccess) {
-        console.log(ansiColors.red(`❌ You do not have access to instance: ${guid}`));
-        console.log(ansiColors.yellow(`Contact your instance administrator to get access.`));
-        return { hasPermission: false, role: null };
-      }
-      
-      // Check if user is owner of this instance
-      if (instanceAccess.isOwner) {
-        return { hasPermission: true, role: "Owner" };
+      const resp = await instance.get(apiPath, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+        },
+      });
+
+      let webSiteUser = resp.data as WebsiteUser;
+
+      if (webSiteUser.isOrgAdmin) {
+        access = true;
       } else {
-        // Non-owners still have manager-level access in Agility CMS
-        // For sync operations, we'll allow any user with access
-        return { hasPermission: true, role: "Manager" };
+        for (let i = 0; i < webSiteUser.userRoles.length; i++) {
+          let role = webSiteUser.userRoles[i];
+          if (role.name === "Manager" || role.name === "Administrator") {
+            access = true;
+          }
+        }
       }
-    } catch (err) {
-      console.log(ansiColors.red(`Error checking user role: ${err}`));
-      console.log(ansiColors.yellow(`You do not have the required permissions on the target instance ${guid}.`));
-      return { hasPermission: false, role: null };
+    } catch (error) {
+      // Handle SSL certificate errors with helpful messages
+      this.handleSSLError(error);
     }
+
+    return access;
   }
 
-  async getUser(guid?: string): Promise<serverUser> {
+  async getUser(guid?: string) {
     let baseUrl = this.determineBaseUrl(guid);
     let apiPath = "/users/me";
     let endpoint = `${baseUrl}/api/v1${apiPath}`;
@@ -506,6 +449,7 @@ export class Auth {
         throw new Error("User does not have access to any instances.");
       }
 
+
       return data;
     } catch (error) {
       console.error('Error fetching user:', error);
@@ -513,29 +457,24 @@ export class Auth {
     }
   }
 
-  async getUsers(guid: string, userBaseUrl: string = null): Promise<serverUser[]> {
-    const baseUrl = this.determineBaseUrl(guid, userBaseUrl);
+  async getUsers(guid: string, userBaseUrl: string = null) {
+    let apiPath = `/instance/${guid}/user/list`;
+    let baseUrl = this.determineBaseUrl(guid, userBaseUrl);
+    let instance = axios.create(this.getAxiosConfig(`${baseUrl}/api/v1/`));
     const token = await this.getToken();
-
     try {
-      const response = await fetch(`${baseUrl}/api/v1/instance/${guid}/users`, {
-        method: 'GET',
+      const resp = await instance.get(apiPath, {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'no-cache',
-          'User-Agent': 'agility-cli-fetch/1.0'
-        }
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+        },
       });
-
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
-      }
-
-      return await response.json();
-    } catch (err) {
-      this.handleSSLError(err);
+      return resp.data as serverUser;
+    }
+    catch (error) {
+      // Handle SSL certificate errors with helpful messages
+      this.handleSSLError(error);
     }
   }
 }
-
 
