@@ -38,6 +38,9 @@
     "agility-cli": "dist/index.js",
     "agility": "dist/index.js"
   },
+  "overrides": {
+    "rxjs": "^7.8.2"
+  },
   "dependencies": {
     "@agility/content-fetch": "^2.0.8",
     "@agility/content-sync": "^1.1.9",
