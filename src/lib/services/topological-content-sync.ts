@@ -267,7 +267,8 @@ export class TopologicalContentSync {
                     this.blessedUIEnabled, // Preserve UI mode
                     this.isHeadless, // Pass through from sync args
                     this.isVerbose, // Pass through from sync args
-                    false // forceOverwrite - don't force overwrite for automatic pull
+                    false, // forceOverwrite - don't force overwrite for automatic pull
+                    false // isLowMemoryMode - default to false for automatic pull
                 );
                 
                 try {

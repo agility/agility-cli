@@ -304,9 +304,15 @@ yargs.command({
       default: false
     },
     verbose: {
-      describe: "Run in verbose mode: all logs to console, no UI elements. Overridden by headless.",
+      describe: "Run in verbose mode: detailed console output. Overrides Blessed UI.",
       type: "boolean",
-      default: false
+      default: false,
+    },
+    // NEW: Low-memory mode flag
+    lowMemory: {
+      describe: "Use low-memory mode: reduced UI features, minimal buffering for large downloads.",
+      type: "boolean",
+      default: false,
     },
     overwrite: {
       describe: "Force overwrite existing local files and metadata.",
@@ -333,7 +339,7 @@ yargs.command({
     const userBaseUrl: string = argv.baseUrl as string;
     const legacyFolders: boolean = argv.legacyFolders as boolean;
     const rootPath: string = instanceMainDirName;
-    const { blessed, headless, verbose, overwrite } = argv;
+    const { blessed, headless, verbose, overwrite, lowMemory } = argv;
 
     const envCheck = auth.checkForEnvFile();
     if (envCheck.hasEnvFile) {
@@ -413,7 +419,8 @@ yargs.command({
         useBlessed,
         useHeadless,
         useVerbose,
-        overwrite // Add the overwrite flag
+        overwrite, // Add the overwrite flag
+        lowMemory // Add the lowMemory flag
       );
 
       await pullOperation.pullInstance();

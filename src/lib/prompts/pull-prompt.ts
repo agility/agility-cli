@@ -114,7 +114,8 @@ async function downloadFiles(guid: string, locale: any, channel: any, baseUrl: a
                 useBlessedUI,
                 false, // isHeadlessMode - this needs to come from index.ts if applicable here
                 false, // isVerboseMode - this needs to come from index.ts if applicable here
-                forceOverwrite // Pass the overall overwrite decision
+                forceOverwrite, // Pass the overall overwrite decision
+                false // isLowMemoryMode - default to false for prompt-based pulls
             );
 
             try {

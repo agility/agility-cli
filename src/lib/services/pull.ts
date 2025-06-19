@@ -36,6 +36,7 @@ export class Pull {
   private _useBlessedUI: boolean; // This will be determined by the new flags
   private isHeadless: boolean;
   private isVerbose: boolean;
+  private isLowMemory: boolean; // NEW: Low memory mode flag
   private fileOps: fileOperations; // For logging to file in headless mode
   private _forceOverwrite: boolean; // Renamed and will be used globally
 
@@ -54,7 +55,8 @@ export class Pull {
     useBlessedArgument: boolean = true, // Default to true if not specified, aligns with old blessed flag
     isHeadlessMode: boolean = false,
     isVerboseMode: boolean = false,
-    forceOverwrite: boolean = false // Updated parameter name
+    forceOverwrite: boolean = false, // Updated parameter name
+    isLowMemoryMode: boolean = false // NEW: Low memory mode
   ) {
     this._guid = guid;
     this._apiKey = apiKey;
@@ -70,8 +72,10 @@ export class Pull {
 
     this.isHeadless = isHeadlessMode;
     this.isVerbose = !this.isHeadless && isVerboseMode; // verbose is overridden by headless
+    this.isLowMemory = isLowMemoryMode; // Store low memory flag
     // _useBlessedUI is true if the blessed argument is true, AND we are not in headless or verbose mode.
-    this._useBlessedUI = useBlessedArgument && !this.isHeadless && !this.isVerbose;
+    // In low memory mode, disable blessed UI to reduce memory usage
+    this._useBlessedUI = useBlessedArgument && !this.isHeadless && !this.isVerbose && !this.isLowMemory;
     this.fileOps = new fileOperations(rootPath, guid, locale, isPreview); // Initialize for potential file logging
   }
 
@@ -122,7 +126,10 @@ export class Pull {
         // Blessed UI Mode setup
         screen = blessed.screen({
             smartCSR: true,
-            title: 'Agility CLI - Pull Operation'
+            title: 'Agility CLI - Pull Progress',
+            dockBorders: true,
+            fullUnicode: true,
+            autoPadding: true
         });
 
         const grid = new contrib.grid({
@@ -130,36 +137,62 @@ export class Pull {
             cols: 12,
             screen: screen
         });
-        
-        progressContainerBox = grid.set(0, 0, 11, 4, blessed.box, {
+
+        progressContainerBox = grid.set(0, 0, 12, 4, blessed.box, {
             label: ' Progress ',
             border: { type: 'line' },
-            style: { border: { fg: 'cyan' } }
+            style: { border: { fg: 'blue' } },
+            padding: { left: 1, right: 1, top: 0, bottom: 0 } // Remove top/bottom padding
         });
-
         // pullSteps needs to be defined before creating progress bars for them
         // This part of UI setup must come after pullSteps is defined
 
-        logContainer = grid.set(0, 4, 11, 8, blessed.log, {
+        // Create log container with memory-efficient settings  
+        logContainer = grid.set(0, 4, 12, 8, blessed.log, {
             label: ' Logs ',
             border: { type: 'line' },
             style: { border: { fg: 'green' } },
-            padding: { left: 1, right: 1, top: 1, bottom: 1 },
+            padding: { left: 1, right: 1, top: 0, bottom: 0 }, // Remove top/bottom padding
             scrollable: true,
             alwaysScroll: true,
             scrollbar: { ch: ' ', inverse: true },
             keys: true,
-            vi: true
+            vi: true,
+            // MEMORY FIX: Limit buffer size to prevent memory bloat
+            bufferLength: 1000  // Keep only last 1000 log entries
         });
 
+        // Memory-efficient console override with circular buffer
+        let logBuffer: string[] = [];
+        const MAX_LOG_BUFFER = 1000;
+        
         console.log = (...args: any[]) => {
             const message = args.map(arg => String(arg)).join(' ');
+            
+            // Add to circular buffer (remove oldest if over limit)
+            if (logBuffer.length >= MAX_LOG_BUFFER) {
+                logBuffer.shift(); // Remove oldest entry
+            }
+            logBuffer.push(message);
+            
+            // Only show in blessed UI
             if (logContainer) logContainer.log(message);
+            
+            // Always log to file
             this._logToFile(message);
         };
+        
         console.error = (...args: any[]) => {
             const rawMessage = args.map(arg => String(arg)).join(' ');
-            if (logContainer) logContainer.log(`ERROR: ${rawMessage}`);
+            const errorMessage = `ERROR: ${rawMessage}`;
+            
+            // Add to circular buffer (remove oldest if over limit)
+            if (logBuffer.length >= MAX_LOG_BUFFER) {
+                logBuffer.shift(); // Remove oldest entry
+            }
+            logBuffer.push(errorMessage);
+            
+            if (logContainer) logContainer.log(errorMessage);
             this._logToFile(rawMessage, true);
         };
         
@@ -278,7 +311,7 @@ export class Pull {
                border: 'line',
                pch: ' ', 
                style: { fg: 'white', bg: 'black', bar: { bg: 'blue', fg: 'white' }, border: { fg: '#f0f0f0' } },
-               width: '90%', height: 3, top: 1 + (index * 3), left: 'center', filled: 0,
+               width: '95%', height: 3, top: 1 + (index * 3), left: 'center', filled: 0,
                label: ` ${stepName} (0%) `
             });
             stepProgressBars.push(bar);
@@ -308,21 +341,42 @@ export class Pull {
         // Initialize progress tracking
         storeInterfaceFileSystem.initializeProgress();
         
-        // Set up real-time progress callback for BlessedUI
+        // Set up throttled progress callback for BlessedUI to prevent memory issues
+        let lastProgressUpdate = 0;
+        let lastLogUpdate = 0;
+        let lastCleanup = 0;
+        const PROGRESS_UPDATE_INTERVAL = 100; // Update progress every 100ms
+        const LOG_UPDATE_INTERVAL = 2000; // Log every 2 seconds
+        const CLEANUP_INTERVAL = 30000; // Cleanup every 30 seconds
+        
         storeInterfaceFileSystem.setProgressCallback((stats: any) => {
+            const now = Date.now();
             const contentStepIndex = pullSteps.indexOf('Content');
+            
             if (contentStepIndex >= 0) {
-                // Update progress bar based on item types
-                const totalProgress = Math.min(95, stats.totalItems * 2); // Cap at 95% until sync completes
-                updateProgress(contentStepIndex, 'progress', totalProgress);
+                // Throttle progress bar updates to prevent UI lag
+                if (now - lastProgressUpdate > PROGRESS_UPDATE_INTERVAL) {
+                    const totalProgress = Math.min(95, Math.floor(stats.totalItems / 10)); // More conservative progress calculation
+                    updateProgress(contentStepIndex, 'progress', totalProgress);
+                    lastProgressUpdate = now;
+                }
                 
-                // Log detailed progress to Blessed log
-                const typeBreakdown = Object.entries(stats.itemsByType)
-                    .map(([type, count]) => `${type}: ${count}`)
-                    .join(', ');
+                // Throttle log updates to reduce memory pressure
+                if (now - lastLogUpdate > LOG_UPDATE_INTERVAL) {
+                    const typeBreakdown = Object.entries(stats.itemsByType)
+                        .map(([type, count]) => `${type}: ${count}`)
+                        .join(', ');
+                    
+                    console.log(`Progress: ${stats.totalItems} items (${typeBreakdown}) - ${stats.itemsPerSecond.toFixed(1)}/sec`);
+                    lastLogUpdate = now;
+                }
                 
-                if (stats.totalItems % 10 === 0) { // Log every 10 items to avoid spam
-                    console.log(`Sync progress: ${stats.totalItems} items (${typeBreakdown}) - ${stats.itemsPerSecond.toFixed(1)}/sec`);
+                // Periodic memory cleanup for long-running operations
+                if (now - lastCleanup > CLEANUP_INTERVAL) {
+                    if (storeInterfaceFileSystem.cleanupProgressData) {
+                        storeInterfaceFileSystem.cleanupProgressData();
+                    }
+                    lastCleanup = now;
                 }
             }
         });

@@ -43,6 +43,16 @@ const initializeProgress = () => {
 };
 
 /**
+ * Clean up old progress data to prevent memory bloat during long operations
+ */
+const cleanupProgressData = () => {
+    const MAX_STATS_HISTORY = 500; // Keep even fewer entries during cleanup
+    if (_itemsSavedStats.length > MAX_STATS_HISTORY) {
+        _itemsSavedStats = _itemsSavedStats.slice(-MAX_STATS_HISTORY);
+    }
+};
+
+/**
  * Get current progress statistics without clearing the data
  */
 const getCurrentProgress = (): ProgressStats => {
@@ -68,19 +78,24 @@ const getCurrentProgress = (): ProgressStats => {
 };
 
 /**
- * Update progress counters and trigger callback if set
+ * Update progress counters and trigger callback if set (optimized for memory)
  */
 const updateProgress = (itemType: string, itemID: string | number) => {
     const timestamp = Date.now();
     
-    // Update stats array
+    // Limit stats array size to prevent memory bloat (keep only recent items)
+    const MAX_STATS_HISTORY = 1000;
+    if (_itemsSavedStats.length >= MAX_STATS_HISTORY) {
+        _itemsSavedStats.shift(); // Remove oldest entry
+    }
     _itemsSavedStats.push({ itemType, itemID, languageCode: 'current', timestamp });
     
     // Update type counters
     _progressByType[itemType] = (_progressByType[itemType] || 0) + 1;
     
-    // Trigger progress callback if set
-    if (_progressCallback) {
+    // Throttle callback triggers to reduce UI pressure
+    const totalItems = Object.values(_progressByType).reduce((sum, count) => sum + count, 0);
+    if (_progressCallback && (totalItems % 5 === 0 || totalItems < 100)) { // Call every 5 items after 100, all items before 100
         const currentStats = getCurrentProgress();
         _progressCallback(currentStats);
     }
@@ -340,5 +355,6 @@ module.exports = {
     setProgressCallback,
     initializeProgress,
     getCurrentProgress,
-    updateProgress
+    updateProgress,
+    cleanupProgressData  // NEW: Memory cleanup function
 }
