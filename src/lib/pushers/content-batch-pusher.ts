@@ -1,7 +1,7 @@
 import * as mgmtApi from '@agility/management-sdk';
 import { ReferenceMapper } from "../utilities/reference-mapper";
-import { ContentFieldMapper } from './content-field-mapper';
-import { pollBatchUntilComplete, extractBatchResults } from './batch-polling';
+import { ContentFieldMapper } from "../utilities/content/content-field-mapper";
+import { pollBatchUntilComplete, extractBatchResults } from "../utilities/batch-polling";
 import ansiColors from 'ansi-colors';
 
 /**
@@ -278,20 +278,78 @@ export class ContentBatchProcessor {
                 
                 // STEP 5: Map the content item fields using reference mapper (essential logic only)
                 const mappedFields = this.mapContentReferences(contentItem.fields || {});
+                
+                // ✅ FIELD VALIDATION: Add default values for required fields to prevent null constraint errors
+                let validatedFields = { ...mappedFields };
+                
+                // Add default values for required fields based on model definition
+                if (model && model.fields) {
+                    model.fields.forEach(fieldDef => {
+                        const fieldName = fieldDef.name;
+                        const isRequired = fieldDef.settings?.Required === "True" || fieldDef.settings?.Required === "true";
+                        
+                        if (isRequired && (validatedFields[fieldName] === undefined || validatedFields[fieldName] === null || validatedFields[fieldName] === "")) {
+                            // Provide sensible defaults for required fields based on field type
+                            switch (fieldDef.type) {
+                                case 'Integer':
+                                    validatedFields[fieldName] = 1; // Default to 1 for numeric fields
+                                    break;
+                                case 'Text':
+                                case 'LongText':
+                                    validatedFields[fieldName] = "Default Value"; // Default text
+                                    break;
+                                case 'DropdownList':
+                                    // Use the default value from model if available, otherwise use first choice
+                                    const defaultValue = fieldDef.settings?.DefaultValue || fieldDef.settings?.["DefaultValue-en-us"];
+                                    if (defaultValue) {
+                                        validatedFields[fieldName] = defaultValue;
+                                    } else if (fieldDef.settings?.Choices) {
+                                        const choices = fieldDef.settings.Choices.split('\n');
+                                        if (choices.length > 0) {
+                                            const firstChoice = choices[0].split('|');
+                                            validatedFields[fieldName] = firstChoice.length > 1 ? firstChoice[1] : firstChoice[0];
+                                        }
+                                    }
+                                    break;
+                                case 'Boolean':
+                                    validatedFields[fieldName] = false; // Default to false for booleans
+                                    break;
+                                default:
+                                    // For other field types, use empty string as fallback
+                                    validatedFields[fieldName] = "";
+                                    break;
+                            }
+                            console.log(`🔧 [Batch] Added default value for required field "${fieldName}" (${fieldDef.type}): ${validatedFields[fieldName]}`);
+                        }
+                    });
+                }
+
                 const mappedContentItem = {
                     ...contentItem,
-                    fields: mappedFields
+                    fields: validatedFields
                 };
 
                 // STEP 6: Define default SEO and Scripts (matching original logic)
                 const defaultSeo = { metaDescription: null, metaKeywords: null, metaHTML: null, menuVisible: null, sitemapVisible: null };
                 const defaultScripts = { top: null, bottom: null };
 
+                // 🚨 CRITICAL FIX: Add 'name' property to URL fields that are missing it
+                const fixedFields = { ...validatedFields };
+                for (const [fieldKey, fieldValue] of Object.entries(fixedFields)) {
+                    if (fieldValue && typeof fieldValue === 'object' && 
+                        'href' in fieldValue && 'text' in fieldValue && 'target' in fieldValue && 
+                        !('name' in fieldValue)) {
+                        // This is a URL field missing the name property
+                        (fixedFields[fieldKey] as any).name = fieldValue.text || fieldValue.href || "Link";
+                        console.log(`🔧 [Batch] Added missing 'name' property to URL field "${fieldKey}": ${(fixedFields[fieldKey] as any).name}`);
+                    }
+                }
+
                 // STEP 7: Create payload using EXACT original logic
                 const payload = {
                     ...contentItem, // Start with original content item
                     contentID: existingContentItem ? existingContentItem.contentID : -1,
-                    fields: mappedContentItem.fields, // Use mapped fields for reference resolution
+                    fields: fixedFields, // Use fields with URL name properties fixed
                     properties: {
                         ...contentItem.properties,
                         // 🚨 CRITICAL FIX: Use target container's actual reference name instead of source content item's reference name

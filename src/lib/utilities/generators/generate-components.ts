@@ -1,16 +1,16 @@
 const FormData = require("form-data");
-import { Auth } from "../services/auth";
+import { Auth } from "../../services/auth";
 import * as mgmtApi from "@agility/management-sdk";
 
 import { type ContentListFilterModel } from "@agility/management-sdk/dist/models/contentListFilterModel";
 
-import { fileOperations } from "../services/fileOperations";
-import { localePrompt, channelPrompt, isPreviewPrompt, homePrompt, fileSystemPrompt } from "../prompts";
+import { fileOperations } from "../../services/fileOperations";
+import { localePrompt, channelPrompt, isPreviewPrompt, homePrompt, fileSystemPrompt } from "../../prompts";
 import inquirer from "inquirer";
 import * as path from "path";
 import ansiColors = require("ansi-colors");
 
-import { AgilityInstance } from "../../types/agilityInstance";
+import { AgilityInstance } from "../../../types/agilityInstance";
 
 let AI_ENDPOINT: string = "https://4a3b-2607-fea8-7d60-2b00-1d24-b69c-b93f-b227.ngrok-free.app/api/ai/cli/react-components";
 let auth: Auth;

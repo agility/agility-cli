@@ -594,14 +594,23 @@ export async function pushPages(
         return { status: 'success', successful: 0, failed: 0, skipped: 0 };
     }
 
-    // MOVED FROM SYNC.TS: Enrich pages with sitemap hierarchy
+    // ✅ ENHANCED: Page hierarchy enrichment with dynamic page support
     try {
         console.log(ansiColors.cyan(`\n🌳 Enriching pages with sitemap hierarchy...`));
         const sitemapHierarchy = new SitemapHierarchy();
+        
+        // Debug hierarchy issues if we have dynamic pages
+        const hasDynamicPages = pages.some((page: any) => page.pageType === 'dynamic');
+        if (hasDynamicPages) {
+            console.log(ansiColors.yellow(`🔍 Dynamic pages detected - running comprehensive hierarchy analysis...`));
+            sitemapHierarchy.debugPageHierarchyIssues(pages);
+        }
+        
         const sitemap = sitemapHierarchy.loadNestedSitemap();
         
         if (sitemap && sitemap.length > 0) {
-            const hierarchy = sitemapHierarchy.buildPageHierarchy(sitemap);
+            // Use enhanced hierarchy build that handles dynamic pages
+            const hierarchy = sitemapHierarchy.buildPageHierarchyWithDynamicSupport(sitemap);
             
             if (hierarchy && Object.keys(hierarchy).length > 0) {
                 // Build child-to-parent mapping for efficient lookup
@@ -616,7 +625,25 @@ export async function pushPages(
                 // Enrich each page with parent relationship information
                 let enrichedCount = 0;
                 pages = pages.map((page: any) => {
-                    const parentId = childToParentMap[page.pageID];
+                    // First check existing parentPageID
+                    let parentId = page.parentPageID && page.parentPageID > 0 ? page.parentPageID : null;
+                    
+                    // If no parent found, try hierarchy mapping
+                    if (!parentId) {
+                        parentId = childToParentMap[page.pageID];
+                    }
+                    
+                    // For dynamic pages, use comprehensive lookup if still no parent
+                    if (!parentId && page.pageType === 'dynamic') {
+                        const lookup = sitemapHierarchy.findPageParentInSourceSitemap(page.pageID, page.name);
+                        if (lookup.parentId) {
+                            parentId = lookup.parentId;
+                            console.log(ansiColors.blue(`🔧 Found parent for dynamic page ${page.name}: ${lookup.parentName} (${lookup.parentId})`));
+                        } else {
+                            console.log(ansiColors.red(`❌ No parent found for dynamic page ${page.name} - this will cause API validation error`));
+                        }
+                    }
+                    
                     if (parentId && parentId > 0) {
                         enrichedCount++;
                         return { ...page, parentPageID: parentId, parentID: parentId };
@@ -626,9 +653,21 @@ export async function pushPages(
                 });
 
                 console.log(ansiColors.green(`✅ Enriched ${enrichedCount} pages with parent relationships`));
+                
+                // Log any remaining dynamic pages without parents
+                const orphanedDynamicPages = pages.filter((page: any) => 
+                    page.pageType === 'dynamic' && (!page.parentPageID || page.parentPageID <= 0)
+                );
+                if (orphanedDynamicPages.length > 0) {
+                    console.log(ansiColors.red(`⚠️ ${orphanedDynamicPages.length} dynamic pages still without parents:`));
+                    orphanedDynamicPages.forEach((page: any) => {
+                        console.log(ansiColors.red(`  - ${page.name} (ID:${page.pageID})`));
+                    });
+                }
+                
             } else {
                 console.log(
-                    ansiColors.yellow(`⚠️ No nested sitemap found - pages will process without parent relationships`)
+                    ansiColors.yellow(`⚠️ No hierarchy found in sitemap - pages will process without parent relationships`)
                 );
             }
         } else {
@@ -639,7 +678,7 @@ export async function pushPages(
     } catch (error: any) {
         console.warn(
             ansiColors.yellow(
-                `⚠️ Failed to enrich pages with sitemap parents - pages will process without parent relationships`
+                `⚠️ Failed to enrich pages with sitemap parents: ${error.message}`
             )
         );
     }
@@ -686,14 +725,7 @@ export async function pushPages(
         
         const success = await processPage(page, targetGuid, locale, isChildPage, apiClient, referenceMapper, forceUpdate);
         if (success) {
-            // Check if this was truly a new page or an existing one
-            const { findPageInTargetInstance } = await import('../finders/page-finder');
-            const existingPageCheck = await findPageInTargetInstance(page, apiClient, targetGuid, locale, referenceMapper);
-            if (existingPageCheck && !forceUpdate) {
-                skipped++; // Page already existed and wasn't forced update
-            } else {
-                successful++; // Page was created or updated
-            }
+            successful++; // Page was processed successfully (created or updated)
         } else {
             failed++;
             status = 'error';

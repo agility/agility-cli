@@ -107,6 +107,14 @@ export const systemArgs = {
     default: false,
   },
   
+  // **NEW: Selective Model-Based Sync Parameter (Task 103)**
+  models: {
+    describe: "Comma-separated list of model reference names to sync. Automatically includes all dependent content, pages, assets, and galleries.",
+    demandOption: false,
+    type: "string" as const,
+    default: "",
+  },
+  
   // Debug/Analysis args (debug and test are functionally equivalent)
   debug: {
     describe: "Show detailed analysis and debugging information. For sync operations, bypasses authentication for analysis-only mode.",

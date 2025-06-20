@@ -4,7 +4,8 @@ import { fileOperations } from '../services/fileOperations';
 import { ReferenceMapper } from '../utilities/reference-mapper';
 import { SourceDataLoader } from '../utilities/source-data-loader';
 import { getState } from './state';
-import { PusherResult } from '../../types/sourceData';
+import { PusherResult, SourceData } from '../../types/sourceData';
+import { ModelDependencyTree } from './model-dependency-tree-builder';
 
 /**
  * Simplified Sync Operation - Cleaned up from 2000+ line monolithic implementation
@@ -79,13 +80,124 @@ export class Sync {
       // Load source data using centralized loader
       console.log(ansiColors.cyan(`\n📥 Loading source data...`));
       const sourceDataLoader = new SourceDataLoader();
-      const sourceData = await sourceDataLoader.loadSourceEntities();
+      let sourceData = await sourceDataLoader.loadSourceEntities();
 
       // Check if we have any content to sync
-      const hasContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
+      let hasContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
       if (!hasContent) {
-        console.log(ansiColors.yellow("⚠️ No content found to sync"));
-        return;
+        console.log(ansiColors.yellow("⚠️ No source data found for sync operation"));
+        console.log(ansiColors.cyan("🔄 Automatically pulling source data first..."));
+        
+        try {
+          // Execute pull command directly to avoid console conflicts
+          const { spawn } = require('child_process');
+          
+          // Build pull command arguments
+          const pullArgs = [
+            'dist/index.js', 
+            'pull',
+            '--sourceGuid', state.sourceGuid,
+            '--locale', state.locale,
+            '--channel', state.channel,
+            '--rootPath', state.rootPath
+          ];
+          
+          // Add UI mode flags
+          if (state.headless) pullArgs.push('--headless');
+          if (state.verbose) pullArgs.push('--verbose');
+          if (state.preview) pullArgs.push('--preview');
+          if (state.overwrite) pullArgs.push('--overwrite');
+          
+          console.log(ansiColors.gray(`Executing: node ${pullArgs.join(' ')}`));
+          
+          // Execute pull command and wait for completion
+          await new Promise((resolve, reject) => {
+            const pullProcess = spawn('node', pullArgs, { 
+              stdio: 'inherit',
+              cwd: process.cwd()
+            });
+            
+            pullProcess.on('close', (code) => {
+              if (code === 0) {
+                resolve(code);
+              } else {
+                reject(new Error(`Pull process exited with code ${code}`));
+              }
+            });
+            
+            pullProcess.on('error', (error) => {
+              reject(error);
+            });
+          });
+          
+          console.log(ansiColors.green("✅ Source data pull completed"));
+          
+          // Reload source data after pull
+          console.log(ansiColors.cyan("📥 Reloading source data..."));
+          sourceData = await sourceDataLoader.loadSourceEntities();
+          
+          // Re-check if we have content after pull
+          hasContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
+          if (!hasContent) {
+            console.log(ansiColors.red("❌ No content found even after pulling source data"));
+            console.log(ansiColors.gray("💡 This may indicate:"));
+            console.log(ansiColors.gray("   - Source instance has no content"));
+            console.log(ansiColors.gray("   - Authentication issues"));
+            console.log(ansiColors.gray("   - Network connectivity problems"));
+            return;
+          }
+          
+          console.log(ansiColors.green("✅ Source data loaded successfully after pull"));
+        } catch (pullError: any) {
+          console.error(ansiColors.red(`❌ Failed to pull source data: ${pullError.message}`));
+          console.log(ansiColors.gray("💡 Please try running pull manually first:"));
+          const state = getState();
+          console.log(ansiColors.gray(`   node dist/index.js pull --sourceGuid ${state.sourceGuid} --locale ${state.locale} --channel ${state.channel} --verbose`));
+          return;
+        }
+      }
+
+      // **NEW: Task 105 - Selective Model-Based Sync Integration**
+      if (state.models && state.models.trim().length > 0) {
+        const modelNames = state.models.split(',').map(name => name.trim());
+        console.log(ansiColors.cyan(`🎯 Selective Model Sync: ${modelNames.join(', ')}`));
+        
+        // Import and use ModelDependencyTreeBuilder
+        const { ModelDependencyTreeBuilder } = await import('./model-dependency-tree-builder');
+        const treeBuilder = new ModelDependencyTreeBuilder(sourceData);
+        
+        // Validate that specified models exist
+        const validation = treeBuilder.validateModels(modelNames);
+        if (validation.invalid.length > 0) {
+          console.log(ansiColors.red(`❌ Invalid model names: ${validation.invalid.join(', ')}`));
+          console.log(ansiColors.gray(`Available models: ${sourceData.models.map(m => m.referenceName).join(', ')}`));
+          return;
+        }
+        
+        // Build dependency tree
+        const dependencyTree = treeBuilder.buildDependencyTree(validation.valid);
+        
+        // Show analysis
+        console.log(ansiColors.cyan('📊 Dependency Analysis:'));
+        console.log(ansiColors.gray(`  Models: ${dependencyTree.models.size}`));
+        console.log(ansiColors.gray(`  Containers: ${dependencyTree.containers.size}`));
+        console.log(ansiColors.gray(`  Content: ${dependencyTree.content.size}`));
+        console.log(ansiColors.gray(`  Templates: ${dependencyTree.templates.size}`));
+        console.log(ansiColors.gray(`  Pages: ${dependencyTree.pages.size}`));
+        console.log(ansiColors.gray(`  Assets: ${dependencyTree.assets.size}`));
+        console.log(ansiColors.gray(`  Galleries: ${dependencyTree.galleries.size}`));
+        
+        // Filter source data to only include entities in dependency tree
+        sourceData = this.filterSourceDataByDependencyTree(sourceData, dependencyTree);
+        
+        // Re-check if we have content after filtering
+        hasContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
+        if (!hasContent) {
+          console.log(ansiColors.yellow("⚠️ No content found after model filtering"));
+          return;
+        }
+        
+        console.log(ansiColors.green('✅ Source data filtered to model dependencies'));
       }
 
       // Set up reference mapper - gets config from state internally
@@ -235,6 +347,32 @@ export class Sync {
       console.error(ansiColors.red("Error during pusher execution:"), error);
       throw error;
     }
+  }
+
+  /**
+   * Filter source data to only include entities in the dependency tree
+   * Task 105: Sync Integration - Filter source data by model dependencies
+   */
+  private filterSourceDataByDependencyTree(
+    sourceData: SourceData, 
+    dependencyTree: ModelDependencyTree
+  ): SourceData {
+    console.log(ansiColors.cyan('🔍 Filtering source data by dependency tree...'));
+    
+    return {
+      models: sourceData.models.filter(m => dependencyTree.models.has(m.referenceName)),
+      containers: sourceData.containers.filter(c => dependencyTree.containers.has(c.contentViewID)),
+      content: sourceData.content.filter(c => dependencyTree.content.has(c.contentID)),
+      templates: sourceData.templates.filter(t => dependencyTree.templates.has(t.pageTemplateID)),
+      pages: sourceData.pages.filter(p => dependencyTree.pages.has(p.pageID)),
+      assets: sourceData.assets.filter((a: any) => {
+        // Check all possible asset URL properties
+        return dependencyTree.assets.has(a.originUrl) || 
+               dependencyTree.assets.has(a.url) || 
+               dependencyTree.assets.has(a.edgeUrl);
+      }),
+      galleries: sourceData.galleries.filter(g => dependencyTree.galleries.has(g.mediaGroupingID))
+    };
   }
 
 } 

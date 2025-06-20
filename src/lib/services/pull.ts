@@ -67,9 +67,8 @@ export class Pull {
   private _logToFile(message: string, isError: boolean = false): void {
     const timestamp = new Date().toISOString();
     const level = isError ? 'ERROR' : 'INFO';
-    // Ensure fileOperations.appendLogFile handles newline if needed or add it here.
-    // Assuming appendLogFile needs the full string including newline.
-    this.fileOps.appendLogFile(`${timestamp} [${level}] ${message}\n`);
+    // fileOperations.appendLogFile will handle ANSI stripping automatically
+    this.fileOps.appendLogFile(`[${timestamp}] [${level}] ${message}\n`);
   }
 
   async pullInstance(): Promise<void> {
@@ -147,18 +146,19 @@ export class Pull {
             border: { type: 'line' },
             style: { border: { fg: 'green' } },
             padding: { left: 1, right: 1, top: 0, bottom: 0 }, // Remove top/bottom padding
+            // MEMORY OPTIMIZATION: Enable scrolling but limit buffer
             scrollable: true,
-            alwaysScroll: true,
-            scrollbar: { ch: ' ', inverse: true },
-            keys: true,
-            vi: true,
-            // MEMORY FIX: Limit buffer size to prevent memory bloat
-            bufferLength: 1000  // Keep only last 1000 log entries
+            alwaysScroll: true, // This should keep the view pinned to the bottom
+            mouse: false, // Disable mouse to reduce overhead
+            keys: false, // Disable keys to reduce overhead
+            vi: false,
+            // MEMORY FIX: Limit buffer to 200 lines to prevent memory bloat
+            bufferLength: 200  // Keep only last 200 log entries
         });
 
-        // Memory-efficient console override with circular buffer
+        // Memory-efficient console override with small circular buffer
         let logBuffer: string[] = [];
-        const MAX_LOG_BUFFER = 1000;
+        const MAX_LOG_BUFFER = 200; // Reduced from 1000 to 200
         
         console.log = (...args: any[]) => {
             const message = args.map(arg => String(arg)).join(' ');
@@ -169,8 +169,13 @@ export class Pull {
             }
             logBuffer.push(message);
             
-            // Only show in blessed UI
-            if (logContainer) logContainer.log(message);
+            // Only show in blessed UI with explicit scroll to bottom
+            if (logContainer) {
+                logContainer.log(message);
+                // Force scroll to bottom after each log entry
+                logContainer.setScrollPerc(100);
+                screen.render();
+            }
             
             // Always log to file
             this._logToFile(message);
@@ -186,7 +191,12 @@ export class Pull {
             }
             logBuffer.push(errorMessage);
             
-            if (logContainer) logContainer.log(errorMessage);
+            if (logContainer) {
+                logContainer.log(errorMessage);
+                // Force scroll to bottom after each log entry
+                logContainer.setScrollPerc(100);
+                screen.render();
+            }
             this._logToFile(rawMessage, true);
         };
         
@@ -339,9 +349,9 @@ export class Pull {
         let lastProgressUpdate = 0;
         let lastLogUpdate = 0;
         let lastCleanup = 0;
-        const PROGRESS_UPDATE_INTERVAL = 100; // Update progress every 100ms
-        const LOG_UPDATE_INTERVAL = 2000; // Log every 2 seconds
-        const CLEANUP_INTERVAL = 30000; // Cleanup every 30 seconds
+        const PROGRESS_UPDATE_INTERVAL = 500; // Update progress every 500ms (was 100ms)
+        const LOG_UPDATE_INTERVAL = 5000; // Log every 5 seconds (was 2 seconds)
+        const CLEANUP_INTERVAL = 15000; // Cleanup every 15 seconds (was 30 seconds)
         
         storeInterfaceFileSystem.setProgressCallback((stats: any) => {
             const now = Date.now();
@@ -350,22 +360,22 @@ export class Pull {
             if (contentStepIndex >= 0) {
                 // Throttle progress bar updates to prevent UI lag
                 if (now - lastProgressUpdate > PROGRESS_UPDATE_INTERVAL) {
-                    const totalProgress = Math.min(95, Math.floor(stats.totalItems / 10)); // More conservative progress calculation
+                    const totalProgress = Math.min(95, Math.floor(stats.totalItems / 20)); // More conservative progress calculation (was /10)
                     updateProgress(contentStepIndex, 'progress', totalProgress);
                     lastProgressUpdate = now;
                 }
                 
                 // Throttle log updates to reduce memory pressure
                 if (now - lastLogUpdate > LOG_UPDATE_INTERVAL) {
-                    const typeBreakdown = Object.entries(stats.itemsByType)
-                        .map(([type, count]) => `${type}: ${count}`)
-                        .join(', ');
+                    // Simplified type breakdown to reduce string operations
+                    const totalItems = stats.totalItems || 0;
+                    const itemsPerSec = stats.itemsPerSecond || 0;
                     
-                    console.log(`Progress: ${stats.totalItems} items (${typeBreakdown}) - ${stats.itemsPerSecond.toFixed(1)}/sec`);
+                    console.log(`Progress: ${totalItems} items - ${itemsPerSec.toFixed(1)}/sec`);
                     lastLogUpdate = now;
                 }
                 
-                // Periodic memory cleanup for long-running operations
+                // More frequent memory cleanup for long-running operations
                 if (now - lastCleanup > CLEANUP_INTERVAL) {
                     if (storeInterfaceFileSystem.cleanupProgressData) {
                         storeInterfaceFileSystem.cleanupProgressData();

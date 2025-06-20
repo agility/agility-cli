@@ -1,13 +1,13 @@
 import * as fs from "fs";
 import * as path from "path";
-import { localePrompt } from "../prompts/locale-prompt";
-import fileSystemPrompt from "../prompts/file-system-prompt";
+import { localePrompt, homePrompt, fileSystemPrompt } from "../../prompts";
 import agilitySDK from "@agility/content-fetch";
-import { AgilityInstance } from "../../types/agilityInstance";
-import { isPreviewPrompt } from "../prompts/isPreview-prompt";
-import { channelPrompt } from "../prompts/channel-prompt";
-import { websiteAddressPrompt } from "../prompts/website-address-prompt";
-import { homePrompt } from "../prompts/home-prompt";
+import { AgilityInstance } from "../../../types/agilityInstance";
+import { isPreviewPrompt } from "../../prompts/isPreview-prompt";
+import { channelPrompt } from "../../prompts/channel-prompt";
+import { websiteAddressPrompt } from "../../prompts/website-address-prompt";
+import { Auth } from "../../services/auth";
+import { fileOperations } from "../../services/fileOperations";
 
 export const generateSitemap = async (selectedInstance: AgilityInstance, keys: any) => {
   const isPreview = await isPreviewPrompt();

@@ -1,10 +1,10 @@
 const FormData = require("form-data");
-import { Auth, fileOperations, state } from "../services";
-import { localePrompt, homePrompt } from "../prompts";
-import fileSystemPrompt from "../prompts/file-system-prompt";
+import { Auth, fileOperations, state } from "../../services";
+import { localePrompt, homePrompt } from "../../prompts";
+import fileSystemPrompt from "../../prompts/file-system-prompt";
 import * as path from "path";
 import ansiColors = require("ansi-colors");
-import { AgilityInstance } from "../../types/agilityInstance";
+import { AgilityInstance } from "../../../types/agilityInstance";
 
 let AI_ENDPOINT_DEV: string = "https://manager-bff-qa-git-cli-ai.publishwithagility.com/api/ai/cli/typescript-models";
 // let AI_ENDPOINT_DEV:string = "https://bff.publishwithagility.com/api/ai/cli/typescript-models";

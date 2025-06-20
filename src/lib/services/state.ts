@@ -46,6 +46,7 @@ interface CliState {
   
   // Model-specific
   modelDiffs: boolean;
+  models: string;
   
   // Content-specific
   contentItems?: string;
@@ -110,6 +111,7 @@ export const state: CliState = {
   
   // Model-specific
   modelDiffs: false,
+  models: "",
   
   // Legacy fields
   token: null,
@@ -162,6 +164,7 @@ export function setState(argv: any) {
   
   // Model-specific
   if (argv.modelDiffs !== undefined) state.modelDiffs = argv.modelDiffs;
+  if (argv.models !== undefined) state.models = argv.models;
   
   // Content-specific
   if (argv.contentItems !== undefined) state.contentItems = argv.contentItems;

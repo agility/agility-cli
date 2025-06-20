@@ -7,11 +7,11 @@ import { pushFiles } from "./push-prompt";
 import Clean from "../services/clean";
 import { localePrompt } from "./locale-prompt";
 import { 
-  generateTypes, 
+  generateTypescriptModels, 
   generateEnv, 
   generateSitemap, 
-  generateReactComponents 
-} from "../utilities";
+  generateComponents 
+} from "../utilities/generators";
 import { AgilityInstance } from "../../types/agilityInstance";
 import { getUIMode } from "../services/state";
 const FormData = require("form-data");
@@ -125,10 +125,10 @@ export async function instancesPrompt(selectedInstance?: AgilityInstance, keys?:
       }
       break;
     case "types":
-      await generateTypes(selectedInstance);
+      await generateTypescriptModels(selectedInstance);
       break;
     case "reactcomponents":
-      const generatedComponents = await generateReactComponents(selectedInstance);
+      const generatedComponents = await generateComponents(selectedInstance);
       if (generatedComponents) {
         homePrompt();
       }

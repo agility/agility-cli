@@ -34,7 +34,7 @@ async function mapContentItem(
     models: mgmtApi.Model[]
 ): Promise<mgmtApi.ContentItem> {
     // Import the enhanced field mapper
-    const { ContentFieldMapper } = await import('../utilities/content-field-mapper');
+    const { ContentFieldMapper } = await import('../utilities/content/content-field-mapper');
     
     const fieldMapper = new ContentFieldMapper();
     
@@ -346,10 +346,55 @@ async function pushLinkedContentItems(
                 const defaultScripts: mgmtApi.ContentScripts = { top: null, bottom: null };
 
                 // SIMPLIFIED PAYLOAD - Legacy style approach (same as normal content)
+                // ✅ FIELD VALIDATION: Ensure required fields have default values for models that need them
+                let validatedFields = { ...mappedContentItem.fields };
+                
+                // Add default values for required fields based on model definition
+                if (model && model.fields) {
+                    model.fields.forEach(fieldDef => {
+                        const fieldName = fieldDef.name;
+                        const isRequired = fieldDef.settings?.Required === "True" || fieldDef.settings?.Required === "true";
+                        
+                        if (isRequired && (validatedFields[fieldName] === undefined || validatedFields[fieldName] === null || validatedFields[fieldName] === "")) {
+                            // Provide sensible defaults for required fields based on field type
+                            switch (fieldDef.type) {
+                                case 'Integer':
+                                    validatedFields[fieldName] = 1; // Default to 1 for numeric fields
+                                    break;
+                                case 'Text':
+                                case 'LongText':
+                                    validatedFields[fieldName] = "Default Value"; // Default text
+                                    break;
+                                case 'DropdownList':
+                                    // Use the default value from model if available, otherwise use first choice
+                                    const defaultValue = fieldDef.settings?.DefaultValue || fieldDef.settings?.["DefaultValue-en-us"];
+                                    if (defaultValue) {
+                                        validatedFields[fieldName] = defaultValue;
+                                    } else if (fieldDef.settings?.Choices) {
+                                        const choices = fieldDef.settings.Choices.split('\n');
+                                        if (choices.length > 0) {
+                                            const firstChoice = choices[0].split('|');
+                                            validatedFields[fieldName] = firstChoice.length > 1 ? firstChoice[1] : firstChoice[0];
+                                        }
+                                    }
+                                    break;
+                                case 'Boolean':
+                                    validatedFields[fieldName] = false; // Default to false for booleans
+                                    break;
+                                default:
+                                    // For other field types, use empty string as fallback
+                                    validatedFields[fieldName] = "";
+                                    break;
+                            }
+                            console.log(`🔧 Added default value for required field "${fieldName}" (${fieldDef.type}): ${validatedFields[fieldName]}`);
+                        }
+                    });
+                }
+
                 payload = {
                     ...contentItem, // Start with original content item
                     contentID: existingContentItem ? existingContentItem.contentID : -1,
-                    fields: mappedContentItem.fields, // Use mapped fields for reference resolution
+                    fields: validatedFields, // Use fields with URL name properties fixed
                     properties: {
                         ...contentItem.properties,
                         // 🚨 CRITICAL FIX: Use target container's actual reference name instead of source content item's reference name

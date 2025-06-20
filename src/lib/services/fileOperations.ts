@@ -61,334 +61,353 @@ export class fileOperations{
     return this._resolvedRootPath;
   }
 
-    exportFiles(folder: string, fileIdentifier: any, extractedObject: any, baseFolder?: string) {
-        let effectiveBase: string;
-        if (baseFolder) {
-            // If baseFolder is provided, use it directly.
-            // It's assumed to be the correct base, whether absolute or relative.
-            effectiveBase = baseFolder;
-        } else {
-            // If no baseFolder is provided, check if the 'folder' argument itself is absolute.
-            if (path.isAbsolute(folder)) {
-                // If 'folder' is absolute, it defines the complete path up to its own level.
-                // So, the effectiveBase is empty string, and 'folder' will be joined from root.
-                effectiveBase = "";
-            } else {
-                // If 'folder' is relative, use the base path (instance-specific path) as the base
-                effectiveBase = this._basePath;
-            }
-        }
-        
-        // Create the full directory path using path.join for OS-independent path construction
-        const directoryForFile = path.join(effectiveBase, folder);
-        
-        // Ensure the directory structure exists
-        if (!fs.existsSync(directoryForFile)) {
-            fs.mkdirSync(directoryForFile, { recursive: true });
-        }
-        
-        const fileName = path.join(directoryForFile, `${fileIdentifier}.json`);
-        fs.writeFileSync(fileName, JSON.stringify(extractedObject));
-    }
-
-    appendFiles(folder: string, fileIdentifier: any, extractedObject: any){
-      const folderPath = path.join(this._basePath, folder);
-      if(!fs.existsSync(folderPath)){
-        fs.mkdirSync(folderPath, { recursive: true });
-      }
-
-      let fileName = path.join(folderPath, `${fileIdentifier}.json`);
-      fs.appendFileSync(fileName,JSON.stringify(extractedObject));
-    }
-
-    createLogFile(folder: string, fileIdentifier: any, baseFolder?: string){
-      if(baseFolder === undefined || baseFolder === ''){
-        baseFolder = this._basePath;
-      }
-      if(!fs.existsSync(`${baseFolder}`)){
-        fs.mkdirSync(`${baseFolder}`);
-      }
-      if(!fs.existsSync(`${baseFolder}/${folder}`)){
-          fs.mkdirSync(`${baseFolder}/${folder}`);
-      }
-      let fileName =  `${baseFolder}/${folder}/${fileIdentifier}.txt`;
-      fs.closeSync(fs.openSync(fileName, 'w'))
-    }
-
-    appendLogFile(data: string){
-      if (!fs.existsSync(this._instanceLogDir)) {
-        fs.mkdirSync(this._instanceLogDir, { recursive: true });
-      }
-      fs.appendFileSync(this._currentLogFilePath, data);
-    }
+  /**
+   * Strip ANSI color codes from text for clean log files
+   * Matches ANSI escape sequences like [33m, [3m, [23m, [39m, etc.
+   * Also cleans up JSON formatting for better readability
+   */
+  private stripAnsiCodes(text: string): string {
+    // eslint-disable-next-line no-control-regex
+    let cleaned = text.replace(/\x1b\[[0-9;]*m/g, '');
     
-    createFolder(folder: string): boolean {
-        try {
-            let fullPath: string;
-            if (path.isAbsolute(folder)) {
-                fullPath = folder;
-            } else {
-                // Use the base path (instance-specific path) instead of resolved root path
-                // This ensures folders are created in the correct nested structure
-                fullPath = path.join(this._basePath, folder);
-            }
-            
-            // Normalize the path and split into segments
-            const normalizedPath = path.normalize(fullPath);
-            const segments = normalizedPath.split(path.sep);
-            
-            // Start from the root and create each directory
-            let currentPath = '';
-            for (const segment of segments) {
-                currentPath = path.join(currentPath, segment);
-                
-                // Skip empty segments
-                if (!segment) continue;
-                
-                try {
-                    if (!fs.existsSync(currentPath)) {
-                        fs.mkdirSync(currentPath);
-                    }
-                } catch (err) {
-                    console.error(`Error creating directory ${currentPath}:`, err);
-                    return false;
-                }
-            }
-            
-            // Verify the final directory exists
-            if (fs.existsSync(normalizedPath)) {
-                return true;
-            } else {
-                return false;
-            }
-        } catch (error) {
-            console.error('Error in createFolder:', error);
-            return false;
-        }
-    }
-
-    createBaseFolder(folder?: string){
-      if(folder === undefined || folder === ''){
-        folder = this._basePath;
-      }
-      if(!fs.existsSync(folder)){
-        fs.mkdirSync(folder);
-      }
-    }
-
-    checkBaseFolderExists(folder: string){
-      if(!fs.existsSync(folder)){
-        return false;
-      }
-      return true;
-    }
-
-    async downloadFile(url: string, targetFile: string) {  
-        return await new Promise((resolve, reject) => {
-            // Ensure the target directory exists
-            const path = require('path');
-            const targetDir = path.dirname(targetFile);
-            
-            if (!fs.existsSync(targetDir)) {
-                fs.mkdirSync(targetDir, { recursive: true });
-            }
-
-            Https.get(url, response => {
-                const code = response.statusCode ?? 0;
-        
-                if (code >= 400) {
-                    return reject(new Error(response.statusMessage));
-                }
-        
-                if (code > 300 && code < 400 && !!response.headers.location) {
-                    return resolve(
-                        this.downloadFile(response.headers.location, targetFile)
-                    );
-                }
-        
-                const fileWriter = fs
-                    .createWriteStream(targetFile)
-                    .on('finish', () => {
-                        resolve({});
-                    })
-                    .on('error', (err) => {
-                        reject(err);
-                    });
-        
-                response.pipe(fileWriter);
-            }).on('error', error => {
-                console.error(`Error downloading from ${url}:`, error);
-                reject(error);
-            });
-        });
-    }
-
-    createFile(filename:string, content: string) {
-        fs.writeFileSync(filename, content);
-    }
-
-    readFile(fileName: string){
-        const file = fs.readFileSync(fileName, "utf-8");
-        return file;
-    }
-
-    checkFileExists(filePath: string): boolean {
-      try {
-        fs.accessSync(filePath, fs.constants.F_OK);
-        return true;
-      } catch (err) {
-        return false;
-      }
-    }
-
-        deleteFile(fileName: string) {
-        fs.unlinkSync(fileName);
-    }
-
-    // Mapping file operations
-    getMappingFilePath(targetGuid: string): string {
-        return path.join(this._mappingsPath, `${targetGuid}.json`);
-    }
-
-    saveMappingFile(targetGuid: string, mappingData: any): void {
-        // Ensure mappings directory exists using recursive creation
-        if (!fs.existsSync(this._mappingsPath)) {
-            fs.mkdirSync(this._mappingsPath, { recursive: true });
-        }
-        
-        const mappingFilePath = this.getMappingFilePath(targetGuid);
-        this.createFile(mappingFilePath, JSON.stringify(mappingData, null, 2));
-    }
-
-    loadMappingFile(targetGuid: string): any | null {
-        const mappingFilePath = this.getMappingFilePath(targetGuid);
-        
-        if (!this.checkFileExists(mappingFilePath)) {
-            return null;
-        }
-        
-        try {
-            const content = this.readFile(mappingFilePath);
-            return JSON.parse(content);
-        } catch (error) {
-            console.error(`Error loading mapping file ${mappingFilePath}:`, error);
-            return null;
-        }
-    }
-
-    clearMappingFile(targetGuid: string): void {
-        const mappingFilePath = this.getMappingFilePath(targetGuid);
-        
-        if (this.checkFileExists(mappingFilePath)) {
-            this.deleteFile(mappingFilePath);
-        }
-    }
-
-    // Data folder path utilities
-    getDataFolderPath(folderName: string): string {
-        return path.join(this._basePath, folderName);
-    }
-
-    getNestedSitemapPath(): string {
-        return path.join(this._basePath, 'nestedsitemap', 'website.json');
-    }
-
-    // Path utilities
-    resolveFilePath(relativePath: string): string {
-        if (path.isAbsolute(relativePath)) {
-            return relativePath;
-        }
-        return path.resolve(this._basePath, relativePath);
-    }
-
-    // JSON file utilities - centralized JSON parsing
-    readJsonFile(relativePath: string): any | null {
-        try {
-            const fullPath = this.getDataFolderPath(relativePath);
-            if (!fs.existsSync(fullPath)) {
-                return null;
-            }
-            const content = fs.readFileSync(fullPath, 'utf8');
-            return JSON.parse(content);
-        } catch (error: any) {
-            console.warn(`[FileOps] Error reading JSON file ${relativePath}: ${error.message}`);
-            return null;
-        }
-    }
-
-    readJsonFilesFromFolder(folderName: string, fileExtension: string = '.json'): any[] {
-        try {
-            const folderPath = this.getDataFolderPath(folderName);
-            if (!fs.existsSync(folderPath)) {
-                return [];
-            }
-            
-            const files = fs.readdirSync(folderPath).filter(file => file.endsWith(fileExtension));
-            const results: any[] = [];
-            
-            for (const file of files) {
-                try {
-                    const content = fs.readFileSync(path.join(folderPath, file), 'utf8');
-                    const parsed = JSON.parse(content);
-                    results.push(parsed);
-                } catch (error: any) {
-                    console.warn(`[FileOps] Error parsing JSON file ${file}: ${error.message}`);
-                }
-            }
-            
-            return results;
-        } catch (error: any) {
-            console.warn(`[FileOps] Error reading folder ${folderName}: ${error.message}`);
-            return [];
-        }
-    }
-
-    listFilesInFolder(folderName: string, fileExtension?: string): string[] {
-        try {
-            const folderPath = this.getDataFolderPath(folderName);
-            if (!fs.existsSync(folderPath)) {
-                return [];
-            }
-            
-            let files = fs.readdirSync(folderPath);
-            if (fileExtension) {
-                files = files.filter(file => file.endsWith(fileExtension));
-            }
-            
-            return files;
-        } catch (error: any) {
-            console.warn(`[FileOps] Error listing files in ${folderName}: ${error.message}`);
-            return [];
-        }
-    }
-
-  readTempFile(fileName: string){
-      let appName = 'mgmt-cli-code';
-      let tmpFolder = os.tmpDir();
-      let tmpDir = `${tmpFolder}/${appName}`;
-      let fileData = this.readFile(`${tmpDir}/${fileName}`);
-      return fileData;
+    // Clean up JSON formatting: replace \n with actual newlines for better readability
+    cleaned = cleaned.replace(/\\n/g, '\n');
+    
+    // Remove unnecessary escaped quotes in JSON context
+    cleaned = cleaned.replace(/\\"/g, '"');
+    
+    return cleaned;
   }
 
+  exportFiles(folder: string, fileIdentifier: any, extractedObject: any, baseFolder?: string) {
+    let effectiveBase: string;
+    if (baseFolder) {
+      // If baseFolder is provided, use it directly.
+      // It's assumed to be the correct base, whether absolute or relative.
+      effectiveBase = baseFolder;
+    } else {
+      // If no baseFolder is provided, check if the 'folder' argument itself is absolute.
+      if (path.isAbsolute(folder)) {
+        // If 'folder' is absolute, it defines the complete path up to its own level.
+        // So, the effectiveBase is empty string, and 'folder' will be joined from root.
+        effectiveBase = "";
+      } else {
+        // If 'folder' is relative, use the base path (instance-specific path) as the base
+        effectiveBase = this._basePath;
+      }
+    }
+    
+    // Create the full directory path using path.join for OS-independent path construction
+    const directoryForFile = path.join(effectiveBase, folder);
+    
+    // Ensure the directory structure exists
+    if (!fs.existsSync(directoryForFile)) {
+      fs.mkdirSync(directoryForFile, { recursive: true });
+    }
+    
+    const fileName = path.join(directoryForFile, `${fileIdentifier}.json`);
+    fs.writeFileSync(fileName, JSON.stringify(extractedObject));
+  }
+
+  appendFiles(folder: string, fileIdentifier: any, extractedObject: any){
+    const folderPath = path.join(this._basePath, folder);
+    if(!fs.existsSync(folderPath)){
+      fs.mkdirSync(folderPath, { recursive: true });
+    }
+
+    let fileName = path.join(folderPath, `${fileIdentifier}.json`);
+    fs.appendFileSync(fileName,JSON.stringify(extractedObject));
+  }
+
+  createLogFile(folder: string, fileIdentifier: any, baseFolder?: string){
+    if(baseFolder === undefined || baseFolder === ''){
+      baseFolder = this._basePath;
+    }
+    if(!fs.existsSync(`${baseFolder}`)){
+      fs.mkdirSync(`${baseFolder}`);
+    }
+    if(!fs.existsSync(`${baseFolder}/${folder}`)){
+      fs.mkdirSync(`${baseFolder}/${folder}`);
+    }
+    let fileName =  `${baseFolder}/${folder}/${fileIdentifier}.txt`;
+    fs.closeSync(fs.openSync(fileName, 'w'))
+  }
+
+  appendLogFile(data: string){
+    if (!fs.existsSync(this._instanceLogDir)) {
+      fs.mkdirSync(this._instanceLogDir, { recursive: true });
+    }
+    // Strip ANSI color codes before writing to file
+    const cleanData = this.stripAnsiCodes(data);
+    fs.appendFileSync(this._currentLogFilePath, cleanData);
+  }
+  
+  createFolder(folder: string): boolean {
+    try {
+      let fullPath: string;
+      if (path.isAbsolute(folder)) {
+        fullPath = folder;
+      } else {
+        // Use the base path (instance-specific path) instead of resolved root path
+        // This ensures folders are created in the correct nested structure
+        fullPath = path.join(this._basePath, folder);
+      }
+      
+      // Normalize the path and split into segments
+      const normalizedPath = path.normalize(fullPath);
+      const segments = normalizedPath.split(path.sep);
+      
+      // Start from the root and create each directory
+      let currentPath = '';
+      for (const segment of segments) {
+        currentPath = path.join(currentPath, segment);
+        
+        // Skip empty segments
+        if (!segment) continue;
+        
+        try {
+          if (!fs.existsSync(currentPath)) {
+            fs.mkdirSync(currentPath);
+          }
+        } catch (err) {
+          console.error(`Error creating directory ${currentPath}:`, err);
+          return false;
+        }
+      }
+      
+      // Verify the final directory exists
+      if (fs.existsSync(normalizedPath)) {
+        return true;
+      } else {
+        return false;
+      }
+    } catch (error) {
+      console.error('Error in createFolder:', error);
+      return false;
+    }
+  }
+
+  createBaseFolder(folder?: string){
+    if(folder === undefined || folder === ''){
+      folder = this._basePath;
+    }
+    if(!fs.existsSync(folder)){
+      fs.mkdirSync(folder);
+    }
+  }
+
+  checkBaseFolderExists(folder: string){
+    if(!fs.existsSync(folder)){
+      return false;
+    }
+    return true;
+  }
+
+  async downloadFile(url: string, targetFile: string) {  
+    return await new Promise((resolve, reject) => {
+      // Ensure the target directory exists
+      const path = require('path');
+      const targetDir = path.dirname(targetFile);
+      
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+
+      Https.get(url, response => {
+        const code = response.statusCode ?? 0;
+  
+        if (code >= 400) {
+          return reject(new Error(response.statusMessage));
+        }
+  
+        if (code > 300 && code < 400 && !!response.headers.location) {
+          return resolve(
+            this.downloadFile(response.headers.location, targetFile)
+          );
+        }
+  
+        const fileWriter = fs
+          .createWriteStream(targetFile)
+          .on('finish', () => {
+            resolve({});
+          })
+          .on('error', (err) => {
+            reject(err);
+          });
+  
+        response.pipe(fileWriter);
+      }).on('error', error => {
+        console.error(`Error downloading from ${url}:`, error);
+        reject(error);
+      });
+    });
+  }
+
+  createFile(filename:string, content: string) {
+    fs.writeFileSync(filename, content);
+  }
+
+  readFile(fileName: string){
+    const file = fs.readFileSync(fileName, "utf-8");
+    return file;
+  }
+
+  checkFileExists(filePath: string): boolean {
+    try {
+      fs.accessSync(filePath, fs.constants.F_OK);
+      return true;
+    } catch (err) {
+      return false;
+    }
+  }
+
+  deleteFile(fileName: string) {
+    fs.unlinkSync(fileName);
+  }
+
+  // Mapping file operations
+  getMappingFilePath(targetGuid: string): string {
+    return path.join(this._mappingsPath, `${targetGuid}.json`);
+  }
+
+  saveMappingFile(targetGuid: string, mappingData: any): void {
+    // Ensure mappings directory exists using recursive creation
+    if (!fs.existsSync(this._mappingsPath)) {
+      fs.mkdirSync(this._mappingsPath, { recursive: true });
+    }
+    
+    const mappingFilePath = this.getMappingFilePath(targetGuid);
+    this.createFile(mappingFilePath, JSON.stringify(mappingData, null, 2));
+  }
+
+  loadMappingFile(targetGuid: string): any | null {
+    const mappingFilePath = this.getMappingFilePath(targetGuid);
+    
+    if (!this.checkFileExists(mappingFilePath)) {
+      return null;
+    }
+    
+    try {
+      const content = this.readFile(mappingFilePath);
+      return JSON.parse(content);
+    } catch (error) {
+      console.error(`Error loading mapping file ${mappingFilePath}:`, error);
+      return null;
+    }
+  }
+
+  clearMappingFile(targetGuid: string): void {
+    const mappingFilePath = this.getMappingFilePath(targetGuid);
+    
+    if (this.checkFileExists(mappingFilePath)) {
+      this.deleteFile(mappingFilePath);
+    }
+  }
+
+  // Data folder path utilities
+  getDataFolderPath(folderName: string): string {
+    return path.join(this._basePath, folderName);
+  }
+
+  getNestedSitemapPath(): string {
+    return path.join(this._basePath, 'nestedsitemap', 'website.json');
+  }
+
+  // Path utilities
+  resolveFilePath(relativePath: string): string {
+    if (path.isAbsolute(relativePath)) {
+      return relativePath;
+    }
+    return path.resolve(this._basePath, relativePath);
+  }
+
+  // JSON file utilities - centralized JSON parsing
+  readJsonFile(relativePath: string): any | null {
+    try {
+      const fullPath = this.getDataFolderPath(relativePath);
+      if (!fs.existsSync(fullPath)) {
+        return null;
+      }
+      const content = fs.readFileSync(fullPath, 'utf8');
+      return JSON.parse(content);
+    } catch (error: any) {
+      console.warn(`[FileOps] Error reading JSON file ${relativePath}: ${error.message}`);
+      return null;
+    }
+  }
+
+  readJsonFilesFromFolder(folderName: string, fileExtension: string = '.json'): any[] {
+    try {
+      const folderPath = this.getDataFolderPath(folderName);
+      if (!fs.existsSync(folderPath)) {
+        return [];
+      }
+      
+      const files = fs.readdirSync(folderPath).filter(file => file.endsWith(fileExtension));
+      const results: any[] = [];
+      
+      for (const file of files) {
+        try {
+          const content = fs.readFileSync(path.join(folderPath, file), 'utf8');
+          const parsed = JSON.parse(content);
+          results.push(parsed);
+        } catch (error: any) {
+          console.warn(`[FileOps] Error parsing JSON file ${file}: ${error.message}`);
+        }
+      }
+      
+      return results;
+    } catch (error: any) {
+      console.warn(`[FileOps] Error reading folder ${folderName}: ${error.message}`);
+      return [];
+    }
+  }
+
+  listFilesInFolder(folderName: string, fileExtension?: string): string[] {
+    try {
+      const folderPath = this.getDataFolderPath(folderName);
+      if (!fs.existsSync(folderPath)) {
+        return [];
+      }
+      
+      let files = fs.readdirSync(folderPath);
+      if (fileExtension) {
+        files = files.filter(file => file.endsWith(fileExtension));
+      }
+      
+      return files;
+    } catch (error: any) {
+      console.warn(`[FileOps] Error listing files in ${folderName}: ${error.message}`);
+      return [];
+    }
+  }
+
+  readTempFile(fileName: string){
+    let appName = 'mgmt-cli-code';
+    let tmpFolder = os.tmpDir();
+    let tmpDir = `${tmpFolder}/${appName}`;
+    let fileData = this.readFile(`${tmpDir}/${fileName}`);
+    return fileData;
+  }
 
   createTempFile(fileName: string, content: string){
-      let appName = 'mgmt-cli-code';
-      let tmpFolder = os.tmpDir();
-      let tmpDir = `${tmpFolder}/${appName}`;
-      fs.access(tmpDir, (error) => {
-          if(error){
-            fs.mkdirSync(tmpDir);
-            this.createFile(`${tmpDir}/${fileName}`, content);
-          }
-          else{
-            this.createFile(`${tmpDir}/${fileName}`, content);
-          }
-      });
-      return tmpDir;
+    let appName = 'mgmt-cli-code';
+    let tmpFolder = os.tmpDir();
+    let tmpDir = `${tmpFolder}/${appName}`;
+    fs.access(tmpDir, (error) => {
+      if(error){
+        fs.mkdirSync(tmpDir);
+        this.createFile(`${tmpDir}/${fileName}`, content);
+      }
+      else{
+        this.createFile(`${tmpDir}/${fileName}`, content);
+      }
+    });
+    return tmpDir;
   }
 
   renameFile(oldFile: string, newFile: string){
-      fs.renameSync(oldFile, newFile);
+    fs.renameSync(oldFile, newFile);
   }
 
   readDirectory(folderName: string, baseFolder?: string){
@@ -430,7 +449,6 @@ export class fileOperations{
       return false;
     }
   }
-
 
   deleteCodeFile(){
     let appName = 'mgmt-cli-code';

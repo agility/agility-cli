@@ -194,6 +194,152 @@ export class SitemapHierarchy {
     }
 
     /**
+     * ✅ NEW: Find page parent from source sitemap with comprehensive lookup
+     * Handles both template pages and dynamic page instances
+     */
+    findPageParentInSourceSitemap(pageId: number, pageName: string): { parentId: number | null; parentName: string | null; foundIn: string } {
+        try {
+            const sitemap = this.loadNestedSitemap();
+            if (!sitemap || sitemap.length === 0) {
+                return { parentId: null, parentName: null, foundIn: 'no-sitemap' };
+            }
+
+            console.log(`🔍 [DEBUG] Looking for parent of Page ID ${pageId} (${pageName}) in source sitemap...`);
+
+            // Recursive function to search through sitemap
+            const searchSitemap = (nodes: SitemapNode[], parentNode: SitemapNode | null = null): { parentId: number | null; parentName: string | null; foundIn: string } => {
+                for (const node of nodes) {
+                    // Check if this node is our target page
+                    if (node.pageID === pageId || node.name === pageName) {
+                        if (parentNode) {
+                            console.log(`🎯 [DEBUG] Found ${pageName} (ID:${pageId}) under parent ${parentNode.name} (ID:${parentNode.pageID})`);
+                            return { 
+                                parentId: parentNode.pageID, 
+                                parentName: parentNode.name, 
+                                foundIn: 'direct-match' 
+                            };
+                        } else {
+                            console.log(`🏠 [DEBUG] Found ${pageName} (ID:${pageId}) at root level`);
+                            return { parentId: null, parentName: null, foundIn: 'root-level' };
+                        }
+                    }
+
+                    // Check if this node has children (dynamic page instances)
+                    if (node.children && node.children.length > 0) {
+                        // For dynamic pages: check if any child has same pageID as template
+                        const dynamicMatch = node.children.find(child => child.pageID === pageId);
+                        if (dynamicMatch) {
+                            console.log(`🎯 [DEBUG] Found dynamic page ${pageName} (ID:${pageId}) under parent ${node.name} (ID:${node.pageID})`);
+                            return { 
+                                parentId: node.pageID, 
+                                parentName: node.name, 
+                                foundIn: 'dynamic-child' 
+                            };
+                        }
+
+                        // Recursively search children
+                        const childResult = searchSitemap(node.children, node);
+                        if (childResult.parentId !== null) {
+                            return childResult;
+                        }
+                    }
+                }
+                return { parentId: null, parentName: null, foundIn: 'not-found' };
+            };
+
+            const result = searchSitemap(sitemap);
+            console.log(`📍 [DEBUG] Parent lookup result for ${pageName}:`, result);
+            return result;
+
+        } catch (error) {
+            console.error(`❌ [DEBUG] Error looking up parent for ${pageName}:`, error.message);
+            return { parentId: null, parentName: null, foundIn: 'error' };
+        }
+    }
+
+    /**
+     * ✅ NEW: Enhanced hierarchy build that handles dynamic pages correctly
+     */
+    buildPageHierarchyWithDynamicSupport(sitemap: SitemapNode[]): PageHierarchy {
+        const hierarchy: PageHierarchy = {};
+
+        const processNode = (node: SitemapNode, parentNode: SitemapNode | null = null) => {
+            // If this node has children, add them to hierarchy
+            if (node.children && node.children.length > 0) {
+                hierarchy[node.pageID] = node.children.map(child => child.pageID);
+                
+                // Process children recursively
+                node.children.forEach(child => processNode(child, node));
+            }
+
+            // Special handling for dynamic pages
+            // If this node has dynamic children (contentID present), also map those
+            if (node.children) {
+                node.children.forEach(child => {
+                    if (child.contentID) {
+                        // This is a dynamic page instance - ensure it knows its parent
+                        if (!hierarchy[node.pageID]) {
+                            hierarchy[node.pageID] = [];
+                        }
+                        if (!hierarchy[node.pageID].includes(child.pageID)) {
+                            hierarchy[node.pageID].push(child.pageID);
+                        }
+                    }
+                });
+            }
+        };
+
+        sitemap.forEach(node => processNode(node));
+        return hierarchy;
+    }
+
+    /**
+     * ✅ NEW: Comprehensive page hierarchy debugging
+     */
+    debugPageHierarchyIssues(pages: any[]): void {
+        console.log(`\n🔧 [DEBUG] === PAGE HIERARCHY ANALYSIS ===`);
+        
+        const sitemap = this.loadNestedSitemap();
+        if (!sitemap) {
+            console.log(`❌ [DEBUG] No sitemap found - cannot analyze hierarchy`);
+            return;
+        }
+
+        console.log(`📊 [DEBUG] Source sitemap structure:`);
+        const flattenAndLog = (nodes: SitemapNode[], indent: string = '') => {
+            nodes.forEach(node => {
+                const childInfo = node.children ? ` (${node.children.length} children)` : '';
+                const dynamicInfo = node.children?.some(c => c.contentID) ? ' [DYNAMIC]' : '';
+                console.log(`${indent}${node.name} (ID:${node.pageID})${childInfo}${dynamicInfo}`);
+                
+                if (node.children) {
+                    flattenAndLog(node.children, indent + '  ');
+                }
+            });
+        };
+        flattenAndLog(sitemap);
+
+        console.log(`\n📊 [DEBUG] Pages being processed:`);
+        pages.forEach(page => {
+            const parentInfo = page.parentPageID && page.parentPageID > 0 
+                ? ` Parent: ${page.parentPageID}` 
+                : ' Parent: NONE';
+            const typeInfo = page.pageType === 'dynamic' ? ' [DYNAMIC]' : '';
+            console.log(`  ${page.name} (ID:${page.pageID})${parentInfo}${typeInfo}`);
+        });
+
+        console.log(`\n🔍 [DEBUG] Parent lookup analysis:`);
+        pages.forEach(page => {
+            if (page.pageType === 'dynamic') {
+                const lookup = this.findPageParentInSourceSitemap(page.pageID, page.name);
+                console.log(`  ${page.name}: ${lookup.foundIn} → Parent: ${lookup.parentName || 'NONE'} (${lookup.parentId || 'N/A'})`);
+            }
+        });
+
+        console.log(`🔧 [DEBUG] === END HIERARCHY ANALYSIS ===\n`);
+    }
+
+    /**
      * Calculate depth level for each page in the hierarchy
      * Depth 0 = root pages (no parents), Depth 1 = direct children, etc.
      */
