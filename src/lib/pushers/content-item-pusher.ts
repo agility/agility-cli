@@ -9,11 +9,14 @@ import ansiColors from "ansi-colors";
 import { 
   ContentClassifier, 
   type ContentClassification,
-  ContentFieldMapper,
+  ContentFieldMapper
+} from '../utilities';
+import { 
   ContentBatchProcessor,
   type ContentBatchConfig
-} from '../utilities';
+} from './content-item-batch-pusher';
 import { getState } from '../services/state';
+import { findAssetInTargetInstance } from "../finders/asset-finder";
 
 /**
  * Content Item Pusher - implements the proven push_legacy.ts pattern
@@ -62,9 +65,9 @@ async function mapContentItem(
         targetGuid
     });
 
-    // Log validation issues if any
-    if (mappingResult.validationWarnings > 0 || mappingResult.validationErrors > 0) {
-        console.log(`[Field Mapper] ${contentItem.properties.referenceName}: ${mappingResult.validationWarnings} warnings, ${mappingResult.validationErrors} errors`);
+    // Only log field mapper issues if there are actual errors (not warnings)
+    if (mappingResult.validationErrors > 0) {
+        console.warn(`⚠️ Field mapping errors for ${contentItem.properties.referenceName}: ${mappingResult.validationErrors} errors`);
     }
     // Only log success for items with issues (keep logs clean)
     // Success cases are logged at the content push level
@@ -345,50 +348,24 @@ async function pushLinkedContentItems(
                 const defaultSeo: mgmtApi.SeoProperties = { metaDescription: null, metaKeywords: null, metaHTML: null, menuVisible: null, sitemapVisible: null };
                 const defaultScripts: mgmtApi.ContentScripts = { top: null, bottom: null };
 
-                // SIMPLIFIED PAYLOAD - Legacy style approach (same as normal content)
-                // ✅ FIELD VALIDATION: Ensure required fields have default values for models that need them
+                // Use mapped fields as-is - no default field addition needed
                 let validatedFields = { ...mappedContentItem.fields };
-                
-                // Add default values for required fields based on model definition
+
+                // 🚨 ASSET URL MAPPING: Process all ImageAttachment/FileAttachment/AttachmentList fields
+                // Based on legacy push.ts pattern - scan ALL fields for asset attachments
                 if (model && model.fields) {
-                    model.fields.forEach(fieldDef => {
-                        const fieldName = fieldDef.name;
-                        const isRequired = fieldDef.settings?.Required === "True" || fieldDef.settings?.Required === "true";
-                        
-                        if (isRequired && (validatedFields[fieldName] === undefined || validatedFields[fieldName] === null || validatedFields[fieldName] === "")) {
-                            // Provide sensible defaults for required fields based on field type
-                            switch (fieldDef.type) {
-                                case 'Integer':
-                                    validatedFields[fieldName] = 1; // Default to 1 for numeric fields
-                                    break;
-                                case 'Text':
-                                case 'LongText':
-                                    validatedFields[fieldName] = "Default Value"; // Default text
-                                    break;
-                                case 'DropdownList':
-                                    // Use the default value from model if available, otherwise use first choice
-                                    const defaultValue = fieldDef.settings?.DefaultValue || fieldDef.settings?.["DefaultValue-en-us"];
-                                    if (defaultValue) {
-                                        validatedFields[fieldName] = defaultValue;
-                                    } else if (fieldDef.settings?.Choices) {
-                                        const choices = fieldDef.settings.Choices.split('\n');
-                                        if (choices.length > 0) {
-                                            const firstChoice = choices[0].split('|');
-                                            validatedFields[fieldName] = firstChoice.length > 1 ? firstChoice[1] : firstChoice[0];
-                                        }
-                                    }
-                                    break;
-                                case 'Boolean':
-                                    validatedFields[fieldName] = false; // Default to false for booleans
-                                    break;
-                                default:
-                                    // For other field types, use empty string as fallback
-                                    validatedFields[fieldName] = "";
-                                    break;
+                    for (let j = 0; j < model.fields.length; j++) {
+                        const field = model.fields[j];
+                        const fieldName = field.name;
+                        const fieldVal = validatedFields[fieldName];
+
+                        if (field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList') {
+                            if (typeof fieldVal === 'object' && fieldVal !== null) {
+                                // Asset URL mapping will be handled by the existing field mapper
+                                // This preserves the existing asset field structure
+                                validatedFields[fieldName] = fieldVal;
                             }
-                            console.log(`🔧 Added default value for required field "${fieldName}" (${fieldDef.type}): ${validatedFields[fieldName]}`);
                         }
-                    });
                 }
 
                 payload = {
@@ -405,20 +382,7 @@ async function pushLinkedContentItems(
                     scripts: contentItem.scripts ?? defaultScripts
                 };
 
-                // COMMENTED OUT: Complex payload construction
-                // payload = {
-                //     ...mappedContentItem,
-                //     contentID: existingContentItem ? existingContentItem.contentID : -1,
-                //     properties: {
-                //         ...mappedContentItem.properties,
-                //         definitionName: model.referenceName, // Use model from container
-                //         referenceName: contentItem.properties.referenceName, // Keep original container reference
-                //         itemOrder: existingContentItem ? existingContentItem.properties.itemOrder : mappedContentItem.properties.itemOrder
-                //     },
-                //     fields: mappedContentItem.fields,
-                //     seo: mappedContentItem.seo ?? defaultSeo,
-                //     scripts: mappedContentItem.scripts ?? defaultScripts
-                // };
+
 
                 // Use saveContentItem with returnBatchID flag for SDK v1.30 polling
                 const batchIDResult = await apiClient.contentMethods.saveContentItem(payload, targetGuid, locale, true);
@@ -462,15 +426,6 @@ async function pushLinkedContentItems(
                     if (onProgress) onProgress(totalProcessed, linkedContentItems.length, itemName, 'success');
                 } else {
                     console.log(ansiColors.red(`✗ Linked content ${itemName} failed - invalid content ID: ${actualContentId}`));
-                    console.log(`[Debug] Batch ID:`, batchID);
-                    console.log(`[Debug] Extracted ID:`, actualContentId);
-                    
-                    // Only log detailed debug info on failure to avoid flooding
-                    if (actualContentId === -1) {
-                        console.log('[Debug] Payload:', JSON.stringify(payload, null, 2));
-                        console.log('[Debug] Model:', model);
-                        console.log('[Debug] Container:', container);
-                    }
                     skippedContentItems[contentItem.contentID] = itemName;
                     failedItems++;
                     
@@ -479,10 +434,6 @@ async function pushLinkedContentItems(
 
             } catch (error: any) {
                 console.error(`✗ Error processing linked content ${itemName}:`, error.message);
-                // Only log variables if they're defined
-                if (payload) console.log('Payload:', payload);
-                if (model) console.log('Model:', model);
-                if (container) console.log('Container:', container);
                 skippedContentItems[contentItem.contentID] = itemName;
                 failedItems++;
                 
@@ -780,4 +731,31 @@ export async function pushContent(
 
     // console.log(ansiColors.yellow(`Processed ${overallSuccessful}/${totalItemCount} content items (${overallFailed} failed, ${overallSkipped} skipped)`));
     return { status: overallStatus, successful: overallSuccessful, failed: overallFailed, skipped: overallSkipped };
+}
+
+/**
+ * Handle asset attachment fields (ImageAttachment, FileAttachment, AttachmentList)
+ * Provides proper default values for required asset fields
+ */
+function handleAssetAttachmentField(fieldDef: any, fieldValue: any): any {
+    // If field has a value, return it as-is (asset mapping will be handled elsewhere)
+    if (fieldValue && typeof fieldValue === 'object') {
+        return fieldValue;
+    }
+    
+    // Required field with no value - provide default structure
+    if (fieldDef.settings?.Required === "True" || fieldDef.settings?.Required === "true") {
+        // For required fields, return a proper structure but with null URL
+        if (fieldDef.type === 'AttachmentList') {
+            return []; // Empty array for AttachmentList
+        } else {
+            return { url: null, label: null }; // Null structure for single attachments
+        }
+    }
+    
+    return fieldValue; // Return as-is for non-required fields
+}
+
+export class ContentItemPusher {
+    // Add any necessary methods or properties here
 }

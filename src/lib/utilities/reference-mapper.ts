@@ -72,13 +72,8 @@ export class ReferenceMapper {
         const targetId = target?.id || target?.contentID || target?.pageID || 'unknown';
         
         if (type === 'model') {
-            console.log(`[ReferenceMapper] ${type} mapping operation: source=${sourceId}, target=${targetId}, existingIndex=${existingIndex}`);
-            if (existingIndex >= 0) {
-                const existingRecord = this.records[existingIndex];
-                const existingTargetId = existingRecord.target?.id || 'null';
-                console.log(`[ReferenceMapper] Updating existing ${type} mapping: ${sourceId} -> ${existingTargetId} to ${sourceId} -> ${targetId}`);
-            } else {
-                console.log(`[ReferenceMapper] Creating new ${type} mapping: ${sourceId} -> ${targetId}`);
+            if (existingIndex !== -1) {
+                const existingTargetId = this.records[existingIndex].target?.id;
             }
         }
 
@@ -603,7 +598,9 @@ export class ReferenceMapper {
             }).filter(index => index !== -1);
             
             if (matchingIndices.length > 1) {
-                console.warn(`[ReferenceMapper] Multiple model mappings found for source ID ${source.id}: indices ${matchingIndices.join(', ')}`);
+                // console.warn(`[ReferenceMapper] Multiple model mappings found for source ID ${source.id}: indices ${matchingIndices.join(', ')}`);
+                // Return the first match for now
+                return matchingIndices[0];
             }
         }
         
@@ -679,10 +676,8 @@ export class ReferenceMapper {
                 if (mappingData.records && Array.isArray(mappingData.records)) {
                     // NEW FORMAT: Load directly
                     this.records = mappingData.records;
-                    console.log(`[ReferenceMapper] Loaded ${this.records.length} records from new format mapping file`);
                 } else {
                     // OLD FORMAT: Migrate ID arrays to records format
-                    console.log(`[ReferenceMapper] Detected old format mapping file - migrating to new format...`);
                     this.records = [];
                     this.migrateOldFormatToRecords(mappingData);
                 }
@@ -695,8 +690,6 @@ export class ReferenceMapper {
                 this.pageIds = new Map(mappingData.pageIds || []);
                 this.assetIds = new Map(mappingData.assetIds || []);
                 this.galleryIds = new Map(mappingData.galleryIds || []);
-                
-                console.log(`[ReferenceMapper] Loaded mappings: ${this.templateIds.size} templates, ${this.modelIds.size} models, ${this.contentIds.size} content, ${this.pageIds.size} pages, ${this.assetIds.size} assets, ${this.galleryIds.size} galleries`);
             }
         } catch (error) {
             console.warn('Warning: Could not load mappings from disk:', error);
@@ -742,8 +735,6 @@ export class ReferenceMapper {
                 this.records.push(migrationRecord);
             }
         }
-        
-        console.log(`[ReferenceMapper] Migrated ${this.records.length} ID mappings to records format with source entity data`);
     }
 
     /**
@@ -761,79 +752,73 @@ export class ReferenceMapper {
                 galleries: []
             };
 
-            // Load templates
+            // Load templates for migration
             try {
-                sourceEntities.templates = this.fileOps.readJsonFilesFromFolder('templates');
-            } catch (error) {
-                console.warn('[ReferenceMapper] Could not load templates for migration:', error.message);
+                const templates = this.fileOps.readJsonFilesFromFolder('templates');
+                templates.forEach(template => this.addSourceEntityToRecord('template', template));
+            } catch (error: any) {
+                // console.warn('[ReferenceMapper] Could not load templates for migration:', error.message);
             }
 
-            // Load models
+            // Load models for migration
             try {
-                sourceEntities.models = this.fileOps.readJsonFilesFromFolder('models');
-            } catch (error) {
-                console.warn('[ReferenceMapper] Could not load models for migration:', error.message);
+                const models = this.fileOps.readJsonFilesFromFolder('models');
+                models.forEach(model => this.addSourceEntityToRecord('model', model));
+            } catch (error: any) {
+                // console.warn('[ReferenceMapper] Could not load models for migration:', error.message);
             }
 
-            // Load content from both item/ and list/ directories
+            // Load content for migration
             try {
-                const itemContent = this.fileOps.readJsonFilesFromFolder('item');
+                const contentItems = this.fileOps.readJsonFilesFromFolder('item');
                 const listContent = this.fileOps.readJsonFilesFromFolder('list');
-                sourceEntities.content = [...itemContent];
+                contentItems.forEach(contentItem => this.addSourceEntityToRecord('content', contentItem));
                 
                 // Extract content from list arrays
                 for (const contentList of listContent) {
                     if (Array.isArray(contentList)) {
-                        sourceEntities.content.push(...contentList);
+                        contentItems.push(...contentList);
                     }
                 }
-            } catch (error) {
-                console.warn('[ReferenceMapper] Could not load content for migration:', error.message);
+            } catch (error: any) {
+                // console.warn('[ReferenceMapper] Could not load content for migration:', error.message);
             }
 
-            // Load containers
+            // Load containers for migration
             try {
-                sourceEntities.containers = this.fileOps.readJsonFilesFromFolder('containers');
-            } catch (error) {
-                console.warn('[ReferenceMapper] Could not load containers for migration:', error.message);
+                const containers = this.fileOps.readJsonFilesFromFolder('containers');
+                containers.forEach(container => this.addSourceEntityToRecord('container', container));
+            } catch (error: any) {
+                // console.warn('[ReferenceMapper] Could not load containers for migration:', error.message);
             }
 
-            // Load pages
+            // Load pages for migration
             try {
-                sourceEntities.pages = this.fileOps.readJsonFilesFromFolder('page');
-            } catch (error) {
-                console.warn('[ReferenceMapper] Could not load pages for migration:', error.message);
+                const pages = this.fileOps.readJsonFilesFromFolder('page');
+                pages.forEach(page => this.addSourceEntityToRecord('page', page));
+            } catch (error: any) {
+                // console.warn('[ReferenceMapper] Could not load pages for migration:', error.message);
             }
 
-            // Load assets
+            // Load assets for migration
             try {
-                const assetData = this.fileOps.readJsonFilesFromFolder('assets/json');
-                sourceEntities.assets = [];
-                for (const data of assetData) {
-                    if (data.assetMedias && Array.isArray(data.assetMedias)) {
-                        sourceEntities.assets.push(...data.assetMedias);
-                    }
-                }
-            } catch (error) {
-                console.warn('[ReferenceMapper] Could not load assets for migration:', error.message);
+                const assets = this.fileOps.readJsonFilesFromFolder('assets/json');
+                assets.forEach(asset => this.addSourceEntityToRecord('asset', asset));
+            } catch (error: any) {
+                // console.warn('[ReferenceMapper] Could not load assets for migration:', error.message);
             }
 
-            // Load galleries
+            // Load galleries for migration
             try {
-                const galleryData = this.fileOps.readJsonFilesFromFolder('assets/galleries');
-                sourceEntities.galleries = [];
-                for (const galleryList of galleryData) {
-                    if (galleryList.assetMediaGroupings && Array.isArray(galleryList.assetMediaGroupings)) {
-                        sourceEntities.galleries.push(...galleryList.assetMediaGroupings);
-                    }
-                }
-            } catch (error) {
-                console.warn('[ReferenceMapper] Could not load galleries for migration:', error.message);
+                const galleries = this.fileOps.readJsonFilesFromFolder('assets/galleries');
+                galleries.forEach(gallery => this.addSourceEntityToRecord('gallery', gallery));
+            } catch (error: any) {
+                // console.warn('[ReferenceMapper] Could not load galleries for migration:', error.message);
             }
 
             return sourceEntities;
-        } catch (error) {
-            console.warn('[ReferenceMapper] Error loading source entities for migration:', error.message);
+        } catch (error: any) {
+            // console.warn('[ReferenceMapper] Error loading source entities for migration:', error.message);
             return {};
         }
     }
@@ -862,7 +847,7 @@ export class ReferenceMapper {
                     return null;
             }
         } catch (error) {
-            console.warn(`[ReferenceMapper] Error finding ${type} with ID ${id}:`, error.message);
+            // console.warn(`[ReferenceMapper] Error finding ${type} with ID ${id}:`, error.message);
             return null;
         }
     }
@@ -977,6 +962,18 @@ export class ReferenceMapper {
         if (typeof entity.pageTemplateID === 'number') return entity.pageTemplateID;
         
         return null;
+    }
+
+    /**
+     * Add source entity to record
+     */
+    private addSourceEntityToRecord(type: CoreReferenceRecord['type'], entity: any): void {
+        const existingIndex = this.findExistingMappingIndex(type, entity);
+
+        if (existingIndex === -1) {
+            // Add new record
+            this.addMapping(type, entity);
+        }
     }
 }
 

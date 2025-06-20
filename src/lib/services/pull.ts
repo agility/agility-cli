@@ -597,13 +597,55 @@ export class Pull {
         // No console restore needed as we used original console directly.
     }
 
-    // restoreConsole(); // Generally handled by Ctrl+C for Blessed, or not needed for others unless errors occurred early.
-    const finalizedLogPath = this.fileOps.finalizeLogFile('pull');
-    
-    // Only show log file path if NOT using Blessed UI
-    if (!this._useBlessedUI) {
-        originalConsoleLog(`
-Log file written to: ${finalizedLogPath}`);
+    // Final summary and cleanup
+    const finalSuccessCount = stepStatuses.filter(status => status === 1).length;
+    const finalErrorCount = stepStatuses.filter(status => status === 2).length;
+    const finalTotalSteps = stepStatuses.length;
+
+    if (this._useBlessedUI && screen) {
+        // Show completion summary in blessed UI
+        const summaryMessage = `Pull completed: ${finalSuccessCount}/${finalTotalSteps} steps successful, ${finalErrorCount} errors`;
+        console.log(ansiColors.green(summaryMessage));
+        
+        // Auto-exit countdown for Blessed UI
+        let countdown = 5;
+        const countdownInterval = setInterval(() => {
+            console.log(ansiColors.yellow(`Auto-exit in ${countdown} seconds... (Press any key to exit now)`));
+            countdown--;
+            
+            if (countdown <= 0) {
+                clearInterval(countdownInterval);
+                if (screen && !screen.destroyed) screen.destroy();
+                restoreConsole();
+                
+                const finalizedLogPath = this.fileOps.finalizeLogFile('pull');
+                process.stdout.write('\nPull operation completed.\n');
+                process.stdout.write(`Log file written to: ${finalizedLogPath}\n`);
+                process.exit(0);
+            }
+        }, 1000);
+        
+        // Allow immediate exit on any key press
+        screen.onceKey(['escape', 'q', 'C-c', 'enter', 'space'], () => {
+            clearInterval(countdownInterval);
+            if (screen && !screen.destroyed) screen.destroy();
+            restoreConsole();
+            
+            const finalizedLogPath = this.fileOps.finalizeLogFile('pull');
+            process.stdout.write('\nPull operation completed.\n');
+            process.stdout.write(`Log file written to: ${finalizedLogPath}\n`);
+            process.exit(0);
+        });
+        
+        // Keep the process alive during countdown
+        return;
+    } else {
+        // For non-blessed UI modes, just show summary and exit normally
+        const summaryMessage = `Pull operation completed: ${finalSuccessCount}/${finalTotalSteps} steps successful, ${finalErrorCount} errors`;
+        console.log(ansiColors.green(summaryMessage));
+        
+        const finalizedLogPath = this.fileOps.finalizeLogFile('pull');
+        console.log(`Log file written to: ${finalizedLogPath}`);
     }
 
     } catch (error: any) {

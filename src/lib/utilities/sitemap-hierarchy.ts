@@ -204,7 +204,7 @@ export class SitemapHierarchy {
                 return { parentId: null, parentName: null, foundIn: 'no-sitemap' };
             }
 
-            console.log(`🔍 [DEBUG] Looking for parent of Page ID ${pageId} (${pageName}) in source sitemap...`);
+    
 
             // Recursive function to search through sitemap
             const searchSitemap = (nodes: SitemapNode[], parentNode: SitemapNode | null = null): { parentId: number | null; parentName: string | null; foundIn: string } => {
@@ -328,7 +328,7 @@ export class SitemapHierarchy {
             console.log(`  ${page.name} (ID:${page.pageID})${parentInfo}${typeInfo}`);
         });
 
-        console.log(`\n🔍 [DEBUG] Parent lookup analysis:`);
+
         pages.forEach(page => {
             if (page.pageType === 'dynamic') {
                 const lookup = this.findPageParentInSourceSitemap(page.pageID, page.name);

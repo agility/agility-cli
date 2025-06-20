@@ -1,6 +1,7 @@
 export * from './asset-pusher';
 export * from './container-pusher';
 export * from './content-item-pusher';
+export * from './content-item-batch-pusher';
 export * from './gallery-pusher';
 export * from './model-pusher';
 export * from './page-pusher';

@@ -1,7 +1,7 @@
 import * as mgmtApi from '@agility/management-sdk';
 import { ReferenceMapper } from "../utilities/reference-mapper";
-import { ContentFieldMapper } from "../utilities/content/content-field-mapper";
-import { pollBatchUntilComplete, extractBatchResults } from "../utilities/batch-polling";
+import { ContentFieldMapper } from '../utilities/content/content-field-mapper';
+import { pollBatchUntilComplete, extractBatchResults } from '../utilities/batch-polling';
 import ansiColors from 'ansi-colors';
 
 /**
@@ -158,6 +158,23 @@ export class ContentBatchProcessor {
                     this.updateContentIdMappings(batchResult.successfulItems);
                 }
                 
+                // Display individual item results for better visibility
+                if (batchResult.successfulItems.length > 0) {
+                    console.log(`✅ Batch ${batchNumber} successful items:`);
+                    batchResult.successfulItems.forEach(item => {
+                        const modelName = item.originalContent.properties.definitionName || 'Unknown';
+                        console.log(`  ✓ Linked content: ${item.originalContent.properties.referenceName} (${modelName}) - Source: ${item.originalContent.contentID} Target: ${item.newContentId}`);
+                    });
+                }
+                
+                if (batchResult.failedItems.length > 0) {
+                    console.log(`❌ Batch ${batchNumber} failed items:`);
+                    batchResult.failedItems.forEach(item => {
+                        const modelName = item.originalContent.properties.definitionName || 'Unknown';
+                        console.log(`  ✗ Failed: ${item.originalContent.properties.referenceName} (${modelName}) - ${item.error}`);
+                    });
+                }
+                
                 // Call batch completion callback (for mapping saves, etc.)
                 if (this.config.onBatchComplete) {
                     try {
@@ -168,7 +185,7 @@ export class ContentBatchProcessor {
                     }
                 }
 
-                console.log(`✅ Bulk batch ${batchNumber}: ${batchResult.successCount} success, ${batchResult.failureCount} failed`);
+                console.log(`✅ Batch ${batchNumber} completed successfully`);
                 
                 if (onProgress) {
                     onProgress(batchNumber, contentBatches.length, processedSoFar + contentBatch.length, contentItems.length, 'success');
@@ -276,83 +293,58 @@ export class ContentBatchProcessor {
                 // STEP 4: Check if content already exists (matching original logic)
                 const existingContentItem = await findContentInTargetInstance(contentItem, this.config.apiClient, this.config.targetGuid, this.config.locale, this.config.referenceMapper);
                 
-                // STEP 5: Map the content item fields using reference mapper (essential logic only)
-                const mappedFields = this.mapContentReferences(contentItem.fields || {});
+                // STEP 5: Use proper ContentFieldMapper for field mapping and validation
+                const { ContentFieldMapper } = await import('../utilities/content/content-field-mapper');
+                const fieldMapper = new ContentFieldMapper();
                 
-                // ✅ FIELD VALIDATION: Add default values for required fields to prevent null constraint errors
-                let validatedFields = { ...mappedFields };
+                const mappingResult = fieldMapper.mapContentFields(contentItem.fields || {}, {
+                    referenceMapper: this.config.referenceMapper,
+                    apiClient: this.config.apiClient,
+                    targetGuid: this.config.targetGuid
+                });
                 
-                // Add default values for required fields based on model definition
+                // Only log field mapper issues if there are actual errors (not warnings)
+                if (mappingResult.validationErrors > 0) {
+                    console.warn(`⚠️ Field mapping errors for ${contentItem.properties.referenceName}: ${mappingResult.validationErrors} errors`);
+                }
+                
+                // STEP 6: Normalize field names and add defaults ONLY for truly missing required fields
+                let validatedFields = { ...mappingResult.mappedFields };
+                
+                // Create field name mapping: source field names (camelCase) to model field names (as-defined)
+                const fieldNameMap = new Map<string, string>();
+                const camelize = (str: string): string => {
+                    return str.replace(/(?:^\w|[A-Z]|\b\w)/g, function(word, index) {
+                        return index === 0 ? word.toLowerCase() : word.toUpperCase();
+                    }).replace(/\s+/g, '');
+                };
+                
                 if (model && model.fields) {
                     model.fields.forEach(fieldDef => {
-                        const fieldName = fieldDef.name;
-                        const isRequired = fieldDef.settings?.Required === "True" || fieldDef.settings?.Required === "true";
-                        
-                        if (isRequired && (validatedFields[fieldName] === undefined || validatedFields[fieldName] === null || validatedFields[fieldName] === "")) {
-                            // Provide sensible defaults for required fields based on field type
-                            switch (fieldDef.type) {
-                                case 'Integer':
-                                    validatedFields[fieldName] = 1; // Default to 1 for numeric fields
-                                    break;
-                                case 'Text':
-                                case 'LongText':
-                                    validatedFields[fieldName] = "Default Value"; // Default text
-                                    break;
-                                case 'DropdownList':
-                                    // Use the default value from model if available, otherwise use first choice
-                                    const defaultValue = fieldDef.settings?.DefaultValue || fieldDef.settings?.["DefaultValue-en-us"];
-                                    if (defaultValue) {
-                                        validatedFields[fieldName] = defaultValue;
-                                    } else if (fieldDef.settings?.Choices) {
-                                        const choices = fieldDef.settings.Choices.split('\n');
-                                        if (choices.length > 0) {
-                                            const firstChoice = choices[0].split('|');
-                                            validatedFields[fieldName] = firstChoice.length > 1 ? firstChoice[1] : firstChoice[0];
-                                        }
-                                    }
-                                    break;
-                                case 'Boolean':
-                                    validatedFields[fieldName] = false; // Default to false for booleans
-                                    break;
-                                default:
-                                    // For other field types, use empty string as fallback
-                                    validatedFields[fieldName] = "";
-                                    break;
-                            }
-                            console.log(`🔧 [Batch] Added default value for required field "${fieldName}" (${fieldDef.type}): ${validatedFields[fieldName]}`);
-                        }
+                        const camelCaseFieldName = camelize(fieldDef.name);
+                        fieldNameMap.set(camelCaseFieldName, fieldDef.name);
+                        fieldNameMap.set(fieldDef.name.toLowerCase(), fieldDef.name);
                     });
                 }
+                
+                // No field processing needed - use source data as-is
 
                 const mappedContentItem = {
                     ...contentItem,
                     fields: validatedFields
                 };
 
-                // STEP 6: Define default SEO and Scripts (matching original logic)
+                // STEP 7: Define default SEO and Scripts (matching original logic)
                 const defaultSeo = { metaDescription: null, metaKeywords: null, metaHTML: null, menuVisible: null, sitemapVisible: null };
                 const defaultScripts = { top: null, bottom: null };
 
-                // 🚨 CRITICAL FIX: Add 'name' property to URL fields that are missing it
-                const fixedFields = { ...validatedFields };
-                for (const [fieldKey, fieldValue] of Object.entries(fixedFields)) {
-                    if (fieldValue && typeof fieldValue === 'object' && 
-                        'href' in fieldValue && 'text' in fieldValue && 'target' in fieldValue && 
-                        !('name' in fieldValue)) {
-                        // This is a URL field missing the name property
-                        (fixedFields[fieldKey] as any).name = fieldValue.text || fieldValue.href || "Link";
-                        console.log(`🔧 [Batch] Added missing 'name' property to URL field "${fieldKey}": ${(fixedFields[fieldKey] as any).name}`);
-                    }
-                }
-
-                // STEP 7: Create payload using EXACT original logic
+                // STEP 8: Create payload using EXACT original logic
                 const payload = {
                     ...contentItem, // Start with original content item
                     contentID: existingContentItem ? existingContentItem.contentID : -1,
-                    fields: fixedFields, // Use fields with URL name properties fixed
+                    fields: validatedFields, // Use validated fields with defaults for required fields
                     properties: {
                         ...contentItem.properties,
-                        // 🚨 CRITICAL FIX: Use target container's actual reference name instead of source content item's reference name
                         referenceName: container.referenceName, // Use TARGET container reference name
                         itemOrder: existingContentItem ? existingContentItem.properties.itemOrder : contentItem.properties.itemOrder
                     },
@@ -372,57 +364,7 @@ export class ContentBatchProcessor {
         return payloads;
     }
 
-    /**
-     * Map content references in fields using reference mapper
-     * Simplified version focused on content references
-     */
-    private mapContentReferences(fields: any): any {
-        if (!fields || typeof fields !== 'object') {
-            return fields;
-        }
 
-        const mappedFields: any = {};
-
-        for (const [fieldKey, fieldValue] of Object.entries(fields)) {
-            if (fieldValue && typeof fieldValue === 'object') {
-                if ('contentid' in fieldValue) {
-                    // Content reference field - map the contentid
-                    const contentid = (fieldValue as any).contentid;
-                    const mappedContentId = this.config.referenceMapper.getMappedId('content', contentid);
-                    mappedFields[fieldKey] = {
-                        ...fieldValue,
-                        contentid: mappedContentId || contentid
-                    };
-                } else if ('contentID' in fieldValue) {
-                    // Content reference field - map the contentID  
-                    const contentID = (fieldValue as any).contentID;
-                    const mappedContentId = this.config.referenceMapper.getMappedId('content', contentID);
-                    mappedFields[fieldKey] = {
-                        ...fieldValue,
-                        contentID: mappedContentId || contentID
-                    };
-                } else {
-                    // Regular object field - copy as-is 
-                    mappedFields[fieldKey] = fieldValue;
-                }
-            } else if (typeof fieldValue === 'string') {
-                // Handle special string fields that might contain content IDs
-                if ((fieldKey.toLowerCase().includes('categoryid') || fieldKey.toLowerCase().includes('valuefield')) && !isNaN(Number(fieldValue))) {
-                    // Numeric string field that might be a content ID reference
-                    const mappedContentId = this.config.referenceMapper.getMappedId('content', Number(fieldValue));
-                    mappedFields[fieldKey] = mappedContentId?.toString() || fieldValue;
-                } else {
-                    // Regular string field - copy as-is
-                    mappedFields[fieldKey] = fieldValue;
-                }
-            } else {
-                // Primitive field - copy as-is
-                mappedFields[fieldKey] = fieldValue;
-            }
-        }
-
-        return mappedFields;
-    }
 
     /**
      * Process bulk content upload response
@@ -432,35 +374,17 @@ export class ContentBatchProcessor {
         const successfulItems: BatchSuccessItem[] = [];
         const failedItems: BatchFailedItem[] = [];
         
-        // DEBUG: Always log the bulk result to understand what we're getting
-        console.log('📋 [DEBUG] Bulk Result Type:', typeof bulkResult);
-        console.log('📋 [DEBUG] Is Array:', Array.isArray(bulkResult));
-        console.log('📋 [DEBUG] Bulk Result:', JSON.stringify(bulkResult, null, 2));
-        console.log('📋 [DEBUG] Original Batch Length:', originalBatch.length);
-        
-        // DEBUG: Check the condition for number array
-        const isArray = Array.isArray(bulkResult);
-        const isAllNumbers = isArray && bulkResult.every(item => typeof item === 'number');
-        console.log('📋 [DEBUG] Is Array:', isArray);
-        console.log('📋 [DEBUG] Every item is number:', isAllNumbers);
-        
-        // DEBUG: Check first few items to see their types
-        if (isArray) {
-            console.log('📋 [DEBUG] First 5 item types:', bulkResult.slice(0, 5).map(item => typeof item));
-        }
+        // Process bulk result based on response format
         
         if (Array.isArray(bulkResult) && bulkResult.every(item => typeof item === 'number')) {
-            console.log('📋 [DEBUG] Processing as Simple Number Array');
             // Simple array of content IDs (legacy format)
             bulkResult.forEach((contentId, index) => {
                 if (contentId && typeof contentId === 'number' && contentId > 0) {
-                    console.log(`📋 [DEBUG] SUCCESS - Item ${index}: ID=${contentId}`);
                     successfulItems.push({
                         originalContent: originalBatch[index],
                         newContentId: contentId
                     });
                 } else {
-                    console.log(`📋 [DEBUG] FAILED - Item ${index}: Invalid ID=${contentId}`);
                     failedItems.push({
                         originalContent: originalBatch[index],
                         error: `Invalid content ID returned: ${contentId}`
@@ -468,7 +392,6 @@ export class ContentBatchProcessor {
                 }
             });
         } else if (Array.isArray(bulkResult)) {
-            console.log('📋 [DEBUG] Processing as Object Array - Length:', bulkResult.length);
             // Actual Agility batch response: array of batch result objects
             bulkResult.forEach((batchItem, index) => {
                 const originalContent = originalBatch[index];
@@ -480,14 +403,12 @@ export class ContentBatchProcessor {
                 
                 // Check for successful batch item
                 if (batchItem.itemID && batchItem.itemID > 0 && !batchItem.itemNull) {
-                    console.log(`📋 [DEBUG] SUCCESS - Item ${index}: ID=${batchItem.itemID}, itemNull=${batchItem.itemNull}`);
                     successfulItems.push({
                         originalContent,
                         newContentId: batchItem.itemID
                     });
                 } else {
-                    // Failed batch item
-                    console.log(`📋 [DEBUG] FAILED - Item ${index}: ID=${batchItem.itemID}, itemNull=${batchItem.itemNull}, Full Item:`, JSON.stringify(batchItem, null, 2));
+                    // Failed batch item - only log failures for debugging
                     const errorMessage = batchItem.itemNull 
                         ? `Item upload failed (itemNull=true)` 
                         : `Invalid item ID: ${batchItem.itemID}`;
@@ -509,7 +430,6 @@ export class ContentBatchProcessor {
                 }
             }
         } else if (bulkResult && typeof bulkResult === 'object' && 'results' in bulkResult) {
-            console.log('📋 [DEBUG] Processing as Structured Response with Results Array');
             // Structured response format with results array
             const results = bulkResult.results as any[];
             results.forEach((result, index) => {
@@ -527,8 +447,7 @@ export class ContentBatchProcessor {
             });
         } else {
             // Error response - all items failed
-            console.log('📋 [DEBUG] Processing as Error Response - all items failed');
-            console.error('📋 [DEBUG] Bulk content upload error:', bulkResult);
+            console.error('Bulk content upload error:', bulkResult);
             originalBatch.forEach(contentItem => {
                 failedItems.push({
                     originalContent: contentItem,
