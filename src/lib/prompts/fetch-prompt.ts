@@ -13,7 +13,7 @@ import { homePrompt } from "./home-prompt";
 import { instancesPrompt } from "./instance-prompt";
 import { AgilityInstance } from "../../types/agilityInstance";
 import ansiColors from "ansi-colors";
-import { blessedUIEnabled } from "../../index";
+import { state } from "../services/state";
 import rootPathPrompt from "./root-path-prompt";
 
 export async function fetchCommandsPrompt(
@@ -188,7 +188,7 @@ export async function fetchCommandsPrompt(
       `Page data saved to ${pageByPathPath}`
     );
   } else if (answer.apiMethod === "< Back to Instance") {
-    await instancesPrompt(selectedInstance, keys, blessedUIEnabled);
+    await instancesPrompt(selectedInstance, keys);
   }
 
   // homePrompt();

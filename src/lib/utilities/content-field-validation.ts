@@ -9,7 +9,7 @@
  */
 
 import { ReferenceMapper } from '../reference-mapper';
-import { LinkTypeDetector } from './sync-analysis/link-type-detector';
+import { LinkTypeDetector } from './link-type-detector';
 
 export interface FieldValidationResult {
     isValid: boolean;

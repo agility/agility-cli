@@ -3,20 +3,51 @@ import { Auth } from "../services/auth";
 import { homePrompt } from "./home-prompt";
 import { fetchAPIPrompt, fetchCommandsPrompt } from "./fetch-prompt";
 import { pullFiles } from "./pull-prompt";
-import generateTypes from "../utilities/generate-typescript-models";
 import { pushFiles } from "./push-prompt";
 import Clean from "../services/clean";
 import { localePrompt } from "./locale-prompt";
-import { generateEnv } from "../utilities/generate-env";
-import { generateSitemap } from "../utilities/generate-sitemap";
-import generateReactComponents from "../utilities/generate-components";
+import { 
+  generateTypes, 
+  generateEnv, 
+  generateSitemap, 
+  generateReactComponents 
+} from "../utilities";
 import { AgilityInstance } from "../../types/agilityInstance";
+import { getUIMode } from "../services/state";
 const FormData = require("form-data");
 
 inquirer.registerPrompt("search-list", require("inquirer-search-list"));
 
-export async function instancesPrompt(selectedInstance: AgilityInstance, keys: any, useBlessedUI: boolean) {
-
+export async function instancesPrompt(selectedInstance?: AgilityInstance, keys?: any) {
+  const { useBlessed } = getUIMode();
+  const { state } = await import('../services/state');
+  
+  // Build instance data from state if not provided
+  if (!selectedInstance && state.sourceGuid) {
+    selectedInstance = {
+      guid: state.sourceGuid,
+      previewKey: state.previewKey || "",
+      fetchKey: state.fetchKey || "",
+      websiteDetails: state.currentWebsite,
+    };
+  }
+  
+  // Build keys from state if not provided
+  if (!keys && state.previewKey && state.fetchKey) {
+    keys = {
+      guid: state.sourceGuid,
+      previewKey: state.previewKey,
+      fetchKey: state.fetchKey,
+      currentWebsite: state.currentWebsite,
+    };
+  }
+  
+  // Safety check - make sure we have instance data
+  if (!selectedInstance) {
+    console.error("No instance data available. Please specify a GUID or run 'agility login' first.");
+    return;
+  }
+  
   const auth = new Auth();
   // const { jobRole} = await auth.getUser(selectedInstance.guid);
 
@@ -59,13 +90,13 @@ export async function instancesPrompt(selectedInstance: AgilityInstance, keys: a
 
   switch (answers.instanceAction) {
     case "pull":
-      await pullFiles(selectedInstance, useBlessedUI);
+      await pullFiles(selectedInstance, useBlessed);
       // if (pullResult) {
       //   homePrompt();
       // }
       break;
     case "push":
-      await pushFiles(selectedInstance, useBlessedUI);
+      await pushFiles(selectedInstance, useBlessed);
       break;
     case "syncModels":
       console.log('Sync models needs implementation.');
@@ -78,19 +109,19 @@ export async function instancesPrompt(selectedInstance: AgilityInstance, keys: a
     case "fetch":
       const fetch = await fetchAPIPrompt(selectedInstance, keys);
       if (fetch) {
-        homePrompt(useBlessedUI);
+        homePrompt();
       }
       break;
     case "env":
       const generatedEnv = await generateEnv(keys);
       if (generatedEnv) {
-        homePrompt(useBlessedUI);
+        homePrompt();
       }
       break;
     case "sitemap":
       const generatedSitemap = await generateSitemap(selectedInstance, keys);
       if (generatedSitemap) {
-        homePrompt(useBlessedUI);
+        homePrompt();
       }
       break;
     case "types":
@@ -99,7 +130,7 @@ export async function instancesPrompt(selectedInstance: AgilityInstance, keys: a
     case "reactcomponents":
       const generatedComponents = await generateReactComponents(selectedInstance);
       if (generatedComponents) {
-        homePrompt(useBlessedUI);
+        homePrompt();
       }
       break;
     case "clean":
@@ -107,11 +138,11 @@ export async function instancesPrompt(selectedInstance: AgilityInstance, keys: a
       const clean = new Clean(selectedInstance, locale);
       const cleaned = await clean.cleanAll();
       if (cleaned) {
-        homePrompt(useBlessedUI);
+        homePrompt();
       }
       break;
     case "home":
-      homePrompt(useBlessedUI);
+      homePrompt();
       break;
     default:
       console.log("Invalid action selected.");

@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { fileOperations } from '../../services/fileOperations';
+import { fileOperations } from '../../services';
 
 /**
  * Get content items from filesystem without side effects

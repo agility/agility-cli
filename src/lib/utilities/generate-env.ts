@@ -1,13 +1,7 @@
 import { Auth } from "../services/auth";
 import { fileOperations } from "../services/fileOperations";
-import { localePrompt } from "../prompts/locale-prompt";
-import { baseUrlPrompt } from "../prompts/base-url-prompt";
-import { isPreviewPrompt } from "../prompts/isPreview-prompt";
-import { homePrompt } from "../prompts/home-prompt";
-import { instanceSelector } from "../instances/instance-list";
-import { channelPrompt } from "../prompts/channel-prompt";
-import { getInstance } from "../prompts/instance-prompt";
-import fileSystemPrompt from "../prompts/file-system-prompt";
+import { localePrompt, baseUrlPrompt, isPreviewPrompt, homePrompt, channelPrompt, getInstance, fileSystemPrompt } from "../prompts";
+import { instanceSelector } from "./index";
 import { AgilityInstance } from "../../types/agilityInstance";
 const FormData = require("form-data");
 const fs = require('fs');

@@ -10,9 +10,7 @@
  */
 
 import { ReferenceMapper } from '../reference-mapper';
-import { AssetReferenceExtractor } from '../services/sync-analysis/asset-reference-extractor';
-import { LinkTypeDetector } from '../services/sync-analysis/link-type-detector';
-import { ContentFieldValidator, ContentValidationOptions } from '../services/content-field-validation';
+import { AssetReferenceExtractor, LinkTypeDetector, ContentFieldValidator, type ContentValidationOptions } from './index';
 import * as mgmtApi from '@agility/management-sdk';
 
 export interface ContentFieldMappingOptions {

@@ -1,6 +1,5 @@
 import inquirer from 'inquirer';
-import { Auth } from '../services/auth';
-import { fileOperations } from '../services/fileOperations';
+import { Auth, fileOperations } from '../services';
 import { AgilityInstance } from '../../types/agilityInstance';
 import * as mgmtApi from '@agility/management-sdk';
 import { getBaseURLfromGUID } from './base-url-prompt';

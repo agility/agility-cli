@@ -1,6 +1,5 @@
 import inquirer from "inquirer";
-import { Auth } from "../services/auth";
-import { fileOperations } from "../services/fileOperations";
+import { Auth, fileOperations } from "../services";
 
 import colors from "ansi-colors";
 import { homePrompt } from "../prompts/home-prompt";

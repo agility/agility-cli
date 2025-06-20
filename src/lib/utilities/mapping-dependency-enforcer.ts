@@ -158,7 +158,7 @@ export class MappingDependencyEnforcer {
         // Generate specific pull commands for missing mappings
         for (const mappingType of missingMappings) {
             const elementName = this.mappingTypeToElementName(mappingType);
-            const pullCommand = `node dist/index.js pull --guid ${this.sourceGuid} --locale en-us --channel website --elements ${elementName}`;
+            const pullCommand = `node dist/index.js pull --sourceGuid ${this.sourceGuid} --locale en-us --channel website --elements ${elementName}`;
             recommendations.push(`  ${pullCommand}`);
         }
         

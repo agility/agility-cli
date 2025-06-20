@@ -1,6 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapper } from "../reference-mapper";
-import { findContainerInTargetInstance } from "../finders/container-finder";
+import { findContainerInTargetInstance } from "../finders";
 import ansiColors from "ansi-colors";
 import { ApiClient } from '@agility/management-sdk';
 

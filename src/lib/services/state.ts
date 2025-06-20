@@ -1,0 +1,197 @@
+/**
+ * Centralized state management for Agility CLI
+ * Simple state object that gets populated from argv and referenced throughout the app
+ */
+
+interface CliState {
+  // Environment modes
+  dev: boolean;
+  local: boolean;
+  preprod: boolean;
+  
+  // UI modes
+  headless: boolean;
+  verbose: boolean;
+  blessed: boolean;
+  
+  // Instance/Connection
+  sourceGuid?: string;
+  targetGuid?: string;
+  locale: string;
+  channel: string;
+  preview: boolean;
+  elements: string;
+  
+  // File system
+  rootPath: string;
+  legacyFolders: boolean;
+  
+  // Network/Security
+  insecure: boolean;
+  baseUrl?: string;
+  
+  // Debug/Analysis
+  debug: boolean;
+  test: boolean;
+  
+  // Operation control
+  maxDepth: number;
+  forceUpdate: boolean;
+  overwrite: boolean;
+  
+  // Performance
+  lowMemory: boolean;
+  
+  // Model-specific
+  modelDiffs: boolean;
+  
+  // Content-specific
+  contentItems?: string;
+  
+  // Computed UI modes (set by auth.init())
+  useHeadless?: boolean;
+  useVerbose?: boolean;
+  useBlessed?: boolean;
+  
+  // Auth/API objects (set by auth.init())
+  mgmtApiOptions?: any;
+  user?: any;
+  apiKeyForPull?: string;
+  previewKey?: string;
+  fetchKey?: string;
+  currentWebsite?: any;
+  
+  // Legacy fields (for backward compatibility)
+  token: string | null;
+  localServer: string;
+  isAgilityDev: boolean;
+  forceNGROK: boolean;
+}
+
+// Global state - populated from argv and referenced throughout the app
+export const state: CliState = {
+  // Environment modes
+  dev: false,
+  local: false,
+  preprod: false,
+  
+  // UI modes
+  headless: false,
+  verbose: false,
+  blessed: true,
+  
+  // Instance/Connection
+  locale: "en-us",
+  channel: "website",
+  preview: true,
+  elements: "Models,Galleries,Assets,Containers,Content,Templates,Pages",
+  
+  // File system
+  rootPath: "agility-files",
+  legacyFolders: false,
+  
+  // Network/Security
+  insecure: false,
+  
+  // Debug/Analysis
+  debug: false,
+  test: false,
+  
+  // Operation control
+  maxDepth: 10,
+  forceUpdate: false,
+  overwrite: false,
+  
+  // Performance
+  lowMemory: false,
+  
+  // Model-specific
+  modelDiffs: false,
+  
+  // Legacy fields
+  token: null,
+  localServer: "",
+  isAgilityDev: false,
+  forceNGROK: false,
+};
+
+/**
+ * Set state from command line arguments
+ */
+export function setState(argv: any) {
+  // Environment modes
+  if (argv.dev !== undefined) state.dev = argv.dev;
+  if (argv.local !== undefined) state.local = argv.local;
+  if (argv.preprod !== undefined) state.preprod = argv.preprod;
+  
+  // UI modes
+  if (argv.headless !== undefined) state.headless = argv.headless;
+  if (argv.verbose !== undefined) state.verbose = argv.verbose;
+  if (argv.blessed !== undefined) state.blessed = argv.blessed;
+  
+  // Instance/Connection
+  if (argv.sourceGuid !== undefined) state.sourceGuid = argv.sourceGuid;
+  if (argv.targetGuid !== undefined) state.targetGuid = argv.targetGuid;
+  if (argv.locale !== undefined) state.locale = argv.locale;
+  if (argv.channel !== undefined) state.channel = argv.channel;
+  if (argv.preview !== undefined) state.preview = argv.preview;
+  if (argv.elements !== undefined) state.elements = argv.elements;
+  
+  // File system
+  if (argv.rootPath !== undefined) state.rootPath = argv.rootPath;
+  if (argv.legacyFolders !== undefined) state.legacyFolders = argv.legacyFolders;
+  
+  // Network/Security
+  if (argv.insecure !== undefined) state.insecure = argv.insecure;
+  if (argv.baseUrl !== undefined) state.baseUrl = argv.baseUrl;
+  
+  // Debug/Analysis
+  if (argv.debug !== undefined) state.debug = argv.debug;
+  if (argv.test !== undefined) state.test = argv.test;
+  
+  // Operation control
+  if (argv.maxDepth !== undefined) state.maxDepth = argv.maxDepth;
+  if (argv.forceUpdate !== undefined) state.forceUpdate = argv.forceUpdate;
+  if (argv.overwrite !== undefined) state.overwrite = argv.overwrite;
+  
+  // Performance
+  if (argv.lowMemory !== undefined) state.lowMemory = argv.lowMemory;
+  
+  // Model-specific
+  if (argv.modelDiffs !== undefined) state.modelDiffs = argv.modelDiffs;
+  
+  // Content-specific
+  if (argv.contentItems !== undefined) state.contentItems = argv.contentItems;
+}
+
+/**
+ * Configure SSL verification based on CLI mode
+ */
+export function configureSSL() {
+  if (state.local) {
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    console.warn("\nWarning: SSL certificate verification is disabled for development/local mode");
+  }
+}
+
+/**
+ * Get the current state
+ */
+export function getState() {
+  return state;
+}
+
+/**
+ * Get computed UI mode based on state
+ */
+export function getUIMode() {
+  const useHeadless = state.headless;
+  const useVerbose = !useHeadless && state.verbose;
+  const useBlessed = !useHeadless && !useVerbose && state.blessed;
+  
+  return {
+    useHeadless,
+    useVerbose,
+    useBlessed
+  };
+} 

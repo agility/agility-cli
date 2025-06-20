@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { fileOperations } from '../../services/fileOperations';
+import { fileOperations } from '../../services';
 
 /**
  * Get assets from filesystem without side effects

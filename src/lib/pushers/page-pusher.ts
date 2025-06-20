@@ -619,7 +619,7 @@ export async function pushPages(
     
     try {
         // Import and use SitemapHierarchy for intelligent ordering
-        const { SitemapHierarchy } = await import('../services/sync-analysis/sitemap-hierarchy');
+        const { SitemapHierarchy } = await import('../utilities/sitemap-hierarchy');
         
         // Use correct parameters for sitemap hierarchy - passed from calling context
         const rootPath = process.cwd() + '/agility-files';

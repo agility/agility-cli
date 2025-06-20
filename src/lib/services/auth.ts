@@ -2,8 +2,9 @@ import { cliToken } from "../../types/cliToken";
 import { fileOperations } from "./fileOperations";
 import { serverUser } from "../../types/serverUser";
 import { WebsiteUser } from "../../types/websiteUser";
-import { forceDevMode, forceLocalMode, forcePreProdMode } from "../..";
+import { state, getState } from "./state";
 import { AgilityInstance } from "../../types/agilityInstance";
+import * as mgmtApi from "@agility/management-sdk";
 const open = require("open");
 const FormData = require("form-data");
 import fs from 'fs';
@@ -69,14 +70,14 @@ export class Auth {
       console.error('This often happens in corporate environments with proxy servers.');
       console.error('Try running with the --insecure flag to bypass SSL verification:');
       console.error('  npx agility login --insecure');
-      console.error('  npx agility pull --insecure --guid <your-guid>');
+              console.error('  npx agility pull --insecure --sourceGuid <your-guid>');
       console.error('  npx agility sync --insecure --sourceGuid <guid1> --targetGuid <guid2>');
     }
     throw error;
   }
 
   getEnv(): "dev" | "local" | "preprod" | "prod" {
-    return forceLocalMode ? "local" : forceDevMode ? "dev" : forcePreProdMode ? "preprod" : "prod";
+    return state.local ? "local" : state.dev ? "dev" : state.preprod ? "preprod" : "prod";
   }
 
   checkForEnvFile(): { hasEnvFile: boolean; guid?: string; channel?: string, locales?: string[] } {
@@ -112,6 +113,108 @@ export class Auth {
     return result;
   }
 
+  /**
+   * Prime state with .env file values
+   * Allows users to use .env files to set default configuration
+   */
+  primeStateFromEnv(): { hasEnvFile: boolean; primedValues: string[] } {
+    const envFiles = ['.env', '.env.local', '.env.development', '.env.production'];
+    const primedValues: string[] = [];
+    
+    for (const envFile of envFiles) {
+      const envPath = path.join(process.cwd(), envFile);
+      if (fs.existsSync(envPath)) {
+        const envContent = fs.readFileSync(envPath, 'utf8');
+        
+        // Parse all relevant environment variables
+        const envVars = {
+          AGILITY_GUID: envContent.match(/AGILITY_GUID=([^\n]+)/),
+          AGILITY_SITEMAP: envContent.match(/AGILITY_SITEMAP=([^\n]+)/),
+          AGILITY_LOCALES: envContent.match(/AGILITY_LOCALES=([^\n]+)/),
+          AGILITY_TEST: envContent.match(/AGILITY_TEST=([^\n]+)/),
+          AGILITY_OVERWRITE: envContent.match(/AGILITY_OVERWRITE=([^\n]+)/),
+          AGILITY_DEBUG: envContent.match(/AGILITY_DEBUG=([^\n]+)/),
+          AGILITY_PREVIEW: envContent.match(/AGILITY_PREVIEW=([^\n]+)/),
+          AGILITY_VERBOSE: envContent.match(/AGILITY_VERBOSE=([^\n]+)/),
+          AGILITY_HEADLESS: envContent.match(/AGILITY_HEADLESS=([^\n]+)/),
+          AGILITY_ELEMENTS: envContent.match(/AGILITY_ELEMENTS=([^\n]+)/),
+          AGILITY_ROOT_PATH: envContent.match(/AGILITY_ROOT_PATH=([^\n]+)/),
+          AGILITY_BASE_URL: envContent.match(/AGILITY_BASE_URL=([^\n]+)/),
+        };
+
+        // Only prime state values that aren't already set from command line
+                if (envVars.AGILITY_GUID && envVars.AGILITY_GUID[1] && !state.sourceGuid) {
+            state.sourceGuid = envVars.AGILITY_GUID[1].trim();
+            primedValues.push('sourceGuid');
+        }
+        
+        if (envVars.AGILITY_SITEMAP && envVars.AGILITY_SITEMAP[1] && !state.channel) {
+          state.channel = envVars.AGILITY_SITEMAP[1].trim();
+          primedValues.push('channel');
+        }
+        
+        if (envVars.AGILITY_LOCALES && envVars.AGILITY_LOCALES[1] && !state.locale) {
+          state.locale = envVars.AGILITY_LOCALES[1].trim().split(',')[0];
+          primedValues.push('locale');
+        }
+        
+        // Handle boolean flags - prefer command line args over .env
+        if (envVars.AGILITY_TEST && envVars.AGILITY_TEST[1] && state.test === undefined) {
+          state.test = envVars.AGILITY_TEST[1].trim().toLowerCase() === 'true';
+          primedValues.push('test');
+        }
+        
+        if (envVars.AGILITY_OVERWRITE && envVars.AGILITY_OVERWRITE[1] && state.overwrite === undefined) {
+          state.overwrite = envVars.AGILITY_OVERWRITE[1].trim().toLowerCase() === 'true';
+          // Also set forceUpdate for compatibility
+          state.forceUpdate = state.overwrite;
+          primedValues.push('overwrite/forceUpdate');
+        }
+        
+        if (envVars.AGILITY_DEBUG && envVars.AGILITY_DEBUG[1] && state.debug === undefined) {
+          state.debug = envVars.AGILITY_DEBUG[1].trim().toLowerCase() === 'true';
+          primedValues.push('debug');
+        }
+        
+        if (envVars.AGILITY_PREVIEW && envVars.AGILITY_PREVIEW[1] && state.preview === undefined) {
+          state.preview = envVars.AGILITY_PREVIEW[1].trim().toLowerCase() === 'true';
+          primedValues.push('preview');
+        }
+        
+        if (envVars.AGILITY_VERBOSE && envVars.AGILITY_VERBOSE[1] && state.verbose === undefined) {
+          state.verbose = envVars.AGILITY_VERBOSE[1].trim().toLowerCase() === 'true';
+          primedValues.push('verbose');
+        }
+        
+        if (envVars.AGILITY_HEADLESS && envVars.AGILITY_HEADLESS[1] && state.headless === undefined) {
+          state.headless = envVars.AGILITY_HEADLESS[1].trim().toLowerCase() === 'true';
+          primedValues.push('headless');
+        }
+        
+        if (envVars.AGILITY_ELEMENTS && envVars.AGILITY_ELEMENTS[1] && !state.elements) {
+          state.elements = envVars.AGILITY_ELEMENTS[1].trim();
+          primedValues.push('elements');
+        }
+        
+        if (envVars.AGILITY_ROOT_PATH && envVars.AGILITY_ROOT_PATH[1] && !state.rootPath) {
+          state.rootPath = envVars.AGILITY_ROOT_PATH[1].trim();
+          primedValues.push('rootPath');
+        }
+        
+        if (envVars.AGILITY_BASE_URL && envVars.AGILITY_BASE_URL[1] && !state.baseUrl) {
+          state.baseUrl = envVars.AGILITY_BASE_URL[1].trim();
+          primedValues.push('baseUrl');
+        }
+
+        if (primedValues.length > 0) {
+          return { hasEnvFile: true, primedValues };
+        }
+      }
+    }
+
+    return { hasEnvFile: false, primedValues: [] };
+  }
+
   getEnvKey(env: string): string {
     return `cli-auth-token:${env}`;
   }
@@ -144,13 +247,13 @@ export class Auth {
     if (userBaseUrl) {
       return userBaseUrl;
     }
-    if (forceLocalMode) {
+    if (state.local) {
       return "https://localhost:5050";
     }
-    if (forceDevMode) {
+    if (state.dev) {
       return "https://mgmt-dev.aglty.io";
     }
-    if (forcePreProdMode) {
+    if (state.preprod) {
       return "https://management-api-us-pre-prod.azurewebsites.net";
     }
 
@@ -176,15 +279,15 @@ export class Auth {
   getBaseUrlPoll(): string {
     let baseURL = "https://mgmt.aglty.io";
 
-    if (forceDevMode) {
+    if (state.dev) {
       baseURL = "https://mgmt-dev.aglty.io";
     }
 
-    if (forcePreProdMode) {
+    if (state.preprod) {
       baseURL = "https://management-api-us-pre-prod.azurewebsites.net";
     }
 
-    if (forceLocalMode) {
+    if (state.local) {
       baseURL = "https://localhost:5050";
     }
 
@@ -276,6 +379,166 @@ export class Auth {
 
     await open(authUrl);
     return code;
+  }
+
+  /**
+   * Complete initialization: .env priming + validation + authentication + setup
+   * Handles everything needed to get the CLI ready for operation
+   */
+  async init(): Promise<boolean> {
+    // Step 0: Configure SSL if needed
+    const { configureSSL } = await import('./state');
+    configureSSL();
+
+    // Step 1: Prime state with .env file values (only if not set by command line)
+    const envPriming = this.primeStateFromEnv();
+    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
+      console.log(ansiColors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+    }
+
+    // Step 2: Validate commonly required fields
+    const missingFields: string[] = [];
+    
+    // Most commands need some kind of GUID
+            if (!state.sourceGuid) {
+            missingFields.push('sourceGuid (use --sourceGuid or AGILITY_GUID in .env)');
+        }
+    
+    // Sync command needs targetGuid
+    if (state.targetGuid === "") {
+      missingFields.push('targetGuid (use --targetGuid)');
+    }
+    
+    // Pull and sync need locale
+    if (state.locale === "") {
+      missingFields.push('locale (use --locale or AGILITY_LOCALES in .env)');
+    }
+    
+    // Pull and sync need channel
+    if (state.channel === "") {
+      missingFields.push('channel (use --channel or AGILITY_SITEMAP in .env)');
+    }
+
+    if (missingFields.length > 0) {
+      console.log(ansiColors.red('\n❌ Missing required configuration:'));
+      missingFields.forEach(field => {
+        console.log(ansiColors.red(`   • ${field}`));
+      });
+      console.log(ansiColors.yellow('\n💡 Tip: Create a .env file with your configuration to avoid specifying these every time.'));
+      return false;
+    }
+
+    // Step 3: Authenticate
+    const isAuthenticated = await this.checkAuthorization();
+    if (!isAuthenticated) {
+      return false;
+    }
+
+    // Step 4: Set up UI mode in state
+    state.useHeadless = state.headless; // headless takes precedence
+    state.useVerbose = !state.useHeadless && state.verbose;
+    state.useBlessed = !state.useHeadless && !state.useVerbose && state.blessed;
+
+    // Step 5: Check permission bypass flags
+    const shouldSkip = this.shouldSkipPermissionCheck();
+    if (shouldSkip) {
+      if (state.test) {
+        console.log(ansiColors.yellow("🧪 TEST MODE: Bypassing permission checks for analysis..."));
+      } else if (state.debug) {
+        console.log(ansiColors.yellow("🔍 DEBUG MODE: Bypassing permission checks..."));
+      }
+    }
+
+    // Step 6: Set up management API options and validate access
+    const mgmtApiOptions = new (await import("@agility/management-sdk")).Options();
+    mgmtApiOptions.token = await this.getToken();
+
+    try {
+      if (state.targetGuid) {
+        // Sync operation - validate access to both source and target
+                    const sourceGuid = state.sourceGuid;
+        
+        if (!shouldSkip) {
+          await this.validateInstanceAccess(sourceGuid, 'source');
+          await this.validateInstanceAccess(state.targetGuid, 'target');
+        }
+        
+        // Configure for target instance (sync writes to target)
+        const targetBaseUrl = state.baseUrl || this.determineBaseUrl(state.targetGuid);
+        mgmtApiOptions.baseUrl = targetBaseUrl;
+        
+        // Store computed baseUrl in state
+        state.baseUrl = targetBaseUrl;
+        
+      } else {
+        // Single instance operation (pull, etc.)
+        const sourceGuid = state.sourceGuid;
+        
+        if (!shouldSkip) {
+          await this.validateInstanceAccess(sourceGuid, 'instance');
+        }
+        
+        const baseUrl = state.baseUrl || this.determineBaseUrl(sourceGuid);
+        mgmtApiOptions.baseUrl = baseUrl;
+        
+        // Store computed baseUrl in state
+        state.baseUrl = baseUrl;
+        
+        // Get API keys for pull operations
+        if (state.sourceGuid) { // Pull command
+          const previewKey = await this.getPreviewKey(sourceGuid);
+          const fetchKey = await this.getFetchKey(sourceGuid);
+          
+          // Store keys in state
+          state.previewKey = previewKey;
+          state.fetchKey = fetchKey;
+          state.apiKeyForPull = state.preview ? previewKey : fetchKey;
+
+          if (!state.apiKeyForPull) {
+            console.log(ansiColors.red(`Could not retrieve the required API key (preview: ${state.preview}) for instance ${sourceGuid}. Check API key configuration in Agility and --baseUrl if used.`));
+            return false;
+          }
+        }
+      }
+      
+      state.mgmtApiOptions = mgmtApiOptions;
+      
+    } catch (error) {
+      console.log(ansiColors.red(`Error during authentication: ${error.message}`));
+      return false;
+    }
+
+    return true;
+  }
+
+  /**
+   * Validate user access to an instance
+   */
+  private async validateInstanceAccess(guid: string, instanceType: string): Promise<void> {
+    try {
+      const user = await this.getUser(guid);
+      if (!user) {
+        throw new Error(`Could not retrieve user details for ${instanceType} instance ${guid}. Please ensure it's a valid GUID and you have access.`);
+      }
+
+      const permission = await this.checkUserRole(guid);
+      if (!permission.hasPermission) {
+        throw new Error(`You do not have the required permissions on the ${instanceType} instance ${guid}.`);
+      }
+      
+      // Store user info for the primary instance
+      if (instanceType === 'instance' || instanceType === 'source') {
+        state.user = user;
+        
+        // Store current website details
+        if (state.sourceGuid) {
+          state.currentWebsite = user.websiteAccess.find((website: any) => website.guid === state.sourceGuid);
+        }
+      }
+      
+    } catch (error) {
+      throw new Error(`${instanceType.charAt(0).toUpperCase() + instanceType.slice(1)} instance authentication failed: ${error.message}`);
+    }
   }
 
   async checkAuthorization(): Promise<boolean> {
@@ -499,7 +762,7 @@ export class Auth {
       }
 
       if (data.websiteAccess && data.websiteAccess.length > 0) {
-        if (!data.websiteAccess.find((access) => access.guid === guid) && !forceDevMode) {
+        if (!data.websiteAccess.find((access) => access.guid === guid) && !state.dev) {
           throw new Error("User does not have access to this instance.");
         }
       } else {
@@ -535,6 +798,118 @@ export class Auth {
     } catch (err) {
       this.handleSSLError(err);
     }
+  }
+
+  /**
+   * Determine if permission checks should be skipped based on state flags
+   */
+  shouldSkipPermissionCheck(): boolean {
+    const state = getState();
+    return state.debug || state.test;
+  }
+
+  /**
+   * Validate and resolve command parameters from args and .env file
+   * Centralizes all GUID, LOCALE, CHANNEL validation logic
+   * 
+   * @param args - Command arguments object
+   * @param requiredFields - Array of required field names 
+   * @returns Validated parameters object
+   */
+  validateAndResolveParams(args: any, requiredFields: string[] = []) {
+    const envCheck = this.checkForEnvFile();
+    
+    // Start with provided args
+    const params = {
+              sourceGuid: args.sourceGuid as string,
+      targetGuid: args.targetGuid as string,
+      locale: args.locale as string,
+      channel: args.channel as string,
+    };
+
+    // Fill in from .env file if missing
+    if (envCheck.hasEnvFile) {
+              if (!params.sourceGuid && envCheck.guid) {
+            params.sourceGuid = envCheck.guid; // For all commands
+        }
+      if (!params.locale && envCheck.locales && envCheck.locales.length > 0) {
+        params.locale = envCheck.locales[0];
+      }
+      if (!params.channel && envCheck.channel) {
+        params.channel = envCheck.channel;
+      }
+    }
+
+    // Validate required fields
+    const errors: string[] = [];
+    
+    for (const field of requiredFields) {
+      if (!params[field as keyof typeof params]) {
+                switch (field) {
+            case 'sourceGuid':
+                errors.push("Please provide a sourceGuid or ensure you are in a directory with a valid .env file containing a GUID.");
+                break;
+          case 'targetGuid':
+            errors.push("Please provide a targetGuid.");
+            break;
+          case 'locale':
+            errors.push("Please provide a locale or ensure AGILITY_LOCALES is in your .env file.");
+            break;
+          case 'channel':
+            errors.push("Please provide a channel name.");
+            break;
+          default:
+            errors.push(`Missing required parameter: ${field}`);
+        }
+      }
+    }
+
+    if (errors.length > 0) {
+      throw new Error(errors.join('\n'));
+    }
+
+    return params;
+  }
+
+  /**
+   * Setup authentication for pull operations
+   * Handles single instance authentication and API key retrieval
+   */
+  async setupPullAuthentication(
+    guid: string,
+    isPreview: boolean,
+    userBaseUrl?: string
+  ): Promise<{ mgmtApiOptions: mgmtApi.Options; apiKeyForPull: string }> {
+    
+    // Verify base authentication
+    const isAuthorized = await this.checkAuthorization();
+    if (!isAuthorized) {
+      throw new Error("Authentication failed. Please run 'agility login' first.");
+    }
+
+    // Check user access to instance
+    const user = await this.getUser(guid);
+    if (!user) {
+      throw new Error(`Could not retrieve user details for instance ${guid}. Please ensure it's a valid GUID and you have access.`);
+    }
+
+    // Set up management API options
+    const mgmtApiOptions = new mgmtApi.Options();
+    mgmtApiOptions.token = await this.getToken();
+    
+    const determinedMgmtBaseUrl = this.determineBaseUrl(guid);
+    mgmtApiOptions.baseUrl = userBaseUrl || determinedMgmtBaseUrl;
+
+    // Get appropriate API key for pull operation
+    const previewKey = await this.getPreviewKey(guid);
+    const fetchKey = await this.getFetchKey(guid);
+    const apiKeyForPull = isPreview ? previewKey : fetchKey;
+
+    if (!apiKeyForPull) {
+      throw new Error(`Could not retrieve the required API key (preview: ${isPreview}) for instance ${guid}. Check API key configuration in Agility and --baseUrl if used.`);
+    }
+
+    return { mgmtApiOptions, apiKeyForPull };
   }
 }
 

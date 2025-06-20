@@ -3,7 +3,8 @@ import * as cliProgress from "cli-progress";
 import * as agilitySync from "@agility/content-sync";
 import * as path from "path";
 import * as fs from 'fs';
-import { overwritePrompt } from '../prompts/overwrite-prompt'; // Import the new prompt
+import { overwritePrompt } from '../prompts'; // Import the new prompt
+import { getState } from './state';
 const storeInterfaceFileSystem = require("./store-interface-filesystem"); 
 const blessed = require('blessed');
 const contrib = require('blessed-contrib');
@@ -40,43 +41,26 @@ export class Pull {
   private fileOps: fileOperations; // For logging to file in headless mode
   private _forceOverwrite: boolean; // Renamed and will be used globally
 
-  constructor(
-    guid: string,
-    apiKey: string,
-    locale: string,
-    channel: string,
-    isPreview: boolean,
-    options: mgmtApi.Options,
-    multibar: cliProgress.MultiBar | null, // Updated to allow null
-    elements: any,
-    rootPath: string = "agility-files",
-    legacyFolders: boolean = false,
-    // New flags controlling UI and output behavior
-    useBlessedArgument: boolean = true, // Default to true if not specified, aligns with old blessed flag
-    isHeadlessMode: boolean = false,
-    isVerboseMode: boolean = false,
-    forceOverwrite: boolean = false, // Updated parameter name
-    isLowMemoryMode: boolean = false // NEW: Low memory mode
-  ) {
-    this._guid = guid;
-    this._apiKey = apiKey;
-    this._locale = locale;
-    this._channel = channel;
-    this._isPreview = isPreview;
-    this._options = options;
-    this._multibar = multibar; // Store it, might be null
-    this._elements = elements;
-    this._rootPath = rootPath;
-    this._legacyFolders = legacyFolders;
-    this._forceOverwrite = forceOverwrite; // Store the global overwrite flag
+  constructor() {
+    const state = getState();
+    
+    this._guid = state.sourceGuid;
+    this._apiKey = state.apiKeyForPull;
+    this._locale = state.locale;
+    this._channel = state.channel;
+    this._isPreview = state.preview;
+    this._options = state.mgmtApiOptions;
+    this._multibar = null; // We'll create our own if needed
+    this._elements = state.elements.split(",");
+    this._rootPath = state.rootPath;
+    this._legacyFolders = state.legacyFolders;
+    this._forceOverwrite = state.overwrite;
 
-    this.isHeadless = isHeadlessMode;
-    this.isVerbose = !this.isHeadless && isVerboseMode; // verbose is overridden by headless
-    this.isLowMemory = isLowMemoryMode; // Store low memory flag
-    // _useBlessedUI is true if the blessed argument is true, AND we are not in headless or verbose mode.
-    // In low memory mode, disable blessed UI to reduce memory usage
-    this._useBlessedUI = useBlessedArgument && !this.isHeadless && !this.isVerbose && !this.isLowMemory;
-    this.fileOps = new fileOperations(rootPath, guid, locale, isPreview); // Initialize for potential file logging
+    this.isHeadless = state.useHeadless;
+    this.isVerbose = state.useVerbose;
+    this.isLowMemory = state.lowMemory;
+    this._useBlessedUI = state.useBlessed && !this.isLowMemory;
+    this.fileOps = new fileOperations(this._rootPath, this._guid, this._locale, this._isPreview);
   }
 
   // Add a helper for logging to file in headless mode
@@ -89,6 +73,16 @@ export class Pull {
   }
 
   async pullInstance(): Promise<void> {
+    const colors = require("ansi-colors");
+    
+    console.log(
+      colors.yellow(
+        `\nPulling instance ${this._guid} (${this._locale}) [${this._channel}] ${this._isPreview ? 'Preview' : 'Live'} into ./agility-files`
+      )
+    );
+
+    try {
+
     let screen: any | null = null;
     let logContainer: any | null = null;
     let progressContainerBox: any | null = null;
@@ -600,6 +594,12 @@ export class Pull {
     if (!this._useBlessedUI) {
         originalConsoleLog(`
 Log file written to: ${finalizedLogPath}`);
+    }
+
+    } catch (error: any) {
+      const colors = require("ansi-colors");
+      console.error(colors.red("\n❌ An error occurred during the pull command:"), error);
+      process.exit(1);
     }
   }
 }

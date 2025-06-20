@@ -12,7 +12,7 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import ansiColors from 'ansi-colors';
-import { fileOperations } from './fileOperations';
+import { fileOperations } from '../services/fileOperations';
 
 export interface SourceEntities {
     pages?: any[];
@@ -141,7 +141,7 @@ export class ChainDataLoader {
         if (!fs.existsSync(instancePath)) {
             console.error(ansiColors.red(`❌ Source data directory not found: ${instancePath}`));
             console.log(ansiColors.yellow(`�� Make sure you have pulled data first:`));
-            console.log(`   node dist/index.js pull --guid ${this.options.sourceGuid} --locale ${this.options.locale} --channel website --verbose`);
+            console.log(`   node dist/index.js pull --sourceGuid ${this.options.sourceGuid} --locale ${this.options.locale} --channel website --verbose`);
             return false;
         }
 

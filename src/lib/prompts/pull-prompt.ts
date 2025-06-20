@@ -1,7 +1,7 @@
 import inquirer from "inquirer";
 import colors from "ansi-colors";
 import { Auth } from "../services/auth";
-import { createMultibar } from "../services/multibar";
+// import { createMultibar } from "../services/multibar"; // Multibar service removed
 
 import * as mgmtApi from "@agility/management-sdk";
 import { fileOperations } from "../services/fileOperations";
@@ -100,23 +100,7 @@ async function downloadFiles(guid: string, locale: any, channel: any, baseUrl: a
                 console.error("Failed to write pull configuration to log file:", logError.message);
             }
 
-            const pullOperation = new Pull(
-                guid,
-                apiKeyForPull,
-                locale,
-                channel,
-                isPreview,
-                options,
-                multibar,
-                elements,
-                rootPath,
-                false, // legacyFolders - assumed false for now
-                useBlessedUI,
-                false, // isHeadlessMode - this needs to come from index.ts if applicable here
-                false, // isVerboseMode - this needs to come from index.ts if applicable here
-                forceOverwrite, // Pass the overall overwrite decision
-                false // isLowMemoryMode - default to false for prompt-based pulls
-            );
+            const pullOperation = new Pull();
 
             try {
                 await pullOperation.pullInstance();

@@ -11,7 +11,7 @@ import {
     SyncAnalysisContext,
     AssetReference,
     ReferenceExtractionService
-} from '../../../types/syncAnalysis';
+} from '../../types/syncAnalysis';
 
 export class AssetReferenceExtractor implements ReferenceExtractionService {
     private context?: SyncAnalysisContext;

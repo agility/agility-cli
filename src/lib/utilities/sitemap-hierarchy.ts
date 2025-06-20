@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { SitemapNode, PageHierarchy, HierarchicalPageGroup, SourceEntities } from '../../../types/syncAnalysis';
+import { SitemapNode, PageHierarchy, HierarchicalPageGroup, SourceEntities } from '../../types/syncAnalysis';
 
 /**
  * Load and parse sitemap hierarchy for hierarchical page chain analysis
@@ -117,7 +117,7 @@ export class SitemapHierarchy {
      */
     private findParentPageId(pageId: number, hierarchy: PageHierarchy, pages: any[]): number | null {
         for (const [parentId, childIds] of Object.entries(hierarchy)) {
-            if (childIds.includes(pageId)) {
+            if ((childIds as number[]).includes(pageId)) {
                 // Check if the parent exists in our page list
                 const parentExists = pages.some(p => p.pageID === parseInt(parentId));
                 if (parentExists) {
@@ -165,7 +165,7 @@ export class SitemapHierarchy {
     ): void {
         const directChildIds = hierarchy[parentPageId] || [];
         
-        directChildIds.forEach(childId => {
+        (directChildIds as number[]).forEach(childId => {
             const childPage = allPages.find(p => p.pageID === childId);
             if (childPage && !processedPages.has(childId)) {
                 // Add this child to the current level
@@ -198,7 +198,7 @@ export class SitemapHierarchy {
     debugLogHierarchy(hierarchy: PageHierarchy): void {
         console.log(`🔧 [DEBUG] Page hierarchy structure:`);
         Object.entries(hierarchy).forEach(([parentId, childIds]) => {
-            console.log(`  Parent ${parentId} has children: ${childIds.join(', ')}`);
+            console.log(`  Parent ${parentId} has children: ${(childIds as number[]).join(', ')}`);
         });
     }
 
@@ -214,7 +214,7 @@ export class SitemapHierarchy {
         const childToParent = new Map<number, number>();
         Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
             const parentId = parseInt(parentIdStr);
-            childIds.forEach(childId => {
+            (childIds as number[]).forEach(childId => {
                 childToParent.set(childId, parentId);
             });
         });

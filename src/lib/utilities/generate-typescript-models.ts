@@ -1,13 +1,10 @@
 const FormData = require("form-data");
-import { Auth } from "../services/auth";
-import { fileOperations } from "../services/fileOperations";
-import { localePrompt } from "../prompts/locale-prompt";
+import { Auth, fileOperations, state } from "../services";
+import { localePrompt, homePrompt } from "../prompts";
+import fileSystemPrompt from "../prompts/file-system-prompt";
 import * as path from "path";
 import ansiColors = require("ansi-colors");
-import { homePrompt } from "../prompts/home-prompt";
-import fileSystemPrompt from "../prompts/file-system-prompt";
 import { AgilityInstance } from "../../types/agilityInstance";
-import { forceDevMode } from "../../index";
 
 let AI_ENDPOINT_DEV: string = "https://manager-bff-qa-git-cli-ai.publishwithagility.com/api/ai/cli/typescript-models";
 // let AI_ENDPOINT_DEV:string = "https://bff.publishwithagility.com/api/ai/cli/typescript-models";
@@ -16,7 +13,7 @@ let AI_ENDPOINT_PROD: string = "https://bff.agilitycms.com/api/ai/cli/typescript
 
 export default async function generateTypes(selectedInstance: AgilityInstance) {
 
-  let AI_ENDPOINT: string = forceDevMode ? AI_ENDPOINT_DEV : AI_ENDPOINT_PROD;
+  let AI_ENDPOINT: string = state.dev ? AI_ENDPOINT_DEV : AI_ENDPOINT_PROD;
 
   const locale = await localePrompt(selectedInstance);
   const filesPath = await fileSystemPrompt();

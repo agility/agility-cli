@@ -1,12 +1,18 @@
 import { ReferenceMapper } from "../reference-mapper";
 import * as mgmtApi from '@agility/management-sdk';
-import { findContentInTargetInstance } from "../finders/content-item-finder";
-import { findContainerInTargetInstance } from "../finders/container-finder";
-import { findModelInTargetInstance } from "../finders/model-finder";
+import { 
+  findContentInTargetInstance, 
+  findContainerInTargetInstance, 
+  findModelInTargetInstance 
+} from "../finders";
 import ansiColors from "ansi-colors";
-import { ContentClassifier, ContentClassification } from "../utilities/content-classifier";
-import { ContentFieldMapper } from '../utilities/content-field-mapper';
-import { ContentBatchProcessor, ContentBatchConfig } from '../utilities/content-batch-processor';
+import { 
+  ContentClassifier, 
+  type ContentClassification,
+  ContentFieldMapper,
+  ContentBatchProcessor,
+  type ContentBatchConfig
+} from '../utilities';
 
 /**
  * Content Item Pusher - implements the proven push_legacy.ts pattern
@@ -613,8 +619,8 @@ export async function pushContent(
         
         try {
             // Import the model getter and fileOperations
-            const { getModelsFromFileSystem } = await import('../getters/filesystem/get-models');
-            const { fileOperations } = await import('../services/fileOperations');
+            const { getModelsFromFileSystem } = await import('../getters/filesystem');
+                          const { fileOperations } = await import('../services');
             
             // Get source GUID from reference mapper or use a reasonable default approach
             const sourceGuid = await getSourceGuidFromContext(referenceMapper);

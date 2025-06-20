@@ -1,11 +1,12 @@
 import inquirer from "inquirer";
 import colors from "ansi-colors";
-import { instanceSelector } from "../instances/instance-list";
+import { instanceSelector } from "../utilities";
 import { getInstance, instancesPrompt } from "./instance-prompt";
 import { Auth } from "../services/auth";
 import { AgilityInstance } from "types/agilityInstance";
+import { getUIMode } from "../services/state";
 
-export async function homePrompt(useBlessedUI: boolean, prompt?: any) {
+export async function homePrompt(prompt?: any) {
   await inquirer
     .prompt([
       {
@@ -30,7 +31,7 @@ export async function homePrompt(useBlessedUI: boolean, prompt?: any) {
             ...keys
           }
           delete keyClone['websiteDetails']
-          await instancesPrompt(selectedInstance, keys, useBlessedUI);
+          await instancesPrompt(selectedInstance, keys);
           break;
 
         case "Logout":

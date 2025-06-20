@@ -1,7 +1,7 @@
 import inquirer from "inquirer";
 import * as mgmtApi from "@agility/management-sdk";
 import { Auth } from "./auth";
-import { createMultibar } from "./multibar";
+// import { createMultibar } from "./multibar"; // Multibar service removed
 import { assets } from "./assets";
 import { fileOperations } from "./fileOperations";
 import ansiColors from "ansi-colors";
@@ -32,9 +32,7 @@ class Clean {
 
     let mgmtApiClient: mgmtApi.ApiClient = new mgmtApi.ApiClient(options);
 
-    const multibar = createMultibar({
-      name: "Clean Instance"
-    });
+    const multibar = null; // Multibar functionality removed
 
     try {
       const answers = await inquirer.prompt([

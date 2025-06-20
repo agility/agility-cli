@@ -1,16 +1,16 @@
 import inquirer from "inquirer";
 import colors from "ansi-colors";
-import { instanceSelector } from "../instances/instance-list";
+import { instanceSelector } from "../utilities";
 import { Auth } from "../services/auth";
-import { createMultibar } from "../services/multibar";
+// import { createMultibar } from "../services/multibar"; // Multibar no longer used
 import * as mgmtApi from "@agility/management-sdk";
 import { fileOperations } from "../services/fileOperations";
 import { localePrompt } from "./locale-prompt";
 import { isPreviewPrompt } from "./isPreview-prompt";
 import { AgilityInstance } from "../../types/agilityInstance";
-import { blessedUIEnabled, modelDiffsEnabled } from "../../index";
+import { state } from "../services/state";
 import { elementsPrompt } from "./elements-prompt";
-import { push } from "../services/push";
+// import { push } from "../services/push"; // Push service no longer exists - using individual pushers
 import rootPathPrompt from "./root-path-prompt";
 inquirer.registerPrompt("fuzzypath", require("inquirer-fuzzy-path"));
 
@@ -56,27 +56,12 @@ export async function pushFiles(instance: any, useBlessedUI: boolean) {
     const isHeadless = !useBlessedUI;
     const isVerbose = false; // Assume not verbose unless flag is explicitly passed down
 
-    console.log(colors.yellow("Pushing your instance..."));
-    let pushOperation = new push(
-      options,
-      multibar, // Pass null
-      guid, // sourceGuid
-      selectedInstance.guid, // targetGuid
-      locale,
-      preview,
-      useBlessedUI, // Pass the flag
-      elements,
-      rootPath,
-      legacyFolders,
-      dryRun,
-      contentFolder,
-      modelDiffsEnabled,
-      // TODO: Pass headless/verbose flags if push constructor expects them
-      // isHeadless,
-      // isVerbose
-    );
-    // await pushOperation.initialize(); // Assuming constructor handles initialization or pushInstance does
-    await pushOperation.pushInstance();
+    console.log(colors.yellow("Push functionality has been replaced with the new sync system."));
+    console.log(colors.cyan("Please use the 'sync' command instead of push."));
+    
+    // TODO: Integrate with new sync system
+    // Push service has been removed in favor of the new topological sync system
+    // This prompt needs to be updated to use the sync command instead
   } else {
     console.log(colors.red("Please pull an instance first to push an instance."));
   }
