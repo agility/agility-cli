@@ -37,7 +37,7 @@ export class Pull {
   private _useBlessedUI: boolean; // This will be determined by the new flags
   private isHeadless: boolean;
   private isVerbose: boolean;
-  private isLowMemory: boolean; // NEW: Low memory mode flag
+  
   private fileOps: fileOperations; // For logging to file in headless mode
   private _forceOverwrite: boolean; // Renamed and will be used globally
 
@@ -58,8 +58,7 @@ export class Pull {
 
     this.isHeadless = state.useHeadless;
     this.isVerbose = state.useVerbose;
-    this.isLowMemory = state.lowMemory;
-    this._useBlessedUI = state.useBlessed && !this.isLowMemory;
+            this._useBlessedUI = state.useBlessed;
     this.fileOps = new fileOperations(this._rootPath, this._guid, this._locale, this._isPreview);
   }
 

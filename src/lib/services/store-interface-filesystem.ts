@@ -138,7 +138,13 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 		fs.writeFileSync(absoluteFilePath, json);
         // console.log(`[Debug saveItem] Write successful for: ${absoluteFilePath}`);
 		
-		console.log('✓ Downloaded ', ansiColors.cyan(itemType), ansiColors.white(itemID));
+		// Only log when verbose is enabled or blessed UI is disabled
+		// This prevents UI clutter when blessed UI is active on large instances
+		const { getState } = require('./state');
+		const state = getState();
+		if (state.verbose || !state.blessed) {
+			console.log('✓ Downloaded ', ansiColors.cyan(itemType), ansiColors.white(itemID));
+		}
 
 		if (!fs.existsSync(absoluteFilePath)) {
 			throw new Error(`File was not created: ${absoluteFilePath}`);

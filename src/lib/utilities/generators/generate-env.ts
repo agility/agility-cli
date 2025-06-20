@@ -49,7 +49,7 @@ export async function generateEnv(selectedInstance?: AgilityInstance) {
     }
 
 
-    const envContent = `AGILITY_GUID=${instance.guid}\nAGILITY_API_FETCH_KEY=${instance.fetchKey}\nAGILITY_API_PREVIEW_KEY=${instance.previewKey}\nAGILITY_LOCALES=${instance.locale}\nAGILITY_SITEMAP=${instance.channel}`;
+    const envContent = `AGILITY_GUID=${instance.guid}\nAGILITY_API_FETCH_KEY=${instance.fetchKey}\nAGILITY_API_PREVIEW_KEY=${instance.previewKey}\nAGILITY_LOCALES=${instance.locale}\nAGILITY_WEBSITE=${instance.channel}`;
 
     fs.writeFileSync(path.join(filesPath, '.env.local'), envContent.trim());
     console.log('\x1b[32mSuccessfully generated .env.local file\x1b[0m');

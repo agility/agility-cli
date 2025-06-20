@@ -19,11 +19,11 @@ export interface BulkFilterResult {
 export async function bulkFilterByExistingMappings(
     contentItems: mgmtApi.ContentItem[],
     referenceMapper: ReferenceMapper,
-    forceUpdate: boolean = false
+    overwrite: boolean = false
 ): Promise<BulkFilterResult> {
     
-    // If force update is enabled, process all items (no filtering)
-    if (forceUpdate) {
+    // If overwrite is enabled, process all items (no filtering)
+    if (overwrite) {
         return {
             unmappedItems: contentItems,
             alreadyMapped: [],
@@ -80,7 +80,7 @@ export async function bulkFilterByExistingMappingsGeneric<T extends { [key: stri
     referenceMapper: ReferenceMapper,
     entityType: 'model' | 'container' | 'content' | 'asset' | 'gallery' | 'template' | 'page',
     idField: keyof T,
-    forceUpdate: boolean = false
+    overwrite: boolean = false
 ): Promise<{
     unmappedItems: T[];
     alreadyMapped: T[];
@@ -92,8 +92,8 @@ export async function bulkFilterByExistingMappingsGeneric<T extends { [key: stri
     };
 }> {
     
-    // If force update is enabled, process all items
-    if (forceUpdate) {
+    // If overwrite is enabled, process all items
+    if (overwrite) {
         return {
             unmappedItems: items,
             alreadyMapped: [],

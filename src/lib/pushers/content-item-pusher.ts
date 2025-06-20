@@ -611,7 +611,7 @@ export async function pushContent(
 
     // Get state values instead of prop drilling
     const state = getState();
-    const { mgmtApiOptions, targetGuid, locale, forceUpdate } = state;
+    const { mgmtApiOptions, targetGuid, locale, overwrite } = state;
     const apiClient = new mgmtApi.ApiClient(mgmtApiOptions);
 
     // Use passed models or load from filesystem as fallback
@@ -653,17 +653,17 @@ export async function pushContent(
     const defaultTargetAssetContainerOriginUrl = await getDefaultAssetContainerUrl(apiClient, targetGuid);
 
    
-    // BULK MAPPING FILTER: Check for existing mappings unless forceUpdate is enabled
+    // BULK MAPPING FILTER: Check for existing mappings unless overwrite is enabled
     const { bulkFilterByExistingMappings } = await import('../utilities/bulk-mapping-filter');
-    const filterResult = await bulkFilterByExistingMappings(contentItems, referenceMapper, forceUpdate);
+    const filterResult = await bulkFilterByExistingMappings(contentItems, referenceMapper, overwrite);
     
     // console.log(ansiColors.cyan(
     //     `[Content Pusher] Processing ${filterResult.unmappedItems.length}/${filterResult.mappingStats.total} items ` +
-    //     `(${filterResult.mappingStats.percentMapped}% already mapped, forceUpdate: ${forceUpdate})`
+    //     `(${filterResult.mappingStats.percentMapped}% already mapped, overwrite: ${overwrite})`
     // ));
     
-    if (!forceUpdate && filterResult.alreadyMapped.length > 0) {
-        console.log(ansiColors.gray.italic(`Skipping ${filterResult.alreadyMapped.length} existing content items (use --forceUpdate to process all)`));
+    if (!overwrite && filterResult.alreadyMapped.length > 0) {
+        console.log(ansiColors.gray.italic(`Skipping ${filterResult.alreadyMapped.length} existing content items (use --overwrite to process all)`));
     }
 
     // Use filtered content items for processing

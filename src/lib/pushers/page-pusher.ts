@@ -188,7 +188,7 @@ async function processPage(
     isChildPage: boolean,
     apiClient: mgmtApi.ApiClient,
     referenceMapper: ReferenceMapper,
-    forceUpdate: boolean = false
+    overwrite: boolean = false
 ): Promise<boolean> { // Returns true on success, false on failure
 
     let existingPage: mgmtApi.PageItem | null = null;
@@ -224,14 +224,14 @@ async function processPage(
             channelID = sitemap?.[0]?.digitalChannelID || 1; // Fallback to first channel or default
         }
 
-        if (existingPage && !forceUpdate) {
+        if (existingPage && !overwrite) {
             correctPageID = existingPage.pageID;
             // Add to reference mapper for future lookups
             referenceMapper.addRecord('page', page, existingPage);
             
             console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: ID:${existingPage.pageID} (Template:${page.templateName || 'None'})`);
             return true; // Skip processing - page already exists
-        } else if (existingPage && forceUpdate) {
+        } else if (existingPage && overwrite) {
             // Force update mode: use existing page ID for update
             correctPageID = existingPage.pageID;
             // Don't add to reference mapper yet - will do after successful update
@@ -551,7 +551,7 @@ async function processPage(
                 referenceMapper.addRecord('page', page, createdPageData); // Use original page for source key
                 
                 if (existingPage) {
-                    if (forceUpdate) {
+                    if (overwrite) {
                         console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan('updated (forced)')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
                     } else {
                         console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan('updated')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
@@ -680,7 +680,7 @@ export async function pushPages(
 
     // Get state values instead of prop drilling
     const state = getState();
-    const { targetGuid, locale, forceUpdate } = state;
+    const { targetGuid, locale, overwrite } = state;
 
     if (!targetGuid) {
         console.error("Missing required configuration for page push operation");
@@ -713,7 +713,7 @@ export async function pushPages(
         const parentPageID = page.parentPageID || -1;
         const isChildPage = parentPageID > 0;
         
-        const success = await processPage(page, targetGuid, locale, isChildPage, apiClient, referenceMapper, forceUpdate);
+        const success = await processPage(page, targetGuid, locale, isChildPage, apiClient, referenceMapper, overwrite);
         if (success) {
             successful++; // Page was processed successfully (created or updated)
         } else {

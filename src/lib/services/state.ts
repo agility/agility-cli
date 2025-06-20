@@ -33,19 +33,12 @@ interface CliState {
   baseUrl?: string;
   
   // Debug/Analysis
-  debug: boolean;
   test: boolean;
   
   // Operation control
-  maxDepth: number;
-  forceUpdate: boolean;
   overwrite: boolean;
   
-  // Performance
-  lowMemory: boolean;
-  
   // Model-specific
-  modelDiffs: boolean;
   models: string;
   
   // Content-specific
@@ -98,19 +91,12 @@ export const state: CliState = {
   insecure: false,
   
   // Debug/Analysis
-  debug: false,
   test: false,
   
   // Operation control
-  maxDepth: 10,
-  forceUpdate: false,
   overwrite: false,
   
-  // Performance
-  lowMemory: false,
-  
   // Model-specific
-  modelDiffs: false,
   models: "",
   
   // Legacy fields
@@ -151,19 +137,12 @@ export function setState(argv: any) {
   if (argv.baseUrl !== undefined) state.baseUrl = argv.baseUrl;
   
   // Debug/Analysis
-  if (argv.debug !== undefined) state.debug = argv.debug;
   if (argv.test !== undefined) state.test = argv.test;
   
   // Operation control
-  if (argv.maxDepth !== undefined) state.maxDepth = argv.maxDepth;
-  if (argv.forceUpdate !== undefined) state.forceUpdate = argv.forceUpdate;
   if (argv.overwrite !== undefined) state.overwrite = argv.overwrite;
   
-  // Performance
-  if (argv.lowMemory !== undefined) state.lowMemory = argv.lowMemory;
-  
   // Model-specific
-  if (argv.modelDiffs !== undefined) state.modelDiffs = argv.modelDiffs;
   if (argv.models !== undefined) state.models = argv.models;
   
   // Content-specific

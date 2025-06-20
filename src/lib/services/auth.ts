@@ -89,7 +89,7 @@ export class Auth {
       if (fs.existsSync(envPath)) {
         const envContent = fs.readFileSync(envPath, 'utf8');
         const guidMatch = envContent.match(/AGILITY_GUID=([^\n]+)/);
-        const channelMatch = envContent.match(/AGILITY_SITEMAP=([^\n]+)/);
+        const channelMatch = envContent.match(/AGILITY_WEBSITE=([^\n]+)/);
         const localeMatch = envContent.match(/AGILITY_LOCALES=([^\n]+)/);
 
         if (guidMatch && guidMatch[1]) {
@@ -129,17 +129,27 @@ export class Auth {
         // Parse all relevant environment variables
         const envVars = {
           AGILITY_GUID: envContent.match(/AGILITY_GUID=([^\n]+)/),
-          AGILITY_SITEMAP: envContent.match(/AGILITY_SITEMAP=([^\n]+)/),
+          AGILITY_TARGET_GUID: envContent.match(/AGILITY_TARGET_GUID=([^\n]+)/),
+          AGILITY_WEBSITE: envContent.match(/AGILITY_WEBSITE=([^\n]+)/),
           AGILITY_LOCALES: envContent.match(/AGILITY_LOCALES=([^\n]+)/),
           AGILITY_TEST: envContent.match(/AGILITY_TEST=([^\n]+)/),
           AGILITY_OVERWRITE: envContent.match(/AGILITY_OVERWRITE=([^\n]+)/),
-          AGILITY_DEBUG: envContent.match(/AGILITY_DEBUG=([^\n]+)/),
+          
           AGILITY_PREVIEW: envContent.match(/AGILITY_PREVIEW=([^\n]+)/),
           AGILITY_VERBOSE: envContent.match(/AGILITY_VERBOSE=([^\n]+)/),
           AGILITY_HEADLESS: envContent.match(/AGILITY_HEADLESS=([^\n]+)/),
           AGILITY_ELEMENTS: envContent.match(/AGILITY_ELEMENTS=([^\n]+)/),
           AGILITY_ROOT_PATH: envContent.match(/AGILITY_ROOT_PATH=([^\n]+)/),
           AGILITY_BASE_URL: envContent.match(/AGILITY_BASE_URL=([^\n]+)/),
+          AGILITY_DEV: envContent.match(/AGILITY_DEV=([^\n]+)/),
+          AGILITY_LOCAL: envContent.match(/AGILITY_LOCAL=([^\n]+)/),
+          AGILITY_PREPROD: envContent.match(/AGILITY_PREPROD=([^\n]+)/),
+          AGILITY_BLESSED: envContent.match(/AGILITY_BLESSED=([^\n]+)/),
+          AGILITY_LEGACY_FOLDERS: envContent.match(/AGILITY_LEGACY_FOLDERS=([^\n]+)/),
+          AGILITY_INSECURE: envContent.match(/AGILITY_INSECURE=([^\n]+)/),
+          
+          AGILITY_MODELS: envContent.match(/AGILITY_MODELS=([^\n]+)/),
+          
         };
 
         // Only prime state values that aren't already set from command line
@@ -148,8 +158,8 @@ export class Auth {
             primedValues.push('sourceGuid');
         }
         
-        if (envVars.AGILITY_SITEMAP && envVars.AGILITY_SITEMAP[1] && !state.channel) {
-          state.channel = envVars.AGILITY_SITEMAP[1].trim();
+              if (envVars.AGILITY_WEBSITE && envVars.AGILITY_WEBSITE[1] && !state.channel) {
+        state.channel = envVars.AGILITY_WEBSITE[1].trim();
           primedValues.push('channel');
         }
         
@@ -166,15 +176,10 @@ export class Auth {
         
         if (envVars.AGILITY_OVERWRITE && envVars.AGILITY_OVERWRITE[1] && state.overwrite === undefined) {
           state.overwrite = envVars.AGILITY_OVERWRITE[1].trim().toLowerCase() === 'true';
-          // Also set forceUpdate for compatibility
-          state.forceUpdate = state.overwrite;
-          primedValues.push('overwrite/forceUpdate');
+          		primedValues.push('overwrite');
         }
         
-        if (envVars.AGILITY_DEBUG && envVars.AGILITY_DEBUG[1] && state.debug === undefined) {
-          state.debug = envVars.AGILITY_DEBUG[1].trim().toLowerCase() === 'true';
-          primedValues.push('debug');
-        }
+        
         
         if (envVars.AGILITY_PREVIEW && envVars.AGILITY_PREVIEW[1] && state.preview === undefined) {
           state.preview = envVars.AGILITY_PREVIEW[1].trim().toLowerCase() === 'true';
@@ -205,6 +210,51 @@ export class Auth {
           state.baseUrl = envVars.AGILITY_BASE_URL[1].trim();
           primedValues.push('baseUrl');
         }
+
+        // Additional system args
+        if (envVars.AGILITY_TARGET_GUID && envVars.AGILITY_TARGET_GUID[1] && !state.targetGuid) {
+          state.targetGuid = envVars.AGILITY_TARGET_GUID[1].trim();
+          primedValues.push('targetGuid');
+        }
+
+        if (envVars.AGILITY_DEV && envVars.AGILITY_DEV[1] && state.dev === undefined) {
+          state.dev = envVars.AGILITY_DEV[1].trim().toLowerCase() === 'true';
+          primedValues.push('dev');
+        }
+
+        if (envVars.AGILITY_LOCAL && envVars.AGILITY_LOCAL[1] && state.local === undefined) {
+          state.local = envVars.AGILITY_LOCAL[1].trim().toLowerCase() === 'true';
+          primedValues.push('local');
+        }
+
+        if (envVars.AGILITY_PREPROD && envVars.AGILITY_PREPROD[1] && state.preprod === undefined) {
+          state.preprod = envVars.AGILITY_PREPROD[1].trim().toLowerCase() === 'true';
+          primedValues.push('preprod');
+        }
+
+        if (envVars.AGILITY_BLESSED && envVars.AGILITY_BLESSED[1] && state.blessed === undefined) {
+          state.blessed = envVars.AGILITY_BLESSED[1].trim().toLowerCase() === 'true';
+          primedValues.push('blessed');
+        }
+
+        if (envVars.AGILITY_LEGACY_FOLDERS && envVars.AGILITY_LEGACY_FOLDERS[1] && state.legacyFolders === undefined) {
+          state.legacyFolders = envVars.AGILITY_LEGACY_FOLDERS[1].trim().toLowerCase() === 'true';
+          primedValues.push('legacyFolders');
+        }
+
+        if (envVars.AGILITY_INSECURE && envVars.AGILITY_INSECURE[1] && state.insecure === undefined) {
+          state.insecure = envVars.AGILITY_INSECURE[1].trim().toLowerCase() === 'true';
+          primedValues.push('insecure');
+        }
+
+        
+
+        if (envVars.AGILITY_MODELS && envVars.AGILITY_MODELS[1] && !state.models) {
+          state.models = envVars.AGILITY_MODELS[1].trim();
+          primedValues.push('models');
+        }
+
+
 
         if (primedValues.length > 0) {
           return { hasEnvFile: true, primedValues };
@@ -416,7 +466,7 @@ export class Auth {
     
     // Pull and sync need channel
     if (state.channel === "") {
-      missingFields.push('channel (use --channel or AGILITY_SITEMAP in .env)');
+      missingFields.push('channel (use --channel or AGILITY_WEBSITE in .env)');
     }
 
     if (missingFields.length > 0) {
@@ -444,8 +494,8 @@ export class Auth {
     if (shouldSkip) {
       if (state.test) {
         console.log(ansiColors.yellow("🧪 TEST MODE: Bypassing permission checks for analysis..."));
-      } else if (state.debug) {
-        console.log(ansiColors.yellow("🔍 DEBUG MODE: Bypassing permission checks..."));
+      		} else if (state.test) {
+			console.log(ansiColors.yellow("🧪 TEST MODE: Bypassing permission checks..."));
       }
     }
 
@@ -805,7 +855,7 @@ export class Auth {
    */
   shouldSkipPermissionCheck(): boolean {
     const state = getState();
-    return state.debug || state.test;
+    return state.test;
   }
 
   /**

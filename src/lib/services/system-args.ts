@@ -64,7 +64,7 @@ export const systemArgs = {
     default: "en-us"
   },
   channel: {
-    describe: "Provide the channel for the operation. If not provided, will use AGILITY_SITEMAP from .env file if available.",
+    describe: "Provide the channel for the operation. If not provided, will use AGILITY_WEBSITE from .env file if available.",
     demandOption: false,
     type: "string" as const,
     default: "website"
@@ -93,19 +93,9 @@ export const systemArgs = {
     type: "string" as const
   },
   
-  // Performance args
-  lowMemory: {
-    describe: "Use low-memory mode: reduced UI features, minimal buffering for large operations.",
-    type: "boolean" as const,
-    default: false,
-  },
+
   
-  // Model-specific args
-  modelDiffs: {
-    describe: "Enable detailed logging of model differences during operations.",
-    type: "boolean" as const,
-    default: false,
-  },
+
   
   // **NEW: Selective Model-Based Sync Parameter (Task 103)**
   models: {
@@ -115,15 +105,9 @@ export const systemArgs = {
     default: "",
   },
   
-  // Debug/Analysis args (debug and test are functionally equivalent)
-  debug: {
-    describe: "Show detailed analysis and debugging information. For sync operations, bypasses authentication for analysis-only mode.",
-    demandOption: false,
-    type: "boolean" as const,
-    default: false,
-  },
+  // Debug/Analysis args
   test: {
-    describe: "Enable test mode: bypasses authentication checks for analysis-only operations. Functionally equivalent to debug mode.",
+    describe: "Enable test mode: bypasses authentication checks for analysis-only operations. Shows detailed analysis and debugging information.",
     demandOption: false,
     type: "boolean" as const,
     default: false,
@@ -141,20 +125,7 @@ export const systemArgs = {
     type: "string" as const,
   },
 
-  // Operation control args
-  maxDepth: {
-    describe: "Maximum recursion depth for dependency analysis (prevents infinite loops).",
-    demandOption: false,
-    type: "number" as const,
-    default: 10,
-  },
-  // Force operation args (context-dependent usage)
-  forceUpdate: {
-    describe: "Force update all items regardless of existing mappings. Used in sync operations.",
-    demandOption: false,
-    type: "boolean" as const,
-    default: false,
-  },
+  // Force operation args
   overwrite: {
     describe: "Force overwrite existing local files and metadata. Used in pull operations.",
     type: "boolean" as const,
