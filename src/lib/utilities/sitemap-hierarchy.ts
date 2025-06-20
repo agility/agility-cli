@@ -294,49 +294,21 @@ export class SitemapHierarchy {
     }
 
     /**
-     * ✅ NEW: Comprehensive page hierarchy debugging
+     * Silent page hierarchy analysis (no debug output)
      */
     debugPageHierarchyIssues(pages: any[]): void {
-        console.log(`\n🔧 [DEBUG] === PAGE HIERARCHY ANALYSIS ===`);
-        
+        // Perform hierarchy analysis silently
         const sitemap = this.loadNestedSitemap();
         if (!sitemap) {
-            console.log(`❌ [DEBUG] No sitemap found - cannot analyze hierarchy`);
             return;
         }
 
-        console.log(`📊 [DEBUG] Source sitemap structure:`);
-        const flattenAndLog = (nodes: SitemapNode[], indent: string = '') => {
-            nodes.forEach(node => {
-                const childInfo = node.children ? ` (${node.children.length} children)` : '';
-                const dynamicInfo = node.children?.some(c => c.contentID) ? ' [DYNAMIC]' : '';
-                console.log(`${indent}${node.name} (ID:${node.pageID})${childInfo}${dynamicInfo}`);
-                
-                if (node.children) {
-                    flattenAndLog(node.children, indent + '  ');
-                }
-            });
-        };
-        flattenAndLog(sitemap);
-
-        console.log(`\n📊 [DEBUG] Pages being processed:`);
-        pages.forEach(page => {
-            const parentInfo = page.parentPageID && page.parentPageID > 0 
-                ? ` Parent: ${page.parentPageID}` 
-                : ' Parent: NONE';
-            const typeInfo = page.pageType === 'dynamic' ? ' [DYNAMIC]' : '';
-            console.log(`  ${page.name} (ID:${page.pageID})${parentInfo}${typeInfo}`);
-        });
-
-
+        // Internal analysis only - no console output
         pages.forEach(page => {
             if (page.pageType === 'dynamic') {
-                const lookup = this.findPageParentInSourceSitemap(page.pageID, page.name);
-                console.log(`  ${page.name}: ${lookup.foundIn} → Parent: ${lookup.parentName || 'NONE'} (${lookup.parentId || 'N/A'})`);
+                this.findPageParentInSourceSitemap(page.pageID, page.name);
             }
         });
-
-        console.log(`🔧 [DEBUG] === END HIERARCHY ANALYSIS ===\n`);
     }
 
     /**

@@ -594,15 +594,13 @@ export async function pushPages(
         return { status: 'success', successful: 0, failed: 0, skipped: 0 };
     }
 
-    // ✅ ENHANCED: Page hierarchy enrichment with dynamic page support
+    // Page hierarchy enrichment with dynamic page support
     try {
-        console.log(ansiColors.cyan(`\n🌳 Enriching pages with sitemap hierarchy...`));
         const sitemapHierarchy = new SitemapHierarchy();
         
-        // Debug hierarchy issues if we have dynamic pages
+        // Check for dynamic pages without verbose logging
         const hasDynamicPages = pages.some((page: any) => page.pageType === 'dynamic');
         if (hasDynamicPages) {
-            console.log(ansiColors.yellow(`🔍 Dynamic pages detected - running comprehensive hierarchy analysis...`));
             sitemapHierarchy.debugPageHierarchyIssues(pages);
         }
         
@@ -638,9 +636,9 @@ export async function pushPages(
                         const lookup = sitemapHierarchy.findPageParentInSourceSitemap(page.pageID, page.name);
                         if (lookup.parentId) {
                             parentId = lookup.parentId;
-                            console.log(ansiColors.blue(`🔧 Found parent for dynamic page ${page.name}: ${lookup.parentName} (${lookup.parentId})`));
+                            // Only log if parent lookup fails completely
                         } else {
-                            console.log(ansiColors.red(`❌ No parent found for dynamic page ${page.name} - this will cause API validation error`));
+                            console.warn(`⚠️ No parent found for dynamic page ${page.name} - may cause validation issues`);
                         }
                     }
                     
@@ -652,35 +650,27 @@ export async function pushPages(
                     }
                 });
 
-                console.log(ansiColors.green(`✅ Enriched ${enrichedCount} pages with parent relationships`));
+                // Only log if there were parent relationship enrichments
+                // if (enrichedCount > 0) {
+                //     console.log(`✅ Enriched ${enrichedCount} pages with parent relationships`);
+                // }
                 
-                // Log any remaining dynamic pages without parents
+                // Only warn about orphaned dynamic pages (simplified)
                 const orphanedDynamicPages = pages.filter((page: any) => 
                     page.pageType === 'dynamic' && (!page.parentPageID || page.parentPageID <= 0)
                 );
                 if (orphanedDynamicPages.length > 0) {
-                    console.log(ansiColors.red(`⚠️ ${orphanedDynamicPages.length} dynamic pages still without parents:`));
-                    orphanedDynamicPages.forEach((page: any) => {
-                        console.log(ansiColors.red(`  - ${page.name} (ID:${page.pageID})`));
-                    });
+                    console.warn(`⚠️ ${orphanedDynamicPages.length} dynamic pages without parents may cause issues`);
                 }
                 
             } else {
-                console.log(
-                    ansiColors.yellow(`⚠️ No hierarchy found in sitemap - pages will process without parent relationships`)
-                );
+                // Sitemap exists but no hierarchy - silent processing
             }
         } else {
-            console.log(
-                ansiColors.yellow(`⚠️ No nested sitemap found - pages will process without parent relationships`)
-            );
+            // No sitemap found - silent processing
         }
     } catch (error: any) {
-        console.warn(
-            ansiColors.yellow(
-                `⚠️ Failed to enrich pages with sitemap parents: ${error.message}`
-            )
-        );
+        // Silently handle hierarchy enrichment errors
     }
 
     let successful = 0;
