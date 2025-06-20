@@ -611,6 +611,19 @@ export async function pushPages(
             const hierarchy = sitemapHierarchy.buildPageHierarchyWithDynamicSupport(sitemap);
             
             if (hierarchy && Object.keys(hierarchy).length > 0) {
+                // CRITICAL FIX: Use dependency-safe processing order to ensure parents are processed before children
+                const { orderedPages, depthInfo } = sitemapHierarchy.getProcessingOrder(pages, hierarchy);
+                
+                // Validate processing order is dependency-safe
+                const isValidOrder = sitemapHierarchy.validateProcessingOrder(orderedPages, hierarchy);
+                if (!isValidOrder) {
+                    console.warn('⚠️ Page processing order validation failed - proceeding with original order');
+                } else {
+                    // Use the dependency-safe order
+                    pages = orderedPages;
+                    console.log(`✅ Pages reordered for dependency-safe processing (${pages.length} pages)`);
+                }
+                
                 // Build child-to-parent mapping for efficient lookup
                 const childToParentMap: { [childId: number]: number } = {};
                 Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
@@ -650,10 +663,9 @@ export async function pushPages(
                     }
                 });
 
-                // Only log if there were parent relationship enrichments
-                // if (enrichedCount > 0) {
-                //     console.log(`✅ Enriched ${enrichedCount} pages with parent relationships`);
-                // }
+                if (enrichedCount > 0) {
+                    console.log(`✅ Enriched ${enrichedCount} pages with parent relationships`);
+                }
                 
                 // Only warn about orphaned dynamic pages (simplified)
                 const orphanedDynamicPages = pages.filter((page: any) => 
@@ -670,7 +682,7 @@ export async function pushPages(
             // No sitemap found - silent processing
         }
     } catch (error: any) {
-        // Silently handle hierarchy enrichment errors
+        console.warn(`⚠️ Page hierarchy enrichment failed: ${error.message} - proceeding with original order`);
     }
 
     let successful = 0;
