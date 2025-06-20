@@ -16,6 +16,7 @@ import {
   type ContentBatchConfig
 } from './content-item-batch-pusher';
 import { getState } from '../services/state';
+import { AssetReferenceExtractor } from "../utilities/assets/asset-reference-extractor";
 import { findAssetInTargetInstance } from "../finders/asset-finder";
 
 /**
@@ -366,6 +367,7 @@ async function pushLinkedContentItems(
                                 validatedFields[fieldName] = fieldVal;
                             }
                         }
+                    }
                 }
 
                 payload = {
