@@ -1,40 +1,45 @@
 import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapper } from "../reference-mapper";
+import { ReferenceMapper } from "../utilities/reference-mapper";
 import { findAssetInTargetInstance } from "../finders";
 import * as fs from 'fs';
 import * as path from 'path';
 import { getAssetFilePath } from "../utilities";
+import { getState } from '../services/state';
 const FormData = require("form-data");
 
 export async function pushAssets(
-    assets: mgmtApi.Media[], 
-    allGalleries: mgmtApi.assetMediaGrouping[],
-    sourceGuid: string, 
-    targetGuid: string, 
-    locale: string, 
-    isPreview: boolean, 
-    apiClient: mgmtApi.ApiClient, 
+    sourceData: any,
     referenceMapper: ReferenceMapper, 
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
-): Promise<{ status: 'success' | 'error', successfulAssets: number, failedAssets: number }> {
+): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
+    
+    // Extract data from sourceData - unified parameter pattern
+    const assets: mgmtApi.Media[] = sourceData.assets || [];
+    const allGalleries: mgmtApi.assetMediaGrouping[] = sourceData.galleries || [];
     
     if (!assets || assets.length === 0) {
         console.log('No assets found to process.');
-        return { status: 'success', successfulAssets: 0, failedAssets: 0 };
+        return { status: 'success', successful: 0, failed: 0, skipped: 0 };
     }
+
+    // Get state values instead of prop drilling
+    const state = getState();
+    const { mgmtApiOptions, sourceGuid, targetGuid, locale, preview: isPreview } = state;
+    const apiClient = new mgmtApi.ApiClient(mgmtApiOptions);
 
     let defaultContainer: mgmtApi.assetContainer | null = null;
     try {
         defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid);
     } catch (err: any) {
         console.error("✗ Error fetching default asset container:", err.message);
-        return { status: 'error', successfulAssets: 0, failedAssets: 0 }; 
+        return { status: 'error', successful: 0, failed: 0, skipped: 0 }; 
     }
     
     const totalAssets = assets.length;
-    let successfulAssets = 0;
-    let failedAssets = 0;
+    let successful = 0;
+    let failed = 0;
+    let skipped = 0;
     let processedAssetsCount = 0;
     let overallStatus: 'success' | 'error' = 'success';
 
@@ -54,11 +59,11 @@ export async function pushAssets(
             const existingMedia = await findAssetInTargetInstance(media, apiClient, targetGuid, referenceMapper);
 
             if (existingMedia) {
-                // Asset exists in target instance
+                // Asset exists in target instance - this is a skip, not a success
                 const sourceFileName = media.originUrl.split('/').pop()?.split('?')[0];
                 const targetFileName = existingMedia.originUrl?.split('/').pop()?.split('?')[0];
                 console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: mediaID:${existingMedia.mediaID} (${targetFileName})`);
-                successfulAssets++; // Count existing as success for progress
+                skipped++; // Existing assets are skipped, not successful
             } else {
                 // Handle gallery if present
                 let targetMediaGroupingID = -1;
@@ -117,11 +122,11 @@ export async function pushAssets(
                 referenceMapper.addRecord('asset', media, uploadedMedia);
                 console.log(`✓ Asset uploaded: ${media.fileName} to ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`);
                 // console.log(`[Asset Debug] Added uploaded asset to cache for future lookups`);
-                successfulAssets++;
+                successful++;
             }
         } catch (error: any) {
             console.error(`✗ Error processing asset ${media.fileName || media.originUrl}:`, error.message);
-            failedAssets++;
+            failed++;
             currentStatus = 'error';
             overallStatus = 'error';
         } finally {
@@ -133,6 +138,6 @@ export async function pushAssets(
         }
     }
 
-    console.log(ansiColors.yellow(`Processed ${successfulAssets}/${totalAssets} assets (${failedAssets} failed)`));
-    return { status: overallStatus, successfulAssets, failedAssets };
+    console.log(ansiColors.yellow(`Processed ${successful}/${totalAssets} assets (${failed} failed, ${skipped} skipped)`));
+    return { status: overallStatus, successful, failed, skipped };
 }

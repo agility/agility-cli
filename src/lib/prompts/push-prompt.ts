@@ -1,6 +1,6 @@
 import inquirer from "inquirer";
 import colors from "ansi-colors";
-import { instanceSelector } from "../utilities";
+import { instanceSelector } from "./instance-selector-prompt";
 import { Auth } from "../services/auth";
 // import { createMultibar } from "../services/multibar"; // Multibar no longer used
 import * as mgmtApi from "@agility/management-sdk";

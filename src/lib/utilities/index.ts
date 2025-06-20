@@ -1,15 +1,17 @@
 /**
  * Central exports for all utility functions and classes
- * Enables clean single-line imports: import { ChainDataLoader, ContentFieldValidator, ... } from './lib/utilities'
  */
 
-// Data loading and validation utilities
+// Data loading utilities
 export { 
-  ChainDataLoader, 
-  type SourceEntities, 
-  type ChainDataLoaderOptions 
-} from './chain-data-loader';
+  SourceDataLoader, 
+  type SourceEntities 
+} from './source-data-loader';
 
+// Reference mapping utilities
+export { ReferenceMapper } from './reference-mapper';
+
+// Content field validation
 export { 
   ContentFieldValidator,
   createContentFieldValidator,
@@ -20,51 +22,29 @@ export {
 
 // Content analysis utilities
 export { SitemapHierarchy } from './sitemap-hierarchy';
-export { 
-  LinkTypeDetector, 
-  type LinkTypeDetection, 
-  type ContentFieldAnalysis 
-} from './link-type-detector';
+export { LinkTypeDetector } from './link-type-detector';
 export { AssetReferenceExtractor } from './asset-reference-extractor';
 
 // Content processing utilities
 export { ContentFieldMapper } from './content-field-mapper';
 export { 
-  ContentBatchProcessor,
-  type ContentBatchConfig,
-  type BatchProcessingResult,
-  type BatchSuccessItem,
-  type BatchFailedItem,
-  type BatchProgressCallback
-} from './content-batch-processor';
-export { 
   ContentClassifier,
   type ContentClassification
 } from './content-classifier';
-export { MappingDependencyEnforcer } from './mapping-dependency-enforcer';
 export { 
-  bulkFilterByExistingMappings,
-  bulkFilterByExistingMappingsGeneric,
-  type BulkFilterResult
-} from './bulk-mapping-filter';
-
-// Instance utilities
-export { instanceSelector } from './instance-selector';
-export { listInstances } from './instance-lister';
+  ContentBatchProcessor,
+  type ContentBatchConfig
+} from './content-batch-processor';
 
 // Asset utilities
 export { getAssetFilePath } from './asset-utils';
 
-// Batch processing utilities
-export { 
-  pollBatchUntilComplete,
-  extractBatchResults,
-  prettyException,
-  logBatchError
-} from './batch-polling';
-
 // Generation utilities
-export { default as generateTypes } from './generate-typescript-models';
-export { default as generateReactComponents } from './generate-components';
 export { generateEnv } from './generate-env';
-export { generateSitemap } from './generate-sitemap'; 
+export { generateSitemap } from './generate-sitemap';
+export { default as generateTypescriptModels } from './generate-typescript-models';
+export { default as generateComponents } from './generate-components';
+
+// Legacy aliases for backward compatibility
+export { default as generateTypes } from './generate-typescript-models';
+export { default as generateReactComponents } from './generate-components'; 

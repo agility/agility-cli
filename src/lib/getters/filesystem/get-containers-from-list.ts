@@ -1,7 +1,7 @@
 import * as mgmtApi from '@agility/management-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ReferenceMapper } from '../../reference-mapper';
+import { ReferenceMapper } from "../../utilities/reference-mapper";
 
 /**
  * Get containers from Content Sync SDK /list directory

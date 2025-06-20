@@ -8,7 +8,8 @@ inquirer.registerPrompt("search-list", require("inquirer-search-list"));
 
 import { Auth, Clean, Pull, Sync, state, setState, systemArgs } from "./lib/services";
 import { homePrompt, instancesPrompt, localePrompt } from "./lib/prompts";
-import { generateEnv, instanceSelector } from "./lib/utilities";
+import { generateEnv } from "./lib/utilities";
+import { instanceSelector } from "./lib/prompts";
   
 let auth: Auth;
 

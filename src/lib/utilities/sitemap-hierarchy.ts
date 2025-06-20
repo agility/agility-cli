@@ -1,24 +1,14 @@
 import * as fs from 'fs';
 import * as path from 'path';
 import { SitemapNode, PageHierarchy, HierarchicalPageGroup, SourceEntities } from '../../types/syncAnalysis';
+import { getState } from '../services/state';
 
 /**
  * Load and parse sitemap hierarchy for hierarchical page chain analysis
  */
 export class SitemapHierarchy {
-    private rootPath: string;
-    private sourceGuid: string;
-    private locale: string;
-    private isPreview: boolean;
-    private legacyFolders: boolean;
-
-    constructor(rootPath: string, sourceGuid: string, locale: string, isPreview: boolean, legacyFolders: boolean = false) {
-        // Use rootPath directly - it should point to the correct base directory
-        this.rootPath = rootPath;
-        this.sourceGuid = sourceGuid;
-        this.locale = locale;
-        this.isPreview = isPreview;
-        this.legacyFolders = legacyFolders;
+    constructor() {
+        // Configuration now comes from state internally
     }
 
     /**
@@ -26,18 +16,19 @@ export class SitemapHierarchy {
      */
     loadNestedSitemap(): SitemapNode[] | null {
         try {
+            const state = getState();
             let sitemapPath: string;
             
-            if (this.legacyFolders) {
+            if (state.legacyFolders) {
                 // Legacy mode: flat structure {rootPath}/nestedsitemap/website.json
-                sitemapPath = path.join(this.rootPath, 'nestedsitemap', 'website.json');
+                sitemapPath = path.join(state.rootPath, 'nestedsitemap', 'website.json');
             } else {
                 // Normal mode: nested structure {rootPath}/{guid}/{locale}/{mode}/nestedsitemap/website.json
                 sitemapPath = path.join(
-                    this.rootPath,
-                    this.sourceGuid,
-                    this.locale,
-                    this.isPreview ? 'preview' : 'live',
+                    state.rootPath,
+                    state.sourceGuid,
+                    state.locale,
+                    state.preview ? 'preview' : 'live',
                     'nestedsitemap',
                     'website.json'
                 );

@@ -8,7 +8,7 @@
  * - Field type compliance with Agility CMS expectations
  */
 
-import { ReferenceMapper } from '../reference-mapper';
+import { ReferenceMapper } from "../utilities/reference-mapper";
 import { LinkTypeDetector } from './link-type-detector';
 
 export interface FieldValidationResult {

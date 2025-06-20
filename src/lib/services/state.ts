@@ -3,6 +3,8 @@
  * Simple state object that gets populated from argv and referenced throughout the app
  */
 
+import * as mgmtApi from '@agility/management-sdk';
+
 interface CliState {
   // Environment modes
   dev: boolean;
@@ -55,6 +57,7 @@ interface CliState {
   
   // Auth/API objects (set by auth.init())
   mgmtApiOptions?: any;
+  apiClient?: mgmtApi.ApiClient; // Lazy-loaded API client
   user?: any;
   apiKeyForPull?: string;
   previewKey?: string;
@@ -179,6 +182,40 @@ export function configureSSL() {
  */
 export function getState() {
   return state;
+}
+
+/**
+ * Get or create ApiClient - lazy instantiation on first use
+ * This ensures the client is only created when actually needed and uses current auth state
+ */
+export function getApiClient(): mgmtApi.ApiClient {
+  // Return existing client if available
+  if (state.apiClient) {
+    return state.apiClient;
+  }
+
+  // Create new client on first use
+  if (!state.mgmtApiOptions) {
+    throw new Error('Management API options not initialized. Call auth.init() first.');
+  }
+  
+  // Create and store the client for reuse
+  state.apiClient = new mgmtApi.ApiClient(state.mgmtApiOptions);
+  return state.apiClient;
+}
+
+/**
+ * @deprecated Use getApiClient() instead - this function is kept for backward compatibility
+ */
+export function createApiClient(): mgmtApi.ApiClient {
+  return getApiClient();
+}
+
+/**
+ * Clear the cached API client (useful when auth state changes)
+ */
+export function clearApiClient(): void {
+  state.apiClient = undefined;
 }
 
 /**

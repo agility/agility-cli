@@ -9,7 +9,7 @@
  * - Link-type-specific mapping strategies
  */
 
-import { ReferenceMapper } from '../reference-mapper';
+import { ReferenceMapper } from "../utilities/reference-mapper";
 import { AssetReferenceExtractor, LinkTypeDetector, ContentFieldValidator, type ContentValidationOptions } from './index';
 import * as mgmtApi from '@agility/management-sdk';
 

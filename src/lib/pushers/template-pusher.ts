@@ -1,28 +1,35 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { ReferenceMapper } from "../reference-mapper";
+import { ReferenceMapper } from "../utilities/reference-mapper";
+import { getState } from '../services/state';
 
 export async function pushTemplates(
-    templates: mgmtApi.PageModel[], 
-    targetGuid: string, 
-    locale: string, 
-    apiClient: mgmtApi.ApiClient, // Added apiClient
-    referenceMapper: ReferenceMapper, // Added referenceMapper
-    onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void // Added optional progress callback
-): Promise<{ status: 'success' | 'error', successfulTemplates: number, failedTemplates: number }> {
+    sourceData: any,
+    referenceMapper: ReferenceMapper,
+    onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
+): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
+    
+    // Extract data from sourceData - unified parameter pattern
+    const templates: mgmtApi.PageModel[] = sourceData.templates || [];
     
     console.log(`[Template Debug] Starting template processing. Found ${templates ? templates.length : 0} templates to process.`);
     
     if (!templates || templates.length === 0) {
         console.log('No templates found to process.');
-        return { status: 'success', successfulTemplates: 0, failedTemplates: 0 };
+        return { status: 'success', successful: 0, failed: 0, skipped: 0 };
     }
+
+    // Get state values instead of prop drilling
+    const state = getState();
+    const { mgmtApiOptions, targetGuid, locale } = state;
+    const apiClient = new mgmtApi.ApiClient(mgmtApiOptions);
 
     // Log template names for debugging
     console.log(`[Template Debug] Template names: ${templates.map(t => t.pageTemplateName).join(', ')}`);
 
-    let successfulTemplates = 0;
-    let failedTemplates = 0;
+    let successful = 0;
+    let failed = 0;
+    let skipped = 0;
     let processedCount = 0;
     const totalTemplates = templates.length;
     let overallStatus: 'success' | 'error' = 'success';
@@ -38,11 +45,10 @@ export async function pushTemplates(
             let existingTemplate = await apiClient.pageMethods.getPageTemplateName(targetGuid, locale, template.pageTemplateName);
 
             if(existingTemplate){
-                // Update template ID for mapping purposes, but don't modify the existing definitions directly here
-                // We only need the target ID for mapping
+                // Update template ID for mapping purposes - this is a skip, not success
                 referenceMapper.addRecord('template', template, existingTemplate); // Map original source to existing target
                 console.log(`✓ Template ${ansiColors.underline(template.pageTemplateName)} ${ansiColors.bold.gray('exists')} - ${ansiColors.green('Source')}: ${originalID} ${ansiColors.green(targetGuid)}: pageTemplateID:${existingTemplate.pageTemplateID}`);
-                successfulTemplates++;
+                skipped++; // Existing templates are skipped, not successful
                 templateProcessed = true;
             }
         } catch (error: any) {
@@ -77,11 +83,11 @@ export async function pushTemplates(
                 
                 referenceMapper.addRecord('template', template, createdTemplate); // Map original source to newly created target
                 console.log(`✓ Template created - ${ansiColors.green('Source')}: ${template.pageTemplateName} (ID: ${originalID}), ${ansiColors.green(targetGuid)}: ${createdTemplate.pageTemplateName} (ID: ${createdTemplate.pageTemplateID})`);
-                successfulTemplates++;
+                successful++;
                 templateProcessed = true;
             } catch(createError: any) {
                 console.error(`✗ Failed to create template ${template.pageTemplateName}: ${createError.message}`);
-                failedTemplates++;
+                failed++;
                 currentStatus = 'error';
                 overallStatus = 'error';
             }
@@ -94,6 +100,6 @@ export async function pushTemplates(
         }
     }
 
-   console.log(ansiColors.yellow(`Processed ${successfulTemplates}/${totalTemplates} templates (${failedTemplates} failed)`));
-   return { status: overallStatus, successfulTemplates, failedTemplates }; // Return status object
+   console.log(ansiColors.yellow(`Processed ${successful}/${totalTemplates} templates (${failed} failed, ${skipped} skipped)`));
+   return { status: overallStatus, successful, failed, skipped }; // Return status object
 }

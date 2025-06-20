@@ -1,6 +1,6 @@
 import inquirer from "inquirer";
 import colors from "ansi-colors";
-import { instanceSelector } from "../utilities";
+import { instanceSelector } from "./instance-selector-prompt";
 import { getInstance, instancesPrompt } from "./instance-prompt";
 import { Auth } from "../services/auth";
 import { AgilityInstance } from "types/agilityInstance";

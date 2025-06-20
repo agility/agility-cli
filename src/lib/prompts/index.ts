@@ -23,4 +23,5 @@ export { default as rootPathPrompt } from './root-path-prompt';
 export { default as fileSystemPrompt } from './file-system-prompt';
 export { websiteAddressPrompt } from './website-address-prompt';
 export { isPreviewPrompt } from './isPreview-prompt';
-export { channelPrompt } from './channel-prompt'; 
+export { channelPrompt } from './channel-prompt';
+export { instanceSelector } from './instance-selector-prompt'; 

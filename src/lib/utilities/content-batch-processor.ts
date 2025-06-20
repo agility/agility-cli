@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from '../reference-mapper';
+import { ReferenceMapper } from "../utilities/reference-mapper";
 import { ContentFieldMapper } from './content-field-mapper';
 import { pollBatchUntilComplete, extractBatchResults } from './batch-polling';
 import ansiColors from 'ansi-colors';

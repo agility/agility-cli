@@ -1,4 +1,4 @@
-import { ReferenceMapper } from "../reference-mapper";
+import { ReferenceMapper } from "../utilities/reference-mapper";
 import * as mgmtApi from '@agility/management-sdk';
 import { 
   findContentInTargetInstance, 
@@ -13,6 +13,7 @@ import {
   ContentBatchProcessor,
   type ContentBatchConfig
 } from '../utilities';
+import { getState } from '../services/state';
 
 /**
  * Content Item Pusher - implements the proven push_legacy.ts pattern
@@ -596,20 +597,24 @@ function extractContentId(targetContentId: any): number {
  * Main content pusher function using legacy pattern
  */
 export async function pushContent(
-    contentItems: mgmtApi.ContentItem[],
-    targetGuid: string,
-    locale: string,
-    apiClient: mgmtApi.ApiClient,
+    sourceData: any,
     referenceMapper: ReferenceMapper,
-    models?: mgmtApi.Model[],
-    forceUpdate: boolean = false,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
-): Promise<{ status: 'success' | 'error', successfulItems: number, failedItems: number, skippedItems: number }> {
+): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
+
+    // Extract data from sourceData - unified parameter pattern
+    const contentItems: mgmtApi.ContentItem[] = sourceData.content || [];
+    const models: mgmtApi.Model[] = sourceData.models || [];
 
     if (!contentItems || contentItems.length === 0) {
         console.log('No content items found to process.');
-        return { status: 'success', successfulItems: 0, failedItems: 0, skippedItems: 0 };
+        return { status: 'success', successful: 0, failed: 0, skipped: 0 };
     }
+
+    // Get state values instead of prop drilling
+    const state = getState();
+    const { mgmtApiOptions, targetGuid, locale, forceUpdate } = state;
+    const apiClient = new mgmtApi.ApiClient(mgmtApiOptions);
 
     // Use passed models or load from filesystem as fallback
     let resolvedModels: mgmtApi.Model[] = models || [];
@@ -641,8 +646,9 @@ export async function pushContent(
     }
 
     const originalItemCount = contentItems.length;
-    let overallSuccessfulItems = 0;
-    let overallFailedItems = 0;
+    let overallSuccessful = 0;
+    let overallFailed = 0;
+    let overallSkipped = 0;
     let overallStatus: 'success' | 'error' = 'success';
 
     // Initialize default asset container URL
@@ -665,6 +671,9 @@ export async function pushContent(
     // Use filtered content items for processing
     const contentItemsToProcess = filterResult.unmappedItems;
     const totalItemCount = contentItemsToProcess.length;
+    // Add filtered items to skipped count
+    overallSkipped += filterResult.alreadyMapped.length;
+    
     // console.log(ansiColors.cyan(`[Content Pusher] Processing ${totalItemCount} content items (filtered ${originalItemCount - totalItemCount} i18 items)`));
 
     // Step 1: Classify content into normal vs linked (using filtered items)
@@ -690,8 +699,8 @@ export async function pushContent(
             normalProgressCallback
         );
 
-        overallSuccessfulItems += normalResult.successfulItems;
-        overallFailedItems += normalResult.failedItems;
+        overallSuccessful += normalResult.successfulItems;
+        overallFailed += normalResult.failedItems;
         
         if (normalResult.failedItems > 0) {
             overallStatus = 'error';
@@ -716,14 +725,14 @@ export async function pushContent(
             linkedProgressCallback
         );
 
-        overallSuccessfulItems += linkedResult.successfulItems;
-        overallFailedItems += linkedResult.failedItems;
+        overallSuccessful += linkedResult.successfulItems;
+        overallFailed += linkedResult.failedItems;
         
         if (linkedResult.failedItems > 0) {
             overallStatus = 'error';
         }
     }
 
-    // console.log(ansiColors.yellow(`Processed ${overallSuccessfulItems}/${totalItemCount} content items (${overallFailedItems} failed, ${filterResult.alreadyMapped.length} skipped)`));
-    return { status: overallStatus, successfulItems: overallSuccessfulItems, failedItems: overallFailedItems, skippedItems: filterResult.alreadyMapped.length };
+    // console.log(ansiColors.yellow(`Processed ${overallSuccessful}/${totalItemCount} content items (${overallFailed} failed, ${overallSkipped} skipped)`));
+    return { status: overallStatus, successful: overallSuccessful, failed: overallFailed, skipped: overallSkipped };
 }

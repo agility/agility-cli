@@ -1,7 +1,7 @@
 import { Auth } from "../services/auth";
 import { fileOperations } from "../services/fileOperations";
 import { localePrompt, baseUrlPrompt, isPreviewPrompt, homePrompt, channelPrompt, getInstance, fileSystemPrompt } from "../prompts";
-import { instanceSelector } from "./index";
+import { instanceSelector } from "../prompts";
 import { AgilityInstance } from "../../types/agilityInstance";
 const FormData = require("form-data");
 const fs = require('fs');

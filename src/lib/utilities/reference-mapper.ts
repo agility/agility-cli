@@ -6,7 +6,8 @@
  * No bloated URL processing or complex asset finding logic
  */
 
-import { fileOperations } from './services/fileOperations';
+import { fileOperations } from '../services/fileOperations';
+import { getState } from '../services/state';
 
 interface CoreReferenceRecord {
     type: 'model' | 'container' | 'content' | 'asset' | 'gallery' | 'template' | 'page' | 'container-name';
@@ -46,12 +47,13 @@ export class ReferenceMapper {
     public assetIds: Map<number, number> = new Map();
     public galleryIds: Map<number, number> = new Map();
 
-    constructor(sourceGUID: string, targetGUID: string, rootPath: string = 'agility-files', legacyFolders: boolean = false) {
-        this.sourceGUID = sourceGUID;
-        this.targetGUID = targetGUID;
+    constructor() {
+        const state = getState();
+        this.sourceGUID = state.sourceGuid;
+        this.targetGUID = state.targetGuid;
         
         // Create fileOperations service for disk persistence
-        this.fileOps = new fileOperations(rootPath, sourceGUID, 'en-us', true, legacyFolders);
+        this.fileOps = new fileOperations(state.rootPath, state.sourceGuid, 'en-us', true, state.legacyFolders);
         
         // Automatically load existing mappings on construction
         this.loadMappingsFromDisk();
@@ -976,4 +978,25 @@ export class ReferenceMapper {
         
         return null;
     }
+}
+
+/**
+ * Factory function to create a new ReferenceMapper instance
+ * Gets configuration from state automatically
+ */
+export function createReferenceMapper(): ReferenceMapper {
+    return new ReferenceMapper();
+}
+
+/**
+ * Centralized reference mapper loader for pushers
+ * Eliminates prop drilling by creating mapper at pusher level
+ */
+export async function loadReferenceMapper(): Promise<ReferenceMapper> {
+    const referenceMapper = new ReferenceMapper();
+    
+    // ReferenceMapper automatically loads existing mappings in constructor
+    // via loadMappingsFromDisk() - no additional loading needed
+    
+    return referenceMapper;
 } 

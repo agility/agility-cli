@@ -1,6 +1,9 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { ReferenceMapper } from "../reference-mapper";
+import { ReferenceMapper } from "../utilities/reference-mapper";
+import { getState, createApiClient } from '../services/state';
+import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
+import { SitemapHierarchy } from '../utilities/sitemap-hierarchy';
 
 // Batch polling utilities
 interface BatchPollResult {
@@ -578,20 +581,85 @@ async function processPage(
 }
 
 export async function pushPages(
-    pages: mgmtApi.PageItem[],
-    sourceGuid: string,
-    targetGuid: string,
-    locale: string,
-    apiClient: mgmtApi.ApiClient,
+    sourceData: SourceData,
     referenceMapper: ReferenceMapper,
-    forceUpdate: boolean = false,
-    onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
-): Promise<{ status: 'success' | 'error', successfulPages: number, failedPages: number }> {
+    onProgress?: PusherProgressCallback
+): Promise<PusherResult> {
+    
+    // Extract data from sourceData - unified parameter pattern
+    let pages: mgmtApi.PageItem[] = sourceData.pages || [];
 
     if (!pages || pages.length === 0) {
         console.log('No pages found to process.');
-        return { status: 'success', successfulPages: 0, failedPages: 0 };
+        return { status: 'success', successful: 0, failed: 0, skipped: 0 };
     }
+
+    // MOVED FROM SYNC.TS: Enrich pages with sitemap hierarchy
+    try {
+        console.log(ansiColors.cyan(`\n🌳 Enriching pages with sitemap hierarchy...`));
+        const sitemapHierarchy = new SitemapHierarchy();
+        const sitemap = sitemapHierarchy.loadNestedSitemap();
+        
+        if (sitemap && sitemap.length > 0) {
+            const hierarchy = sitemapHierarchy.buildPageHierarchy(sitemap);
+            
+            if (hierarchy && Object.keys(hierarchy).length > 0) {
+                // Build child-to-parent mapping for efficient lookup
+                const childToParentMap: { [childId: number]: number } = {};
+                Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
+                    const parentId = parseInt(parentIdStr);
+                    childIds.forEach((childId) => {
+                        childToParentMap[childId] = parentId;
+                    });
+                });
+
+                // Enrich each page with parent relationship information
+                let enrichedCount = 0;
+                pages = pages.map((page: any) => {
+                    const parentId = childToParentMap[page.pageID];
+                    if (parentId && parentId > 0) {
+                        enrichedCount++;
+                        return { ...page, parentPageID: parentId, parentID: parentId };
+                    } else {
+                        return { ...page, parentPageID: -1, parentID: -1 };
+                    }
+                });
+
+                console.log(ansiColors.green(`✅ Enriched ${enrichedCount} pages with parent relationships`));
+            } else {
+                console.log(
+                    ansiColors.yellow(`⚠️ No nested sitemap found - pages will process without parent relationships`)
+                );
+            }
+        } else {
+            console.log(
+                ansiColors.yellow(`⚠️ No nested sitemap found - pages will process without parent relationships`)
+            );
+        }
+    } catch (error: any) {
+        console.warn(
+            ansiColors.yellow(
+                `⚠️ Failed to enrich pages with sitemap parents - pages will process without parent relationships`
+            )
+        );
+    }
+
+    let successful = 0;
+    let failed = 0;
+    let skipped = 0;
+    let status: 'success' | 'error' = 'success';
+
+    // Get state values instead of prop drilling
+    const state = getState();
+    const { targetGuid, locale, forceUpdate } = state;
+
+    if (!targetGuid) {
+        console.error("Missing required configuration for page push operation");
+        return { status: "error", successful: 0, failed: 0, skipped: 0 };
+    }
+
+    // Use centralized apiClient creation
+    const apiClient = createApiClient();
 
     // Use simple legacy pattern - track processed pages directly
     const processedPages: { [oldPageId: number]: number } = {}; // oldPageId -> newPageId
@@ -607,74 +675,10 @@ export async function pushPages(
 
     let totalPages = pages.length;
     let processedPagesCount = 0;
-    let successfulPages = 0;
-    let failedPages = 0;
-    let overallStatus: 'success' | 'error' = 'success';
-
-    // NEW APPROACH: Use sitemap-based hierarchical ordering instead of simple parent/child filtering
-    // Processing pages with hierarchical ordering (silent)
-    
-    let orderedPages: mgmtApi.PageItem[] = [];
-    let depthInfo: Map<number, number> | null = null;
-    
-    try {
-        // Import and use SitemapHierarchy for intelligent ordering
-        const { SitemapHierarchy } = await import('../utilities/sitemap-hierarchy');
-        
-        // Use correct parameters for sitemap hierarchy - passed from calling context
-        const rootPath = process.cwd() + '/agility-files';
-        const isPreview = true; // Default assumption for sync operations
-        
-        // Using sourceGuid for hierarchy (silent)
-        
-        const sitemapHierarchy = new SitemapHierarchy(rootPath, sourceGuid, locale, isPreview, false);
-        const sitemap = sitemapHierarchy.loadNestedSitemap();
-        
-        if (sitemap && sitemap.length > 0) {
-            // Use sitemap hierarchy for intelligent ordering
-            const hierarchy = sitemapHierarchy.buildPageHierarchy(sitemap);
-            const orderingResult = sitemapHierarchy.getProcessingOrder(pages, hierarchy);
-            
-            orderedPages = orderingResult.orderedPages;
-            depthInfo = orderingResult.depthInfo;
-            
-            // Validate processing order is dependency-safe
-            const isValid = sitemapHierarchy.validateProcessingOrder(orderedPages, hierarchy);
-            if (!isValid) {
-                console.warn(`⚠️ [Hierarchy] Processing order validation failed - falling back to simple ordering`);
-                throw new Error('Invalid processing order detected');
-            }
-            
-            // Using sitemap-based depth ordering (silent)
-        } else {
-            throw new Error('No sitemap hierarchy available');
-        }
-    } catch (error: any) {
-        console.warn(`⚠️ [Hierarchy] Sitemap-based ordering failed: ${error.message}`);
-        console.warn(`📋 [Hierarchy] Falling back to simple parent/child ordering`);
-        
-        // Fallback to simple parent/child ordering (original logic)
-        const getParentId = (page: any): number => {
-            return page.parentPageID || -1;
-        };
-        
-        const parentPages = pages.filter(p => {
-            const parentPageID = getParentId(p);
-            return !parentPageID || parentPageID <= 0;
-        });
-        const childPages = pages.filter(p => {
-            const parentPageID = getParentId(p);
-            return parentPageID && parentPageID > 0;
-        });
-        
-        // Simple ordering: parents first, then children
-        orderedPages = [...parentPages, ...childPages];
-        // Using fallback ordering (silent)
-    }
 
     // Process all pages in the calculated order
-    for (let i = 0; i < orderedPages.length; i++) {
-        const page = orderedPages[i];
+    for (let i = 0; i < pages.length; i++) {
+        const page = pages[i];
         
         // Determine if this is a child page (has parent)
         const parentPageID = page.parentPageID || -1;
@@ -682,10 +686,17 @@ export async function pushPages(
         
         const success = await processPage(page, targetGuid, locale, isChildPage, apiClient, referenceMapper, forceUpdate);
         if (success) {
-            successfulPages++;
+            // Check if this was truly a new page or an existing one
+            const { findPageInTargetInstance } = await import('../finders/page-finder');
+            const existingPageCheck = await findPageInTargetInstance(page, apiClient, targetGuid, locale, referenceMapper);
+            if (existingPageCheck && !forceUpdate) {
+                skipped++; // Page already existed and wasn't forced update
+            } else {
+                successful++; // Page was created or updated
+            }
         } else {
-            failedPages++;
-            overallStatus = 'error';
+            failed++;
+            status = 'error';
         }
         processedPagesCount++;
         if (onProgress && typeof onProgress === 'function') {
@@ -693,8 +704,8 @@ export async function pushPages(
         }
     }
 
-    console.log(`Processed ${successfulPages}/${totalPages} pages (${failedPages} failed)`);
-    return { status: overallStatus, successfulPages, failedPages };
+    console.log(`Processed ${successful}/${totalPages} pages (${failed} failed, ${skipped} skipped)`);
+    return { status, successful, failed, skipped };
 }
 
 // LEGACY-STYLE PAGE PROCESSING (DEPRECATED - use processPage instead)

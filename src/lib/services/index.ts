@@ -10,7 +10,7 @@ export { systemArgs, type SystemArgsType } from './system-args';
 
 // Main operation services
 export { Pull } from './pull';
-export { Sync, type TopologicalContentSyncOptions } from './sync';
+export { Sync } from './sync';
 export { default as Clean } from './clean';
 
 // Content and data services

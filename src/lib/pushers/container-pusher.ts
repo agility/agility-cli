@@ -1,25 +1,33 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapper } from "../reference-mapper";
+import { ReferenceMapper } from "../utilities/reference-mapper";
 import { findContainerInTargetInstance } from "../finders";
 import ansiColors from "ansi-colors";
 import { ApiClient } from '@agility/management-sdk';
+import { getState } from '../services/state';
 
 
 export async function pushContainers(
-    sourceContainers: any[],
-    targetGuid: string,
-    apiClient: ApiClient,
+    sourceData: any,
     referenceMapper: ReferenceMapper,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
-): Promise<{ status: 'success' | 'error', successfulContainers: number, failedContainers: number }> {
+): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
+    
+    // Extract data from sourceData - unified parameter pattern
+    const sourceContainers: any[] = sourceData.containers || [];
 
     if (!sourceContainers || sourceContainers.length === 0) {
         console.log('No containers found to process.');
-        return { status: 'success', successfulContainers: 0, failedContainers: 0 };
+        return { status: 'success', successful: 0, failed: 0, skipped: 0 };
     }
 
-    let successfulContainers = 0;
-    let failedContainers = 0;
+    // Get state values instead of prop drilling
+    const state = getState();
+    const { mgmtApiOptions, targetGuid } = state;
+    const apiClient = new mgmtApi.ApiClient(mgmtApiOptions);
+
+    let successful = 0;
+    let failed = 0;
+    let skipped = 0;
     let processedCount = 0;
     let overallStatus: 'success' | 'error' = 'success';
 
@@ -49,10 +57,10 @@ export async function pushContainers(
             }
 
             if (targetContainer) {
-                // Container exists with correct model mapping - add/update mapping and continue
+                // Container exists with correct model mapping - this is a skip, not success
                 console.log(`✓ Container ${ansiColors.underline(sourceRefName)} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: ID:${targetContainer.contentViewID} (Model:${targetContainer.contentDefinitionID})`);
                 referenceMapper.addMapping('container', container, targetContainer);
-                successfulContainers++;
+                skipped++; // Existing containers are skipped, not successful
             } else {
                 // Container doesn't exist or was cleared due to bad mapping - create new one
                 // Prepare payload (needs model mapping first!)
@@ -78,12 +86,12 @@ export async function pushContainers(
                 
                 console.log(`✓ Container created: ${sourceRefName} - ${ansiColors.green('Source')}: ${container.contentViewID} ${ansiColors.green(targetGuid)}: ${newContainer.contentViewID} (Model:${newContainer.contentDefinitionID})`);
                 referenceMapper.addMapping('container', container, newContainer);
-                successfulContainers++;
+                successful++;
             }
 
         } catch (error: any) {
             console.error(`✗ Error processing container ${sourceRefName}:`, error.message);
-            failedContainers++;
+            failed++;
             overallStatus = 'error';
         }
 
@@ -93,6 +101,6 @@ export async function pushContainers(
         }
     }
 
-    console.log(ansiColors.yellow(`Processed ${successfulContainers}/${sourceContainers.length} containers (${failedContainers} failed)`));
-    return { status: overallStatus, successfulContainers, failedContainers };
+    console.log(ansiColors.yellow(`Processed ${successful}/${sourceContainers.length} containers (${failed} failed, ${skipped} skipped)`));
+    return { status: overallStatus, successful, failed, skipped };
 }
