@@ -8,8 +8,9 @@
  * Phase 21: Selective Model-Based Sync Implementation
  */
 
-import { SourceData } from '../../types';
+import { SourceData } from '../../types/sourceData';
 import ansiColors from 'ansi-colors';
+import { SitemapHierarchy } from '../utilities/sitemap-hierarchy';
 
 export interface ModelDependencyTree {
   models: Set<string>;        // Model reference names
@@ -44,11 +45,25 @@ export class ModelDependencyTreeBuilder {
       galleries: new Set()
     };
     
-    // Build dependency tree in logical order
+    // Build dependency tree in CORRECTED logical order
     this.findContainersForModels(modelNames, tree);
     this.findContentForModels(modelNames, tree);
     this.findTemplatesForContainers(tree);
     this.findPagesForTemplatesAndContent(tree);
+    // 🎯 NEW: After finding pages, discover templates used by those pages
+    this.findTemplatesUsedByPages(tree);
+    // 🎯 NEW: Include ALL content referenced by discovered pages for complete renderability
+    this.findAllContentReferencedByPages(tree);
+    // 🎯 NEW: Include parent pages for proper hierarchy and security
+    this.findParentPagesForDiscoveredPages(tree);
+    // 🎯 NEW: Second template discovery pass for parent pages
+    this.findTemplatesUsedByPages(tree);
+    // 🎯 NEW: Include models for the newly discovered content
+    this.findModelsForDiscoveredContent(tree);
+    // 🎯 NEW: Include containers for the newly discovered models  
+    this.findContainersForDiscoveredModels(tree);
+    // 🎯 NEW: Include containers that contain discovered content items
+    this.findContainersForDiscoveredContent(tree);
     this.findAssetsInContent(tree);
     this.findGalleriesInContent(tree);
     
@@ -170,6 +185,245 @@ export class ModelDependencyTreeBuilder {
     });
     
     console.log(ansiColors.gray(`  📑 Found ${tree.pages.size} pages using discovered templates/content`));
+  }
+  
+  /**
+   * Find templates used by pages that reference discovered content
+   */
+  private findTemplatesUsedByPages(tree: ModelDependencyTree): void {
+    if (!this.sourceData.pages) return;
+    
+    this.sourceData.pages.forEach(page => {
+      if (tree.pages.has(page.pageID)) {
+        const templateIds = this.extractTemplateIdsFromPage(page);
+        templateIds.forEach(id => tree.templates.add(id));
+      }
+    });
+    
+    console.log(ansiColors.gray(`  🎨 Found ${tree.templates.size} templates used by pages`));
+  }
+  
+  /**
+   * Extract template IDs from a page
+   */
+  private extractTemplateIdsFromPage(page: any): number[] {
+    const templateIds: number[] = [];
+    
+    // Check multiple possible property names for template reference
+    const templateId = page.pageTemplateID || page.templateID || page.templateId;
+    if (templateId && typeof templateId === 'number') {
+      templateIds.push(templateId);
+    }
+    
+    // Also check if templateName exists and try to resolve to ID
+    if (page.templateName && this.sourceData.templates) {
+      const template = this.sourceData.templates.find(t => 
+        t.pageTemplateName === page.templateName
+      );
+      if (template && template.pageTemplateID) {
+        templateIds.push(template.pageTemplateID);
+      }
+    }
+    
+    return templateIds;
+  }
+  
+  /**
+   * Find ALL content referenced by discovered pages for complete renderability
+   * This ensures pages can render completely even if they reference content from other models
+   */
+  private findAllContentReferencedByPages(tree: ModelDependencyTree): void {
+    if (!this.sourceData.pages) return;
+    
+    const initialContentSize = tree.content.size;
+    
+    this.sourceData.pages.forEach(page => {
+      if (tree.pages.has(page.pageID)) {
+        // Extract all content IDs from page zones
+        const contentIds = this.extractContentIdsFromPage(page);
+        contentIds.forEach(id => tree.content.add(id));
+      }
+    });
+    
+    const newContentCount = tree.content.size - initialContentSize;
+    console.log(ansiColors.gray(`  📄 Added ${newContentCount} additional content items for page renderability`));
+  }
+  
+  /**
+   * Find ALL ancestor pages for discovered pages to ensure proper hierarchy and security
+   * Recursively walks up the hierarchy to find all parents, grandparents, etc.
+   */
+  private findParentPagesForDiscoveredPages(tree: ModelDependencyTree): void {
+    if (!this.sourceData.pages) return;
+    
+    const initialPageCount = tree.pages.size;
+    
+    // Keep track of pages we need to process for parent discovery
+    const pagesToProcess = new Set<number>();
+    
+    // Start with all currently discovered pages
+    tree.pages.forEach(pageId => pagesToProcess.add(pageId));
+    
+    // Process each page and find all its ancestors
+    pagesToProcess.forEach(pageId => {
+      const page = this.sourceData.pages!.find(p => p.pageID === pageId);
+      if (page) {
+        this.findAllAncestorPages(page, tree);
+      }
+    });
+    
+    const newPageCount = tree.pages.size - initialPageCount;
+    console.log(ansiColors.gray(`  📑 Added ${newPageCount} ancestor pages for proper hierarchy`));
+  }
+  
+  /**
+   * Recursively find all ancestor pages (parents, grandparents, etc.) for a given page
+   */
+  private findAllAncestorPages(page: any, tree: ModelDependencyTree): void {
+    const parentPage = this.findParentPage(page);
+    if (parentPage && !tree.pages.has(parentPage.pageID)) {
+      // Add this parent to the tree
+      tree.pages.add(parentPage.pageID);
+      console.log(ansiColors.gray(`    📑 [ANCESTOR] Added parent page ${parentPage.name} (ID:${parentPage.pageID}) for child ${page.name} (ID:${page.pageID})`));
+      
+      // Recursively find this parent's ancestors
+      this.findAllAncestorPages(parentPage, tree);
+    }
+  }
+  
+  /**
+   * Find the direct parent page for a given page
+   * Returns null if no parent exists (root level page)
+   */
+  private findParentPage(page: any): any | null {
+    if (!this.sourceData.pages) return null;
+    
+    // Use existing SitemapHierarchy utility to find parent
+    const sitemapHierarchy = new SitemapHierarchy();
+    
+    const parentResult = sitemapHierarchy.findPageParentInSourceSitemap(page.pageID, page.name);
+    if (!parentResult.parentId) return null;
+    
+    // Find the actual page object by ID
+    const parentPage = this.sourceData.pages.find(p => p.pageID === parentResult.parentId);
+    return parentPage || null;
+  }
+  
+  /**
+   * Find models for all discovered content to ensure complete model coverage
+   */
+  private findModelsForDiscoveredContent(tree: ModelDependencyTree): void {
+    if (!this.sourceData.content || !this.sourceData.models) return;
+    
+    const initialModelSize = tree.models.size;
+    
+    // Find models for all content in the tree
+    this.sourceData.content.forEach(contentItem => {
+      if (tree.content.has(contentItem.contentID)) {
+        // Find the model for this content item
+        const modelName = contentItem.properties?.definitionName;
+        if (modelName) {
+          tree.models.add(modelName);
+        }
+      }
+    });
+    
+    const newModelCount = tree.models.size - initialModelSize;
+    console.log(ansiColors.gray(`  📋 Added ${newModelCount} additional models for content dependencies`));
+  }
+  
+  /**
+   * Find containers for newly discovered models
+   */
+  private findContainersForDiscoveredModels(tree: ModelDependencyTree): void {
+    if (!this.sourceData.containers || !this.sourceData.models) return;
+    
+    const initialContainerSize = tree.containers.size;
+    
+    // Create model reference name to ID mapping
+    const modelMap = new Map<string, number>();
+    this.sourceData.models.forEach(model => {
+      modelMap.set(model.referenceName, model.id);
+    });
+    
+    // Find containers for all models in the tree
+    tree.models.forEach(modelName => {
+      const modelId = modelMap.get(modelName);
+      if (modelId) {
+        const containers = this.sourceData.containers.filter(c => 
+          c.contentDefinitionID === modelId
+        );
+        containers.forEach(container => {
+          tree.containers.add(container.contentViewID);
+        });
+      }
+    });
+    
+    const newContainerCount = tree.containers.size - initialContainerSize;
+    console.log(ansiColors.gray(`  📦 Added ${newContainerCount} additional containers for model dependencies`));
+  }
+  
+  /**
+   * Find containers that contain discovered content items
+   * Uses case-insensitive matching to handle Agility CMS pattern:
+   * - Containers: "news1_RichTextArea" (PascalCase)
+   * - Content: "news1_richtextarea" (lowercase)
+   */
+  private findContainersForDiscoveredContent(tree: ModelDependencyTree): void {
+    if (!this.sourceData.containers || !this.sourceData.content) return;
+    
+    const initialContainerSize = tree.containers.size;
+    
+    // Create a map of content reference names (lowercase) to content IDs
+    const contentReferenceMap = new Map<string, number>();
+    this.sourceData.content.forEach(contentItem => {
+      if (tree.content.has(contentItem.contentID)) {
+        const referenceName = contentItem.properties?.referenceName;
+        if (referenceName) {
+          contentReferenceMap.set(referenceName.toLowerCase(), contentItem.contentID);
+        }
+      }
+    });
+    
+    // Find containers with case-insensitive matching
+    this.sourceData.containers.forEach(container => {
+      const containerRefLower = container.referenceName?.toLowerCase();
+      if (containerRefLower && contentReferenceMap.has(containerRefLower)) {
+        tree.containers.add(container.contentViewID);
+        console.log(ansiColors.gray(`    📦 [CASE MATCH] Found container ${container.referenceName} (ID:${container.contentViewID}) for content ${contentReferenceMap.get(containerRefLower)}`));
+      }
+    });
+    
+    const newContainerCount = tree.containers.size - initialContainerSize;
+    console.log(ansiColors.gray(`  📦 Added ${newContainerCount} additional containers for discovered content`));
+  }
+  
+  /**
+   * Extract all content IDs referenced in a page's zones
+   */
+  private extractContentIdsFromPage(page: any): number[] {
+    const contentIds: number[] = [];
+    
+    if (page.zones) {
+      const zones = page.zones;
+      if (zones && typeof zones === 'object') {
+        // Zones is an object with zone names as keys
+        Object.values(zones).forEach((zoneModules: any) => {
+          if (Array.isArray(zoneModules)) {
+            zoneModules.forEach((module: any) => {
+              if (module.item && (module.item.contentid || module.item.contentID)) {
+                const contentId = module.item.contentid || module.item.contentID;
+                if (typeof contentId === 'number') {
+                  contentIds.push(contentId);
+                }
+              }
+            });
+          }
+        });
+      }
+    }
+    
+    return contentIds;
   }
   
   /**
