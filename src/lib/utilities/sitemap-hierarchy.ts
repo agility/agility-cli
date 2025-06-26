@@ -443,4 +443,168 @@ export class SitemapHierarchy {
         // Processing order validation passed (silent)
         return true;
     }
+
+    /**
+     * Extract sibling ordering information from source sitemap
+     * Returns a map of pageID → nextSiblingPageID for proper insertion order
+     */
+    extractSiblingOrderFromSitemap(sitemap: SitemapNode[]): Map<number, number | null> {
+        const siblingOrderMap = new Map<number, number | null>();
+        
+        const processSiblings = (siblings: SitemapNode[]) => {
+            for (let i = 0; i < siblings.length; i++) {
+                const currentPage = siblings[i];
+                const nextSibling = i < siblings.length - 1 ? siblings[i + 1] : null;
+                
+                // Map current page to its next sibling (or null if it's the last)
+                siblingOrderMap.set(currentPage.pageID, nextSibling ? nextSibling.pageID : null);
+                
+                // Recursively process children if they exist
+                if (currentPage.children && currentPage.children.length > 0) {
+                    processSiblings(currentPage.children);
+                }
+            }
+        };
+        
+        // Process root level siblings
+        processSiblings(sitemap);
+        
+        return siblingOrderMap;
+    }
+
+    /**
+     * Get the pageID that should come BEFORE the specified page (for insertBefore parameter)
+     * This is the PREVIOUS sibling, not the next sibling
+     */
+    getInsertBeforePageId(pageId: number, siblingOrder: Map<number, number | null>): number | null {
+        // Find the page that has pageId as its next sibling
+        const entries = Array.from(siblingOrder.entries());
+        for (const [currentPageId, nextSiblingId] of entries) {
+            if (nextSiblingId === pageId) {
+                return currentPageId;  // This page comes right before our target page
+            }
+        }
+        return null; // No previous sibling found (page is first in its group)
+    }
+
+    /**
+     * Build comprehensive page ordering data including parent-child and sibling relationships
+     */
+    buildPageOrderingData(sitemap: SitemapNode[]): {
+        hierarchy: PageHierarchy;
+        siblingOrder: Map<number, number | null>;
+        parentToChildrenMap: Map<number, number[]>;
+    } {
+        const hierarchy = this.buildPageHierarchyWithDynamicSupport(sitemap);
+        const siblingOrder = this.extractSiblingOrderFromSitemap(sitemap);
+        
+        // Build parent-to-children mapping for quick lookup
+        const parentToChildrenMap = new Map<number, number[]>();
+        Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
+            const parentId = parseInt(parentIdStr);
+            parentToChildrenMap.set(parentId, childIds as number[]);
+        });
+        
+        return {
+            hierarchy,
+            siblingOrder,
+            parentToChildrenMap
+        };
+    }
+
+    /**
+     * Get processing order that preserves both parent-child dependencies AND sibling order
+     */
+    getOrderedProcessingSequence(pages: any[], sitemap: SitemapNode[]): {
+        orderedPages: any[];
+        orderingData: {
+            hierarchy: PageHierarchy;
+            siblingOrder: Map<number, number | null>;
+            parentToChildrenMap: Map<number, number[]>;
+        };
+    } {
+        const orderingData = this.buildPageOrderingData(sitemap);
+        const { hierarchy } = orderingData;
+        
+        // Get dependency-safe order (parents before children)
+        const { orderedPages } = this.getProcessingOrder(pages, hierarchy);
+        
+        // Within each depth level, sort by sibling order
+        const pageDepths = this.calculatePageDepths(pages, hierarchy);
+        const pagesByDepth = this.getPagesByDepth(pages, pageDepths);
+        
+        // Rebuild ordered pages respecting sibling order within each depth
+        const finalOrderedPages: any[] = [];
+        const sortedDepths = Array.from(pagesByDepth.keys()).sort((a, b) => a - b);
+        
+        sortedDepths.forEach(depth => {
+            const pagesAtDepth = pagesByDepth.get(depth) || [];
+            
+            // Group pages by parent for sibling ordering
+            const pagesByParent = new Map<number, any[]>();
+            pagesAtDepth.forEach(page => {
+                const parentId = this.getParentPageId(page.pageID, hierarchy) || -1;
+                if (!pagesByParent.has(parentId)) {
+                    pagesByParent.set(parentId, []);
+                }
+                pagesByParent.get(parentId)!.push(page);
+            });
+            
+            // Sort each parent group by sibling order
+            pagesByParent.forEach((siblings, parentId) => {
+                const sortedSiblings = this.sortPagesBySiblingOrder(siblings, orderingData.siblingOrder);
+                finalOrderedPages.push(...sortedSiblings);
+            });
+        });
+        
+        return {
+            orderedPages: finalOrderedPages,
+            orderingData
+        };
+    }
+
+    /**
+     * Sort pages by their sibling order from the sitemap
+     */
+    private sortPagesBySiblingOrder(pages: any[], siblingOrder: Map<number, number | null>): any[] {
+        // Create a map to track the position of each page in the sibling order
+        const pagePositions = new Map<number, number>();
+        
+        // Build position map by following the sibling chain
+        let position = 0;
+        let currentPageId: number | null = null;
+        
+        // Find the first page (one that is not a next sibling of any other page)
+        const allNextSiblings = new Set(Array.from(siblingOrder.values()).filter(id => id !== null));
+        const firstPage = pages.find(page => !allNextSiblings.has(page.pageID));
+        
+        if (firstPage) {
+            currentPageId = firstPage.pageID;
+            
+            // Follow the sibling chain to assign positions
+            while (currentPageId !== null) {
+                pagePositions.set(currentPageId, position++);
+                currentPageId = siblingOrder.get(currentPageId) || null;
+            }
+        }
+        
+        // Sort pages by their positions (pages without positions go to end)
+        return pages.sort((a, b) => {
+            const posA = pagePositions.get(a.pageID) ?? 9999;
+            const posB = pagePositions.get(b.pageID) ?? 9999;
+            return posA - posB;
+        });
+    }
+
+    /**
+     * Get parent page ID for a given page
+     */
+    private getParentPageId(pageId: number, hierarchy: PageHierarchy): number | null {
+        for (const [parentIdStr, childIds] of Object.entries(hierarchy)) {
+            if ((childIds as number[]).includes(pageId)) {
+                return parseInt(parentIdStr);
+            }
+        }
+        return null;
+    }
 } 

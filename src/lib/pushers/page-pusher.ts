@@ -188,7 +188,8 @@ async function processPage(
     isChildPage: boolean,
     apiClient: mgmtApi.ApiClient,
     referenceMapper: ReferenceMapper,
-    overwrite: boolean = false
+    overwrite: boolean = false,
+    insertBeforePageId: number | null = null
 ): Promise<boolean> { // Returns true on success, false on failure
 
     let existingPage: mgmtApi.PageItem | null = null;
@@ -489,9 +490,13 @@ async function processPage(
         
         // Parent fields cleaned up (silent)
 
-        // Map placeBeforePageItemID if present
+        // Map placeBeforePageItemID - prioritize insertBeforePageId parameter for sibling ordering
         let placeBeforeIDArg = -1;
-        if (payload.placeBeforePageItemID && payload.placeBeforePageItemID > 0) {
+        if (insertBeforePageId && insertBeforePageId > 0) {
+            // Use the calculated insertBefore pageID for proper sibling ordering
+            placeBeforeIDArg = insertBeforePageId;
+        } else if (payload.placeBeforePageItemID && payload.placeBeforePageItemID > 0) {
+            // Fallback to original placeBeforePageItemID if available
             const placeBeforePageRef = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', payload.placeBeforePageItemID);
             if (placeBeforePageRef?.target && placeBeforePageRef.target.pageID > 0) {
                 placeBeforeIDArg = placeBeforePageRef.target.pageID;
@@ -594,7 +599,8 @@ export async function pushPages(
         return { status: 'success', successful: 0, failed: 0, skipped: 0 };
     }
 
-    // Page hierarchy enrichment with dynamic page support
+    // Page hierarchy enrichment with dynamic page support and sibling ordering
+    let pageOrderingData: any = null;
     try {
         const sitemapHierarchy = new SitemapHierarchy();
         
@@ -607,28 +613,27 @@ export async function pushPages(
         const sitemap = sitemapHierarchy.loadNestedSitemap();
         
         if (sitemap && sitemap.length > 0) {
-            // Use enhanced hierarchy build that handles dynamic pages
-            const hierarchy = sitemapHierarchy.buildPageHierarchyWithDynamicSupport(sitemap);
+            // NEW: Use enhanced ordering that preserves both parent-child AND sibling relationships
+            const orderingResult = sitemapHierarchy.getOrderedProcessingSequence(pages, sitemap);
+            pageOrderingData = orderingResult.orderingData;
+            const hierarchy = pageOrderingData.hierarchy;
             
             if (hierarchy && Object.keys(hierarchy).length > 0) {
-                // CRITICAL FIX: Use dependency-safe processing order to ensure parents are processed before children
-                const { orderedPages, depthInfo } = sitemapHierarchy.getProcessingOrder(pages, hierarchy);
-                
                 // Validate processing order is dependency-safe
-                const isValidOrder = sitemapHierarchy.validateProcessingOrder(orderedPages, hierarchy);
+                const isValidOrder = sitemapHierarchy.validateProcessingOrder(orderingResult.orderedPages, hierarchy);
                 if (!isValidOrder) {
                     console.warn('⚠️ Page processing order validation failed - proceeding with original order');
                 } else {
-                    // Use the dependency-safe order
-                    pages = orderedPages;
-                    console.log(`✅ Pages reordered for dependency-safe processing (${pages.length} pages)`);
+                    // Use the dependency-safe order that also preserves sibling order
+                    pages = orderingResult.orderedPages;
+                    console.log(`✅ Pages reordered for dependency-safe processing with sibling order preservation (${pages.length} pages)`);
                 }
                 
                 // Build child-to-parent mapping for efficient lookup
                 const childToParentMap: { [childId: number]: number } = {};
                 Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
                     const parentId = parseInt(parentIdStr);
-                    childIds.forEach((childId) => {
+                    (childIds as number[]).forEach((childId) => {
                         childToParentMap[childId] = parentId;
                     });
                 });
@@ -725,7 +730,21 @@ export async function pushPages(
         const parentPageID = page.parentPageID || -1;
         const isChildPage = parentPageID > 0;
         
-        const success = await processPage(page, targetGuid, locale, isChildPage, apiClient, referenceMapper, overwrite);
+        // Calculate insertBefore pageID for proper sibling ordering
+        let insertBeforePageId: number | null = null;
+        if (pageOrderingData?.siblingOrder) {
+            const sitemapHierarchy = new SitemapHierarchy();
+            const sourceInsertBeforeId = sitemapHierarchy.getInsertBeforePageId(page.pageID, pageOrderingData.siblingOrder);
+            if (sourceInsertBeforeId) {
+                // Map source page ID to target page ID
+                const insertBeforePageRef = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourceInsertBeforeId);
+                if (insertBeforePageRef?.target?.pageID) {
+                    insertBeforePageId = insertBeforePageRef.target.pageID;
+                }
+            }
+        }
+        
+        const success = await processPage(page, targetGuid, locale, isChildPage, apiClient, referenceMapper, overwrite, insertBeforePageId);
         if (success) {
             successful++; // Page was processed successfully (created or updated)
         } else {

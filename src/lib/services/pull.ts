@@ -18,6 +18,7 @@ import { downloadAllGalleries,
     downloadAllTemplates,
     downloadAllContainers
 } from "../downloaders/index";
+import { generateLogHeader } from '../utilities';
 import ansiColors from "ansi-colors";
 
 // Define a type for the progress callback
@@ -60,6 +61,23 @@ export class Pull {
     this.isVerbose = state.useVerbose;
             this._useBlessedUI = state.useBlessed;
     this.fileOps = new fileOperations(this._rootPath, this._guid, this._locale, this._isPreview);
+  }
+
+  /**
+   * Log pull operation header with version info
+   */
+  private logPullHeader(): void {
+    const headerInfo = generateLogHeader('Pull', {
+      'Source GUID': this._guid,
+      'Elements': this._elements.join(', '),
+      'Locale': this._locale,
+      'Channel': this._channel,
+      'Preview Mode': this._isPreview,
+      'Force Overwrite': this._forceOverwrite,
+      'Mode': this.isHeadless ? 'Headless' : this.isVerbose ? 'Verbose' : this._useBlessedUI ? 'Blessed UI' : 'Standard'
+    });
+
+    this._logToFile(headerInfo);
   }
 
   // Add a helper for logging to file in headless mode
@@ -224,6 +242,9 @@ export class Pull {
         };
         console.log("Pull operation started (basic console output)."); // This now uses the override
     }
+
+    // Log pull header with version info after console logging setup is complete
+    this.logPullHeader();
 
     // basePath calculation (moved slightly down, after initial console setup)
     let resolvedRootPathForInstances: string;

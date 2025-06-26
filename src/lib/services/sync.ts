@@ -3,6 +3,7 @@ import ansiColors from 'ansi-colors';
 import { fileOperations } from '../services/fileOperations';
 import { ReferenceMapper } from '../utilities/reference-mapper';
 import { SourceDataLoader } from '../utilities/source-data-loader';
+import { generateLogHeader } from '../utilities';
 import { getState } from './state';
 import { PusherResult, SourceData } from '../../types/sourceData';
 import { ModelDependencyTree } from './model-dependency-tree-builder';
@@ -25,6 +26,24 @@ export class Sync {
     // Store original console methods for restoration
     this.originalConsoleLog = console.log;
     this.originalConsoleError = console.error;
+  }
+
+  /**
+   * Log sync operation header with version info
+   */
+  private logSyncHeader(): void {
+    const state = getState();
+    
+    const headerInfo = generateLogHeader('Sync', {
+      'Source GUID': state.sourceGuid,
+      'Target GUID': state.targetGuid,
+      'Elements': state.elements,
+      'Locale': state.locale,
+      'Channel': state.channel,
+      'Preview Mode': state.preview
+    });
+
+    this._logToFile(headerInfo);
   }
 
   /**
@@ -67,6 +86,9 @@ export class Sync {
    */
   async syncInstance(): Promise<void> {
     this._setupConsoleLogging();
+    
+    // Log sync header with version info immediately after setting up logging
+    this.logSyncHeader();
     
     let referenceMapper: ReferenceMapper | null = null;
 
