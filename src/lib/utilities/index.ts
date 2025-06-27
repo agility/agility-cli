@@ -20,16 +20,38 @@ import * as path from 'path';
 
 /**
  * Get package version from package.json
+ * Tries to find package.json in multiple locations:
+ * 1. Current working directory
+ * 2. CLI installation directory (where this code is running from)
+ * 3. Falls back to 'unknown' if not found
  */
 export function getPackageVersion(): string {
-  try {
-    const packageJsonPath = path.join(process.cwd(), 'package.json');
-    const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-    return packageJson.version || 'unknown';
-  } catch (error) {
-    console.warn('Could not read package version:', error);
-    return 'unknown';
+  const possiblePaths = [
+    // Try current working directory first (for development)
+    path.join(process.cwd(), 'package.json'),
+    // Try the CLI installation directory (for installed CLI)
+    path.join(__dirname, '../../package.json'),
+    path.join(__dirname, '../../../package.json'),
+    // Try one more level up for different installation structures
+    path.join(__dirname, '../../../../package.json')
+  ];
+
+  for (const packageJsonPath of possiblePaths) {
+    try {
+      if (fs.existsSync(packageJsonPath)) {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        if (packageJson.version && packageJson.name === '@agility/cli') {
+          return packageJson.version;
+        }
+      }
+    } catch (error) {
+      // Continue to next path on error
+      continue;
+    }
   }
+
+  // If we can't find the package.json or version, return 'unknown'
+  return 'unknown';
 }
 
 /**
