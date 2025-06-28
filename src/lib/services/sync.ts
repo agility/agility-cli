@@ -99,84 +99,58 @@ export class Sync {
       console.log(ansiColors.gray(`Target: ${state.targetGuid}`));
       console.log(ansiColors.gray(`Elements: ${state.elements}`));
 
-      // Load source data using centralized loader
+      // Load source data to check if we have any existing data
       console.log(ansiColors.cyan(`\n📥 Loading source data...`));
       const sourceDataLoader = new SourceDataLoader();
       let sourceData = await sourceDataLoader.loadSourceEntities();
 
-      // Check if we have any content to sync
-      let hasContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
-      if (!hasContent) {
-        console.log(ansiColors.yellow("⚠️ No source data found for sync operation"));
-        console.log(ansiColors.cyan("🔄 Automatically pulling source data first..."));
+      // Check if we have any existing content
+      let hasExistingContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
+
+      // Determine if we should pull fresh data
+      const shouldPull = state.update || !hasExistingContent;
+      
+      if (shouldPull) {
+        if (!hasExistingContent) {
+          console.log(ansiColors.cyan("🔄 No local source data found. Pulling from source instance..."));
+        } else if (state.update) {
+          console.log(ansiColors.cyan("🔄 Refreshing source data from source instance..."));
+        }
         
         try {
-          // Execute pull command directly to avoid console conflicts
-          const { spawn } = require('child_process');
+          // Import and use Pull service directly with current state
+          const { Pull } = await import('./pull');
+          const pullOperation = new Pull();
           
-          // Build pull command arguments
-          const pullArgs = [
-            'dist/index.js', 
-            'pull',
-            '--sourceGuid', state.sourceGuid,
-            '--locale', state.locale,
-            '--channel', state.channel,
-            '--rootPath', state.rootPath
-          ];
-          
-          // Add UI mode flags
-          if (state.headless) pullArgs.push('--headless');
-          if (state.verbose) pullArgs.push('--verbose');
-          if (state.preview) pullArgs.push('--preview');
-          if (state.overwrite) pullArgs.push('--overwrite');
-          
-          console.log(ansiColors.gray(`Executing: node ${pullArgs.join(' ')}`));
-          
-          // Execute pull command and wait for completion
-          await new Promise((resolve, reject) => {
-            const pullProcess = spawn('node', pullArgs, { 
-              stdio: 'inherit',
-              cwd: process.cwd()
-            });
-            
-            pullProcess.on('close', (code) => {
-              if (code === 0) {
-                resolve(code);
-              } else {
-                reject(new Error(`Pull process exited with code ${code}`));
-              }
-            });
-            
-            pullProcess.on('error', (error) => {
-              reject(error);
-            });
-          });
+          console.log(ansiColors.gray("Executing pull operation..."));
+          await pullOperation.pullInstance();
           
           console.log(ansiColors.green("✅ Source data pull completed"));
           
           // Reload source data after pull
           console.log(ansiColors.cyan("📥 Reloading source data..."));
           sourceData = await sourceDataLoader.loadSourceEntities();
-          
-          // Re-check if we have content after pull
-          hasContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
-          if (!hasContent) {
-            console.log(ansiColors.red("❌ No content found even after pulling source data"));
-            console.log(ansiColors.gray("💡 This may indicate:"));
-            console.log(ansiColors.gray("   - Source instance has no content"));
-            console.log(ansiColors.gray("   - Authentication issues"));
-            console.log(ansiColors.gray("   - Network connectivity problems"));
-            return;
-          }
-          
-          console.log(ansiColors.green("✅ Source data loaded successfully after pull"));
         } catch (pullError: any) {
           console.error(ansiColors.red(`❌ Failed to pull source data: ${pullError.message}`));
           console.log(ansiColors.gray("💡 Please try running pull manually first:"));
-          const state = getState();
-          console.log(ansiColors.gray(`   node dist/index.js pull --sourceGuid ${state.sourceGuid} --locale ${state.locale} --channel ${state.channel} --verbose`));
+          console.log(ansiColors.gray(`   agility pull --sourceGuid ${state.sourceGuid} --locale ${state.locale} --channel ${state.channel} --verbose`));
           return;
         }
+      } else {
+        console.log(ansiColors.cyan("📋 Using existing local source data (--no-update specified)"));
+      }
+
+      // Final check if we have any content to sync
+      let hasContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
+      if (!hasContent) {
+        console.log(ansiColors.red("❌ No source data available to sync"));
+        console.log(ansiColors.gray("💡 This may indicate:"));
+        console.log(ansiColors.gray("   - Source instance has no content"));
+        console.log(ansiColors.gray("   - Authentication issues"));
+        console.log(ansiColors.gray("   - Network connectivity problems"));
+        console.log(ansiColors.gray("💡 Try running pull manually first:"));
+        console.log(ansiColors.gray(`   agility pull --sourceGuid ${state.sourceGuid} --elements ${state.elements} --verbose`));
+        return;
       }
 
       // **NEW: Task 105 - Selective Model-Based Sync Integration**

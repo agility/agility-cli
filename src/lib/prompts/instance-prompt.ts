@@ -13,7 +13,7 @@ import {
   generateComponents 
 } from "../utilities/generators";
 import { AgilityInstance } from "../../types/agilityInstance";
-import { getUIMode } from "../services/state";
+import { getState, getUIMode } from "../services/state";
 const FormData = require("form-data");
 
 inquirer.registerPrompt("search-list", require("inquirer-search-list"));
@@ -22,6 +22,7 @@ export async function instancesPrompt(selectedInstance?: AgilityInstance, keys?:
   const { useBlessed } = getUIMode();
   const { state } = await import('../services/state');
   
+  console.log('selectedInstance', selectedInstance);
   // Build instance data from state if not provided
   if (!selectedInstance && state.sourceGuid) {
     selectedInstance = {
@@ -150,11 +151,16 @@ export async function instancesPrompt(selectedInstance?: AgilityInstance, keys?:
 }
 
 export async function getInstance(selectedInstance: AgilityInstance) {
+
+  console.log('getInstance', selectedInstance);
   const auth = new Auth();
 
   let guid: string = selectedInstance.guid as string;
 
-  let user = await auth.getUser(guid);
+  // let user = await auth.getUser(guid);
+  const state = getState();
+  const user = state.user;
+
   if (!user) {
     console.log("Please authenticate first to perform the operation.");
     return;

@@ -1,13 +1,18 @@
 import inquirer from "inquirer";
-import { Auth, fileOperations } from "../services";
-
+import { getState } from "../services/state";
 import colors from "ansi-colors";
-import { homePrompt } from "../prompts/home-prompt";
-const FormData = require("form-data");
 
 export async function instanceSelector() {
-  let auth = new Auth();
-  let user = await auth.getUser();  
+  // Use user data from state (already loaded by auth.init())
+  const state = getState();
+  const user = state.user;
+
+  console.log('user', user);
+
+  if (!user || !user.websiteAccess) {
+    console.log(colors.red('User data not available. Please ensure you are authenticated.'));
+    return null;
+  }
 
   let instances = user.websiteAccess;
 

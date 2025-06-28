@@ -1,68 +1,95 @@
 import inquirer from "inquirer";
 import colors from "ansi-colors";
 import { instanceSelector } from "./instance-selector-prompt";
-import { Auth } from "../services/auth";
-// import { createMultibar } from "../services/multibar"; // Multibar no longer used
-import * as mgmtApi from "@agility/management-sdk";
-import { fileOperations } from "../services/fileOperations";
+import { setState } from "../services/state";
 import { localePrompt } from "./locale-prompt";
 import { isPreviewPrompt } from "./isPreview-prompt";
 import { AgilityInstance } from "../../types/agilityInstance";
-import { state } from "../services/state";
 import { elementsPrompt } from "./elements-prompt";
-// import { push } from "../services/push"; // Push service no longer exists - using individual pushers
+import { Sync } from "../services/sync";
 import rootPathPrompt from "./root-path-prompt";
-inquirer.registerPrompt("fuzzypath", require("inquirer-fuzzy-path"));
 
-const FormData = require("form-data");
+/**
+ * Modern push functionality using the sync system - replaces legacy push
+ */
+export async function pushFiles(sourceInstance: AgilityInstance, useBlessedUI: boolean) {
+    const { guid } = sourceInstance;
 
-let auth: Auth;
-let options: mgmtApi.Options;
+    // Select target instance for sync operation
+    const targetInstance: AgilityInstance = await instanceSelector();
+    if (!targetInstance) {
+        console.log(colors.red('No target instance selected.'));
+        return false;
+    }
 
-// Accept useBlessedUI flag
-export async function pushFiles(instance: any, useBlessedUI: boolean) {
-  const { guid } = instance;
+    console.log(colors.cyan(`✔ Source instance: ${sourceInstance.websiteDetails?.displayName} (${sourceInstance.guid})`));
+    console.log(colors.cyan(`✔ Target instance: ${targetInstance.websiteDetails?.displayName} (${targetInstance.guid})`));
 
-  const selectedInstance: AgilityInstance = await instanceSelector();
-  const locale = await localePrompt(selectedInstance);
-  const preview = await isPreviewPrompt();
-  const elements: any = await elementsPrompt('push');
-  const rootPath = await rootPathPrompt();
+    // Configure state from interactive prompts using refined flag architecture
+    await configureStateFromSyncPrompts(sourceInstance, targetInstance, useBlessedUI);
 
-  const basePath = `${rootPath}/${guid}/${locale}/${preview ? 'preview' : 'live'}`;
-  let code = new fileOperations(basePath, guid, locale, preview);
-  auth = new Auth();
+    // Use standard Sync service (authentication already handled by calling command)
+    const syncOperation = new Sync();
+    try {
+        await syncOperation.syncInstance();
+        return true;
+    } catch (syncError) {
+        console.error(colors.red('Sync operation failed:'), syncError);
+        return false;
+    }
+}
 
-  let agilityFolder = code.cliFolderExists();
-  if (agilityFolder) {
-    // Push service also needs headless/verbose flags if it's going to manage UI/output
-    // Assuming for now pushFiles just uses the passed useBlessedUI flag.
-    // Multibar creation depends on mode, push service constructor should handle this.
-    let multibar = null; // createMultibar({ name: "Push" });
+/**
+ * Configure state from interactive prompts for sync operations - modern state-based approach
+ */
+async function configureStateFromSyncPrompts(sourceInstance: AgilityInstance, targetInstance: AgilityInstance, useBlessedUI: boolean) {
+    // Gather configuration through prompts
+    const locale = await localePrompt(sourceInstance);
+    console.log(colors.cyan(`✔ Locale: ${locale}`));
 
-    // Initialize options with token
-    options = new mgmtApi.Options();
-    let token = await auth.getToken();
-    options.token = token;
-    // options.baseUrl = auth.determineBaseUrl(guid); // Let push service determine if needed
+    const preview = await isPreviewPrompt();
+    const elements = await elementsPrompt('push'); // Elements prompt for sync operation
+    const rootPath = await rootPathPrompt();
 
-    const rootPath = 'agility-files';
-    const legacyFolders = false;
-    const dryRun = false; // Assuming not a dry run from here
-    const contentFolder = null; // Assuming default content folder
+    // Add prompts for refined flag architecture options
+    const updateChoice = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'update',
+            message: 'Download fresh source data before sync?',
+            default: true // Default: --update=true
+        }
+    ]);
 
-    // Assuming push service constructor will also be updated for headless/verbose
-    // For now, passing flags based on useBlessedUI
-    const isHeadless = !useBlessedUI;
-    const isVerbose = false; // Assume not verbose unless flag is explicitly passed down
+    const overwriteChoice = await inquirer.prompt([
+        {
+            type: 'confirm',
+            name: 'overwrite',
+            message: 'Force update existing items in target instance instead of creating new versions?',
+            default: false // Default: --overwrite=false (safer)
+        }
+    ]);
 
-    console.log(colors.yellow("Push functionality has been replaced with the new sync system."));
-    console.log(colors.cyan("Please use the 'sync' command instead of push."));
-    
-    // TODO: Integrate with new sync system
-    // Push service has been removed in favor of the new topological sync system
-    // This prompt needs to be updated to use the sync command instead
-  } else {
-    console.log(colors.red("Please pull an instance first to push an instance."));
-  }
+    // Configure state using setState() - same pattern as CLI commands
+    setState({
+        sourceGuid: sourceInstance.guid,
+        targetGuid: targetInstance.guid,
+        locale: locale,
+        channel: 'website', // Default channel
+        preview: preview,
+        rootPath: rootPath,
+        elements: elements.join(','),
+        blessed: useBlessedUI,
+        headless: false,
+        verbose: false,
+        update: updateChoice.update,
+        overwrite: overwriteChoice.overwrite,
+        // Set other defaults
+        reset: false,
+        legacyFolders: false,
+        test: false,
+        dev: false,
+        local: false,
+        preprod: false
+    });
 }

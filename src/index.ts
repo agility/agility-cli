@@ -6,7 +6,7 @@ const colors = require("ansi-colors");
 const inquirer = require("inquirer");
 inquirer.registerPrompt("search-list", require("inquirer-search-list"));
 
-import { Auth, Clean, Pull, Sync, state, setState, systemArgs } from "./lib/services";
+import { Auth, Clean, Pull, Sync, state, setState, resetState, primeFromEnv, systemArgs } from "./lib/services";
 import { homePrompt, instancesPrompt, localePrompt } from "./lib/prompts";
 import { generateEnv } from "./lib/utilities";
 import { instanceSelector } from "./lib/prompts";
@@ -24,11 +24,25 @@ yargs.command({
     // Add any default-command-specific args here if needed
   },
   handler: async function (argv) {
+    resetState(); // Clear any previous command state
+    
+    // Prime state from .env file before applying command line args
+    const envPriming = primeFromEnv();
+    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+    }
+    
     setState(argv);
 
     auth = new Auth();
     const isAuthorized = await auth.init();
     if (!isAuthorized) {
+      return;
+    }
+
+    // Interactive mode doesn't need strict validation
+    const isValidCommand = await auth.validateCommand('interactive');
+    if (!isValidCommand) {
       return;
     }
 
@@ -55,6 +69,14 @@ yargs.command({
     // Add any login-specific args here if needed
   },
   handler: async function (argv) {
+    resetState(); // Clear any previous command state
+    
+    // Prime state from .env file before applying command line args
+    const envPriming = primeFromEnv();
+    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+    }
+    
     setState(argv);
     auth = new Auth();
     await auth.init();
@@ -69,6 +91,14 @@ yargs.command({
     ...systemArgs
   },
   handler: async function (argv) {
+    resetState(); // Clear any previous command state
+    
+    // Prime state from .env file before applying command line args
+    const envPriming = primeFromEnv();
+    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+    }
+    
     setState(argv);
     auth = new Auth();
     await auth.logout();
@@ -83,17 +113,34 @@ yargs.command({
     ...systemArgs
   },
   handler: async function (argv) {
+    resetState(); // Clear any previous command state
+    
+    // Prime state from .env file before applying command line args
+    const envPriming = primeFromEnv();
+    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+    }
+    
     setState(argv);
     // Force local mode for clean operations
     state.local = true;
+    
     auth = new Auth();
     const isAuthorized = await auth.init();
-    if (isAuthorized) {
-      const selectedInstance = await instanceSelector();
-      const locale = await localePrompt(selectedInstance);
-      const clean = new Clean(selectedInstance, locale);
-      await clean.cleanAll();
+    if (!isAuthorized) {
+      return;
     }
+
+    // Validate clean command requirements (minimal validation)
+    const isValidCommand = await auth.validateCommand('clean');
+    if (!isValidCommand) {
+      return;
+    }
+
+    const selectedInstance = await instanceSelector();
+    const locale = await localePrompt(selectedInstance);
+    const clean = new Clean(selectedInstance, locale);
+    await clean.cleanAll();
   },
 });
 
@@ -105,17 +152,25 @@ yargs.command({
     ...systemArgs
   },
   handler: async function (argv) {
+    resetState(); // Clear any previous command state
+    
+    // Prime state from .env file before applying command line args
+    const envPriming = primeFromEnv();
+    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+    }
+    
     setState(argv);
     auth = new Auth();
     const isAuthorized = await auth.init();
-    if (isAuthorized) {
-      const result = await generateEnv();
-      if (result) {
-        process.exit(0);
-      }
-    } else {
+    if (!isAuthorized) {
       console.log(colors.red("You are not authorized to generate an env file."));
       return;
+    }
+
+    const result = await generateEnv();
+    if (result) {
+      process.exit(0);
     }
   },
 });
@@ -130,6 +185,14 @@ yargs.command({
     ...systemArgs
   },
   handler: async function (argv) {
+    resetState(); // Clear any previous command state
+    
+    // Prime state from .env file before applying command line args
+    const envPriming = primeFromEnv();
+    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+    }
+    
     setState(argv);
     
     auth = new Auth();
@@ -138,9 +201,14 @@ yargs.command({
       return;
     }
 
+    // Validate pull command requirements
+    const isValidCommand = await auth.validateCommand('pull');
+    if (!isValidCommand) {
+      return;
+    }
+
     const pullOperation = new Pull();
     await pullOperation.pullInstance();
-    
   },
 });
 
@@ -161,11 +229,25 @@ yargs.command({
     ...systemArgs
   },
   handler: async function (argv) {
+    resetState(); // Clear any previous command state
+    
+    // Prime state from .env file before applying command line args
+    const envPriming = primeFromEnv();
+    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+    }
+    
     setState(argv);
     
     auth = new Auth();
     const isAuthorized = await auth.init();
     if (!isAuthorized) {
+      return;
+    }
+
+    // Validate sync command requirements
+    const isValidCommand = await auth.validateCommand('sync');
+    if (!isValidCommand) {
       return;
     }
 

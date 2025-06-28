@@ -125,9 +125,19 @@ export const systemArgs = {
     type: "string" as const,
   },
 
-  // Force operation args
+  // Force operation args  
   overwrite: {
-    describe: "Force overwrite existing local files and metadata. Used in pull operations.",
+    describe: "For sync commands only: force update existing items in target instance instead of creating new items with -1 IDs. Default: false (safer behavior to prevent overwriting existing content).",
+    type: "boolean" as const,
+    default: false
+  },
+  update: {
+    describe: "For both pull and sync commands: download fresh data from source instance before operations. Use --no-update to use existing local cache only. Default: true (ensures fresh data).",
+    type: "boolean" as const,
+    default: true
+  },
+  reset: {
+    describe: "Nuclear option for both pull and sync commands: completely delete instance GUID folder and start fresh. For pull: deletes local data. For sync: deletes source data + regenerates mappings. Default: false.",
     type: "boolean" as const,
     default: false
   }

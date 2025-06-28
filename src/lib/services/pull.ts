@@ -20,6 +20,14 @@ import { downloadAllGalleries,
 } from "../downloaders/index";
 import { generateLogHeader } from '../utilities';
 import ansiColors from "ansi-colors";
+import {
+  markPullStart,
+  clearTimestamps,
+  updateEntityTypeTimestamp,
+  getIncrementalPullDecision,
+  INCREMENTAL_SUPPORTED_TYPES,
+  FULL_REFRESH_REQUIRED_TYPES
+} from '../utilities/incremental';
 
 // Define a type for the progress callback
 type ProgressCallbackType = (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void;
@@ -40,7 +48,8 @@ export class Pull {
   private isVerbose: boolean;
   
   private fileOps: fileOperations; // For logging to file in headless mode
-  private _forceOverwrite: boolean; // Renamed and will be used globally
+      private _forceUpdate: boolean; // Controls whether to update existing local files (controlled by --update flag)
+  private _reset: boolean; // Controls whether to completely delete GUID folder and start fresh
 
   constructor() {
     const state = getState();
@@ -55,7 +64,8 @@ export class Pull {
     this._elements = state.elements.split(",");
     this._rootPath = state.rootPath;
     this._legacyFolders = state.legacyFolders;
-    this._forceOverwrite = state.overwrite;
+            this._forceUpdate = state.update;
+    this._reset = state.reset;
 
     this.isHeadless = state.useHeadless;
     this.isVerbose = state.useVerbose;
@@ -73,7 +83,8 @@ export class Pull {
       'Locale': this._locale,
       'Channel': this._channel,
       'Preview Mode': this._isPreview,
-      'Force Overwrite': this._forceOverwrite,
+      'Force Update': this._forceUpdate,
+      'Reset Mode': this._reset,
       'Mode': this.isHeadless ? 'Headless' : this.isVerbose ? 'Verbose' : this._useBlessedUI ? 'Blessed UI' : 'Standard'
     });
 
@@ -96,6 +107,31 @@ export class Pull {
         `\nPulling instance ${this._guid} (${this._locale}) [${this._channel}] ${this._isPreview ? 'Preview' : 'Live'} into ./agility-files`
       )
     );
+
+    // Handle --reset flag: completely delete GUID folder and start fresh
+    if (this._reset) {
+      const guidFolderPath = path.join(process.cwd(), this._rootPath, this._guid);
+      
+      if (fs.existsSync(guidFolderPath)) {
+        console.log(colors.red(`🔄 --reset flag detected: Deleting entire instance folder ${guidFolderPath}`));
+        
+        try {
+          fs.rmSync(guidFolderPath, { recursive: true, force: true });
+          console.log(colors.green(`✓ Successfully deleted instance folder: ${guidFolderPath}`));
+        } catch (resetError: any) {
+          console.error(colors.red(`✗ Error deleting instance folder: ${resetError.message}`));
+          throw resetError;
+        }
+      } else {
+        console.log(colors.yellow(`⚠️ Instance folder ${guidFolderPath} does not exist (already clean)`));
+      }
+      
+      // Clear timestamp tracking for this instance
+      clearTimestamps(this._guid, this._rootPath);
+    }
+
+    // Mark the start of this pull operation for incremental tracking
+    const pullStartTime = markPullStart();
 
     try {
 
@@ -355,7 +391,7 @@ export class Pull {
         interface: storeInterfaceFileSystem,
         options: {
           rootPath: instanceSpecificPath,
-          forceOverwrite: this._forceOverwrite
+                          forceUpdate: this._forceUpdate
         },
       }
     });
@@ -443,10 +479,10 @@ export class Pull {
                 const contentItemsPath = path.join(instanceSpecificPath, "item");
                 const contentListsPath = path.join(instanceSpecificPath, "list");
 
-                if (this._forceOverwrite) { 
-                    const refreshMessage = "Overwrite selected: Local content files will be refreshed by the sync process.";
-                    // if (this.isVerbose) originalConsoleLog(refreshMessage);
-                    // else if (this._useBlessedUI || this.isHeadless) console.log(refreshMessage);
+                if (this._forceUpdate) { 
+                    const updateMessage = "Update selected: Local content files will be updated with fresh data from source instance.";
+                                      // if (this.isVerbose) originalConsoleLog(updateMessage);
+                  // else if (this._useBlessedUI || this.isHeadless) console.log(updateMessage);
 
 
                     if (fs.existsSync(syncTokenPath)) {
@@ -468,13 +504,13 @@ export class Pull {
                         else if (this._useBlessedUI || this.isHeadless) console.log(deletedListsMsg);
                     }
                 } else {
-                    // Logic for non-overwrite: if sync token exists, it implies incremental. If not, it's a full sync naturally.
+                    // Logic for non-update: if sync token exists, it implies incremental. If not, it's a full sync naturally.
                     if (fs.existsSync(syncTokenPath)) {
-                        if (this.isVerbose) originalConsoleLog("Overwrite not selected. Existing content sync token found. Performing incremental content sync.");
-                        else if (this.isHeadless) console.log("Overwrite not selected. Existing content sync token found. Performing incremental content sync.");
+                        if (this.isVerbose) originalConsoleLog("Update not selected. Existing content sync token found. Performing incremental content sync.");
+                        else if (this.isHeadless) console.log("Update not selected. Existing content sync token found. Performing incremental content sync.");
                     } else {
-                        if (this.isVerbose) originalConsoleLog("Overwrite not selected. No existing content sync token. Performing full content sync by default.");
-                        else if (this.isHeadless) console.log("Overwrite not selected. No existing content sync token. Performing full content sync by default.");
+                        if (this.isVerbose) originalConsoleLog("Update not selected. No existing content sync token. Performing full content sync by default.");
+                        else if (this.isHeadless) console.log("Update not selected. No existing content sync token. Performing full content sync by default.");
                     }
                 }
                 
@@ -544,13 +580,13 @@ export class Pull {
 
             // Call the appropriate downloader with fileOperations instance instead of instanceSpecificPath
             switch (stepName) {
-                case 'Galleries': await downloadAllGalleries(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceOverwrite, stepProgressCallback); break;
-                case 'Assets': await downloadAllAssets(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceOverwrite, stepProgressCallback); break;
-                case 'Models': await downloadAllModels(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceOverwrite, stepProgressCallback); break;
-                case 'Templates': await downloadAllTemplates(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceOverwrite, stepProgressCallback); break;
+                case 'Galleries': await downloadAllGalleries(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceUpdate, stepProgressCallback); break;
+                case 'Assets': await downloadAllAssets(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceUpdate, stepProgressCallback); break;
+                case 'Models': await downloadAllModels(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceUpdate, stepProgressCallback); break;
+                case 'Templates': await downloadAllTemplates(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceUpdate, stepProgressCallback); break;
                 // Note: Containers, Sitemaps, Redirections, and Pages are now handled by Content Sync SDK in the 'Content' step
                 case 'Containers':
-                    await downloadAllContainers(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceOverwrite, stepProgressCallback);
+                    await downloadAllContainers(this._guid, this._locale, this._isPreview, this._options, this._multibar!, this.fileOps, this._forceUpdate, stepProgressCallback);
                     break;
                 case 'Sitemaps': 
                     console.log(`${stepName} are now handled by Content Sync SDK in the 'Content' step`);
@@ -580,6 +616,41 @@ export class Pull {
 
     // After all steps, check statuses for overall completion message
     const overallSuccess = stepStatuses.every(s => s === 1);
+
+    // Update timestamps for successful entity types (incremental pull tracking)
+    if (overallSuccess) {
+        console.log(colors.cyan("\n🕒 Updating incremental pull timestamps..."));
+        
+        // Update timestamp for each successful entity type
+        for (let i = 0; i < pullSteps.length; i++) {
+            if (stepStatuses[i] === 1) { // Successful step
+                const stepName = pullSteps[i];
+                
+                // Map step names to entity types for timestamp tracking
+                let entityType: string | null = null;
+                switch (stepName) {
+                    case 'Models': entityType = 'models'; break;
+                    case 'Containers': entityType = 'containers'; break;
+                    case 'Content': entityType = 'content'; break;
+                    case 'Assets': entityType = 'assets'; break;
+                    case 'Galleries': entityType = 'galleries'; break;
+                    case 'Templates': entityType = 'templates'; break;
+                    case 'Pages': entityType = 'pages'; break;
+                    // Skip Sitemaps, Redirections - they're handled by Content step
+                }
+                
+                if (entityType) {
+                    try {
+                        updateEntityTypeTimestamp(this._guid, this._rootPath, entityType, pullStartTime);
+                        console.log(colors.green(`  ✓ Updated timestamp for ${entityType}`));
+                    } catch (timestampError: any) {
+                        console.warn(colors.yellow(`  ⚠️ Failed to update timestamp for ${entityType}: ${timestampError.message}`));
+                    }
+                }
+            }
+        }
+        console.log(colors.green("✓ Incremental pull timestamps updated successfully"));
+    }
 
     if (this._useBlessedUI) {
         if (logContainer) {

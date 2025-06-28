@@ -29,6 +29,41 @@ Intelligently synchronizes content between two Agility CMS instances using advan
 agility sync --sourceGuid="source-guid" --targetGuid="target-guid" [options]
 ```
 
+## 🚀 **Refined Flag Architecture**
+
+The Agility CLI uses an intuitive flag system designed for consistent behavior and safer defaults:
+
+### **Core Principles**
+- **Fresh Data by Default**: Both pull and sync commands download fresh data by default (`--update=true`)
+- **Safer Defaults**: Prevents accidental content overwrites (`--overwrite=false` by default)
+- **Consistent Behavior**: Same flags work the same way across commands
+- **Performance Options**: Use `--no-update` to skip API calls and use cached data
+
+### **Key Flags**
+
+| Flag | Default | Commands | Purpose |
+|------|---------|----------|---------|
+| `--update` | `true` | Pull, Sync | Download fresh data from source instance |
+| `--no-update` | - | Pull, Sync | Use existing local cache (performance optimization) |
+| `--overwrite` | `false` | Sync only | Update existing target items vs create new versions |
+| `--reset` | `false` | Pull, Sync | Nuclear option: delete local data and start fresh |
+
+### **Typical Usage Patterns**
+
+```bash
+# Standard operation (fresh data, safe defaults)
+agility pull --sourceGuid="abc123"
+agility sync --sourceGuid="abc123" --targetGuid="def456"
+
+# Performance optimization (use cached data)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --no-update
+
+# Force updates in target (for refreshing existing content)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite
+
+# Nuclear reset (when things go wrong)
+agility pull --sourceGuid="abc123" --reset
+```
 
 ### 🔑 Authentication Commands
 
@@ -112,7 +147,16 @@ All commands support the following unified system arguments:
 |--------|------|---------|-------------|
 | `--rootPath` | string | `agility-files` | Root directory for local files |
 | `--legacyFolders` | boolean | `false` | Use legacy flat folder structure |
-| `--overwrite` | boolean | `false` | Force overwrite existing local files (pull operations) and force update existing items (sync operations) |
+
+**Operation Control Options:**
+
+| Option | Type | Default | Description |
+|--------|------|---------|-------------|
+| `--update` | boolean | `true` | **BOTH COMMANDS**: Download fresh data from source instance before operations. Use `--no-update` to use existing local cache only. Default: true (ensures fresh data) |
+| `--overwrite` | boolean | `false` | **SYNC ONLY**: Force update existing items in target instance instead of creating new items with -1 IDs. Default: false (safer behavior to prevent overwriting existing content) |
+| `--reset` | boolean | `false` | **BOTH COMMANDS**: Nuclear option - completely delete instance GUID folder and start fresh. For pull: deletes local data. For sync: deletes source data + regenerates mappings. Default: false |
+
+> **🎯 Intuitive Flag Design**: `--update` provides consistent fresh data behavior across both pull and sync commands, with safer defaults to prevent accidental overwrites.
 
 **Network & Security Options:**
 
@@ -150,8 +194,11 @@ agility pull --sourceGuid="abc123" --locale="en-us"
 # Pull specific elements only
 agility pull --sourceGuid="abc123" --elements="Models,Content"
 
-# Pull with overwrite (refresh local files)
-agility pull --sourceGuid="abc123" --overwrite
+# Pull with existing local cache (performance optimization)
+agility pull --sourceGuid="abc123" --no-update
+
+# Nuclear option: completely delete instance folder and start fresh  
+agility pull --sourceGuid="abc123" --reset
 
 # Pull from live environment
 agility pull --sourceGuid="abc123" --preview=false
@@ -176,7 +223,7 @@ agility sync [options]
 *Note: Sync operations use the same unified system arguments listed above. Both `--sourceGuid` and `--targetGuid` options are required for sync operations.*
 
 ```bash
-# Basic sync
+# Basic sync (pulls fresh data by default)
 agility sync --sourceGuid="abc123" --targetGuid="def456"
 ```
 
@@ -213,6 +260,15 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite
 
 # Sync to live environment
 agility sync --sourceGuid="abc123" --targetGuid="def456" --preview=false
+
+# Use existing local cache instead of fresh data (performance optimization)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --no-update
+
+# Force update existing items in target instance instead of creating new versions
+agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite
+
+# Use cached data + force target updates (combine performance with overwrites)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --no-update --overwrite
 
 # Sync specific models and their dependencies
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,NewsArticle"
@@ -271,8 +327,10 @@ AGILITY_BLESSED=true
 # Debug and analysis flags (true/false)
 AGILITY_TEST=false
 
-# Operation control
-AGILITY_OVERWRITE=false
+# Operation control flags (defaults match CLI behavior)
+AGILITY_UPDATE=true     # Download fresh data by default (both pull and sync)
+AGILITY_OVERWRITE=false # Don't overwrite target items by default (sync only)
+AGILITY_RESET=false     # Don't delete local data by default (both pull and sync)
 ```
 
 ### Environment Variable Mapping
@@ -297,7 +355,9 @@ AGILITY_OVERWRITE=false
 | `AGILITY_HEADLESS` | `--headless` | Default headless mode setting |
 | `AGILITY_BLESSED` | `--blessed` | Use blessed UI |
 | `AGILITY_TEST` | `--test` | Default test mode setting |
-| `AGILITY_OVERWRITE` | `--overwrite` | Default overwrite setting (pull and sync) |
+| `AGILITY_UPDATE` | `--update` | Default fresh data setting (both pull and sync) |
+| `AGILITY_OVERWRITE` | `--overwrite` | Default overwrite setting (sync only) |
+| `AGILITY_RESET` | `--reset` | Default reset setting (both pull and sync) |
 
 **Note**: Command line arguments always override environment variables when both are provided.
 
@@ -535,8 +595,14 @@ agility pull --sourceGuid="abc123" --baseUrl="https://mgmt.aglty.io"
 
 **Sync Shows All Items Skipped**
 ```bash
-# Force update existing items
+# Try with fresh data first (default behavior, but worth being explicit)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --update
+
+# If still skipping, force update existing items in target
 agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite
+
+# Combined: fresh data + force updates
+agility sync --sourceGuid="abc123" --targetGuid="def456" --update --overwrite
 ```
 
 **Debug Sync Issues**
