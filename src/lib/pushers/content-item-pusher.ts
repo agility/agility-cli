@@ -1,4 +1,4 @@
-import { ReferenceMapper } from "../utilities/reference-mapper";
+import { ReferenceMapper } from "../shared/reference-mapper";
 import * as mgmtApi from '@agility/management-sdk';
 import { 
   findContentInTargetInstance, 
@@ -10,11 +10,10 @@ import {
   ContentClassifier, 
   type ContentClassification,
   ContentFieldMapper
-} from '../utilities';
+} from '../shared';
 // Removed ContentBatchProcessor import - individual pusher only handles individual processing
-import { state } from '../services/state';
-import { AssetReferenceExtractor } from "../utilities/assets/asset-reference-extractor";
-import { findAssetInTargetInstance } from "../finders/asset-finder";
+import { state } from '../../core/state';
+
 
 /**
  * Content Item Pusher - implements the proven push_legacy.ts pattern
@@ -35,7 +34,7 @@ async function mapContentItem(
     models: mgmtApi.Model[]
 ): Promise<mgmtApi.ContentItem> {
     // Import the enhanced field mapper
-    const { ContentFieldMapper } = await import('../utilities/content/content-field-mapper');
+    const { ContentFieldMapper } = await import('../content/content-field-mapper');
     
     const fieldMapper = new ContentFieldMapper();
     
@@ -900,7 +899,7 @@ export async function pushContent(
         try {
             // Import the model getter and fileOperations
             const { getModelsFromFileSystem } = await import('../getters/filesystem');
-                          const { fileOperations } = await import('../services');
+                          const { fileOperations } = await import('../../core');
             
             // Use source GUID from state instead of complex lookup logic
             
@@ -931,7 +930,7 @@ export async function pushContent(
 
    
     // BULK MAPPING FILTER: Check for existing mappings unless overwrite is enabled
-    const { bulkFilterByExistingMappings } = await import('../utilities/bulk-mapping-filter');
+    const { bulkFilterByExistingMappings } = await import('../shared/bulk-mapping-filter');
     const filterResult = await bulkFilterByExistingMappings(contentItems, referenceMapper, overwrite);
     
     // console.log(ansiColors.cyan(

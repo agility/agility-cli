@@ -1,26 +1,26 @@
 import inquirer from "inquirer";
-import { Auth } from "../services/auth";
+import { Auth } from "../../core/auth";
 import { homePrompt } from "./home-prompt";
 import { fetchAPIPrompt, fetchCommandsPrompt } from "./fetch-prompt";
 import { pullFiles } from "./pull-prompt";
 import { pushFiles } from "./push-prompt";
-import Clean from "../services/clean";
+import Clean from "../../core/clean";
 import { localePrompt } from "./locale-prompt";
 import { 
   generateTypescriptModels, 
   generateEnv, 
   generateSitemap, 
   generateComponents 
-} from "../utilities/generators";
+} from "../generators";
 import { AgilityInstance } from "../../types/agilityInstance";
-import { getState, getUIMode } from "../services/state";
+import { getState, getUIMode } from "../../core/state";
 const FormData = require("form-data");
 
 inquirer.registerPrompt("search-list", require("inquirer-search-list"));
 
 export async function instancesPrompt(selectedInstance?: AgilityInstance, keys?: any) {
   const { useBlessed } = getUIMode();
-  const { state } = await import('../services/state');
+  const { state } = await import('../../core/state');
   
   console.log('selectedInstance', selectedInstance);
   // Build instance data from state if not provided

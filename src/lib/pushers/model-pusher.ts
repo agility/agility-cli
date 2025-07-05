@@ -1,10 +1,10 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { getState, getApiClient } from "../services/state";
+import { getState, getApiClient } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
-import { ReferenceMapper } from "../utilities/reference-mapper";
-import { logModelDifferences } from "../utilities/loggers";
-import { areModelsDifferent } from "../utilities/models";
+import { ReferenceMapper } from "../shared/reference-mapper";
+import { logModelDifferences } from "../loggers";
+import { areModelsDifferent } from "../models";
 
 /**
  * Streamlined Model Pusher - 2-pass synchronization approach

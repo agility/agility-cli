@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from "../utilities/reference-mapper";
+import { ReferenceMapper } from "../shared/reference-mapper";
 
 export async function findContentInTargetInstance(
     contentItem: mgmtApi.ContentItem, 

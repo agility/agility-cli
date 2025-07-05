@@ -1,4 +1,4 @@
-import { state } from "../services/state";
+import { state } from "../../core/state";
 
 /**
  * Simple batch publisher function - mirrors apiClient.batchMethods.publish(batchID)

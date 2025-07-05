@@ -4,7 +4,7 @@
  * Mirrors the SDK pattern: apiClient.contentMethods.publishContent(id) for content lists
  */
 
-import { state } from '../services/state';
+import { state } from '../../core/state';
 
 /**
  * Simple content list publisher function - mirrors apiClient.contentMethods.publishContent for lists

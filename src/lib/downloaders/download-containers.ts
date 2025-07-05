@@ -1,10 +1,11 @@
 import * as mgmtApi from "@agility/management-sdk";
 import * as cliProgress from "cli-progress";
-import { fileOperations } from "../services/fileOperations"; // Assuming fileOperations is in services
-import { state, getApiClient } from "../services/state";
+import { fileOperations } from "../../core/fileOperations"; // Assuming fileOperations is in services
+import { state, getApiClient } from "../../core/state";
 import * as fs from "fs"; // For checking if folder is empty
 import * as path from "path"; // For path operations
 import ansiColors from "ansi-colors";
+import { ContentHashComparer } from "../shared/content-hash-comparer";
 
 export async function downloadAllContainers(
   multibar: cliProgress.MultiBar,
@@ -30,6 +31,7 @@ export async function downloadAllContainers(
   fileOps.createFolder('containers');
 
   let totalContainers = 0; // Define totalContainers in a broader scope for the catch block
+  const startTime = Date.now(); // Track start time for performance measurement
   try {
     // console.log("Fetching list of page templates...");
     let containers = await apiClient.containerMethods.getContainerList(guid);
@@ -53,15 +55,43 @@ export async function downloadAllContainers(
       const containerName = containers[i].referenceName;
       const containerFilePath = path.join(containersFolderPath, `${containerID}.json`);
 
-      // Check if we should skip file existence check based on update flag
-      // update=false (default): Skip existing files, update=true: Force download/overwrite
-      if (!update && fs.existsSync(containerFilePath)) {
-        console.log(ansiColors.grey.italic('Found'), ansiColors.gray(`${containerName}`),ansiColors.grey.italic('skipping download'));
-        skippedCount++;
+      // Always fetch full container details for hash comparison
+      let container = await apiClient.containerMethods.getContainerByID(containerID, guid);
+
+      // Intelligent content comparison - check if content has actually changed
+      // update=false (default): Use hash comparison for smart skipping
+      // update=true: Force download/overwrite regardless of content
+      if (!update) {
+        const hashComparison = ContentHashComparer.getHashComparison(container, containerFilePath);
+        
+        if (hashComparison.status === 'unchanged') {
+          const hashDisplay = hashComparison.shortHashes 
+            ? `${ansiColors.green(`[${hashComparison.shortHashes.api}]`)}`
+            : '';
+          console.log(ansiColors.grey.italic('Found'), ansiColors.gray(`${containerName}`),ansiColors.grey.italic('content unchanged, skipping'), hashDisplay);
+          skippedCount++;
+        } else {
+          // Any case that results in downloading (modified, not-exists, error)
+          fileOps.exportFiles(`containers`, container.contentViewID, container);
+          
+          if (hashComparison.status === 'modified') {
+            const hashDisplay = hashComparison.shortHashes 
+              ? `${ansiColors.red(`[${hashComparison.shortHashes.local}`)} → ${ansiColors.green(`${hashComparison.shortHashes.api}]`)}`
+              : '';
+            console.log(`✓ Updated container ${ansiColors.cyan(container.referenceName)} ID: ${container.contentViewID} ${ansiColors.gray('(content changed)')} ${hashDisplay}`);
+          } else if (hashComparison.status === 'not-exists') {
+            const hashDisplay = hashComparison.apiHash 
+              ? `${ansiColors.green(`[${hashComparison.apiHash.substring(0, 6)}]`)}`
+              : '';
+            console.log(`✓ Downloaded container ${ansiColors.cyan(container.referenceName)} ID: ${container.contentViewID} ${ansiColors.gray('(new file)')} ${hashDisplay}`);
+          } else {
+            console.log(`✓ Downloaded container ${ansiColors.cyan(container.referenceName)} ID: ${container.contentViewID} ${ansiColors.gray('(error reading local file)')}`);
+          }
+        }
       } else {
-        let container = await apiClient.containerMethods.getContainerByID(containerID, guid);
+        // Force update mode - always download
         fileOps.exportFiles(`containers`, container.contentViewID, container);
-        console.log(`✓ Downloaded container ${ansiColors.cyan(container.referenceName)} ID: ${container.contentViewID}`);
+        console.log(`✓ Downloaded container ${ansiColors.cyan(container.referenceName)} ID: ${container.contentViewID} ${ansiColors.gray('(forced update)')}`);
       }
       
       processedCount++;
@@ -70,7 +100,9 @@ export async function downloadAllContainers(
 
     // Summary of downloaded containers
     const downloadedCount = processedCount - skippedCount;
-    console.log(ansiColors.yellow(`\nDownloaded ${downloadedCount} containers (${downloadedCount}/${totalContainers} containers, ${skippedCount} skipped, 0 errors)\n`));
+    const elapsedTime = Date.now() - startTime;
+    const elapsedSeconds = (elapsedTime / 1000).toFixed(2);
+    console.log(ansiColors.yellow(`\nDownloaded ${downloadedCount} containers (${downloadedCount}/${totalContainers} containers, ${skippedCount} skipped, 0 errors) in ${elapsedSeconds}s\n`));
     // console.log("All page templates downloaded successfully.");
     if (progressCallback) progressCallback(totalContainers, totalContainers, 'success');
   } catch (error) {

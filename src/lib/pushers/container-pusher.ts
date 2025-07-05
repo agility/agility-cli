@@ -1,9 +1,9 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapper } from "../utilities/reference-mapper";
+import { ReferenceMapper } from "../shared/reference-mapper";
 import { findContainerInTargetInstance } from "../finders";
 import ansiColors from "ansi-colors";
 import { ApiClient } from '@agility/management-sdk';
-import { state } from '../services/state';
+import { state } from '../../core/state';
 
 
 export async function pushContainers(

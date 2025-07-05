@@ -1,7 +1,7 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { ReferenceMapper } from "../utilities/reference-mapper";
-import { state } from '../services/state';
+import { ReferenceMapper } from "../shared/reference-mapper";
+import { state } from '../../core/state';
 
 export async function pushGalleries(
     sourceData: any,

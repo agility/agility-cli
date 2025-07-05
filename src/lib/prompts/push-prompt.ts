@@ -1,12 +1,12 @@
 import inquirer from "inquirer";
 import colors from "ansi-colors";
 import { instanceSelector } from "./instance-selector-prompt";
-import { setState } from "../services/state";
+import { setState } from "../../core/state";
 import { localePrompt } from "./locale-prompt";
 import { isPreviewPrompt } from "./isPreview-prompt";
 import { AgilityInstance } from "../../types/agilityInstance";
 import { elementsPrompt } from "./elements-prompt";
-import { Sync } from "../services/sync";
+import { Sync } from "../../core/sync";
 import rootPathPrompt from "./root-path-prompt";
 
 /**

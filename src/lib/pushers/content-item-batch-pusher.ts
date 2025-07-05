@@ -1,7 +1,6 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from "../utilities/reference-mapper";
-import { ContentFieldMapper } from '../utilities/content/content-field-mapper';
-import { pollBatchUntilComplete, extractBatchResults } from '../utilities/batch-polling';
+import { ReferenceMapper } from "../shared/reference-mapper";
+import { pollBatchUntilComplete, extractBatchResults } from '../shared/batch-polling';
 import ansiColors from 'ansi-colors';
 
 /**
@@ -298,7 +297,7 @@ export class ContentBatchProcessor {
                 const existingContentItem = await findContentInTargetInstance(contentItem, this.config.apiClient, this.config.targetGuid, this.config.locale, this.config.referenceMapper);
                 
                 // STEP 5: Use proper ContentFieldMapper for field mapping and validation
-                const { ContentFieldMapper } = await import('../utilities/content/content-field-mapper');
+                const { ContentFieldMapper } = await import('../content/content-field-mapper');
                 const fieldMapper = new ContentFieldMapper();
                 
                 const mappingResult = fieldMapper.mapContentFields(contentItem.fields || {}, {

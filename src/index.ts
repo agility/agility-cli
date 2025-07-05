@@ -6,9 +6,9 @@ const colors = require("ansi-colors");
 const inquirer = require("inquirer");
 inquirer.registerPrompt("search-list", require("inquirer-search-list"));
 
-import { Auth, Clean, Pull, Sync, state, setState, resetState, primeFromEnv, systemArgs } from "./lib/services";
+import { Auth, Clean, Pull, Sync, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
 import { homePrompt, instancesPrompt, localePrompt } from "./lib/prompts";
-import { generateEnv } from "./lib/utilities";
+import { generateEnv } from "./lib/shared";
 import { instanceSelector } from "./lib/prompts";
   
 let auth: Auth;

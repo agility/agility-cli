@@ -1,11 +1,11 @@
 import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapper } from "../utilities/reference-mapper";
+import { ReferenceMapper } from "../shared/reference-mapper";
 import { findAssetInTargetInstance } from "../finders";
 import * as fs from 'fs';
 import * as path from 'path';
-import { getAssetFilePath } from "../utilities";
-import { state } from '../services/state';
+import { getAssetFilePath } from "../shared";
+import { state } from '../../core/state';
 const FormData = require("form-data");
 
 export async function pushAssets(

@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from "../utilities/reference-mapper";
+import { ReferenceMapper } from "../shared/reference-mapper";
 
 /**
  * Get target sitemap for page lookups (cached for performance)

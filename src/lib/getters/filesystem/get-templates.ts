@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { fileOperations } from '../../services';
+import { fileOperations } from '../../../core';
 
 /**
  * Get templates from filesystem without side effects

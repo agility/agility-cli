@@ -1,9 +1,9 @@
 import inquirer from 'inquirer';
-import { Auth, fileOperations } from '../services';
+import { Auth, fileOperations } from '../../core';
 import { AgilityInstance } from '../../types/agilityInstance';
 import * as mgmtApi from '@agility/management-sdk';
 import { getBaseURLfromGUID } from './base-url-prompt';
-import { state } from '../services/state';
+import { state } from '../../core/state';
 const FormData = require("form-data");
 
 let auth: Auth;

@@ -1,9 +1,9 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { ReferenceMapper } from "../utilities/reference-mapper";
-import { state } from '../services/state';
+import { ReferenceMapper } from "../shared/reference-mapper";
+import { state } from '../../core/state';
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
-import { SitemapHierarchy } from '../utilities/sitemap-hierarchy';
+import { SitemapHierarchy } from '../shared/sitemap-hierarchy';
 
 
 // CRITICAL FIX: Translate zone names to match template content section definitions
@@ -356,7 +356,7 @@ async function processPage(
                     // Page batch processing started (silent)
             
             // Poll batch until completion using consistent utility (pass payload for error matching)
-            const { pollBatchUntilComplete, extractBatchResults } = await import('../utilities/batch-polling');
+            const { pollBatchUntilComplete, extractBatchResults } = await import('../shared/batch-polling');
             const completedBatch = await pollBatchUntilComplete(
                 apiClient,
                 batchID,

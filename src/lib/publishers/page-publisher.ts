@@ -1,4 +1,4 @@
-import { state } from '../services/state';
+import { state } from '../../core/state';
 
 /**
  * Simple page publisher function - mirrors apiClient.pageMethods.publishPage

@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from "../utilities/reference-mapper";
+import { ReferenceMapper } from "../shared/reference-mapper";
 
 // Function overloads to handle both Container object and string referenceName
 export async function findContainerInTargetInstance(
