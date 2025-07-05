@@ -104,7 +104,7 @@ export class assets {
     return removedStr;
   }
 
-  async getAssets(guid: string, locale: string, isPreview: boolean = true) {
+  async getAssets(guid: string, locale: string, isPreview: boolean = true, update: boolean = false) {
     let apiClient = new mgmtApi.ApiClient(this._options);
     let fileExport = this._fileOps;
 
@@ -114,6 +114,7 @@ export class assets {
     let multiExport = false;
     let processedAssetsInLoop = 0;
     let totalSuccessfullyDownloaded = 0;
+    let totalSkippedAssets = 0;
     let totalAttemptedToProcess = 0;
     let totalRecords = 0;
 
@@ -168,18 +169,28 @@ export class assets {
           fileExport.createFolder(assetFolderPath);
         }
         
-        try {
-          await fileExport.downloadFile(
-            originUrl,
-            fileExport.getDataFolderPath(`${assetFolderPath}/${fileName}`)
-          );
-          console.log('✓ Downloaded file', ansiColors.cyan.underline(fileName || originUrl.split('/').pop()));
-          totalSuccessfullyDownloaded++;
-        } catch (downloadError: any) {
-          console.error('✗ Failed to download file', ansiColors.red(fileName || originUrl.split('/').pop()), ansiColors.gray(downloadError.message ? `- ${downloadError.message}` : ''));
-          this.unProcessedAssets[assetMediaID] = fileName;
+        const targetFilePath = fileExport.getDataFolderPath(`${assetFolderPath}/${fileName}`);
+        
+        // Check if we should skip file existence check based on update flag
+        // update=false (default): Skip existing files, update=true: Force download/overwrite
+        if (!update && fileExport.checkFileExists(targetFilePath)) {
+          console.log(ansiColors.grey.italic('Found'), ansiColors.gray(fileName || originUrl.split('/').pop()),ansiColors.grey.italic('skipping download'));
+          totalSkippedAssets++;
+        } else {
+          try {
+            await fileExport.downloadFile(
+              originUrl,
+              targetFilePath
+            );
+            console.log('✓ Downloaded file', ansiColors.cyan.underline(fileName || originUrl.split('/').pop()));
+            totalSuccessfullyDownloaded++;
+          } catch (downloadError: any) {
+            console.error('✗ Failed to download file', ansiColors.red(fileName || originUrl.split('/').pop()), ansiColors.gray(downloadError.message ? `- ${downloadError.message}` : ''));
+            this.unProcessedAssets[assetMediaID] = fileName;
+          }
         }
-        if (this._progressCallback) this._progressCallback(totalSuccessfullyDownloaded, totalRecords, 'progress');
+        const processedAssets = totalSuccessfullyDownloaded + totalSkippedAssets;
+        if (this._progressCallback) this._progressCallback(processedAssets, totalRecords, 'progress');
       }
 
       if (multiExport) {
@@ -219,24 +230,47 @@ export class assets {
               fileExport.createFolder(assetFolderPath);
             }
 
-            try {
-              await fileExport.downloadFile(
-                originUrl,
-                fileExport.getDataFolderPath(`${assetFolderPath}/${fileName}`)
-              );
-              console.log('✓ Downloaded file', ansiColors.cyan.underline(fileName || originUrl.split('/').pop()));
-              totalSuccessfullyDownloaded++;
-            } catch (downloadError: any) {
-              console.error('✗ Failed to download file', ansiColors.red(fileName || originUrl.split('/').pop()), ansiColors.gray(downloadError.message ? `- ${downloadError.message}` : ''));
-              this.unProcessedAssets[mediaID] = fileName;
+            const targetFilePath = fileExport.getDataFolderPath(`${assetFolderPath}/${fileName}`);
+            
+            // Check if we should skip file existence check based on update flag
+            // update=false (default): Skip existing files, update=true: Force download/overwrite
+            if (!update && fileExport.checkFileExists(targetFilePath)) {
+              console.log(ansiColors.grey.italic('Found'), ansiColors.gray(fileName || originUrl.split('/').pop()),ansiColors.grey.italic('skipping download'));
+              totalSkippedAssets++;
+            } else {
+              try {
+                await fileExport.downloadFile(
+                  originUrl,
+                  targetFilePath
+                );
+                console.log('✓ Downloaded file', ansiColors.cyan.underline(fileName || originUrl.split('/').pop()));
+                totalSuccessfullyDownloaded++;
+              } catch (downloadError: any) {
+                console.error('✗ Failed to download file', ansiColors.red(fileName || originUrl.split('/').pop()), ansiColors.gray(downloadError.message ? `- ${downloadError.message}` : ''));
+                this.unProcessedAssets[mediaID] = fileName;
+              }
             }
-            if (this._progressCallback) this._progressCallback(totalSuccessfullyDownloaded, totalRecords, 'progress');
+            const processedAssets = totalSuccessfullyDownloaded + totalSkippedAssets;
+            if (this._progressCallback) this._progressCallback(processedAssets, totalRecords, 'progress');
           }
         }
       }
-      if (this._progressCallback) this._progressCallback(totalSuccessfullyDownloaded, totalRecords, totalSuccessfullyDownloaded === totalAttemptedToProcess && totalAttemptedToProcess >= totalRecords ? 'success' : 'error');
+      // Final summary
+      const processedAssets = totalSuccessfullyDownloaded + totalSkippedAssets;
+      const errorCount = totalAttemptedToProcess - processedAssets;
+      const summaryMessage = `\nDownloaded ${totalSuccessfullyDownloaded} assets (${totalSuccessfullyDownloaded}/${totalAttemptedToProcess} assets, ${totalSkippedAssets} skipped, ${errorCount} errors)\n`;
+      
+      console.log(ansiColors.yellow(summaryMessage));
+      
+      if (this._progressCallback) this._progressCallback(processedAssets, totalRecords, processedAssets === totalAttemptedToProcess && totalAttemptedToProcess >= totalRecords ? 'success' : 'error');
     } catch (error) {
-      if (this._progressCallback) this._progressCallback(totalSuccessfullyDownloaded, totalRecords, 'error');
+      const processedAssets = totalSuccessfullyDownloaded + totalSkippedAssets;
+      const errorCount = totalAttemptedToProcess - processedAssets;
+      const summaryMessage = `\nDownloaded ${totalSuccessfullyDownloaded} assets (${totalSuccessfullyDownloaded}/${totalAttemptedToProcess} assets, ${totalSkippedAssets} skipped, ${errorCount} errors)\n`;
+      
+      console.log(ansiColors.yellow(summaryMessage));
+      
+      if (this._progressCallback) this._progressCallback(processedAssets, totalRecords, 'error');
       throw error;
     }
   }

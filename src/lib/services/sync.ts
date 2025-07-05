@@ -4,9 +4,10 @@ import { fileOperations } from '../services/fileOperations';
 import { ReferenceMapper } from '../utilities/reference-mapper';
 import { SourceDataLoader } from '../utilities/source-data-loader';
 import { generateLogHeader } from '../utilities';
-import { getState } from './state';
+import { state } from './state';
 import { PusherResult, SourceData } from '../../types/sourceData';
 import { ModelDependencyTree } from './model-dependency-tree-builder';
+import { PublishService } from './publish';
 
 /**
  * Simplified Sync Operation - Cleaned up from 2000+ line monolithic implementation
@@ -20,7 +21,6 @@ export class Sync {
   private originalConsoleError: typeof console.error;
 
   constructor() {
-    const state = getState();
     this.fileOps = new fileOperations(state.rootPath, state.sourceGuid, state.locale, state.preview);
     
     // Store original console methods for restoration
@@ -32,7 +32,6 @@ export class Sync {
    * Log sync operation header with version info
    */
   private logSyncHeader(): void {
-    const state = getState();
     
     const headerInfo = generateLogHeader('Sync', {
       'Source GUID': state.sourceGuid,
@@ -93,7 +92,6 @@ export class Sync {
     let referenceMapper: ReferenceMapper | null = null;
 
     try {
-      const state = getState();
       console.log(ansiColors.cyan(`\n🔄 Starting sync operation...`));
       console.log(ansiColors.gray(`Source: ${state.sourceGuid}`));
       console.log(ansiColors.gray(`Target: ${state.targetGuid}`));
@@ -123,7 +121,14 @@ export class Sync {
           const pullOperation = new Pull();
           
           console.log(ansiColors.gray("Executing pull operation..."));
+          
+          // Temporarily restore console methods during pull operation
+          this._restoreConsole();
+          
           await pullOperation.pullInstance();
+          
+          // Re-setup console logging after pull completion
+          this._setupConsoleLogging();
           
           console.log(ansiColors.green("✅ Source data pull completed"));
           
@@ -201,6 +206,40 @@ export class Sync {
 
       // Execute sync operation and capture results
       const syncResults = await this.executePushersInOrder(sourceData, referenceMapper, state.elements.split(","));
+
+      // Execute auto-publishing if --publish flag is set
+      if (state.publish && (syncResults.publishableContentIds.length > 0 || syncResults.publishablePageIds.length > 0)) {
+        console.log(ansiColors.cyan(`\n🚀 Auto-publishing enabled - starting batch publishing...`));
+        
+        try {
+          // Import and use PublishService
+                      const { PublishService } = await import('./publish');
+            const publishService = new PublishService({
+              verbose: true
+            });
+
+          const publishResults = await publishService.publishAll(
+            syncResults.publishableContentIds,
+            syncResults.publishablePageIds
+          );
+
+          // Report publishing results
+          const totalPublished = publishResults.contentItems.successful.length + publishResults.pages.successful.length;
+          const totalPublishFailed = publishResults.contentItems.failed.length + publishResults.pages.failed.length;
+
+          if (totalPublishFailed === 0) {
+            console.log(ansiColors.green(`✅ Auto-publishing completed successfully: ${totalPublished} items published`));
+          } else {
+            console.log(ansiColors.yellow(`⚠️ Auto-publishing completed with ${totalPublishFailed} failures: ${totalPublished} items published`));
+            console.log(ansiColors.gray(`💡 Publishing failures do not affect sync success - items are synced but not published`));
+          }
+        } catch (publishError: any) {
+          console.log(ansiColors.yellow(`⚠️ Auto-publishing failed: ${publishError.message}`));
+          console.log(ansiColors.gray(`💡 Sync operation completed successfully - only publishing step failed`));
+        }
+      } else if (state.publish) {
+        console.log(ansiColors.gray(`📝 Auto-publishing enabled but no publishable items found`));
+      }
 
       // Calculate and report comprehensive summary statistics
       const elements = state.elements.split(",");
@@ -283,14 +322,69 @@ export class Sync {
     totalSuccess: number;
     totalFailures: number;
     totalSkipped: number;
+    publishableContentIds: number[];
+    publishablePageIds: number[];
   }> {
     // Import all pushers for embedded configuration
     const { pushModels, pushGalleries, pushAssets, pushContainers, pushContent, pushTemplates, pushPages } = await import('../pushers');
+    
+    // Import batch processor for batch processing option
+    const { ContentBatchProcessor } = await import('../pushers/content-item-batch-pusher');
 
     // Initialize results tracking
     let totalSuccess = 0;
     let totalFailures = 0;
     let totalSkipped = 0;
+    const publishableContentIds: number[] = [];
+    const publishablePageIds: number[] = [];
+
+    // Create wrapper function for content processing that chooses between individual vs batch pushers
+    const smartContentPusher = async (sourceData: any, referenceMapper: ReferenceMapper) => {
+      if (state.noBatch) {
+        // Use individual pusher when --no-batch flag is enabled
+        console.log(ansiColors.gray(`[Content Processing] Using individual pusher (--no-batch enabled)`));
+        return await pushContent(sourceData, referenceMapper);
+      } else {
+        // Use batch pusher for better performance (default behavior)
+        console.log(ansiColors.gray(`[Content Processing] Using batch pusher (default behavior)`));
+        
+        // Set up batch processor with proper configuration
+        const batchConfig = {
+          apiClient: state.apiClient,
+          targetGuid: state.targetGuid,
+          locale: state.locale,
+          referenceMapper,
+          batchSize: 250, // Optimal batch size for normal content
+          useContentFieldMapper: true, // Use enhanced field mapping
+          models: sourceData.models, // Pass models for payload preparation
+          defaultAssetUrl: '', // Will be determined by batch processor
+        };
+        
+        const batchProcessor = new ContentBatchProcessor(batchConfig);
+        const contentItems = sourceData.content || [];
+        
+        if (contentItems.length === 0) {
+          return { status: 'success' as const, successful: 0, failed: 0, skipped: 0, publishableIds: [] };
+        }
+        
+        try {
+          const batchResult = await batchProcessor.processBatches(contentItems);
+          
+          // Convert batch result to expected PusherResult format
+          return {
+            status: (batchResult.failureCount > 0 ? 'error' : 'success') as 'success' | 'error',
+            successful: batchResult.successCount,
+            failed: batchResult.failureCount,
+            skipped: 0, // Batch processor doesn't track skipped items separately
+            publishableIds: batchResult.publishableIds
+          };
+        } catch (batchError: any) {
+          console.error(ansiColors.red(`❌ Batch processing failed: ${batchError.message}`));
+          console.log(ansiColors.yellow(`🔄 Falling back to individual processing...`));
+          return await pushContent(sourceData, referenceMapper);
+        }
+      }
+    };
 
     // ULTIMATE OPTIMIZATION: Embed functions directly in config (eliminates separate map)
     const pusherConfig = [
@@ -298,7 +392,7 @@ export class Sync {
       { element: 'Galleries', dataKey: 'galleries', name: 'Galleries', pusher: pushGalleries },
       { element: 'Assets', dataKey: 'assets', name: 'Assets', pusher: pushAssets },
       { element: 'Containers', dataKey: 'containers', name: 'Containers', pusher: pushContainers },
-      { element: 'Content', dataKey: 'content', name: 'Content Items', pusher: pushContent },
+      { element: 'Content', dataKey: 'content', name: 'Content Items', pusher: smartContentPusher },
       { element: 'Templates', dataKey: 'templates', name: 'Templates', pusher: pushTemplates },
       { element: 'Pages', dataKey: 'pages', name: 'Pages', pusher: pushPages }
     ];
@@ -322,6 +416,15 @@ export class Sync {
         totalSkipped += pusherResult.skipped || 0;
         totalFailures += pusherResult.failed || 0;
 
+        // Collect publishable IDs for auto-publishing
+        if (pusherResult.publishableIds && pusherResult.publishableIds.length > 0) {
+          if (config.element === 'Content') {
+            publishableContentIds.push(...pusherResult.publishableIds);
+          } else if (config.element === 'Pages') {
+            publishablePageIds.push(...pusherResult.publishableIds);
+          }
+        }
+
         // Report individual pusher results
         console.log(
           ansiColors.gray(`${config.name}: `) +
@@ -338,6 +441,8 @@ export class Sync {
         totalSuccess,
         totalFailures,
         totalSkipped,
+        publishableContentIds,
+        publishablePageIds,
       };
     } catch (error) {
       console.error(ansiColors.red("Error during pusher execution:"), error);

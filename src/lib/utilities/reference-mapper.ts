@@ -1,9 +1,34 @@
 /**
- * Core Reference Mapper - Lightweight mapping service with fileOperations integration
+ * ReferenceMapper - Handles entity mappings between Agility CMS instances
  * 
- * Focuses purely on mapping source entities to target entities
- * Uses enhanced fileOperations for clean disk persistence
- * No bloated URL processing or complex asset finding logic
+ * This class supports both forward (A→B) and reverse (B→A) lookups using an improved mapping file format.
+ * The same methods work naturally in both directions based on which mapping file is loaded.
+ * 
+ * IMPROVED MAPPING FILE FORMAT:
+ * - Files are now saved as: {sourceGUID}-to-{targetGUID}-{locale}.json
+ * - Example: "abc123-to-def456-en-us.json"
+ * - Stored centrally in /agility-files/mappings/ (not per-instance)
+ * 
+ * BIDIRECTIONAL MAPPING CAPABILITY:
+ * - Forward sync A→B: Uses "A-to-B-locale.json" mapping file
+ * - Reverse sync B→A: First tries "B-to-A-locale.json", falls back to "A-to-B-locale.json" (auto-flipped)
+ * - All methods (getMappedId, hasMapping, etc.) work the same way regardless of direction
+ * - No data duplication - one mapping serves both directions
+ * 
+ * PERSISTENCE INTEGRATION:
+ * - Built-in integration point for external persistence (cloud storage, databases, etc.)
+ * - Supports scenarios where mappings need to survive beyond ephemeral agents
+ * 
+ * Example Usage:
+ * ```typescript
+ * // A→B sync: Automatic fallback loading in constructor
+ * const mapper = new ReferenceMapper(); // Uses global state, auto-loads A→B mappings
+ * const targetModelId = mapper.getMappedId('model', sourceModelId);
+ * 
+ * // B→A sync: Automatic fallback loading in constructor  
+ * const mapper = new ReferenceMapper(); // Uses global state, auto-loads B→A or flipped A→B mappings
+ * const targetModelId = mapper.getMappedId('model', sourceModelId); // Same API works both ways
+ * ```
  */
 
 import { fileOperations } from '../services/fileOperations';
@@ -52,11 +77,11 @@ export class ReferenceMapper {
         this.sourceGUID = state.sourceGuid;
         this.targetGUID = state.targetGuid;
         
-        // Create fileOperations service for disk persistence
-        this.fileOps = new fileOperations(state.rootPath, state.sourceGuid, 'en-us', true, state.legacyFolders);
+        // Create fileOperations service for disk persistence using locale from state
+        this.fileOps = new fileOperations(state.rootPath, state.sourceGuid, state.locale, state.preview, state.legacyFolders);
         
-        // Automatically load existing mappings on construction
-        this.loadMappingsFromDisk();
+        // Automatically load existing mappings with fallback support
+        this.loadMappingWithFallback(this.sourceGUID, this.targetGUID);
     }
 
     /**
@@ -254,6 +279,9 @@ export class ReferenceMapper {
 
     /**
      * Get mapped target ID for any entity type
+     * Works in both directions based on which mapping file is loaded:
+     * - A→B sync: Returns target ID for source entity
+     * - B→A sync (after loadMappingWithFallback): Returns target ID for source entity
      */
     getMappedId(type: CoreReferenceRecord['type'], sourceId: number): number | null {
         switch (type) {
@@ -275,6 +303,8 @@ export class ReferenceMapper {
                 return null;
         }
     }
+
+
 
     /**
      * Manually add ID mapping (for cases where we know IDs but don't have full entities)
@@ -451,7 +481,7 @@ export class ReferenceMapper {
      */
     clear(): void {
         this.records = [];
-        // Clear ID mappings too
+        // Clear forward ID mappings
         this.modelIds.clear();
         this.contentIds.clear();
         this.containerIds.clear();
@@ -477,6 +507,7 @@ export class ReferenceMapper {
                 sourceGUID: this.sourceGUID,
                 targetGUID: this.targetGUID,
                 records: this.records,
+                // ID mappings (A→B)
                 modelIds: Array.from(this.modelIds.entries()),
                 contentIds: Array.from(this.contentIds.entries()),
                 containerIds: Array.from(this.containerIds.entries()),
@@ -486,7 +517,8 @@ export class ReferenceMapper {
                 galleryIds: Array.from(this.galleryIds.entries())
             };
 
-            this.fileOps.saveMappingFile(this.targetGUID, mappingData);
+            // fileOps.saveMappingFile now uses source-to-target naming and centralized storage
+            this.fileOps.saveMappingFile(this.sourceGUID, this.targetGUID, mappingData);
         } catch (error) {
             console.warn('Warning: Could not save mappings to disk:', error);
         }
@@ -664,25 +696,22 @@ export class ReferenceMapper {
         return sourceValue === targetValue;
     }
 
+
+
     /**
-     * Load mappings from disk using fileOperations
+     * Load existing mappings from disk (called by constructor)
      */
     private loadMappingsFromDisk(): void {
         try {
-            const mappingData = this.fileOps.loadMappingFile(this.targetGUID);
+            const mappingData = this.fileOps.loadMappingFile(this.sourceGUID, this.targetGUID);
             
             if (mappingData) {
-                // Check if this is new format (has records) or old format (only ID arrays)
+                // Load new format with records
                 if (mappingData.records && Array.isArray(mappingData.records)) {
-                    // NEW FORMAT: Load directly
                     this.records = mappingData.records;
-                } else {
-                    // OLD FORMAT: Migrate ID arrays to records format
-                    this.records = [];
-                    this.migrateOldFormatToRecords(mappingData);
                 }
                 
-                // Load ID mappings (both formats have these)
+                // Load ID mappings
                 this.modelIds = new Map(mappingData.modelIds || []);
                 this.contentIds = new Map(mappingData.contentIds || []);
                 this.containerIds = new Map(mappingData.containerIds || []);
@@ -697,192 +726,11 @@ export class ReferenceMapper {
     }
 
     /**
-     * Migrate old format mapping file to new records format
-     * Old format only had ID arrays, new format has full records with source/target objects
-     */
-    private migrateOldFormatToRecords(mappingData: any): void {
-        // For old format, we need to load actual source entity data to populate records
-        // This allows getRecordsByType to work with full entity objects instead of just IDs
-        
-        const idMappingTypes = [
-            { type: 'template' as const, idArray: mappingData.templateIds || [] },
-            { type: 'model' as const, idArray: mappingData.modelIds || [] },
-            { type: 'content' as const, idArray: mappingData.contentIds || [] },
-            { type: 'container' as const, idArray: mappingData.containerIds || [] },
-            { type: 'page' as const, idArray: mappingData.pageIds || [] },
-            { type: 'asset' as const, idArray: mappingData.assetIds || [] },
-            { type: 'gallery' as const, idArray: mappingData.galleryIds || [] }
-        ];
-
-        // Try to load actual source entity data from filesystem
-        const sourceEntities = this.loadSourceEntitiesForMigration();
-
-        for (const { type, idArray } of idMappingTypes) {
-            for (const [sourceId, targetId] of idArray) {
-                // Try to find actual source entity data
-                const sourceEntity = this.findSourceEntityById(type, sourceId, sourceEntities);
-                const targetEntity = this.createPlaceholderEntity(type, targetId);
-                
-                // Create record with actual source data (if available) and placeholder target
-                const migrationRecord: CoreReferenceRecord = {
-                    type,
-                    source: sourceEntity || this.createPlaceholderEntity(type, sourceId),
-                    target: targetEntity,
-                    sourceGUID: this.sourceGUID,
-                    targetGUID: this.targetGUID
-                };
-                
-                this.records.push(migrationRecord);
-            }
-        }
-    }
-
-    /**
-     * Load source entities from filesystem for migration
-     */
-    private loadSourceEntitiesForMigration(): any {
-        try {
-            const sourceEntities: any = {
-                templates: [],
-                models: [],
-                content: [],
-                containers: [],
-                pages: [],
-                assets: [],
-                galleries: []
-            };
-
-            // Load templates for migration
-            try {
-                const templates = this.fileOps.readJsonFilesFromFolder('templates');
-                templates.forEach(template => this.addSourceEntityToRecord('template', template));
-            } catch (error: any) {
-                // console.warn('[ReferenceMapper] Could not load templates for migration:', error.message);
-            }
-
-            // Load models for migration
-            try {
-                const models = this.fileOps.readJsonFilesFromFolder('models');
-                models.forEach(model => this.addSourceEntityToRecord('model', model));
-            } catch (error: any) {
-                // console.warn('[ReferenceMapper] Could not load models for migration:', error.message);
-            }
-
-            // Load content for migration
-            try {
-                const contentItems = this.fileOps.readJsonFilesFromFolder('item');
-                const listContent = this.fileOps.readJsonFilesFromFolder('list');
-                contentItems.forEach(contentItem => this.addSourceEntityToRecord('content', contentItem));
-                
-                // Extract content from list arrays
-                for (const contentList of listContent) {
-                    if (Array.isArray(contentList)) {
-                        contentItems.push(...contentList);
-                    }
-                }
-            } catch (error: any) {
-                // console.warn('[ReferenceMapper] Could not load content for migration:', error.message);
-            }
-
-            // Load containers for migration
-            try {
-                const containers = this.fileOps.readJsonFilesFromFolder('containers');
-                containers.forEach(container => this.addSourceEntityToRecord('container', container));
-            } catch (error: any) {
-                // console.warn('[ReferenceMapper] Could not load containers for migration:', error.message);
-            }
-
-            // Load pages for migration
-            try {
-                const pages = this.fileOps.readJsonFilesFromFolder('page');
-                pages.forEach(page => this.addSourceEntityToRecord('page', page));
-            } catch (error: any) {
-                // console.warn('[ReferenceMapper] Could not load pages for migration:', error.message);
-            }
-
-            // Load assets for migration
-            try {
-                const assets = this.fileOps.readJsonFilesFromFolder('assets/json');
-                assets.forEach(asset => this.addSourceEntityToRecord('asset', asset));
-            } catch (error: any) {
-                // console.warn('[ReferenceMapper] Could not load assets for migration:', error.message);
-            }
-
-            // Load galleries for migration
-            try {
-                const galleries = this.fileOps.readJsonFilesFromFolder('assets/galleries');
-                galleries.forEach(gallery => this.addSourceEntityToRecord('gallery', gallery));
-            } catch (error: any) {
-                // console.warn('[ReferenceMapper] Could not load galleries for migration:', error.message);
-            }
-
-            return sourceEntities;
-        } catch (error: any) {
-            // console.warn('[ReferenceMapper] Error loading source entities for migration:', error.message);
-            return {};
-        }
-    }
-
-    /**
-     * Find source entity by ID for migration
-     */
-    private findSourceEntityById(type: CoreReferenceRecord['type'], id: number, sourceEntities: any): any | null {
-        try {
-            switch (type) {
-                case 'template':
-                    return sourceEntities.templates?.find((t: any) => t.pageTemplateID === id) || null;
-                case 'model':
-                    return sourceEntities.models?.find((m: any) => m.id === id) || null;
-                case 'content':
-                    return sourceEntities.content?.find((c: any) => c.contentID === id) || null;
-                case 'container':
-                    return sourceEntities.containers?.find((c: any) => c.contentViewID === id) || null;
-                case 'page':
-                    return sourceEntities.pages?.find((p: any) => p.pageID === id) || null;
-                case 'asset':
-                    return sourceEntities.assets?.find((a: any) => a.mediaID === id) || null;
-                case 'gallery':
-                    return sourceEntities.galleries?.find((g: any) => g.mediaGroupingID === id) || null;
-                default:
-                    return null;
-            }
-        } catch (error) {
-            // console.warn(`[ReferenceMapper] Error finding ${type} with ID ${id}:`, error.message);
-            return null;
-        }
-    }
-
-    /**
-     * Create placeholder entity objects for migrated old format mappings
-     */
-    private createPlaceholderEntity(type: CoreReferenceRecord['type'], id: number): any {
-        // Create minimal entity objects with the ID fields that the system expects
-        switch (type) {
-            case 'template':
-                return { pageTemplateID: id, pageTemplateName: `Template_${id}` };
-            case 'model':
-                return { id: id, referenceName: `Model_${id}` };
-            case 'content':
-                return { contentID: id };
-            case 'container':
-                return { contentViewID: id, referenceName: `Container_${id}` };
-            case 'page':
-                return { pageID: id };
-            case 'asset':
-                return { mediaID: id };
-            case 'gallery':
-                return { mediaGroupingID: id };
-            default:
-                return { id: id };
-        }
-    }
-
-    /**
      * Clear mappings cache using fileOperations
      */
     clearMappingsCache(): void {
         try {
-            this.fileOps.clearMappingFile(this.targetGUID);
+            this.fileOps.clearMappingFile(this.sourceGUID, this.targetGUID);
             this.clear(); // Clear in-memory mappings too
         } catch (error) {
             console.warn('Warning: Could not clear mappings cache:', error);
@@ -965,16 +813,75 @@ export class ReferenceMapper {
     }
 
     /**
-     * Add source entity to record
+     * Try to load mapping file, checking both direct and reverse directions
+     * For B→A sync: First try B→A mapping file, then fallback to A→B file with swapped GUIDs
      */
-    private addSourceEntityToRecord(type: CoreReferenceRecord['type'], entity: any): void {
-        const existingIndex = this.findExistingMappingIndex(type, entity);
-
-        if (existingIndex === -1) {
-            // Add new record
-            this.addMapping(type, entity);
+    loadMappingWithFallback(sourceGUID: string, targetGUID: string): boolean {
+        try {
+            // Set the desired source and target GUIDs
+            this.sourceGUID = sourceGUID;
+            this.targetGUID = targetGUID;
+            
+            // First try to load direct mapping file (B→A)
+            const directMappingData = this.fileOps.loadMappingFile(sourceGUID, targetGUID);
+            if (directMappingData && directMappingData.sourceGUID === sourceGUID && directMappingData.targetGUID === targetGUID) {
+                // Direct B→A mapping file exists, load it directly
+                
+                // Load new format with records
+                if (directMappingData.records && Array.isArray(directMappingData.records)) {
+                    this.records = directMappingData.records;
+                }
+                
+                // Load ID mappings
+                this.modelIds = new Map(directMappingData.modelIds || []);
+                this.contentIds = new Map(directMappingData.contentIds || []);
+                this.containerIds = new Map(directMappingData.containerIds || []);
+                this.templateIds = new Map(directMappingData.templateIds || []);
+                this.pageIds = new Map(directMappingData.pageIds || []);
+                this.assetIds = new Map(directMappingData.assetIds || []);
+                this.galleryIds = new Map(directMappingData.galleryIds || []);
+                
+                console.log(`[ReferenceMapper] Loaded direct mapping file for ${sourceGUID}→${targetGUID}`);
+                return true;
+            }
+            
+            // Try to load reverse mapping file (A→B) 
+            const reverseMappingData = this.fileOps.loadMappingFile(targetGUID, sourceGUID);
+            if (reverseMappingData && reverseMappingData.sourceGUID === targetGUID && reverseMappingData.targetGUID === sourceGUID) {
+                // A→B mapping file exists, use it for B→A by flipping the mapping data
+                
+                // Flip the records: A→B becomes B→A
+                this.records = (reverseMappingData.records || []).map((record: CoreReferenceRecord) => ({
+                    type: record.type,
+                    source: record.target,  // Flip: B is now source
+                    target: record.source,  // Flip: A is now target  
+                    sourceGUID: sourceGUID, // B is source
+                    targetGUID: targetGUID  // A is target
+                }));
+                
+                // Flip the ID mappings: A→B becomes B→A
+                this.modelIds = new Map((reverseMappingData.modelIds || []).map(([k, v]: [number, number]) => [v, k]));
+                this.contentIds = new Map((reverseMappingData.contentIds || []).map(([k, v]: [number, number]) => [v, k]));
+                this.containerIds = new Map((reverseMappingData.containerIds || []).map(([k, v]: [number, number]) => [v, k]));
+                this.templateIds = new Map((reverseMappingData.templateIds || []).map(([k, v]: [number, number]) => [v, k]));
+                this.pageIds = new Map((reverseMappingData.pageIds || []).map(([k, v]: [number, number]) => [v, k]));
+                this.assetIds = new Map((reverseMappingData.assetIds || []).map(([k, v]: [number, number]) => [v, k]));
+                this.galleryIds = new Map((reverseMappingData.galleryIds || []).map(([k, v]: [number, number]) => [v, k]));
+                
+                console.log(`[ReferenceMapper] Loaded and flipped reverse mapping file for ${sourceGUID}→${targetGUID} (using ${targetGUID}→${sourceGUID} file)`);
+                return true;
+            }
+            
+            console.warn(`[ReferenceMapper] No mapping file found for ${sourceGUID}→${targetGUID} or ${targetGUID}→${sourceGUID}`);
+            return false;
+            
+        } catch (error) {
+            console.warn(`[ReferenceMapper] Error loading mapping with fallback: ${error}`);
+            return false;
         }
     }
+
+
 }
 
 /**
@@ -993,7 +900,7 @@ export async function loadReferenceMapper(): Promise<ReferenceMapper> {
     const referenceMapper = new ReferenceMapper();
     
     // ReferenceMapper automatically loads existing mappings in constructor
-    // via loadMappingsFromDisk() - no additional loading needed
+    // via loadMappingWithFallback() - supports both direct and reverse mapping files
     
     return referenceMapper;
 } 

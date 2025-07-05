@@ -57,6 +57,8 @@ async function configureStateFromPrompts(selectedInstance: AgilityInstance, useB
         }
     ]);
 
+    // Pull operations don't need batch processing prompts
+
     // Configure state using setState() - same pattern as CLI commands
     setState({
         sourceGuid: guid,
@@ -70,6 +72,7 @@ async function configureStateFromPrompts(selectedInstance: AgilityInstance, useB
         verbose: false,
         update: updateChoice.update,
         reset: resetChoice.reset,
+        noBatch: false, // Pull operations don't use batch processing
         // Set other defaults
         legacyFolders: false,
         test: false,

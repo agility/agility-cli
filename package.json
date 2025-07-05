@@ -44,7 +44,7 @@
   "dependencies": {
     "@agility/content-fetch": "^2.0.8",
     "@agility/content-sync": "^1.1.9",
-    "@agility/management-sdk": "^0.1.30",
+    "@agility/management-sdk": "^0.1.31",
     "@types/form-data": "^2.2.1",
     "@types/node": "^18.11.17",
     "ansi-colors": "^4.1.3",

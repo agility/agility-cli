@@ -3,6 +3,7 @@ import { Auth, fileOperations } from '../services';
 import { AgilityInstance } from '../../types/agilityInstance';
 import * as mgmtApi from '@agility/management-sdk';
 import { getBaseURLfromGUID } from './base-url-prompt';
+import { state } from '../services/state';
 const FormData = require("form-data");
 
 let auth: Auth;
@@ -11,11 +12,17 @@ export async function localePrompt(selectedInstance: AgilityInstance) {
   auth = new Auth();
   let guid: string = selectedInstance.guid;
 
-  let options = new mgmtApi.Options();
-  options.token = await auth.getToken();
-  options.baseUrl = auth.determineBaseUrl(guid);
-
-  let apiClient = new mgmtApi.ApiClient(options);
+  // Use state-based API client if available, otherwise create one
+  let apiClient: mgmtApi.ApiClient;
+  if (state.apiClient) {
+    apiClient = state.apiClient;
+  } else {
+    // Fallback for cases where state isn't fully initialized
+    let options = new mgmtApi.Options();
+    options.token = await auth.getToken();
+    options.baseUrl = auth.determineBaseUrl(guid);
+    apiClient = new mgmtApi.ApiClient(options);
+  }
 
   try {
     let localesArr = await apiClient.instanceMethods.getLocales(guid);

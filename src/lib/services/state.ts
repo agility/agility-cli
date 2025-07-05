@@ -42,6 +42,12 @@ interface CliState {
   reset: boolean;
   update: boolean;
   
+  // Publishing control  
+  publish: boolean;
+  
+  // Batch processing control
+  noBatch: boolean;
+  
   // Model-specific
   models: string;
   
@@ -102,6 +108,12 @@ export const state: CliState = {
   reset: false,
   update: true,
   
+  // Publishing control
+  publish: false,
+  
+  // Batch processing control
+  noBatch: false,
+  
   // Model-specific
   models: "",
   
@@ -149,6 +161,12 @@ export function setState(argv: any) {
   if (argv.overwrite !== undefined) state.overwrite = argv.overwrite;
   if (argv.reset !== undefined) state.reset = argv.reset;
   if (argv.update !== undefined) state.update = argv.update;
+  
+  // Publishing control
+  if (argv.publish !== undefined) state.publish = argv.publish;
+  
+  // Batch processing control
+  if (argv.noBatch !== undefined) state.noBatch = argv.noBatch;
   
   // Model-specific
   if (argv.models !== undefined) state.models = argv.models;
@@ -350,6 +368,12 @@ export function resetState() {
   state.overwrite = false;
   state.reset = false;
   state.update = true;
+  
+  // Publishing control
+  state.publish = false;
+  
+  // Batch processing control
+  state.noBatch = false;
   
   // Model-specific
   state.models = "";

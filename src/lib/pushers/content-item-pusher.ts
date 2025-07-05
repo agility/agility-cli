@@ -11,11 +11,8 @@ import {
   type ContentClassification,
   ContentFieldMapper
 } from '../utilities';
-import { 
-  ContentBatchProcessor,
-  type ContentBatchConfig
-} from './content-item-batch-pusher';
-import { getState } from '../services/state';
+// Removed ContentBatchProcessor import - individual pusher only handles individual processing
+import { state } from '../services/state';
 import { AssetReferenceExtractor } from "../utilities/assets/asset-reference-extractor";
 import { findAssetInTargetInstance } from "../finders/asset-finder";
 
@@ -94,54 +91,11 @@ async function getDefaultAssetContainerUrl(apiClient: mgmtApi.ApiClient, targetG
     }
 }
 
-// Helper function to get source GUID from context
-async function getSourceGuidFromContext(referenceMapper: ReferenceMapper): Promise<string> {
-    // Check if the reference mapper has a sourceGUID property
-    if ((referenceMapper as any).sourceGUID && typeof (referenceMapper as any).sourceGUID === 'string') {
-        return (referenceMapper as any).sourceGUID;
-    }
-    
-    // Try to look at content mappings for GUID info
-    const contentMappings = referenceMapper.getRecordsByType('content');
-    for (const mapping of contentMappings) {
-        if (mapping.source && typeof mapping.source === 'object') {
-            // Check if there's a GUID field in the source object
-            if ('guid' in mapping.source && typeof mapping.source.guid === 'string') {
-                return mapping.source.guid;
-            }
-        }
-    }
-    
-    // Fallback: try to find source GUID from any existing mapping files
-    try {
-        const fs = await import('fs');
-        const path = await import('path');
-        
-        // Look for mapping files in the agility-files directory structure
-        const agilityFilesPath = 'agility-files';
-        if (fs.existsSync(agilityFilesPath)) {
-            const subdirs = fs.readdirSync(agilityFilesPath, { withFileTypes: true })
-                .filter(dirent => dirent.isDirectory())
-                .map(dirent => dirent.name);
-            
-            // Look for GUID-like directories (e.g., 13a8b394-u)
-            for (const subdir of subdirs) {
-                if (subdir.includes('-') && subdir.length > 8) {
-                    return subdir;
-                }
-            }
-        }
-    } catch (error) {
-        // Ignore file system errors
-    }
-    
-    // Final fallback - use a test GUID (this should be improved)
-    console.warn(ansiColors.yellow(`[Content Pusher] Could not determine source GUID, using test fallback`));
-    return '13a8b394-u'; // Known test instance GUID
-}
+
 
 /**
- * FALLBACK WRAPPER for original individual processing (used if batch fails)
+ * MAIN INDIVIDUAL PROCESSING FUNCTION - mirrors saveContentItem SDK pattern
+ * Processes normal content items individually with proper field mapping and dependency handling
  */
 async function pushNormalContentItemsIndividual(
     normalContentItems: mgmtApi.ContentItem[],
@@ -152,15 +106,100 @@ async function pushNormalContentItemsIndividual(
     models: mgmtApi.Model[],
     defaultAssetUrl: string,
     onProgress?: (processed: number, total: number, item: string, status: 'success' | 'error') => void
-): Promise<{ successfulItems: number, failedItems: number }> {
-    // Individual processing logic would go here as a fallback
-    // For now, throw error to indicate batch processing is required
-    throw new Error('Individual processing fallback not implemented yet - batch processing required');
+): Promise<{ successfulItems: number, failedItems: number, publishableIds: number[] }> {
+    
+    let successfulItems = 0;
+    let failedItems = 0;
+    
+    console.log(ansiColors.cyan(`[Content Pusher] Processing ${normalContentItems.length} normal content items individually`));
+    
+    for (let i = 0; i < normalContentItems.length; i++) {
+        const contentItem = normalContentItems[i];
+        const itemName = contentItem.properties.referenceName || 'Unknown';
+        
+        try {
+            // Check if content item already exists in target
+            const existingContentItem = await findContentInTargetInstance(contentItem, apiClient, targetGuid, locale, referenceMapper);
+            
+            if (existingContentItem && !state.overwrite) {
+                // Skip if already exists and not overwriting
+                console.log(ansiColors.gray(`[Content Pusher] ↷ Skipping ${itemName}: already exists in target (use --overwrite to update)`));
+                continue;
+            }
+            
+            // Map content item fields using enhanced field mapping
+            const mappedItem = await mapContentItem(
+                contentItem,
+                referenceMapper,
+                apiClient,
+                targetGuid,
+                defaultAssetUrl,
+                models
+            );
+            
+            // Save individual content item
+            console.log(ansiColors.cyan(`[Content Pusher] → Processing ${itemName} (${i + 1}/${normalContentItems.length})`));
+            const result = await apiClient.contentMethods.saveContentItem(mappedItem, targetGuid, locale);
+            
+            // Extract content ID and update mappings
+            const newContentId = extractContentId(result);
+            if (newContentId > 0) {
+                // Add mapping to reference mapper
+                referenceMapper.addMapping(
+                    'content',
+                    contentItem,
+                    { contentID: newContentId, properties: { referenceName: itemName } }
+                );
+                
+                successfulItems++;
+                console.log(ansiColors.green(`[Content Pusher] ✓ ${itemName}: Source ID ${contentItem.contentID} → Target ID ${newContentId}`));
+                
+                // Update progress
+                if (onProgress) {
+                    onProgress(i + 1, normalContentItems.length, itemName, 'success');
+                }
+            } else {
+                failedItems++;
+                console.log(ansiColors.red(`[Content Pusher] ✗ ${itemName}: Failed to extract content ID from response`));
+                
+                // Update progress
+                if (onProgress) {
+                    onProgress(i + 1, normalContentItems.length, itemName, 'error');
+                }
+            }
+            
+        } catch (error: any) {
+            failedItems++;
+            console.error(ansiColors.red(`[Content Pusher] ✗ ${itemName}: ${error.message}`));
+            
+            // Update progress
+            if (onProgress) {
+                onProgress(i + 1, normalContentItems.length, itemName, 'error');
+            }
+        }
+    }
+    
+    // Save mappings after individual processing
+    console.log(ansiColors.gray(`💾 Saving mappings after individual processing...`));
+    try {
+        await referenceMapper.saveAllMappings();
+        console.log(ansiColors.gray(`✅ Mappings saved successfully`));
+    } catch (saveError: any) {
+        console.warn(ansiColors.yellow(`⚠️ Failed to save mappings: ${saveError.message}`));
+    }
+    
+    console.log(ansiColors.green(`✅ Individual processing complete: ${successfulItems} successful, ${failedItems} failed`));
+    
+    return {
+        successfulItems,
+        failedItems,
+        publishableIds: [] // Individual processing - publishableIds handled by calling code
+    };
 }
 
 /**
- * Process normal content items using batch processing (5-10x faster)
- * Uses ContentBatchProcessor for bulk API calls with fallback to individual processing
+ * Process normal content items using individual processing (mirrors saveContentItem SDK pattern)
+ * This function handles individual content item processing only.
  */
 async function pushNormalContentItems(
     normalContentItems: mgmtApi.ContentItem[],
@@ -171,69 +210,33 @@ async function pushNormalContentItems(
     models: mgmtApi.Model[],
     defaultAssetUrl: string,
     onProgress?: (processed: number, total: number, item: string, status: 'success' | 'error') => void
-): Promise<{ successfulItems: number, failedItems: number }> {
+): Promise<{ successfulItems: number, failedItems: number, publishableIds: number[] }> {
     
-    // console.log(ansiColors.cyan(`[Content Pusher] Processing ${normalContentItems.length} normal content items using BATCH PROCESSING`));
+    // This function now only handles individual processing (mirrors saveContentItem)
+    console.log(ansiColors.cyan(`[Content Pusher] Processing ${normalContentItems.length} normal content items individually`));
     
-    // Configure batch processor with mapping save callback
-    const batchConfig: ContentBatchConfig = {
-        apiClient,
+    const result = await pushNormalContentItemsIndividual(
+        normalContentItems,
         targetGuid,
         locale,
+        apiClient,
         referenceMapper,
-        batchSize: 250, // Optimal batch size
-        useContentFieldMapper: false, // Use simplified mapping for normal content (no complex dependencies)
-        models, // Pass models for enhanced payload preparation
-        defaultAssetUrl, // Pass default asset URL for content mapping
-        onBatchComplete: async (batchResult, batchNumber) => {
-            // Save mappings after each batch completion for resume capability
-            console.log(ansiColors.gray(`💾 Saving mappings after batch ${batchNumber} (${batchResult.successCount} items)...`));
-            try {
-                await referenceMapper.saveAllMappings();
-                console.log(ansiColors.gray(`✅ Mappings saved successfully after batch ${batchNumber}`));
-            } catch (saveError: any) {
-                console.warn(ansiColors.yellow(`⚠️ Failed to save mappings after batch ${batchNumber}: ${saveError.message}`));
-                // Don't fail the batch due to mapping save errors
-            }
-        }
+        models,
+        defaultAssetUrl,
+        onProgress
+    );
+    
+    return {
+        ...result,
+        publishableIds: [] // Individual processing - publishableIds should be handled by calling code
     };
-    
-    const batchProcessor = new ContentBatchProcessor(batchConfig);
-    
-    try {
-        // Use batch processor for dramatic performance improvement
-        const result = await batchProcessor.processBatches(normalContentItems);
-        
-        console.log(ansiColors.green(`✅ Batch processing complete: ${result.successCount} success, ${result.failureCount} failed`));
-        
-        // Return in expected format
-        return {
-            successfulItems: result.successCount,
-            failedItems: result.failureCount
-        };
-        
-    } catch (error: any) {
-        console.error(ansiColors.red(`❌ Batch processing failed, falling back to individual processing: ${error.message}`));
-        
-        // Fallback to individual processing if batch processing fails entirely  
-        return await pushNormalContentItemsIndividual(
-            normalContentItems,
-            targetGuid,
-            locale,
-            apiClient,
-            referenceMapper,
-            models,
-            defaultAssetUrl,
-            onProgress
-        );
-    }
 }
 
 /**
- * Process linked content items (with content→content references)
- * Uses do-while loop pattern from legacy for dependency resolution
+ * Process linked content items using individual processing with dependency resolution
+ * Handles individual content item processing with dependency resolution logic.
  */
-async function pushLinkedContentItems(
+async function processLinkedContentIndividually(
     linkedContentItems: mgmtApi.ContentItem[],
     targetGuid: string,
     locale: string,
@@ -242,11 +245,12 @@ async function pushLinkedContentItems(
     models: mgmtApi.Model[],
     defaultAssetUrl: string,
     onProgress?: (processed: number, total: number, item: string, status: 'success' | 'error') => void
-): Promise<{ successfulItems: number, failedItems: number }> {
+): Promise<{ successfulItems: number, failedItems: number, publishableIds: number[] }> {
 
     let successfulItems = 0;
     let failedItems = 0;
-    const skippedContentItems: { [key: number]: string } = {}; // Track skipped items like legacy
+    const publishableIds: number[] = [];
+    const skippedContentItems: { [key: number]: string } = {}; // Track skipped items
     
     // Create a working copy of linked content items
     let remainingContentItems = [...linkedContentItems];
@@ -254,16 +258,18 @@ async function pushLinkedContentItems(
     const maxAttempts = remainingContentItems.length * 2; // Prevent infinite loops
     let attemptCount = 0;
 
-    // console.log(ansiColors.cyan(`[Content Pusher] Processing ${linkedContentItems.length} linked content items (with dependencies)`));
+    console.log(ansiColors.cyan(`[Content Pusher] Processing ${linkedContentItems.length} linked content items individually with dependency resolution`));
 
     // Legacy do-while pattern: keep processing until no more progress
     do {
         const beforeCount = remainingContentItems.length;
-        const processedInThisPass: number[] = [];
         attemptCount++;
 
-        // console.log(ansiColors.gray(`[Content Pusher] Linked content pass ${attemptCount}: ${remainingContentItems.length} items remaining`));
+        console.log(ansiColors.gray(`[Content Pusher] Individual processing pass ${attemptCount}: ${remainingContentItems.length} items remaining`));
 
+        // Process items individually with dependency checking
+        const processedInThisPass: number[] = [];
+        
         for (let i = 0; i < remainingContentItems.length; i++) {
             const contentItem = remainingContentItems[i];
             const itemName = contentItem.properties.referenceName || 'Unknown';
@@ -272,213 +278,485 @@ async function pushLinkedContentItems(
             if (skippedContentItems[contentItem.contentID]) {
                 continue;
             }
-            let container: mgmtApi.Container | undefined;
-            let model: mgmtApi.Model | undefined;
-            let payload: mgmtApi.ContentItem | undefined;
-
+            
             try {
-                // SIMPLIFIED: Use same working pusher pattern as normal content
-                
-                // Step 1: Find source model by content item's definitionName (like model pusher)
+                // Find source model by content item's definitionName
                 let sourceModel = models.find(m => m.referenceName === contentItem.properties.definitionName);
                 
-                // 🚨 CASE SENSITIVITY FIX: Try case-insensitive lookup if exact match fails
+                // Case-insensitive lookup if exact match fails
                 if (!sourceModel) {
                     sourceModel = models.find(m => 
                         m.referenceName.toLowerCase() === contentItem.properties.definitionName.toLowerCase()
                     );
-                    if (sourceModel) {
-                        // console.log(`[Content Push] ⚠️ Case-insensitive model match: "${contentItem.properties.definitionName}" → "${sourceModel.referenceName}"`);
-                    }
                 }
                 
                 if (!sourceModel) {
-                    throw new Error(`Source model not found for content definition: ${contentItem.properties.definitionName}`);
-                }
-                
-                // Step 2: Find target model using finder (like model pusher pattern)
-                model = await findModelInTargetInstance(sourceModel, apiClient, targetGuid, referenceMapper);
-                if (!model) {
-                    console.log(ansiColors.red(`✗ Linked content ${itemName} failed - target model not found: ${sourceModel.referenceName}`));
-                    skippedContentItems[contentItem.contentID] = itemName;
+                    skippedContentItems[contentItem.contentID] = `Model not found: ${contentItem.properties.definitionName}`;
+                    console.log(ansiColors.red(`✗ Linked content ${itemName} failed - source model not found: ${contentItem.properties.definitionName}`));
                     failedItems++;
-                    if (onProgress) onProgress(totalProcessed, linkedContentItems.length, itemName, 'error');
                     continue;
                 }
-                
-                // Step 3: Find container using reference mapper first, then API lookup
-                // Check reference mapper for existing container mapping
+
+                // Check if all dependencies are resolved
+                if (!areContentDependenciesResolved(contentItem, referenceMapper, [sourceModel])) {
+                    // Dependencies not ready - skip for this pass
+                    continue;
+                }
+
+                // Find target model
+                const targetModel = await findModelInTargetInstance(sourceModel, apiClient, targetGuid, referenceMapper);
+                if (!targetModel) {
+                    skippedContentItems[contentItem.contentID] = `Target model not found: ${sourceModel.referenceName}`;
+                    console.log(ansiColors.red(`✗ Linked content ${itemName} failed - target model not found: ${sourceModel.referenceName}`));
+                    failedItems++;
+                    continue;
+                }
+
+                // Find container
                 const containerMapping = referenceMapper.getMapping<mgmtApi.Container>('container', 'referenceName', contentItem.properties.referenceName);
+                let container: mgmtApi.Container | undefined;
+                
                 if (containerMapping?.target) {
                     container = containerMapping.target;
-                    // console.log(`[Content Push] ✓ Found container in cache: ${contentItem.properties.referenceName} → ID:${container.contentViewID}`);
                 } else {
-                    // Fallback to API lookup if not in mapper
                     try {
                         container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, targetGuid);
-                        // console.log(`[Content Push] ✓ Found container by API: ${contentItem.properties.referenceName} → ID:${container.contentViewID}`);
                     } catch (error: any) {
                         console.log(`[Content Push] ✗ Container lookup failed: ${contentItem.properties.referenceName} - ${error.message}`);
                     }
                 }
                 
                 if (!container) {
-                    throw new Error(`Container not found: ${contentItem.properties.referenceName}`);
-                }
-
-                // Check if all dependencies are resolved
-                if (!areContentDependenciesResolved(contentItem, referenceMapper, [model])) {
-                    // Dependencies not ready - skip for this pass
+                    skippedContentItems[contentItem.contentID] = `Container not found: ${contentItem.properties.referenceName}`;
+                    console.log(ansiColors.red(`✗ Linked content ${itemName} failed - container not found: ${contentItem.properties.referenceName}`));
+                    failedItems++;
                     continue;
                 }
 
                 // Check if content already exists
                 const existingContentItem = await findContentInTargetInstance(contentItem, apiClient, targetGuid, locale, referenceMapper);
                 
-                // Map the content item using enhanced field mapper with the validated model
-                const mappedContentItem = await mapContentItem(
-                    contentItem, 
+                            if (existingContentItem && !state.overwrite) {
+                    console.log(ansiColors.gray(`[Content Pusher] ↷ Skipping ${itemName}: already exists in target (use --overwrite to update)`));
+                    processedInThisPass.push(contentItem.contentID);
+                    continue;
+                }
+
+                // Map content item fields
+                const mappedItem = await mapContentItem(
+                    contentItem,
                     referenceMapper,
                     apiClient,
                     targetGuid,
                     defaultAssetUrl,
-                    [model] // Pass the specific model from container
+                    models
                 );
 
-                // Define default SEO and Scripts
-                const defaultSeo: mgmtApi.SeoProperties = { metaDescription: null, metaKeywords: null, metaHTML: null, menuVisible: null, sitemapVisible: null };
-                const defaultScripts: mgmtApi.ContentScripts = { top: null, bottom: null };
+                // Save individual content item
+                console.log(ansiColors.cyan(`[Content Pusher] → Processing linked content ${itemName} (pass ${attemptCount})`));
+                const result = await apiClient.contentMethods.saveContentItem(mappedItem, targetGuid, locale);
 
-                // Use mapped fields as-is - no default field addition needed
-                let validatedFields = { ...mappedContentItem.fields };
-
-                // 🚨 ASSET URL MAPPING: Process all ImageAttachment/FileAttachment/AttachmentList fields
-                // Based on legacy push.ts pattern - scan ALL fields for asset attachments
-                if (model && model.fields) {
-                    for (let j = 0; j < model.fields.length; j++) {
-                        const field = model.fields[j];
-                        const fieldName = field.name;
-                        const fieldVal = validatedFields[fieldName];
-
-                        if (field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList') {
-                            if (typeof fieldVal === 'object' && fieldVal !== null) {
-                                // Asset URL mapping will be handled by the existing field mapper
-                                // This preserves the existing asset field structure
-                                validatedFields[fieldName] = fieldVal;
-                            }
-                        }
+                // Extract content ID and update mappings
+                const newContentId = extractContentId(result);
+                if (newContentId > 0) {
+                    // Add mapping to reference mapper
+                    referenceMapper.addMapping(
+                        'content',
+                        contentItem,
+                        { contentID: newContentId, properties: { referenceName: itemName } }
+                    );
+                    
+                    successfulItems++;
+                    totalProcessed++;
+                    publishableIds.push(newContentId);
+                    processedInThisPass.push(contentItem.contentID);
+                    
+                    console.log(ansiColors.green(`[Content Pusher] ✓ ${itemName}: Source ID ${contentItem.contentID} → Target ID ${newContentId}`));
+                    
+                    // Update progress
+                    if (onProgress) {
+                        onProgress(totalProcessed, linkedContentItems.length, itemName, 'success');
+                    }
+                } else {
+                    failedItems++;
+                    console.log(ansiColors.red(`[Content Pusher] ✗ ${itemName}: Failed to extract content ID from response`));
+                    
+                    // Update progress
+                    if (onProgress) {
+                        onProgress(totalProcessed, linkedContentItems.length, itemName, 'error');
                     }
                 }
-
-                payload = {
-                    ...contentItem, // Start with original content item
-                    contentID: existingContentItem ? existingContentItem.contentID : -1,
-                    fields: validatedFields, // Use fields with URL name properties fixed
-                    properties: {
-                        ...contentItem.properties,
-                        // 🚨 CRITICAL FIX: Use target container's actual reference name instead of source content item's reference name
-                        referenceName: container.referenceName, // Use TARGET container reference name
-                        itemOrder: existingContentItem ? existingContentItem.properties.itemOrder : contentItem.properties.itemOrder
-                    },
-                    seo: contentItem.seo ?? defaultSeo,
-                    scripts: contentItem.scripts ?? defaultScripts
-                };
-
-
-
-                // Use saveContentItem with returnBatchID flag for SDK v1.30 polling
-                const batchIDResult = await apiClient.contentMethods.saveContentItem(payload, targetGuid, locale, true);
                 
-                // Extract batch ID from response
-                const batchID = Array.isArray(batchIDResult) ? batchIDResult[0] : batchIDResult;
-                // console.log(`📦 Linked content ${itemName} started with batch ID: ${batchID}`);
-                
-                // Poll batch until completion (pass payload for error matching)
-                const { pollBatchUntilComplete, extractBatchResults } = await import('../utilities/batch-polling');
-                const completedBatch = await pollBatchUntilComplete(
-                    apiClient,
-                    batchID,
-                    targetGuid,
-                    [payload] // Pass payload for FIFO error matching
-                );
-                
-                // Extract result from completed batch
-                const { successfulItems: batchSuccessItems, failedItems: batchFailedItems } = extractBatchResults(completedBatch, [contentItem]);
-                
-                let actualContentId = -1;
-                if (batchSuccessItems.length > 0) {
-                    actualContentId = batchSuccessItems[0].newId;
-                } else if (batchFailedItems.length > 0) {
-                    console.log(ansiColors.red(`✗ Linked content ${itemName} batch failed: ${batchFailedItems[0].error}`));
-                }
-                
-                if (actualContentId > 0) {
-                    // Success case
-                    const targetContentItem: mgmtApi.ContentItem = {
-                        ...payload,
-                        contentID: actualContentId
-                    };
-                    
-                    referenceMapper.addRecord('content', contentItem, targetContentItem);
-                    console.log(`✓ Linked content: ${itemName} (${model.referenceName}) - Source: ${contentItem.contentID} Target: ${actualContentId}`);
-                    successfulItems++;
-                    processedInThisPass.push(contentItem.contentID);
-                    totalProcessed++;
-                    
-                    if (onProgress) onProgress(totalProcessed, linkedContentItems.length, itemName, 'success');
-                } else {
-                    console.log(ansiColors.red(`✗ Linked content ${itemName} failed - invalid content ID: ${actualContentId}`));
-                    skippedContentItems[contentItem.contentID] = itemName;
-                    failedItems++;
-                    
-                    if (onProgress) onProgress(totalProcessed, linkedContentItems.length, itemName, 'error');
-                }
-
             } catch (error: any) {
-                console.error(`✗ Error processing linked content ${itemName}:`, error.message);
-                skippedContentItems[contentItem.contentID] = itemName;
+                console.error(ansiColors.red(`[Content Pusher] ✗ ${itemName}: ${error.message}`));
                 failedItems++;
                 
-                if (onProgress) onProgress(totalProcessed, linkedContentItems.length, itemName, 'error');
+                // Update progress
+                if (onProgress) {
+                    onProgress(totalProcessed, linkedContentItems.length, itemName, 'error');
+                }
             }
         }
 
-        // Remove successfully processed items from remaining list
-        remainingContentItems = remainingContentItems.filter(item => 
-            !processedInThisPass.includes(item.contentID) && !skippedContentItems[item.contentID]
-        );
+        // Remove processed items from remaining list
+        remainingContentItems = remainingContentItems.filter(item => !processedInThisPass.includes(item.contentID));
 
-        const afterCount = remainingContentItems.length;
-        const progressMade = beforeCount > afterCount;
-
-        // Break if no progress made or max attempts reached
-        if (!progressMade || attemptCount >= maxAttempts) {
-            if (!progressMade && remainingContentItems.length > 0) {
-                // console.warn(ansiColors.yellow(`[Content Pusher] No progress made on ${remainingContentItems.length} linked content items - marking as skipped`));
-                remainingContentItems.forEach(item => {
-                    skippedContentItems[item.contentID] = item.properties.referenceName || 'Unknown';
+        // Check for infinite loop protection
+        if (attemptCount >= maxAttempts) {
+            console.warn(ansiColors.yellow(`[Content Pusher] ⚠️ Max attempts (${maxAttempts}) reached. Stopping to prevent infinite loop.`));
+            
+            // Mark remaining items as failed due to unresolved dependencies
+            for (const item of remainingContentItems) {
+                if (!skippedContentItems[item.contentID]) {
+                    const itemName = item.properties.referenceName || 'Unknown';
+                    console.log(ansiColors.red(`✗ ${itemName}: Failed due to unresolved dependencies after ${maxAttempts} attempts`));
                     failedItems++;
-                });
+                }
+            }
+            break;
+        }
+
+        // Check for progress
+        if (processedInThisPass.length === 0 && remainingContentItems.length > 0) {
+            console.warn(ansiColors.yellow(`[Content Pusher] ⚠️ No progress made in pass ${attemptCount}. Stopping to prevent infinite loop.`));
+            
+            // Mark remaining items as failed
+            for (const item of remainingContentItems) {
+                if (!skippedContentItems[item.contentID]) {
+                    const itemName = item.properties.referenceName || 'Unknown';
+                    console.log(ansiColors.red(`✗ ${itemName}: Failed due to unresolved dependencies (no progress possible)`));
+                    failedItems++;
+                }
             }
             break;
         }
 
     } while (remainingContentItems.length > 0);
 
-    // Report final skipped items
-    const skippedCount = Object.keys(skippedContentItems).length;
-    if (skippedCount > 0) {
-        // console.log(ansiColors.yellow(`[Content Pusher] Skipped ${skippedCount} linked content items with unresolved dependencies:`));
-        Object.entries(skippedContentItems).slice(0, 5).forEach(([contentId, referenceName]) => {
-            console.log(ansiColors.gray(`  - ContentID:${contentId} (${referenceName})`));
-        });
-        if (skippedCount > 5) {
-            console.log(ansiColors.gray(`  ... and ${skippedCount - 5} more items`));
-        }
+    // Save mappings after individual processing
+    console.log(ansiColors.gray(`💾 Saving mappings after individual linked content processing...`));
+    try {
+        await referenceMapper.saveAllMappings();
+        console.log(ansiColors.gray(`✅ Mappings saved successfully`));
+    } catch (saveError: any) {
+        console.warn(ansiColors.yellow(`⚠️ Failed to save mappings: ${saveError.message}`));
     }
-
-    return { successfulItems, failedItems };
+    
+    console.log(ansiColors.green(`✅ Individual linked content processing complete: ${successfulItems} successful, ${failedItems} failed`));
+    
+    return {
+        successfulItems,
+        failedItems,
+        publishableIds
+    };
 }
+
+/**
+ * Process linked content items with individual processing and dependency resolution
+ * Handles all linked content items individually with dependency resolution logic.
+ */
+// async function pushLinkedContentItemsBatch(
+//     linkedContentItems: mgmtApi.ContentItem[],
+//     targetGuid: string,
+//     locale: string,
+//     apiClient: mgmtApi.ApiClient,
+//     referenceMapper: ReferenceMapper,
+//     models: mgmtApi.Model[],
+//     defaultAssetUrl: string,
+//     onProgress?: (processed: number, total: number, item: string, status: 'success' | 'error') => void
+// ): Promise<{ successfulItems: number, failedItems: number, publishableIds: number[] }> {
+
+//     // Check for --no-batch flag and route to individual processing only
+//     const state = getState();
+//     if (state.noBatch) {
+//         console.log(ansiColors.cyan(`[Content Pusher] --no-batch flag enabled, processing ${linkedContentItems.length} linked content items individually with dependency resolution`));
+        
+//         return await processLinkedContentIndividually(
+//             linkedContentItems,
+//             targetGuid,
+//             locale,
+//             apiClient,
+//             referenceMapper,
+//             models,
+//             defaultAssetUrl,
+//             onProgress
+//         );
+//     }
+
+//     let successfulItems = 0;
+//     let failedItems = 0;
+//     const publishableIds: number[] = []; // Collect target content IDs for auto-publishing
+//     const skippedContentItems: { [key: number]: string } = {}; // Track skipped items like legacy
+    
+//     // Create a working copy of linked content items
+//     let remainingContentItems = [...linkedContentItems];
+//     let totalProcessed = 0;
+//     const maxAttempts = remainingContentItems.length * 2; // Prevent infinite loops
+//     let attemptCount = 0;
+
+//     console.log(ansiColors.cyan(`[Content Pusher] Processing ${linkedContentItems.length} linked content items (BATCH-OPTIMIZED with dependency resolution)`));
+
+//     // Legacy do-while pattern: keep processing until no more progress
+//     do {
+//         const beforeCount = remainingContentItems.length;
+//         attemptCount++;
+
+//         console.log(ansiColors.gray(`[Content Pusher] Linked content pass ${attemptCount}: ${remainingContentItems.length} items remaining`));
+
+//         // Step 1: Pre-filter items with resolved dependencies for processing
+//         const readyForProcessing: mgmtApi.ContentItem[] = [];
+//         const needsDependencyResolution: mgmtApi.ContentItem[] = [];
+        
+//         for (const contentItem of remainingContentItems) {
+//             // Skip if already marked as problematic
+//             if (skippedContentItems[contentItem.contentID]) {
+//                 needsDependencyResolution.push(contentItem);
+//                 continue;
+//             }
+            
+//             // Find the model for dependency checking
+//             let sourceModel = models.find(m => m.referenceName === contentItem.properties.definitionName);
+            
+//             // 🚨 CASE SENSITIVITY FIX: Try case-insensitive lookup if exact match fails
+//             if (!sourceModel) {
+//                 sourceModel = models.find(m => 
+//                     m.referenceName.toLowerCase() === contentItem.properties.definitionName.toLowerCase()
+//                 );
+//             }
+            
+//             if (!sourceModel) {
+//                 // Mark as problematic and skip
+//                 skippedContentItems[contentItem.contentID] = `Model not found: ${contentItem.properties.definitionName}`;
+//                 needsDependencyResolution.push(contentItem);
+//                 continue;
+//             }
+            
+//             // Check if all dependencies are resolved
+//             if (areContentDependenciesResolved(contentItem, referenceMapper, [sourceModel])) {
+//                 readyForProcessing.push(contentItem);
+//             } else {
+//                 needsDependencyResolution.push(contentItem);
+//             }
+//         }
+
+//         console.log(ansiColors.gray(`[Content Pusher] Pass ${attemptCount}: ${readyForProcessing.length} ready for processing, ${needsDependencyResolution.length} need individual processing`));
+
+//         // Step 2: Process ready items individually (individual pusher only handles individual processing)
+//         if (readyForProcessing.length > 0) {
+//             console.log(ansiColors.cyan(`[Content Pusher] Processing ${readyForProcessing.length} ready linked content items individually...`));
+            
+//             // Add ready items to individual processing queue
+//             needsDependencyResolution.push(...readyForProcessing);
+//         }
+
+//         // Step 3: Process remaining items individually (original dependency resolution logic)
+//         const processedInThisPass: number[] = [];
+        
+//         for (let i = 0; i < needsDependencyResolution.length; i++) {
+//             const contentItem = needsDependencyResolution[i];
+//             const itemName = contentItem.properties.referenceName || 'Unknown';
+            
+//             // Skip if already marked as problematic
+//             if (skippedContentItems[contentItem.contentID]) {
+//                 continue;
+//             }
+            
+//             let container: mgmtApi.Container | undefined;
+//             let model: mgmtApi.Model | undefined;
+//             let payload: mgmtApi.ContentItem | undefined;
+
+//             try {
+//                 // SIMPLIFIED: Use same working pusher pattern as normal content
+                
+//                 // Step 1: Find source model by content item's definitionName (like model pusher)
+//                 let sourceModel = models.find(m => m.referenceName === contentItem.properties.definitionName);
+                
+//                 // 🚨 CASE SENSITIVITY FIX: Try case-insensitive lookup if exact match fails
+//                 if (!sourceModel) {
+//                     sourceModel = models.find(m => 
+//                         m.referenceName.toLowerCase() === contentItem.properties.definitionName.toLowerCase()
+//                     );
+//                     if (sourceModel) {
+//                         console.log(`[Content Push] ⚠️ Case-insensitive model match: "${contentItem.properties.definitionName}" → "${sourceModel.referenceName}"`);
+//                     }
+//                 }
+                
+//                 if (!sourceModel) {
+//                     throw new Error(`Source model not found for content definition: ${contentItem.properties.definitionName}`);
+//                 }
+                
+//                 // Step 2: Find target model using finder (like model pusher pattern)
+//                 model = await findModelInTargetInstance(sourceModel, apiClient, targetGuid, referenceMapper);
+//                 if (!model) {
+//                     console.log(ansiColors.red(`✗ Linked content ${itemName} failed - target model not found: ${sourceModel.referenceName}`));
+//                     skippedContentItems[contentItem.contentID] = itemName;
+//                     failedItems++;
+//                     if (onProgress) onProgress(totalProcessed, linkedContentItems.length, itemName, 'error');
+//                     continue;
+//                 }
+                
+//                 // Step 3: Find container using reference mapper first, then API lookup
+//                 // Check reference mapper for existing container mapping
+//                 const containerMapping = referenceMapper.getMapping<mgmtApi.Container>('container', 'referenceName', contentItem.properties.referenceName);
+//                 if (containerMapping?.target) {
+//                     container = containerMapping.target;
+//                     console.log(`[Content Push] ✓ Found container in cache: ${contentItem.properties.referenceName} → ID:${container.contentViewID}`);
+//                 } else {
+//                     // Fallback to API lookup if not in mapper
+//                     try {
+//                         container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, targetGuid);
+//                         console.log(`[Content Push] ✓ Found container by API: ${contentItem.properties.referenceName} → ID:${container.contentViewID}`);
+//                     } catch (error: any) {
+//                         console.log(`[Content Push] ✗ Container lookup failed: ${contentItem.properties.referenceName} - ${error.message}`);
+//                     }
+//                 }
+                
+//                 if (!container) {
+//                     throw new Error(`Container not found: ${contentItem.properties.referenceName}`);
+//                 }
+
+//                 // Check if all dependencies are resolved
+//                 if (!areContentDependenciesResolved(contentItem, referenceMapper, [model])) {
+//                     // Dependencies not ready - skip for this pass
+//                     continue;
+//                 }
+
+//                 // Check if content already exists
+//                 const existingContentItem = await findContentInTargetInstance(contentItem, apiClient, targetGuid, locale, referenceMapper);
+                
+//                 // Map the content item using enhanced field mapper with the validated model
+//                 const mappedContentItem = await mapContentItem(
+//                     contentItem, 
+//                     referenceMapper,
+//                     apiClient,
+//                     targetGuid,
+//                     defaultAssetUrl,
+//                     [model] // Pass the specific model from container
+//                 );
+
+//                 // Define default SEO and Scripts
+//                 const defaultSeo: mgmtApi.SeoProperties = { metaDescription: null, metaKeywords: null, metaHTML: null, menuVisible: null, sitemapVisible: null };
+//                 const defaultScripts: mgmtApi.ContentScripts = { top: null, bottom: null };
+
+//                 // Use mapped fields as-is - no default field addition needed
+//                 let validatedFields = { ...mappedContentItem.fields };
+
+//                 // 🚨 ASSET URL MAPPING: Process all ImageAttachment/FileAttachment/AttachmentList fields
+//                 // Based on legacy push.ts pattern - scan ALL fields for asset attachments
+//                 if (model && model.fields) {
+//                     for (let j = 0; j < model.fields.length; j++) {
+//                         const field = model.fields[j];
+//                         const fieldName = field.name;
+//                         const fieldVal = validatedFields[fieldName];
+
+//                         if (field.type === 'ImageAttachment' || field.type === 'FileAttachment' || field.type === 'AttachmentList') {
+//                             if (typeof fieldVal === 'object' && fieldVal !== null) {
+//                                 // Asset URL mapping will be handled by the existing field mapper
+//                                 // This preserves the existing asset field structure
+//                                 validatedFields[fieldName] = fieldVal;
+//                             }
+//                         }
+//                     }
+//                 }
+
+//                 payload = {
+//                     ...contentItem, // Start with original content item
+//                     contentID: existingContentItem ? existingContentItem.contentID : -1,
+//                     fields: validatedFields, // Use fields with URL name properties fixed
+//                     properties: {
+//                         ...contentItem.properties,
+//                         // 🚨 CRITICAL FIX: Use target container's actual reference name instead of source content item's reference name
+//                         referenceName: container.referenceName, // Use TARGET container reference name
+//                         itemOrder: existingContentItem ? existingContentItem.properties.itemOrder : contentItem.properties.itemOrder
+//                     },
+//                     seo: contentItem.seo ?? defaultSeo,
+//                     scripts: contentItem.scripts ?? defaultScripts
+//                 };
+
+//                 // Use saveContentItem with returnBatchID flag for SDK v1.30 polling
+//                 const batchIDResult = await apiClient.contentMethods.saveContentItem(payload, targetGuid, locale, true);
+                
+//                 // Extract batch ID from response
+//                 const batchID = Array.isArray(batchIDResult) ? batchIDResult[0] : batchIDResult;
+//                 console.log(`📦 Linked content ${itemName} started with batch ID: ${batchID}`);
+                
+//                 // Poll batch until completion (pass payload for error matching)
+//                 const { pollBatchUntilComplete, extractBatchResults } = await import('../utilities/batch-polling');
+//                 const completedBatch = await pollBatchUntilComplete(
+//                     apiClient,
+//                     batchID,
+//                     targetGuid,
+//                     [payload] // Pass payload for FIFO error matching
+//                 );
+                
+//                 // Extract result from completed batch
+//                 const { successfulItems: batchSuccessItems, failedItems: batchFailedItems } = extractBatchResults(completedBatch, [contentItem]);
+                
+//                 let actualContentId = -1;
+//                 if (batchSuccessItems.length > 0) {
+//                     actualContentId = batchSuccessItems[0].newId;
+//                 } else if (batchFailedItems.length > 0) {
+//                     console.log(ansiColors.red(`✗ Linked content ${itemName} batch failed: ${batchFailedItems[0].error}`));
+//                 }
+                
+//                 if (actualContentId > 0) {
+//                     // Success case
+//                     const targetContentItem: mgmtApi.ContentItem = {
+//                         ...payload,
+//                         contentID: actualContentId
+//                     };
+                    
+//                     referenceMapper.addRecord('content', contentItem, targetContentItem);
+//                     console.log(`✓ Linked content: ${itemName} (${model.referenceName}) - Source: ${contentItem.contentID} Target: ${actualContentId}`);
+//                     successfulItems++;
+//                     publishableIds.push(actualContentId); // Collect target ID for auto-publishing
+//                     processedInThisPass.push(contentItem.contentID);
+//                     totalProcessed++;
+                    
+//                     if (onProgress) onProgress(totalProcessed, linkedContentItems.length, itemName, 'success');
+//                 } else {
+//                     console.log(ansiColors.red(`✗ Linked content ${itemName} failed - no valid content ID returned`));
+//                     skippedContentItems[contentItem.contentID] = itemName;
+//                     failedItems++;
+//                     if (onProgress) onProgress(totalProcessed, linkedContentItems.length, itemName, 'error');
+//                 }
+
+//             } catch (error: any) {
+//                 console.log(ansiColors.red(`✗ Linked content ${itemName} failed: ${error.message}`));
+//                 skippedContentItems[contentItem.contentID] = itemName;
+//                 failedItems++;
+//                 if (onProgress) onProgress(totalProcessed, linkedContentItems.length, itemName, 'error');
+//                 continue;
+//             }
+//         }
+
+//         // Remove items processed in this pass
+//         remainingContentItems = remainingContentItems.filter(item => 
+//             !processedInThisPass.includes(item.contentID) && 
+//             !skippedContentItems[item.contentID]
+//         );
+        
+//         const afterCount = remainingContentItems.length;
+//         const progressMade = beforeCount > afterCount;
+
+//         if (!progressMade && remainingContentItems.length > 0 && attemptCount >= maxAttempts) {
+//             console.log(ansiColors.yellow(`⚠️ Maximum attempts (${maxAttempts}) reached for linked content. ${remainingContentItems.length} items may have unresolved dependencies.`));
+            
+//             // Mark remaining items as failed
+//             remainingContentItems.forEach(item => {
+//                 if (!skippedContentItems[item.contentID]) {
+//                     skippedContentItems[item.contentID] = 'Unresolved dependencies after max attempts';
+//                     failedItems++;
+//                 }
+//             });
+//             break;
+//         }
+
+//     } while (remainingContentItems.length > 0 && attemptCount < maxAttempts);
+
+//     console.log(ansiColors.cyan(`[Content Pusher] Batch-optimized linked content complete: ${successfulItems} success, ${failedItems} failed after ${attemptCount} passes`));
+//     return { successfulItems, failedItems, publishableIds };
+// }
 
 /**
  * Check if all content dependencies are resolved for a content item
@@ -598,7 +876,7 @@ export async function pushContent(
     sourceData: any,
     referenceMapper: ReferenceMapper,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
-): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
+): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number, publishableIds: number[] }> {
 
     // Extract data from sourceData - unified parameter pattern
     const contentItems: mgmtApi.ContentItem[] = sourceData.content || [];
@@ -606,13 +884,12 @@ export async function pushContent(
 
     if (!contentItems || contentItems.length === 0) {
         console.log('No content items found to process.');
-        return { status: 'success', successful: 0, failed: 0, skipped: 0 };
+        return { status: 'success', successful: 0, failed: 0, skipped: 0, publishableIds: [] };
     }
 
     // Get state values instead of prop drilling
-    const state = getState();
-    const { mgmtApiOptions, targetGuid, locale, overwrite } = state;
-    const apiClient = new mgmtApi.ApiClient(mgmtApiOptions);
+    const { targetGuid, locale, overwrite, sourceGuid } = state;
+    const apiClient = state.apiClient;
 
     // Use passed models or load from filesystem as fallback
     let resolvedModels: mgmtApi.Model[] = models || [];
@@ -625,8 +902,7 @@ export async function pushContent(
             const { getModelsFromFileSystem } = await import('../getters/filesystem');
                           const { fileOperations } = await import('../services');
             
-            // Get source GUID from reference mapper or use a reasonable default approach
-            const sourceGuid = await getSourceGuidFromContext(referenceMapper);
+            // Use source GUID from state instead of complex lookup logic
             
             // Create fileOperations instance for the source data
             const fileOps = new fileOperations('agility-files', sourceGuid, locale, true);
@@ -648,6 +924,7 @@ export async function pushContent(
     let overallFailed = 0;
     let overallSkipped = 0;
     let overallStatus: 'success' | 'error' = 'success';
+    const publishableIds: number[] = []; // Collect target content IDs for auto-publishing
 
     // Initialize default asset container URL
     const defaultTargetAssetContainerOriginUrl = await getDefaultAssetContainerUrl(apiClient, targetGuid);
@@ -699,6 +976,7 @@ export async function pushContent(
 
         overallSuccessful += normalResult.successfulItems;
         overallFailed += normalResult.failedItems;
+        publishableIds.push(...normalResult.publishableIds); // Collect target IDs for auto-publishing
         
         if (normalResult.failedItems > 0) {
             overallStatus = 'error';
@@ -712,7 +990,7 @@ export async function pushContent(
             if (onProgress) onProgress(totalProcessedSoFar, totalItemCount, status);
         };
 
-        const linkedResult = await pushLinkedContentItems(
+        const linkedResult = await processLinkedContentIndividually(
             classification.linkedContentItems,
             targetGuid,
             locale,
@@ -725,6 +1003,7 @@ export async function pushContent(
 
         overallSuccessful += linkedResult.successfulItems;
         overallFailed += linkedResult.failedItems;
+        publishableIds.push(...linkedResult.publishableIds); // Collect target IDs for auto-publishing
         
         if (linkedResult.failedItems > 0) {
             overallStatus = 'error';
@@ -732,32 +1011,7 @@ export async function pushContent(
     }
 
     // console.log(ansiColors.yellow(`Processed ${overallSuccessful}/${totalItemCount} content items (${overallFailed} failed, ${overallSkipped} skipped)`));
-    return { status: overallStatus, successful: overallSuccessful, failed: overallFailed, skipped: overallSkipped };
+    return { status: overallStatus, successful: overallSuccessful, failed: overallFailed, skipped: overallSkipped, publishableIds };
 }
 
-/**
- * Handle asset attachment fields (ImageAttachment, FileAttachment, AttachmentList)
- * Provides proper default values for required asset fields
- */
-function handleAssetAttachmentField(fieldDef: any, fieldValue: any): any {
-    // If field has a value, return it as-is (asset mapping will be handled elsewhere)
-    if (fieldValue && typeof fieldValue === 'object') {
-        return fieldValue;
-    }
-    
-    // Required field with no value - provide default structure
-    if (fieldDef.settings?.Required === "True" || fieldDef.settings?.Required === "true") {
-        // For required fields, return a proper structure but with null URL
-        if (fieldDef.type === 'AttachmentList') {
-            return []; // Empty array for AttachmentList
-        } else {
-            return { url: null, label: null }; // Null structure for single attachments
-        }
-    }
-    
-    return fieldValue; // Return as-is for non-required fields
-}
 
-export class ContentItemPusher {
-    // Add any necessary methods or properties here
-}

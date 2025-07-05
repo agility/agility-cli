@@ -1,7 +1,7 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { ReferenceMapper } from "../utilities/reference-mapper";
-import { getState } from '../services/state';
+import { state } from '../services/state';
 
 export async function pushGalleries(
     sourceData: any,
@@ -18,9 +18,8 @@ export async function pushGalleries(
     }
 
     // Get state values instead of prop drilling
-    const state = getState();
-    const { mgmtApiOptions, targetGuid } = state;
-    const apiClient = new mgmtApi.ApiClient(mgmtApiOptions);
+    const { targetGuid } = state;
+    const apiClient = state.apiClient;
 
     const totalGroupings = galleries.length;
     let successful = 0;

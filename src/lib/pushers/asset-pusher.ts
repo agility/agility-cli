@@ -5,7 +5,7 @@ import { findAssetInTargetInstance } from "../finders";
 import * as fs from 'fs';
 import * as path from 'path';
 import { getAssetFilePath } from "../utilities";
-import { getState } from '../services/state';
+import { state } from '../services/state';
 const FormData = require("form-data");
 
 export async function pushAssets(
@@ -24,9 +24,8 @@ export async function pushAssets(
     }
 
     // Get state values instead of prop drilling
-    const state = getState();
-    const { mgmtApiOptions, sourceGuid, targetGuid, locale, preview: isPreview } = state;
-    const apiClient = new mgmtApi.ApiClient(mgmtApiOptions);
+    const { sourceGuid, targetGuid, locale, preview: isPreview } = state;
+    const apiClient = state.apiClient;
 
     let defaultContainer: mgmtApi.assetContainer | null = null;
     try {

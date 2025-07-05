@@ -3,7 +3,7 @@ import { ReferenceMapper } from "../utilities/reference-mapper";
 import { findContainerInTargetInstance } from "../finders";
 import ansiColors from "ansi-colors";
 import { ApiClient } from '@agility/management-sdk';
-import { getState } from '../services/state';
+import { state } from '../services/state';
 
 
 export async function pushContainers(
@@ -21,9 +21,8 @@ export async function pushContainers(
     }
 
     // Get state values instead of prop drilling
-    const state = getState();
-    const { mgmtApiOptions, targetGuid } = state;
-    const apiClient = new mgmtApi.ApiClient(mgmtApiOptions);
+    const { targetGuid } = state;
+    const apiClient = state.apiClient;
 
     let successful = 0;
     let failed = 0;

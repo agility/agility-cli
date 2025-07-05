@@ -27,6 +27,7 @@ export interface BatchProcessingResult {
     failureCount: number;
     successfulItems: BatchSuccessItem[];
     failedItems: BatchFailedItem[];
+    publishableIds: number[]; // Target content IDs for auto-publishing
 }
 
 /**
@@ -145,7 +146,8 @@ export class ContentBatchProcessor {
                     failedItems: failedItems.map(item => ({
                         originalContent: item.originalItem,
                         error: item.error
-                    }))
+                    })),
+                    publishableIds: successfulItems.map(item => item.newId)
                 };
                 
                 totalSuccessCount += batchResult.successCount;
@@ -199,14 +201,15 @@ export class ContentBatchProcessor {
             } catch (error: any) {
                 console.error(`❌ Bulk batch ${batchNumber} failed:`, error.message);
                 
-                // Fallback: try individual uploads for this batch
-                console.log(`🔄 Falling back to individual uploads for batch ${batchNumber}...`);
-                const fallbackResult = await this.fallbackToIndividualUploads(contentBatch);
+                // Batch pusher only handles batches - mark entire batch as failed
+                // Individual processing fallbacks should be handled at the sync level
+                const failedBatchItems: BatchFailedItem[] = contentBatch.map(item => ({
+                    originalContent: item,
+                    error: `Batch processing failed: ${error.message}`
+                }));
                 
-                totalSuccessCount += fallbackResult.successCount;
-                totalFailureCount += fallbackResult.failureCount;
-                allSuccessfulItems.push(...fallbackResult.successfulItems);
-                allFailedItems.push(...fallbackResult.failedItems);
+                totalFailureCount += failedBatchItems.length;
+                allFailedItems.push(...failedBatchItems);
                 
                 if (onProgress) {
                     onProgress(batchNumber, contentBatches.length, processedSoFar + contentBatch.length, contentItems.length, 'error');
@@ -220,7 +223,8 @@ export class ContentBatchProcessor {
             successCount: totalSuccessCount,
             failureCount: totalFailureCount,
             successfulItems: allSuccessfulItems,
-            failedItems: allFailedItems
+            failedItems: allFailedItems,
+            publishableIds: allSuccessfulItems.map(item => item.newContentId)
         };
     }
 
@@ -366,103 +370,7 @@ export class ContentBatchProcessor {
 
 
 
-    /**
-     * Process bulk content upload response
-     * Handles the actual Agility batch response format with itemID, itemNull, etc.
-     */
-    private processBulkContentResponse(bulkResult: any, originalBatch: mgmtApi.ContentItem[]): BatchProcessingResult {
-        const successfulItems: BatchSuccessItem[] = [];
-        const failedItems: BatchFailedItem[] = [];
-        
-        // Process bulk result based on response format
-        
-        if (Array.isArray(bulkResult) && bulkResult.every(item => typeof item === 'number')) {
-            // Simple array of content IDs (legacy format)
-            bulkResult.forEach((contentId, index) => {
-                if (contentId && typeof contentId === 'number' && contentId > 0) {
-                    successfulItems.push({
-                        originalContent: originalBatch[index],
-                        newContentId: contentId
-                    });
-                } else {
-                    failedItems.push({
-                        originalContent: originalBatch[index],
-                        error: `Invalid content ID returned: ${contentId}`
-                    });
-                }
-            });
-        } else if (Array.isArray(bulkResult)) {
-            // Actual Agility batch response: array of batch result objects
-            bulkResult.forEach((batchItem, index) => {
-                const originalContent = originalBatch[index];
-                
-                if (!originalContent) {
-                    console.warn(`No original content found for batch item ${index}`);
-                    return;
-                }
-                
-                // Check for successful batch item
-                if (batchItem.itemID && batchItem.itemID > 0 && !batchItem.itemNull) {
-                    successfulItems.push({
-                        originalContent,
-                        newContentId: batchItem.itemID
-                    });
-                } else {
-                    // Failed batch item - only log failures for debugging
-                    const errorMessage = batchItem.itemNull 
-                        ? `Item upload failed (itemNull=true)` 
-                        : `Invalid item ID: ${batchItem.itemID}`;
-                    
-                    failedItems.push({
-                        originalContent,
-                        error: errorMessage
-                    });
-                }
-            });
-            
-            // Handle case where response array is shorter than batch
-            if (bulkResult.length < originalBatch.length) {
-                for (let i = bulkResult.length; i < originalBatch.length; i++) {
-                    failedItems.push({
-                        originalContent: originalBatch[i],
-                        error: 'No response returned for this item'
-                    });
-                }
-            }
-        } else if (bulkResult && typeof bulkResult === 'object' && 'results' in bulkResult) {
-            // Structured response format with results array
-            const results = bulkResult.results as any[];
-            results.forEach((result, index) => {
-                if (result.success && result.contentID > 0) {
-                    successfulItems.push({
-                        originalContent: originalBatch[index],
-                        newContentId: result.contentID
-                    });
-                } else {
-                    failedItems.push({
-                        originalContent: originalBatch[index],
-                        error: result.error || 'Unknown error'
-                    });
-                }
-            });
-        } else {
-            // Error response - all items failed
-            console.error('Bulk content upload error:', bulkResult);
-            originalBatch.forEach(contentItem => {
-                failedItems.push({
-                    originalContent: contentItem,
-                    error: bulkResult?.message || 'Bulk upload failed'
-                });
-            });
-        }
-        
-        return {
-            successCount: successfulItems.length,
-            failureCount: failedItems.length,
-            successfulItems,
-            failedItems
-        };
-    }
+
 
     /**
      * Update content ID mappings in reference mapper
@@ -482,75 +390,4 @@ export class ContentBatchProcessor {
         });
     }
 
-    /**
-     * Fallback to individual content uploads when bulk fails
-     */
-    private async fallbackToIndividualUploads(contentBatch: mgmtApi.ContentItem[]): Promise<BatchProcessingResult> {
-        const successfulItems: BatchSuccessItem[] = [];
-        const failedItems: BatchFailedItem[] = [];
-        
-        console.log(`🔄 Processing ${contentBatch.length} items individually...`);
-        
-        for (const contentItem of contentBatch) {
-            try {
-                const payloads = await this.prepareContentPayloads([contentItem]);
-                
-                // Use saveContentItem with returnBatchID flag for SDK v1.30 polling
-                const batchIDResult = await this.config.apiClient.contentMethods.saveContentItem(
-                    payloads[0], 
-                    this.config.targetGuid, 
-                    this.config.locale,
-                    true // returnBatchID flag
-                );
-                
-                // Extract batch ID from response
-                const batchID = Array.isArray(batchIDResult) ? batchIDResult[0] : batchIDResult;
-                
-                // Poll batch until completion (pass payload for error matching)
-                const completedBatch = await pollBatchUntilComplete(
-                    this.config.apiClient,
-                    batchID,
-                    this.config.targetGuid,
-                    payloads // Pass prepared payload for FIFO error matching
-                );
-                
-                // Extract result from completed batch
-                const { successfulItems: itemResults, failedItems: itemErrors } = extractBatchResults(completedBatch, [contentItem]);
-                
-                if (itemResults.length > 0) {
-                    successfulItems.push({
-                        originalContent: contentItem,
-                        newContentId: itemResults[0].newId
-                    });
-                    console.log(`✓ Individual upload: ${contentItem.properties.referenceName} → ID:${itemResults[0].newId}`);
-                } else {
-                    const errorMessage = itemErrors.length > 0 ? itemErrors[0].error : 'Unknown error';
-                    failedItems.push({
-                        originalContent: contentItem,
-                        error: errorMessage
-                    });
-                    console.log(`✗ Individual upload failed: ${contentItem.properties.referenceName} - ${errorMessage}`);
-                }
-                
-            } catch (error: any) {
-                console.error(`✗ Individual content upload failed for ${contentItem.properties.referenceName}:`, error.message);
-                failedItems.push({
-                    originalContent: contentItem,
-                    error: error.message
-                });
-            }
-        }
-        
-        // Update mappings for successful individual uploads
-        if (successfulItems.length > 0) {
-            this.updateContentIdMappings(successfulItems);
-        }
-        
-        return {
-            successCount: successfulItems.length,
-            failureCount: failedItems.length,
-            successfulItems,
-            failedItems
-        };
-    }
 } 

@@ -46,6 +46,7 @@ The Agility CLI uses an intuitive flag system designed for consistent behavior a
 | `--update` | `true` | Pull, Sync | Download fresh data from source instance |
 | `--no-update` | - | Pull, Sync | Use existing local cache (performance optimization) |
 | `--overwrite` | `false` | Sync only | Update existing target items vs create new versions |
+| `--publish` | `false` | Sync only | Automatically publish synced content and pages after successful sync |
 | `--reset` | `false` | Pull, Sync | Nuclear option: delete local data and start fresh |
 
 ### **Typical Usage Patterns**
@@ -55,11 +56,17 @@ The Agility CLI uses an intuitive flag system designed for consistent behavior a
 agility pull --sourceGuid="abc123"
 agility sync --sourceGuid="abc123" --targetGuid="def456"
 
+# Auto-publish after sync (streamlined workflow)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --publish
+
 # Performance optimization (use cached data)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --no-update
 
 # Force updates in target (for refreshing existing content)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite
+
+# Complete workflow: force update + auto-publish
+agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite --publish
 
 # Nuclear reset (when things go wrong)
 agility pull --sourceGuid="abc123" --reset
@@ -154,6 +161,7 @@ All commands support the following unified system arguments:
 |--------|------|---------|-------------|
 | `--update` | boolean | `true` | **BOTH COMMANDS**: Download fresh data from source instance before operations. Use `--no-update` to use existing local cache only. Default: true (ensures fresh data) |
 | `--overwrite` | boolean | `false` | **SYNC ONLY**: Force update existing items in target instance instead of creating new items with -1 IDs. Default: false (safer behavior to prevent overwriting existing content) |
+| `--publish` | boolean | `false` | **SYNC ONLY**: Automatically publish synced content and pages after successful sync operations. Uses batch publishing for optimal performance. Default: false |
 | `--reset` | boolean | `false` | **BOTH COMMANDS**: Nuclear option - completely delete instance GUID folder and start fresh. For pull: deletes local data. For sync: deletes source data + regenerates mappings. Default: false |
 
 > **🎯 Intuitive Flag Design**: `--update` provides consistent fresh data behavior across both pull and sync commands, with safer defaults to prevent accidental overwrites.
@@ -281,7 +289,100 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --test
 
 # Test specific models without syncing
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost" --test
+
+# Auto-publish content and pages after sync
+agility sync --sourceGuid="abc123" --targetGuid="def456" --publish
+
+# Auto-publish with model-specific sync
+agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,NewsArticle" --publish
+
+# Complete workflow: force update + auto-publish
+agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite --publish
+
+# Performance-optimized sync with auto-publish
+agility sync --sourceGuid="abc123" --targetGuid="def456" --no-update --publish
 ```
+
+## Auto-Publishing
+
+The `--publish` flag automatically publishes synced content and pages after successful sync operations, providing a streamlined workflow from sync to production-ready content.
+
+### How Auto-Publishing Works
+
+When you use the `--publish` flag with sync:
+
+1. **Sync Operations Execute**: Content and pages are synced to the target instance
+2. **ID Collection**: Successfully synced content and page IDs are collected during the process  
+3. **Batch Publishing**: Content and pages are published using optimized batch operations
+4. **Error Resilience**: Publishing failures don't affect sync success - sync completes regardless
+
+### Auto-Publishing Features
+
+- **Batch Optimization**: Uses Agility's batch publishing APIs for optimal performance
+- **Selective Publishing**: Only publishes successfully synced content (skips failed items)
+- **Progress Reporting**: Detailed progress information during publishing operations
+- **Error Handling**: Individual item failures don't stop the entire publishing process
+- **Retry Logic**: Built-in retry mechanism for transient publishing failures
+
+### Usage Examples
+
+```bash
+# Basic auto-publish after sync
+agility sync --sourceGuid="abc123" --targetGuid="def456" --publish
+
+# Auto-publish specific models and their dependencies
+agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost" --publish
+
+# Complete workflow: update existing items + auto-publish
+agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite --publish
+
+# Performance-optimized: use cache + auto-publish
+agility sync --sourceGuid="abc123" --targetGuid="def456" --no-update --publish
+```
+
+### Performance Considerations
+
+- **Batch Size**: Publishing uses optimal batch sizes (typically 10 items per batch)
+- **Concurrent Operations**: Batch publishing is significantly faster than individual API calls
+- **Large Syncs**: For large content sets, expect 1-2 minutes additional time for publishing
+- **Memory Efficient**: Target IDs are collected during sync, minimal additional memory usage
+
+### Troubleshooting Auto-Publishing
+
+**Publishing Fails but Sync Succeeds:**
+- This is expected behavior - sync operations complete independently
+- Check target instance permissions for publishing rights
+- Verify content items are in a publishable state
+
+**Partial Publishing:**
+- Some items may fail to publish due to validation errors
+- Check verbose output (`--verbose`) for detailed error messages
+- Failed publishing doesn't affect already-published items
+
+**Publishing Performance:**
+- Large content sets may take additional time to publish
+- Use `--verbose` flag to monitor publishing progress
+- Publishing speed depends on target instance performance
+
+**Common Issues:**
+```bash
+# Permission issues - ensure user has publish rights
+agility sync --sourceGuid="abc123" --targetGuid="def456" --publish --verbose
+
+# Content validation errors - check specific error messages
+agility sync --sourceGuid="abc123" --targetGuid="def456" --publish --verbose
+
+# Large batch optimization - publishing happens automatically in batches
+agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost" --publish --verbose
+```
+
+### Best Practices
+
+1. **Test First**: Use `--test` flag to validate sync before adding `--publish`
+2. **Use Verbose**: Add `--verbose` for detailed publishing feedback
+3. **Model-Specific**: Use `--models` with `--publish` for targeted content publishing
+4. **Monitor Progress**: Watch for publishing success/failure messages in output
+5. **Check Permissions**: Ensure target instance user has publishing permissions
 
 ## Authentication
 
@@ -330,6 +431,7 @@ AGILITY_TEST=false
 # Operation control flags (defaults match CLI behavior)
 AGILITY_UPDATE=true     # Download fresh data by default (both pull and sync)
 AGILITY_OVERWRITE=false # Don't overwrite target items by default (sync only)
+AGILITY_PUBLISH=false   # Don't auto-publish by default (sync only)
 AGILITY_RESET=false     # Don't delete local data by default (both pull and sync)
 ```
 
@@ -357,9 +459,142 @@ AGILITY_RESET=false     # Don't delete local data by default (both pull and sync
 | `AGILITY_TEST` | `--test` | Default test mode setting |
 | `AGILITY_UPDATE` | `--update` | Default fresh data setting (both pull and sync) |
 | `AGILITY_OVERWRITE` | `--overwrite` | Default overwrite setting (sync only) |
+| `AGILITY_PUBLISH` | `--publish` | Default auto-publish setting (sync only) |
 | `AGILITY_RESET` | `--reset` | Default reset setting (both pull and sync) |
 
 **Note**: Command line arguments always override environment variables when both are provided.
+
+## Sync Token Management
+
+The Agility CLI uses the Content Sync SDK for incremental content synchronization. Understanding how sync tokens work is crucial for managing pull and sync operations effectively.
+
+### How Sync Tokens Work
+
+**Sync tokens** are stored in the `state/sync.json` file and enable incremental content synchronization:
+
+```
+agility-files/{guid}/{locale}/{preview|live}/state/sync.json
+```
+
+**Token Behavior:**
+- **First Pull**: No sync token exists → **Full sync** downloads all content
+- **Subsequent Pulls**: Sync token exists → **Incremental sync** downloads only changes since last pull
+- **Content Sync SDK**: Automatically manages token creation and updates
+- **Management SDK**: Templates, models, containers, assets, galleries don't use sync tokens
+
+### --update vs --reset Flag Behavior
+
+#### --update Flag (Default: false)
+
+**Management SDK Downloaders** (Templates, Models, Containers, Assets, Galleries):
+- `--update=false` (default): Skip existing files, download missing files (normal efficient behavior)
+- `--update=true`: Force download/overwrite existing files
+
+**Content Sync SDK** (Content, Pages, Sitemaps, Redirections):
+- `--update=false` (default): Preserves sync tokens for incremental sync
+- `--update=true`: Clears sync tokens for complete refresh
+
+> **🔑 Key Point**: The `--update=true` flag clears sync tokens and forces complete refresh of all content. Use `--update=false` (default) for normal efficient operations.
+
+#### --reset Flag (Default: false)
+
+**Complete Reset** (Both SDKs):
+- Deletes entire instance GUID folder
+- Removes all sync tokens
+- Forces fresh download of everything
+- Use when you want to start completely fresh
+
+### Manual Sync Token Reset
+
+To reset **only** the Content Sync SDK without affecting Management SDK downloads:
+
+```bash
+# Delete the state folder manually
+rm -rf agility-files/{guid}/{locale}/{preview|live}/state/
+
+# Then run pull - will do full content sync but preserve other downloaded files
+agility pull --sourceGuid="your-guid"
+```
+
+**Manual Reset Examples:**
+```bash
+# Reset sync token for specific instance preview environment
+rm -rf agility-files/abc123-guid/en-us/preview/state/
+
+# Reset sync token for live environment
+rm -rf agility-files/abc123-guid/en-us/live/state/
+
+# Reset all environments for an instance
+rm -rf agility-files/abc123-guid/*/*/state/
+```
+
+### Common Scenarios
+
+#### Fresh Install or First Pull
+```bash
+# No sync token exists - will do full sync
+agility pull --sourceGuid="abc123"
+```
+
+#### Regular Updates (Incremental)
+```bash
+# Uses existing sync token - only downloads changes (default behavior)
+agility pull --sourceGuid="abc123"
+```
+
+#### Force Complete Refresh
+```bash
+# Clears sync tokens and forces download/overwrite of all files
+agility pull --sourceGuid="abc123" --update
+```
+
+#### Force Fresh Download of Everything
+```bash
+# Nuclear option - deletes everything and starts fresh
+agility pull --sourceGuid="abc123" --reset
+```
+
+#### Reset Only Content Sync
+```bash
+# Manual approach - delete state folder then pull
+rm -rf agility-files/abc123-guid/en-us/preview/state/
+agility pull --sourceGuid="abc123"
+```
+
+### Troubleshooting Sync Issues
+
+**Problem**: Content not updating despite changes in source instance
+**Solution**: Reset the sync token
+```bash
+rm -rf agility-files/{guid}/{locale}/{preview|live}/state/
+agility pull --sourceGuid="your-guid"
+```
+
+**Problem**: Pull operation seems to re-download everything
+**Solution**: Check if sync token exists
+```bash
+# Check if sync token file exists
+ls agility-files/{guid}/{locale}/{preview|live}/state/sync.json
+
+# If missing, next pull will be full sync (expected)
+```
+
+**Problem**: Want to force full content re-download without affecting other files
+**Solution**: Delete only the content directories and state
+```bash
+rm -rf agility-files/{guid}/{locale}/{preview|live}/item/
+rm -rf agility-files/{guid}/{locale}/{preview|live}/list/
+rm -rf agility-files/{guid}/{locale}/{preview|live}/state/
+agility pull --sourceGuid="your-guid"
+```
+
+### Best Practices
+
+1. **Normal Operations**: Let sync tokens handle incremental updates automatically
+2. **Debugging**: Use `--verbose` to see sync token status during operations
+3. **Fresh Start**: Use `--reset` flag for complete reset of all data
+4. **Content Issues**: Manually delete `state/` folder to reset only content sync
+5. **Performance**: Use `--no-update` to skip Management SDK downloads while preserving incremental content sync
 
 ## Model-Specific Sync
 

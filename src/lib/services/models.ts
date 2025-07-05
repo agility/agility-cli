@@ -24,12 +24,13 @@ export class models {
         this._progressCallback = progressCallback;
     }
 
-    async getModels(guid: string, locale: string, isPreview: boolean) {
+    async getModels(guid: string, locale: string, isPreview: boolean, update: boolean = false) {
         const modelsDestPath = this._fileOps.getDataFolderPath("models");
 
         let apiClient = new mgmtApi.ApiClient(this._options);
         let fileExport = this._fileOps;
         let successfullyDownloadedCount = 0;
+        let skippedCount = 0;
         let totalModels = 0;
         let allModels: mgmtApi.Model[] = []; // To store combined list of content and page models
 
@@ -53,46 +54,57 @@ export class models {
                 let fileName = modelSummary.id.toString();
                 let modelDisplayName = modelSummary.referenceName || modelSummary.displayName || `ID ${modelSummary.id}`;
 
-                try {
-                    // JOEL'S SIMPLIFICATION: Always fetch full model details regardless of type
-                    // This ensures consistent behavior and complete data for all models
-                    modelDetails = await apiClient.modelMethods.getContentModel(modelSummary.id, guid);
-                    
-                    if (!modelDetails) {
-                        throw new Error("Could not retrieve model details.");
-                    }
-                    
-                    modelDisplayName = modelDetails.referenceName || modelDetails.displayName || `ID ${modelDetails.id}`;
+                const modelFilePath = this._fileOps.getDataFolderPath(`models/${fileName}.json`);
+                
+                // Check if we should skip file existence check based on update flag
+                // update=false (default): Skip existing files, update=true: Force download/overwrite
+                if (!update && this._fileOps.checkFileExists(modelFilePath)) {
+                    console.log(ansiColors.grey.italic('Found'),ansiColors.gray(modelDisplayName),ansiColors.grey.italic('skipping download'));
+                    skippedCount++;
+                } else {
+                    try {
+                        // JOEL'S SIMPLIFICATION: Always fetch full model details regardless of type
+                        // This ensures consistent behavior and complete data for all models
+                        modelDetails = await apiClient.modelMethods.getContentModel(modelSummary.id, guid);
+                        
+                        if (!modelDetails) {
+                            throw new Error("Could not retrieve model details.");
+                        }
+                        
+                        modelDisplayName = modelDetails.referenceName || modelDetails.displayName || `ID ${modelDetails.id}`;
 
-                    // Use fileOperations to export files to models folder
-                    fileExport.exportFiles("models", fileName, modelDetails);
-                    console.log(`✓ Downloaded model ${ansiColors.cyan(modelDisplayName)} ID: ${modelSummary.id}`);
-                    successfullyDownloadedCount++;
-                } catch (itemError: any) {
-                    console.error(ansiColors.red(`✗ Error processing model ${modelDisplayName} (ID ${modelSummary.id}): ${itemError.message}`));
+                        // Use fileOperations to export files to models folder
+                        fileExport.exportFiles("models", fileName, modelDetails);
+                        console.log(`✓ Downloaded model ${ansiColors.cyan(modelDisplayName)} ID: ${modelSummary.id}`);
+                        successfullyDownloadedCount++;
+                    } catch (itemError: any) {
+                        console.error(ansiColors.red(`✗ Error processing model ${modelDisplayName} (ID ${modelSummary.id}): ${itemError.message}`));
+                    }
                 }
+                const processedCount = successfullyDownloadedCount + skippedCount;
                 if (this._progressCallback) {
-                    this._progressCallback(successfullyDownloadedCount, totalModels, 'progress');
+                    this._progressCallback(processedCount, totalModels, 'progress');
                 }
             }
 
-            const errorCount = totalModels - successfullyDownloadedCount;
-            const summaryMessage = `Downloaded ${successfullyDownloadedCount} models (${successfullyDownloadedCount}/${totalModels} models, ${errorCount} errors)`;
+            const processedCount = successfullyDownloadedCount + skippedCount;
+            const errorCount = totalModels - processedCount;
+            const summaryMessage = `\nDownloaded ${successfullyDownloadedCount} models (${successfullyDownloadedCount}/${totalModels} models, ${skippedCount} skipped, ${errorCount} errors)\n`;
 
             if (this._progressCallback) {
-                this._progressCallback(successfullyDownloadedCount, totalModels, errorCount === 0 ? 'success' : 'error');
-                if (errorCount > 0) console.log(ansiColors.yellow(summaryMessage));
-                else console.log(ansiColors.yellow(summaryMessage));
+                this._progressCallback(processedCount, totalModels, errorCount === 0 ? 'success' : 'error');
+                console.log(ansiColors.yellow(summaryMessage));
             } else {
                 console.log(ansiColors.yellow(summaryMessage));
             }
 
         } catch (mainError: any) {
             console.error(ansiColors.red(`An error occurred during model processing: ${mainError.message}`));
-            const errorCount = totalModels - successfullyDownloadedCount; // Recalculate in case it failed early
-            const summaryMessage = `Downloaded ${successfullyDownloadedCount} models (${successfullyDownloadedCount}/${totalModels} models, ${errorCount} errors)`;
+            const processedCount = successfullyDownloadedCount + skippedCount;
+            const errorCount = totalModels - processedCount; // Recalculate in case it failed early
+            const summaryMessage = `\nDownloaded ${successfullyDownloadedCount} models (${successfullyDownloadedCount}/${totalModels} models, ${skippedCount} skipped, ${errorCount} errors)\n`;
             if (this._progressCallback) {
-                this._progressCallback(successfullyDownloadedCount, totalModels, 'error');
+                this._progressCallback(processedCount, totalModels, 'error');
                 console.log(ansiColors.yellow(summaryMessage));
             } else {
                 console.log(ansiColors.yellow(summaryMessage));

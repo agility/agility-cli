@@ -116,11 +116,13 @@ export const systemArgs = {
   // Instance identification args
   sourceGuid: {
     describe: "Provide the source instance GUID. If not provided, will use AGILITY_GUID from .env file if available.",
+    alias: ["source-guid", "sourceguid", "source"],
     demandOption: false,
     type: "string" as const,
   },
   targetGuid: {
     describe: "Provide the target instance GUID for sync operations.",
+    alias: ["target-guid", "targetguid", "target"],
     demandOption: false,
     type: "string" as const,
   },
@@ -132,12 +134,26 @@ export const systemArgs = {
     default: false
   },
   update: {
-    describe: "For both pull and sync commands: download fresh data from source instance before operations. Use --no-update to use existing local cache only. Default: true (ensures fresh data).",
+    describe: "Controls file downloading behavior. --update=false (default): Skip existing files during download (normal efficient behavior). --update=true: Force download/overwrite existing files and clear sync tokens for complete refresh.",
     type: "boolean" as const,
-    default: true
+    default: false
   },
   reset: {
-    describe: "Nuclear option for both pull and sync commands: completely delete instance GUID folder and start fresh. For pull: deletes local data. For sync: deletes source data + regenerates mappings. Default: false.",
+    describe: "Nuclear reset option: completely delete instance GUID folder including sync tokens. Forces full fresh download for all SDKs. To reset only Content Sync SDK: manually delete agility-files/GUID/locale/preview/state folder. Default: false.",
+    type: "boolean" as const,
+    default: false
+  },
+
+  // Publishing args
+  publish: {
+    describe: "For sync commands only: automatically publish synced content items and pages after successful sync operation. Enables batch publishing for streamlined deployment workflow. Default: false.",
+    type: "boolean" as const,
+    default: false
+  },
+
+  // Batch processing args
+  noBatch: {
+    describe: "Disable batch processing and use individual item processing instead. Affects both content items and linked content - all items will be processed individually rather than in optimized batches. Default: false (batch processing enabled for better performance).",
     type: "boolean" as const,
     default: false
   }

@@ -1,7 +1,7 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { ReferenceMapper } from "../utilities/reference-mapper";
-import { getState } from '../services/state';
+import { state } from '../services/state';
 
 export async function pushTemplates(
     sourceData: any,
@@ -20,9 +20,8 @@ export async function pushTemplates(
     }
 
     // Get state values instead of prop drilling
-    const state = getState();
-    const { mgmtApiOptions, targetGuid, locale } = state;
-    const apiClient = new mgmtApi.ApiClient(mgmtApiOptions);
+    const { targetGuid, locale } = state;
+    const apiClient = state.apiClient;
 
     // Log template names for debugging
     console.log(`[Template Debug] Template names: ${templates.map(t => t.pageTemplateName).join(', ')}`);

@@ -266,39 +266,92 @@ export class fileOperations{
   }
 
   // Mapping file operations
-  getMappingFilePath(targetGuid: string): string {
-    return path.join(this._mappingsPath, `${targetGuid}.json`);
+  getMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string): string {
+    const localeToUse = locale || this._locale;
+    // Store mappings centrally in /agility-files/mappings/ instead of per-instance
+    const centralMappingsPath = path.join(this._rootPath, 'mappings');
+    return path.join(centralMappingsPath, `${sourceGuid}-to-${targetGuid}-${localeToUse}.json`);
   }
 
-  saveMappingFile(targetGuid: string, mappingData: any): void {
-    // Ensure mappings directory exists using recursive creation
-    if (!fs.existsSync(this._mappingsPath)) {
-      fs.mkdirSync(this._mappingsPath, { recursive: true });
-    }
-    
-    const mappingFilePath = this.getMappingFilePath(targetGuid);
-    this.createFile(mappingFilePath, JSON.stringify(mappingData, null, 2));
+  /**
+   * Get reverse mapping file path for fallback lookups
+   * For B→A sync: when A→B mapping file exists, use it by flipping the source/target GUIDs
+   */
+  getReverseMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string): string {
+    const localeToUse = locale || this._locale;
+    const centralMappingsPath = path.join(this._rootPath, 'mappings');
+    return path.join(centralMappingsPath, `${targetGuid}-to-${sourceGuid}-${localeToUse}.json`);
   }
 
-  loadMappingFile(targetGuid: string): any | null {
-    const mappingFilePath = this.getMappingFilePath(targetGuid);
+  saveMappingFile(sourceGuid: string, targetGuid: string, mappingData: any, locale?: string): void {
+    const localeToUse = locale || this._locale;
     
-    if (!this.checkFileExists(mappingFilePath)) {
-      return null;
+    // Ensure centralized mappings directory exists
+    const centralMappingsPath = path.join(this._rootPath, 'mappings');
+    if (!fs.existsSync(centralMappingsPath)) {
+      fs.mkdirSync(centralMappingsPath, { recursive: true });
     }
     
-    try {
-      const content = this.readFile(mappingFilePath);
-      return JSON.parse(content);
-    } catch (error) {
-      console.error(`Error loading mapping file ${mappingFilePath}:`, error);
-      return null;
-    }
+    // Add locale to mapping data for consistency
+    const mappingDataWithLocale = {
+      ...mappingData,
+      locale: localeToUse
+    };
+    
+    const mappingFilePath = this.getMappingFilePath(sourceGuid, targetGuid, localeToUse);
+    this.createFile(mappingFilePath, JSON.stringify(mappingDataWithLocale, null, 2));
+    
+    // TODO: PERSISTENCE INTEGRATION POINT
+    // This is where we would integrate with external persistence services
+    // for scenarios where mappings need to survive beyond ephemeral agents:
+    // 
+    // Examples:
+    // - Upload to cloud storage (AWS S3, Azure Blob, etc.)
+    // - Save to database (MongoDB, PostgreSQL, etc.)
+    // - Sync to external API/service
+    // - Store in shared network drive
+    // 
+    // Implementation example:
+    // await this.persistMappingExternally(sourceGuid, targetGuid, mappingDataWithLocale, localeToUse);
   }
 
-  clearMappingFile(targetGuid: string): void {
-    const mappingFilePath = this.getMappingFilePath(targetGuid);
+  loadMappingFile(sourceGuid: string, targetGuid: string, locale?: string): any | null {
+    const localeToUse = locale || this._locale;
     
+    // First try to load direct mapping file (A→B)
+    const mappingFilePath = this.getMappingFilePath(sourceGuid, targetGuid, localeToUse);
+    if (this.checkFileExists(mappingFilePath)) {
+      try {
+        const content = this.readFile(mappingFilePath);
+        const mappingData = JSON.parse(content);
+        console.log(`[FileOps] Loaded direct mapping file: ${sourceGuid}→${targetGuid}`);
+        return mappingData;
+      } catch (error) {
+        console.error(`Error loading mapping file ${mappingFilePath}:`, error);
+      }
+    }
+    
+    // Try to load reverse mapping file (B→A) for fallback
+    const reverseMappingFilePath = this.getReverseMappingFilePath(sourceGuid, targetGuid, localeToUse);
+    if (this.checkFileExists(reverseMappingFilePath)) {
+      try {
+        const content = this.readFile(reverseMappingFilePath);
+        const reverseMappingData = JSON.parse(content);
+        console.log(`[FileOps] Loaded reverse mapping file: ${targetGuid}→${sourceGuid} (for ${sourceGuid}→${targetGuid} sync)`);
+        return reverseMappingData;
+      } catch (error) {
+        console.error(`Error loading reverse mapping file ${reverseMappingFilePath}:`, error);
+      }
+    }
+    
+    return null;
+  }
+
+  clearMappingFile(sourceGuid: string, targetGuid: string, locale?: string): void {
+    const localeToUse = locale || this._locale;
+    
+    // Clear direct mapping file
+    const mappingFilePath = this.getMappingFilePath(sourceGuid, targetGuid, localeToUse);
     if (this.checkFileExists(mappingFilePath)) {
       this.deleteFile(mappingFilePath);
     }

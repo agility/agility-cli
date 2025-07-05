@@ -13,6 +13,9 @@ export { Pull } from './pull';
 export { Sync } from './sync';
 export { default as Clean } from './clean';
 
+// Publishing service
+export { PublishService, createPublishService, type PublishResult, type PublishOptions } from './publish';
+
 // Content and data services
 export { content } from './content';
 export { models } from './models';

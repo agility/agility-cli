@@ -634,6 +634,13 @@ export class Auth {
   async validateCommand(commandType: 'pull' | 'sync' | 'clean' | 'interactive'): Promise<boolean> {
     const missingFields: string[] = [];
 
+    // Validate that --publish flag is only used with sync command
+    if (state.publish && commandType !== 'sync') {
+      console.log(ansiColors.red(`\n❌ The --publish flag is only available for sync commands.`));
+      console.log(ansiColors.yellow(`💡 Use: agility sync --sourceGuid="source" --targetGuid="target" --publish`));
+      return false;
+    }
+
     // Check command-specific requirements
     switch (commandType) {
       case 'pull':

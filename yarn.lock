@@ -24,10 +24,10 @@
     dotenv "^8.2.0"
     proper-lockfile "^4.1.2"
 
-"@agility/management-sdk@^0.1.30":
-  version "0.1.30"
-  resolved "https://registry.npmjs.org/@agility/management-sdk/-/management-sdk-0.1.30.tgz"
-  integrity sha512-7aPmIIqJi36rp8KpgVRI/12HNwt+LJEasBowHkRp73AlsV2mTqCOMFXEvnHDKjKRPwZ41gJBOIcXJEzwBDovoA==
+"@agility/management-sdk@^0.1.31":
+  version "0.1.31"
+  resolved "https://registry.npmjs.org/@agility/management-sdk/-/management-sdk-0.1.31.tgz"
+  integrity sha512-gzvMgWyEsVxx4hNRTBGX4hQ2R5SGb+HdtEi/CMgYGTihpNxD32Cxb7WntNB3Xh2oEhi/yKM6k/vj+7BVzK12HQ==
   dependencies:
     axios "^0.27.2"
 
@@ -1652,6 +1652,11 @@ fs.realpath@^1.0.0:
   version "1.0.0"
   resolved "https://registry.npmjs.org/fs.realpath/-/fs.realpath-1.0.0.tgz"
   integrity sha512-OO0pH2lK6a0hZnAdau5ItzHPI6pUlvI7jMVnxUQRtw4owF2wk8lOSabtGDCTP4Ggrg2MbGnWO9X8K1t4+fGMDw==
+
+fsevents@^2.3.2:
+  version "2.3.3"
+  resolved "https://registry.npmjs.org/fsevents/-/fsevents-2.3.3.tgz"
+  integrity sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==
 
 function-bind@^1.1.2:
   version "1.1.2"
