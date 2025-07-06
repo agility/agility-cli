@@ -33,7 +33,7 @@ export class ModelDependencyTreeBuilder {
       throw new Error('Model names are required for dependency tree building');
     }
 
-    console.log(ansiColors.cyan(`🌳 Building dependency tree for models: ${modelNames.join(', ')}`));
+    // console.log(ansiColors.cyan(`🌳 Building dependency tree for models: ${modelNames.join(', ')}`));
     
     const tree: ModelDependencyTree = {
       models: new Set(modelNames),
@@ -67,7 +67,7 @@ export class ModelDependencyTreeBuilder {
     this.findAssetsInContent(tree);
     this.findGalleriesInContent(tree);
     
-    console.log(ansiColors.green(`✅ Dependency tree built - ${this.getTreeSummary(tree)}`));
+    // console.log(ansiColors.green(`✅ Dependency tree built - ${this.getTreeSummary(tree)}`));
     
     return tree;
   }
@@ -97,7 +97,7 @@ export class ModelDependencyTreeBuilder {
       }
     });
     
-    console.log(ansiColors.gray(`  📦 Found ${tree.containers.size} containers using specified models`));
+    // console.log(ansiColors.gray(`  📦 Found ${tree.containers.size} containers using specified models`));
   }
   
   /**
@@ -115,7 +115,7 @@ export class ModelDependencyTreeBuilder {
       });
     });
     
-    console.log(ansiColors.gray(`  📄 Found ${tree.content.size} content items of specified models`));
+    // console.log(ansiColors.gray(`  📄 Found ${tree.content.size} content items of specified models`));
   }
   
   /**
@@ -140,7 +140,7 @@ export class ModelDependencyTreeBuilder {
       }
     });
     
-    console.log(ansiColors.gray(`  🎨 Found ${tree.templates.size} templates using discovered containers`));
+    // console.log(ansiColors.gray(`  🎨 Found ${tree.templates.size} templates using discovered containers`));
   }
   
   /**
@@ -184,7 +184,7 @@ export class ModelDependencyTreeBuilder {
       }
     });
     
-    console.log(ansiColors.gray(`  📑 Found ${tree.pages.size} pages using discovered templates/content`));
+    // console.log(ansiColors.gray(`  📑 Found ${tree.pages.size} pages using discovered templates/content`));
   }
   
   /**
@@ -200,7 +200,7 @@ export class ModelDependencyTreeBuilder {
       }
     });
     
-    console.log(ansiColors.gray(`  🎨 Found ${tree.templates.size} templates used by pages`));
+    // console.log(ansiColors.gray(`  🎨 Found ${tree.templates.size} templates used by pages`));
   }
   
   /**
@@ -246,7 +246,7 @@ export class ModelDependencyTreeBuilder {
     });
     
     const newContentCount = tree.content.size - initialContentSize;
-    console.log(ansiColors.gray(`  📄 Added ${newContentCount} additional content items for page renderability`));
+    // console.log(ansiColors.gray(`  📄 Added ${newContentCount} additional content items for page renderability`));
   }
   
   /**
@@ -273,7 +273,7 @@ export class ModelDependencyTreeBuilder {
     });
     
     const newPageCount = tree.pages.size - initialPageCount;
-    console.log(ansiColors.gray(`  📑 Added ${newPageCount} ancestor pages for proper hierarchy`));
+    // console.log(ansiColors.gray(`  📑 Added ${newPageCount} ancestor pages for proper hierarchy`));
   }
   
   /**
@@ -329,7 +329,7 @@ export class ModelDependencyTreeBuilder {
     });
     
     const newModelCount = tree.models.size - initialModelSize;
-    console.log(ansiColors.gray(`  📋 Added ${newModelCount} additional models for content dependencies`));
+    // console.log(ansiColors.gray(`  📋 Added ${newModelCount} additional models for content dependencies`));
   }
   
   /**
@@ -360,7 +360,7 @@ export class ModelDependencyTreeBuilder {
     });
     
     const newContainerCount = tree.containers.size - initialContainerSize;
-    console.log(ansiColors.gray(`  📦 Added ${newContainerCount} additional containers for model dependencies`));
+    // console.log(ansiColors.gray(`  📦 Added ${newContainerCount} additional containers for model dependencies`));
   }
   
   /**
@@ -390,12 +390,12 @@ export class ModelDependencyTreeBuilder {
       const containerRefLower = container.referenceName?.toLowerCase();
       if (containerRefLower && contentReferenceMap.has(containerRefLower)) {
         tree.containers.add(container.contentViewID);
-        console.log(ansiColors.gray(`    📦 [CASE MATCH] Found container ${container.referenceName} (ID:${container.contentViewID}) for content ${contentReferenceMap.get(containerRefLower)}`));
+        // console.log(ansiColors.gray(`    📦 [CASE MATCH] Found container ${container.referenceName} (ID:${container.contentViewID}) for content ${contentReferenceMap.get(containerRefLower)}`));
       }
     });
     
     const newContainerCount = tree.containers.size - initialContainerSize;
-    console.log(ansiColors.gray(`  📦 Added ${newContainerCount} additional containers for discovered content`));
+    // console.log(ansiColors.gray(`  📦 Added ${newContainerCount} additional containers for discovered content`));
   }
   
   /**
@@ -450,7 +450,7 @@ export class ModelDependencyTreeBuilder {
       });
     }
     
-    console.log(ansiColors.gray(`  🖼️  Found ${tree.assets.size} assets referenced in content/pages`));
+    // console.log(ansiColors.gray(`  🖼️  Found ${tree.assets.size} assets referenced in content/pages`));
   }
   
   /**
@@ -466,7 +466,7 @@ export class ModelDependencyTreeBuilder {
       }
     });
     
-    console.log(ansiColors.gray(`  📸 Found ${tree.galleries.size} galleries referenced in content`));
+    // console.log(ansiColors.gray(`  📸 Found ${tree.galleries.size} galleries referenced in content`));
   }
   
   /**

@@ -81,7 +81,7 @@ export async function downloadAllSyncSDK(
       apiKey: apiKey,
       isPreview: isPreview,
       languages: [locale],
-      channelName: channel,
+      channels: [channel],
       store: {
         interface: storeInterfaceFileSystem,
         options: {

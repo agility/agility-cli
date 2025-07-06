@@ -71,7 +71,7 @@ export class PublishService {
     }
 
     if (this.options.verbose) {
-      console.log(ansiColors.cyan(`📝 Publishing ${contentIds.length} content items...`));
+      // console.log(ansiColors.cyan(`📝 Publishing ${contentIds.length} content items...`));
     }
 
     // Use simple publisher functions
@@ -82,7 +82,7 @@ export class PublishService {
         if (publishResult.success) {
           result.successful.push(contentId);
           if (this.options.verbose) {
-            console.log(ansiColors.green(`✅ Published content item ${contentId}`));
+            console.log(`✓ Content item ${ansiColors.cyan.underline(contentId)} published.`);
           }
         } else {
           result.failed.push({ id: contentId, error: publishResult.error || 'Unknown error' });
@@ -130,7 +130,7 @@ export class PublishService {
         if (publishResult.success) {
           result.successful.push(pageId);
           if (this.options.verbose) {
-            console.log(ansiColors.green(`✅ Published page ${pageId}`));
+            console.log(`✓ Page ${ansiColors.cyan.underline(pageId)} published.`);
           }
         } else {
           result.failed.push({ id: pageId, error: publishResult.error || 'Unknown error' });
@@ -158,12 +158,12 @@ export class PublishService {
    */
   async publishAll(contentIds: number[], pageIds: number[], listIds?: number[]): Promise<PublishResult> {
     if (this.options.verbose) {
-      console.log(ansiColors.cyan(`\n🚀 Starting publishing operation...`));
-      console.log(ansiColors.gray(`Target instance: ${this.targetGuid}`));
-      console.log(ansiColors.gray(`Locale: ${this.locale}`));
+      // console.log(ansiColors.cyan(`\n🚀 Starting publishing operation...`));
+      // console.log(ansiColors.gray(`Target instance: ${this.targetGuid}`));
+      // console.log(ansiColors.gray(`Locale: ${this.locale}`));
       
       const totalItems = contentIds.length + pageIds.length + (listIds?.length || 0);
-      console.log(ansiColors.gray(`Items: ${contentIds.length} content, ${pageIds.length} pages${listIds ? `, ${listIds.length} lists` : ''} (${totalItems} total)`));
+      // console.log(ansiColors.gray(`Items: ${contentIds.length} content, ${pageIds.length} pages${listIds ? `, ${listIds.length} lists` : ''} (${totalItems} total)`));
     }
 
     // Publish content and pages in parallel
@@ -181,7 +181,7 @@ export class PublishService {
           
           if (publishResult.success) {
             if (this.options.verbose) {
-              console.log(ansiColors.green(`✅ Published content list ${listId}`));
+              console.log(`✓ Content list ${ansiColors.cyan.underline(listId)} published.`);
             }
           } else {
             if (this.options.verbose) {
@@ -202,8 +202,8 @@ export class PublishService {
       const totalSuccess = contentSuccess + pageSuccess;
       const totalItems = contentIds.length + pageIds.length;
       
-      console.log(ansiColors.green(`✅ Publishing completed: ${totalSuccess}/${totalItems} items successful`));
-      console.log(ansiColors.gray(`   Content: ${contentSuccess}/${contentIds.length}, Pages: ${pageSuccess}/${pageIds.length}`));
+      // console.log(ansiColors.green(`✅ Publishing completed: ${totalSuccess}/${totalItems} items successful`));
+      console.log(ansiColors.gray(`\nContent: ${contentSuccess}/${contentIds.length}, Pages: ${pageSuccess}/${pageIds.length}`));
     }
 
     return {

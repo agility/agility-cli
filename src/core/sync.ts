@@ -28,22 +28,7 @@ export class Sync {
     this.originalConsoleError = console.error;
   }
 
-  /**
-   * Log sync operation header with version info
-   */
-  private logSyncHeader(): void {
-    
-    const headerInfo = generateLogHeader('Sync', {
-      'Source GUID': state.sourceGuid,
-      'Target GUID': state.targetGuid,
-      'Elements': state.elements,
-      'Locale': state.locale,
-      'Channel': state.channel,
-      'Preview Mode': state.preview
-    });
 
-    this._logToFile(headerInfo);
-  }
 
   /**
    * Log messages to file with timestamp
@@ -84,21 +69,34 @@ export class Sync {
    * Main sync execution method - simplified from massive topological implementation
    */
   async syncInstance(): Promise<void> {
-    this._setupConsoleLogging();
+    // Log sync header first, before setting up console logging to ensure it's the very first thing in the log
+    const headerInfo = generateLogHeader('Sync', {
+      'Source GUID': state.sourceGuid,
+      'Target GUID': state.targetGuid,
+      'Elements': state.elements,
+      'Locale': state.locale,
+      'Channel': state.channel,
+      'Preview Mode': state.preview
+    });
     
-    // Log sync header with version info immediately after setting up logging
-    this.logSyncHeader();
+    // Write header directly to log file before setting up console capture
+    const timestamp = new Date().toISOString();
+    const logEntry = `[${timestamp}] [INFO] ${headerInfo}\n`;
+    this.fileOps.appendLogFile(logEntry);
+    
+    // Now set up console logging to capture all subsequent output
+    this._setupConsoleLogging();
     
     let referenceMapper: ReferenceMapper | null = null;
 
     try {
-      console.log(ansiColors.cyan(`\n🔄 Starting sync operation...`));
+      console.log(ansiColors.cyan(`\nStarting sync operation...`));
       console.log(ansiColors.gray(`Source: ${state.sourceGuid}`));
       console.log(ansiColors.gray(`Target: ${state.targetGuid}`));
       console.log(ansiColors.gray(`Elements: ${state.elements}`));
 
       // Load source data to check if we have any existing data
-      console.log(ansiColors.cyan(`\n📥 Loading source data...`));
+      console.log(ansiColors.cyan(`\nLoading source data...`));
       const sourceDataLoader = new SourceDataLoader();
       let sourceData = await sourceDataLoader.loadSourceEntities();
 
@@ -132,10 +130,10 @@ export class Sync {
           // Re-setup console logging after pull completion
           this._setupConsoleLogging();
           
-          console.log(ansiColors.green("✅ Source data pull completed"));
+          // console.log(ansiColors.green("Source data pull completed"));
           
           // Reload source data after pull
-          console.log(ansiColors.cyan("📥 Reloading source data..."));
+          // console.log(ansiColors.cyan("📥 Reloading source data..."));
           sourceData = await sourceDataLoader.loadSourceEntities();
         } catch (pullError: any) {
           console.error(ansiColors.red(`❌ Failed to pull source data: ${pullError.message}`));
@@ -163,7 +161,7 @@ export class Sync {
       // **NEW: Task 105 - Selective Model-Based Sync Integration**
       if (state.models && state.models.trim().length > 0) {
         const modelNames = state.models.split(',').map(name => name.trim());
-        console.log(ansiColors.cyan(`🎯 Selective Model Sync: ${modelNames.join(', ')}`));
+        console.log(ansiColors.cyan(`Selective Model Sync: ${modelNames.join(', ')}`));
         
         // Import and use ModelDependencyTreeBuilder
         const { ModelDependencyTreeBuilder } = await import('../lib/models/model-dependency-tree-builder');
@@ -180,15 +178,7 @@ export class Sync {
         // Build dependency tree
         const dependencyTree = treeBuilder.buildDependencyTree(validation.valid);
         
-        // Show analysis
-        console.log(ansiColors.cyan('📊 Dependency Analysis:'));
-        console.log(ansiColors.gray(`  Models: ${dependencyTree.models.size}`));
-        console.log(ansiColors.gray(`  Containers: ${dependencyTree.containers.size}`));
-        console.log(ansiColors.gray(`  Content: ${dependencyTree.content.size}`));
-        console.log(ansiColors.gray(`  Templates: ${dependencyTree.templates.size}`));
-        console.log(ansiColors.gray(`  Pages: ${dependencyTree.pages.size}`));
-        console.log(ansiColors.gray(`  Assets: ${dependencyTree.assets.size}`));
-        console.log(ansiColors.gray(`  Galleries: ${dependencyTree.galleries.size}`));
+      
         
         // Filter source data to only include entities in dependency tree
         sourceData = this.filterSourceDataByDependencyTree(sourceData, dependencyTree);
@@ -200,7 +190,7 @@ export class Sync {
           return;
         }
         
-        console.log(ansiColors.green('✅ Source data filtered to model dependencies'));
+        // console.log(ansiColors.green('✅ Source data filtered to model dependencies'));
       }
 
       // Set up reference mapper - gets config from state internally
@@ -211,7 +201,6 @@ export class Sync {
 
       // Execute auto-publishing if --publish flag is set
       if (state.publish && (syncResults.publishableContentIds.length > 0 || syncResults.publishablePageIds.length > 0)) {
-        console.log(ansiColors.cyan(`\n🚀 Auto-publishing enabled - starting batch publishing...`));
         
         try {
           // Import and use PublishService
@@ -230,7 +219,8 @@ export class Sync {
           const totalPublishFailed = publishResults.contentItems.failed.length + publishResults.pages.failed.length;
 
           if (totalPublishFailed === 0) {
-            console.log(ansiColors.green(`✅ Auto-publishing completed successfully: ${totalPublished} items published`));
+            console.log('\n')
+            // console.log(ansiColors.green(`✅ Auto-publishing completed successfully: ${totalPublished} items published`));
           } else {
             console.log(ansiColors.yellow(`⚠️ Auto-publishing completed with ${totalPublishFailed} failures: ${totalPublished} items published`));
             console.log(ansiColors.gray(`💡 Publishing failures do not affect sync success - items are synced but not published`));
@@ -274,13 +264,17 @@ export class Sync {
           : 100;
 
       // Enhanced reporting using sync results
-      console.log(ansiColors.cyan(`\n📊 Sync Operation Summary:`));
+      const successColor = syncResults.totalSuccess > 0 ? ansiColors.green : ansiColors.gray;
+      const skippedColor = syncResults.totalSkipped > 0 ? ansiColors.yellow : ansiColors.gray;
+      const failedColor = syncResults.totalFailures > 0 ? ansiColors.red : ansiColors.gray;
+      const reconciliationColor = reconciliationPercentage === 100 ? ansiColors.bold.green : ansiColors.bold.red;
+
       console.log(
-        ansiColors.gray(`Total Source Entities: ${ansiColors.white(totalSourceEntities.toString())}, `) +
-          ansiColors.gray(`Success: ${ansiColors.green(syncResults.totalSuccess.toString())}, `) +
-          ansiColors.gray(`Skipped: ${ansiColors.white(syncResults.totalSkipped.toString())}, `) +
-          ansiColors.gray(`Failed: ${ansiColors.red(syncResults.totalFailures.toString())}, `) +
-          ansiColors.gray(`Reconciliation: ${ansiColors.bold.white(reconciliationPercentage.toString() + "%")}`)
+        ansiColors.gray(`Total Source Entities: ${ansiColors.white(totalSourceEntities.toString())}\n`) +
+          successColor(`${syncResults.totalSuccess} successful, `) +
+          skippedColor(`${syncResults.totalSkipped} skipped, `) +
+          failedColor(`${syncResults.totalFailures} failed, `) +
+          ansiColors.gray(`Reconciliation: ${reconciliationColor(reconciliationPercentage.toString() + "%")}`)
       );
 
       // Report sync status based on results
@@ -306,7 +300,7 @@ export class Sync {
 
       try {
         const finalizedLogPath = this.fileOps.finalizeLogFile("sync");
-        this.originalConsoleLog(`\n📄 Sync log file written to: ${finalizedLogPath}\n`);
+        this.originalConsoleLog(`\nSync log file written to: ${finalizedLogPath}\n`);
       } catch (logError) {
         this.originalConsoleError("Warning: Could not finalize sync log file:", logError);
       }
@@ -344,11 +338,9 @@ export class Sync {
     const smartContentPusher = async (sourceData: any, referenceMapper: ReferenceMapper) => {
       if (state.noBatch) {
         // Use individual pusher when --no-batch flag is enabled
-        console.log(ansiColors.gray(`[Content Processing] Using individual pusher (--no-batch enabled)`));
         return await pushContent(sourceData, referenceMapper);
       } else {
         // Use batch pusher for better performance (default behavior)
-        console.log(ansiColors.gray(`[Content Processing] Using batch pusher (default behavior)`));
         
         const contentItems = sourceData.content || [];
         
@@ -386,10 +378,10 @@ export class Sync {
           }
         }
         
-        console.log(ansiColors.gray(`[Content Processing] Separated ${normalContentItems.length} normal content items and ${linkedContentItems.length} linked content items`));
         
         let totalSuccessful = 0;
         let totalFailed = 0;
+        let totalSkipped = 0; // Add tracking for skipped items
         const allPublishableIds: number[] = [];
         
         try {
@@ -414,6 +406,7 @@ export class Sync {
             
             totalSuccessful += normalResult.successCount;
             totalFailed += normalResult.failureCount;
+            totalSkipped += normalResult.skippedCount; // Capture skipped count
             allPublishableIds.push(...normalResult.publishableIds);
           }
           
@@ -435,6 +428,7 @@ export class Sync {
             
             totalSuccessful += linkedResult.successCount;
             totalFailed += linkedResult.failureCount;
+            totalSkipped += linkedResult.skippedCount; // Capture skipped count
             allPublishableIds.push(...linkedResult.publishableIds);
           }
           
@@ -443,7 +437,7 @@ export class Sync {
             status: (totalFailed > 0 ? 'error' : 'success') as 'success' | 'error',
             successful: totalSuccessful,
             failed: totalFailed,
-            skipped: 0, // Batch processor doesn't track skipped items separately
+            skipped: totalSkipped, // Use actual skipped count from batch processors
             publishableIds: allPublishableIds
           };
         } catch (batchError: any) {
@@ -476,8 +470,7 @@ export class Sync {
           continue;
         }
 
-        console.log(ansiColors.cyan(`\n📄 Pushing ${config.name}...`));
-
+        
         // Pass FULL sourceData to pusher so it can access whatever it needs (models, assets, etc.)
         const pusherResult: PusherResult = await config.pusher(sourceData, referenceMapper);
 
@@ -504,7 +497,7 @@ export class Sync {
           ansiColors.gray(`\n${config.name}: `) +
           successfulColor(`${pusherResult.successful} successful, `) +
           skippedColor(`${pusherResult.skipped} skipped, `) +
-          failedColor(`${pusherResult.failed} failed`)
+          failedColor(`${pusherResult.failed} failed\n`)
         );
 
         // Save mappings after each pusher
@@ -532,7 +525,6 @@ export class Sync {
     sourceData: SourceData, 
     dependencyTree: ModelDependencyTree
   ): SourceData {
-    console.log(ansiColors.cyan('🔍 Filtering source data by dependency tree...'));
     
     return {
       models: sourceData.models.filter(m => dependencyTree.models.has(m.referenceName)),

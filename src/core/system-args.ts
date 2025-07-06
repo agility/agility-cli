@@ -101,6 +101,7 @@ export const systemArgs = {
   models: {
     describe: "Comma-separated list of model reference names to sync. Automatically includes all dependent content, pages, assets, and galleries.",
     demandOption: false,
+    alias: ["models", "Models", "MODELS", "model", "Model", "MODEL"],
     type: "string" as const,
     default: "",
   },
@@ -116,13 +117,13 @@ export const systemArgs = {
   // Instance identification args
   sourceGuid: {
     describe: "Provide the source instance GUID. If not provided, will use AGILITY_GUID from .env file if available.",
-    alias: ["source-guid", "sourceguid", "source"],
+    alias: ["source-guid", "sourceguid", "source", "SourceGuid", "SourceGUID","SOURCE", "SOURCEGUID"],
     demandOption: false,
     type: "string" as const,
   },
   targetGuid: {
     describe: "Provide the target instance GUID for sync operations.",
-    alias: ["target-guid", "targetguid", "target"],
+    alias: ["target-guid", "targetguid", "target", "TargetGuid", "TargetGUID","TARGET", "TARGETGUID"],
     demandOption: false,
     type: "string" as const,
   },
@@ -131,11 +132,13 @@ export const systemArgs = {
   overwrite: {
     describe: "For sync commands only: force update existing items in target instance instead of creating new items with -1 IDs. Default: false (safer behavior to prevent overwriting existing content).",
     type: "boolean" as const,
+    alias: ["overwrite", "Overwrite", "OVERWRITE"],
     default: false
   },
   update: {
     describe: "Controls file downloading behavior. --update=false (default): Skip existing files during download (normal efficient behavior). --update=true: Force download/overwrite existing files and clear sync tokens for complete refresh.",
     type: "boolean" as const,
+    alias: ["reset", "Reset", "RESET","forceUpdate", "ForceUpdate", "FORCEUPDATE"],
     default: false
   },
   reset: {
@@ -148,6 +151,7 @@ export const systemArgs = {
   publish: {
     describe: "For sync commands only: automatically publish synced content items and pages after successful sync operation. Enables batch publishing for streamlined deployment workflow. Default: false.",
     type: "boolean" as const,
+    alias: ["publish", "Publish", "PUBLISH"],
     default: false
   },
 

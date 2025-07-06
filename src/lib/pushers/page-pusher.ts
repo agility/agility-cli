@@ -68,9 +68,14 @@ async function processPage(
             // Find the template mapping
             let templateRef = referenceMapper.getMappingByKey<mgmtApi.PageModel>('template', 'pageTemplateName', page.templateName);
             if (!templateRef?.target) {
-                console.error(ansiColors.red(`✗ Page ${page.name} failed Template ${page.templateName} missing in source data`));
-                // console.error(`Available template mappings:`, referenceMapper.getRecordsByType('template').map(r => `${r.source.pageTemplateName} -> ${r.target?.pageTemplateName || 'null'}`));
-                return 'failure';
+                const allTemplateRecords = referenceMapper.getRecordsByType('template');
+                const availableTemplates = allTemplateRecords.map(r => r.source.pageTemplateName || 'unnamed').join(', ') || 'none';
+                console.error(ansiColors.yellow(`✗ Page ${page.name} template ${ansiColors.underline(page.templateName)} missing in source data, skipping`));
+                const templateMappings = allTemplateRecords.map(r => `${r.source.pageTemplateName} -> ${r.target?.pageTemplateName || 'null'}`);
+                if (templateMappings.length > 0) {
+                    console.error(`📋 Current template mappings: ${templateMappings.join(', ')}`);
+                }
+                return 'skip';
             }
             targetTemplate = templateRef.target;
         }
@@ -94,7 +99,13 @@ async function processPage(
             // Add to reference mapper for future lookups
             referenceMapper.addRecord('page', page, existingPage);
             
-            console.log(`✓ ${page.pageType === 'folder' ? 'Folder' : page.pageType === 'link' ? 'Link' : 'Page'} ${ansiColors.underline(page.name)} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: ID:${existingPage.pageID} (Template:${page.templateName || 'None'})`);
+            const pageTypeDisplay = {
+                'static': 'Page',
+                'link': 'Link', 
+                'folder': 'Folder'
+            }[page.pageType] || page.pageType;
+            
+            console.log(`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: ID:${existingPage.pageID} (Template:${page.templateName || 'None'})`);
             return 'skip'; // Skip processing - page already exists
         } else if (existingPage && overwrite) {
             // Force update mode: use existing page ID for update
@@ -293,27 +304,18 @@ async function processPage(
         // CRITICAL FIX: Use parentID as the correct field name (SDK documentation confirms this)
         const sourceParentId = payload.parentPageID;
         if (sourceParentId && sourceParentId > 0) {
-            console.log(`🔍 [Page: ${page.name}] Looking for parent mapping: source parentPageID=${sourceParentId}`);
             
             const parentPageRef = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourceParentId);
             if (parentPageRef?.target && parentPageRef.target.pageID > 0) {
                 parentIDArg = parentPageRef.target.pageID;
                 // CRITICAL FIX: Set parentID in payload (not parentPageID)
                 payload.parentPageID = parentPageRef.target.pageID;
-                console.log(`✅ [Page: ${page.name}] Parent mapping found: source=${sourceParentId} → target=${parentPageRef.target.pageID} (${parentPageRef.target.name})`);
-            } else {
+             } else {
                 parentIDArg = -1;
                 payload.parentPageID = -1; // No parent
-                console.warn(`⚠️ [Page: ${page.name}] Parent mapping NOT found for parentPageID=${sourceParentId}`);
-                
-                // Debug: Show available page mappings
-                const allPageMappings = referenceMapper.getRecordsByType('page');
-                console.log(`🔍 Available page mappings (${allPageMappings.length}):`, 
-                    allPageMappings.map(m => `${m.source.pageID}:${m.source.name} → ${m.target?.pageID}:${m.target?.name}`).join(', '));
             }
         } else {
             payload.parentPageID = -1; // Ensure no parent
-            console.log(`🔍 [Page: ${page.name}] No parent page (sourceParentId=${sourceParentId})`);
         }
         
         // CRITICAL: Remove both parentPageID and parentID fields to avoid API confusion
@@ -393,14 +395,20 @@ async function processPage(
                 } as mgmtApi.PageItem;
                 referenceMapper.addRecord('page', page, createdPageData); // Use original page for source key
                 
+                const pageTypeDisplay = {
+                    'static': 'Page',
+                    'link': 'Link', 
+                    'folder': 'Folder'
+                }[page.pageType] || page.pageType;
+                
                 if (existingPage) {
                     if (overwrite) {
-                        console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan('updated (forced)')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
+                        console.log(`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan('updated (forced)')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
                     } else {
-                        console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan('updated')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
+                        console.log(`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan('updated')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
                     }
                 } else {
-                    console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.green('created')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
+                    console.log(`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.green('created')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
                 }
                 return 'success'; // Success
             } else {
@@ -436,6 +444,8 @@ export async function pushPages(
         console.log('No pages found to process.');
         return { status: 'success', successful: 0, failed: 0, skipped: 0 };
     }
+
+    // Pages are processed as-is since Agility API prevents true duplicates at same hierarchy level
 
     // Page hierarchy enrichment with dynamic page support and sibling ordering
     let pageOrderingData: any = null;
@@ -530,7 +540,7 @@ export async function pushPages(
 
     let successful = 0;
     let failed = 0;
-    let skipped = 0;
+    let skipped = 0; // No duplicates to skip since API prevents true duplicates at same hierarchy level
     let status: 'success' | 'error' = 'success';
     const publishableIds: number[] = []; // Track target page IDs for auto-publishing
 

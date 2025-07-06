@@ -70,7 +70,7 @@ export async function pollBatchUntilComplete(
                 
                 // Include batch type in logging if provided
                 const batchTypeStr = batchType ? `${batchType} batch` : 'Batch';
-                console.error(ansiColors.yellow(`${batchTypeStr} ${batchID} in progress ${dots} (${attempts + 1}/${maxAttempts})`));
+                console.error(ansiColors.yellow.dim(`${batchTypeStr} ${batchID} in progress ${dots}`));
                 if (batchStatus.errorData) {
                     console.error(`Error: ${batchStatus.errorData}`);
                 }

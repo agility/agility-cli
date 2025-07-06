@@ -551,11 +551,24 @@ export class fileOperations{
 
   public finalizeLogFile(operationType: 'pull' | 'push' | 'sync'): string {
     const now = new Date();
+    
+    // Create semantic filename like "2025-may-12-at-10-15-32-am.txt"
+    const months = [
+      'january', 'february', 'march', 'april', 'may', 'june',
+      'july', 'august', 'september', 'october', 'november', 'december'
+    ];
+    
+    const year = now.getFullYear();
+    const month = months[now.getMonth()];
+    const day = now.getDate();
+    const hour = now.getHours();
+    const minute = now.getMinutes();
+    const second = now.getSeconds();
+    const ampm = hour >= 12 ? 'pm' : 'am';
+    const hour12 = hour % 12 || 12;
+    
     const pad = (num: number) => String(num).padStart(2, '0');
-
-    const dateStr = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}`;
-    const timeStr = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
-    const timestamp = `${dateStr}-${timeStr}`;
+    const semanticTimestamp = `${year}-${month}-${pad(day)}-at-${pad(hour12)}-${pad(minute)}-${pad(second)}-${ampm}`;
 
     if (!fs.existsSync(this._currentLogFilePath)) {
       // If the initial log file doesn't exist, there's nothing to rename.
@@ -563,11 +576,11 @@ export class fileOperations{
       // We can either create an empty one to signify the operation or just return an expected path.
       // For now, let's log a message and return the expected path if it were created.
       console.warn(`Log file ${this._currentLogFilePath} not found. Cannot finalize.`);
-      const newLogFileName = `${operationType}-${timestamp}.txt`;
+      const newLogFileName = `${operationType}-${semanticTimestamp}.txt`;
       return path.join(this._instanceLogDir, newLogFileName);
     }
 
-    const newLogFileName = `${operationType}-${timestamp}.txt`;
+    const newLogFileName = `${operationType}-${semanticTimestamp}.txt`;
     const newLogFilePath = path.join(this._instanceLogDir, newLogFileName);
 
     try {

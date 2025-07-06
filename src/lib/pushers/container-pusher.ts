@@ -1,11 +1,18 @@
 import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapper } from "../shared/reference-mapper";
 import { findContainerInTargetInstance, findModelInTargetInstance } from "../finders";
+import { ContentHashComparer } from "../shared/content-hash-comparer";
 import ansiColors from "ansi-colors";
 import { ApiClient } from '@agility/management-sdk';
 import { state } from '../../core/state';
 
-
+/**
+ * Container pusher with --overwrite flag compliance and content comparison
+ * 
+ * Behavior:
+ * - overwrite=false: Skip existing containers (performance optimized)
+ * - overwrite=true: Compare content hashes and update if different
+ */
 export async function pushContainers(
     sourceData: any,
     referenceMapper: ReferenceMapper,
@@ -21,7 +28,7 @@ export async function pushContainers(
     }
 
     // Get state values instead of prop drilling
-    const { targetGuid } = state;
+    const { targetGuid, overwrite } = state;
     const { getApiClient } = await import('../../core/state');
     const apiClient = getApiClient();
 
@@ -31,62 +38,53 @@ export async function pushContainers(
     let processedCount = 0;
     let overallStatus: 'success' | 'error' = 'success';
 
-    for (const container of sourceContainers) {
-        const sourceRefName = container.referenceName;
+   
+    for (const sourceContainer of sourceContainers) {
+        const sourceRefName = sourceContainer.referenceName;
         let targetContainer: mgmtApi.Container | null = null;
+        
         try {
-            // SIMPLIFICATION: Remove redundant mapping check - findContainerInTargetInstance handles this
-            // The finder function already checks mapping cache first, then API if not found
-            targetContainer = await findContainerInTargetInstance(container, apiClient, targetGuid, referenceMapper);
+            // Find container in target instance (checks mapping cache first, then API)
+            targetContainer = await findContainerInTargetInstance(sourceContainer, apiClient, targetGuid, referenceMapper);
 
             if (targetContainer) {
-                // Container exists with correct model mapping - this is a skip, not success
-                console.log(`✓ Container ${ansiColors.underline(sourceRefName)} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: ID:${targetContainer.contentViewID} (Model:${targetContainer.contentDefinitionID})`);
-                referenceMapper.addMapping('container', container, targetContainer);
-                skipped++; // Existing containers are skipped, not successful
+                // Container exists - determine action based on overwrite flag
+                if (!overwrite) {
+                    // overwrite=false: Skip existing containers (current behavior)
+                    console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.bold.grey('exists, skipping')} - ${ansiColors.green(targetGuid)}: ID:${targetContainer.contentViewID}`);
+                    referenceMapper.addMapping('container', sourceContainer, targetContainer);
+                    skipped++;
+                } else {
+                    // overwrite=true: Compare content and update if different
+                    const shouldUpdate = await compareContainerContent(sourceContainer, targetContainer, sourceData);
+                    
+                    if (shouldUpdate.needsUpdate) {
+                        // Content differs - update the container
+                        // console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.yellow('checking for updates...')} - ${shouldUpdate.reason}`);
+                        
+                        const updatedContainer = await updateExistingContainer(sourceContainer, targetContainer, sourceData, apiClient, targetGuid, referenceMapper);
+                        
+                        console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.green('updated')} - ${ansiColors.green(targetGuid)}: ID:${updatedContainer.contentViewID}`);
+                        referenceMapper.addMapping('container', sourceContainer, updatedContainer);
+                        successful++;
+                    } else {
+                        // Content identical - skip update
+                        console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.bold.grey('unchanged, skipping')} - ${ansiColors.green(targetGuid)}: ID:${targetContainer.contentViewID} (${shouldUpdate.sourceHash})`);
+                        referenceMapper.addMapping('container', sourceContainer, targetContainer);
+                        skipped++;
+                    }
+                }
             } else {
-                console.log(ansiColors.yellow(`✗ Container ${container.referenceName} not found in target instance`));
-                // Container doesn't exist or was cleared due to bad mapping - create new one
-                // Prepare payload (needs model mapping first!)
+                // Container doesn't exist - create new one
+                const newContainer = await createNewContainer(sourceContainer, sourceData, apiClient, targetGuid, referenceMapper);
                 
-                // First find the source model from sourceData by ID
-                const sourceModel = sourceData.models?.find((m: any) => m.id === container.contentDefinitionID);
-                if (!sourceModel) {
-                    throw new Error(`Cannot create container ${sourceRefName} because its source model (ID: ${container.contentDefinitionID}) was not found in source data.`);
-                }
-                
-                // Now find the corresponding model in the target instance
-                const model = await findModelInTargetInstance(sourceModel, apiClient, targetGuid, referenceMapper);
-              
-                // const modelMapping = referenceMapper.getMapping('model', container.contentDefinitionID);
-                if (!model) {
-                    throw new Error (`Cannot create container ${sourceRefName} because its model (ID: ${container.contentDefinitionID}) has not been mapped yet.`);
-                }
-
-                const targetModelId = model.id;
-                // console.log(`🔧 Creating container ${sourceRefName} with model mapping: ${container.contentDefinitionID} → ${targetModelId}`);
-
-                const payload = { ...container };
-
-                // Reset the ids with the correct model so we can create a new container
-                payload.contentDefinitionID = targetModelId;
-                payload.contentViewID = -1; // Create as new
-
-                // TODO: create the container group in the API here so we don't have to set the contentViewCategoryID to -1
-                payload.contentViewCategoryID = -1; // Don't bother with categories for now
-
-                // 🚨 CRITICAL FIX: Add forceReferenceName parameter to preserve reference names
-                const newContainer = await apiClient.containerMethods.saveContainer(payload, targetGuid, true);
-                
-                console.log(`✓ Container created: ${sourceRefName} - ${ansiColors.green('Source')}: ${container.contentViewID} ${ansiColors.green(targetGuid)}: ${newContainer.contentViewID} (Model:${newContainer.contentDefinitionID})`);
-                referenceMapper.addMapping('container', container, newContainer);
+                console.log(`✓ Container created: ${ansiColors.cyan.underline(sourceRefName)} - ${ansiColors.green('Source')}: ${sourceContainer.contentViewID} ${ansiColors.green(targetGuid)}: ${newContainer.contentViewID} (Model:${newContainer.contentDefinitionID})`);
+                referenceMapper.addMapping('container', sourceContainer, newContainer);
                 successful++;
             }
 
         } catch (error: any) {
-            console.error(`✗ Error processing container ${sourceRefName}`);
-            console.log(await error);
-            console.log(targetContainer);
+            console.error(`✗ Error processing container ${sourceRefName}:`, error.message);
             failed++;
             overallStatus = 'error';
         }
@@ -97,6 +95,137 @@ export async function pushContainers(
         }
     }
 
-    console.log(ansiColors.yellow(`Processed ${successful}/${sourceContainers.length} containers (${failed} failed, ${skipped} skipped)`));
     return { status: overallStatus, successful, failed, skipped };
+}
+
+/**
+ * Compare container content to determine if update is needed
+ */
+async function compareContainerContent(
+    sourceContainer: any, 
+    targetContainer: any,
+    sourceData: any
+): Promise<{
+    needsUpdate: boolean;
+    reason: string;
+    sourceHash: string;
+    targetHash: string;
+}> {
+    try {
+        // Create normalized container objects for comparison (exclude instance-specific fields)
+        const sourceNormalized = normalizeContainerForComparison(sourceContainer, sourceData);
+        const targetNormalized = normalizeContainerForComparison(targetContainer, sourceData);
+        
+        // Calculate content hashes
+        const sourceHash = ContentHashComparer.calculateHash(sourceNormalized);
+        const targetHash = ContentHashComparer.calculateHash(targetNormalized);
+        
+        const needsUpdate = sourceHash !== targetHash;
+        const reason = needsUpdate ? 'content differs' : 'content identical';
+        
+        return {
+            needsUpdate,
+            reason,
+            sourceHash: sourceHash.substring(0, 6),
+            targetHash: targetHash.substring(0, 6)
+        };
+    } catch (error: any) {
+        // If comparison fails, err on the side of updating
+        return {
+            needsUpdate: true,
+            reason: `comparison error: ${error.message}`,
+            sourceHash: 'error',
+            targetHash: 'error'
+        };
+    }
+}
+
+/**
+ * Normalize container for content comparison
+ * Removes instance-specific fields that shouldn't affect comparison
+ */
+function normalizeContainerForComparison(container: any, sourceData: any): any {
+    const normalized = { ...container };
+    
+    // Remove instance-specific fields that vary between source/target
+    delete normalized.contentViewID; // Target will have different ID
+    delete normalized.contentViewCategoryID; // May differ between instances
+    delete normalized.websiteID; // Instance-specific
+    delete normalized.id; // Alias for contentViewID
+    
+    // Keep fields that matter for content comparison:
+    // - referenceName (business identifier)
+    // - displayName 
+    // - description
+    // - contentDefinitionID (will be mapped to target model)
+    // - settings/configuration
+    
+    return normalized;
+}
+
+/**
+ * Update existing container with source content
+ */
+async function updateExistingContainer(
+    sourceContainer: any,
+    targetContainer: any,
+    sourceData: any,
+    apiClient: ApiClient,
+    targetGuid: string,
+    referenceMapper: ReferenceMapper
+): Promise<mgmtApi.Container> {
+    
+    // Find the source model and map it to target
+    const sourceModel = sourceData.models?.find((m: any) => m.id === sourceContainer.contentDefinitionID);
+    if (!sourceModel) {
+        throw new Error(`Cannot update container ${sourceContainer.referenceName} because its source model (ID: ${sourceContainer.contentDefinitionID}) was not found in source data.`);
+    }
+    
+    const targetModel = await findModelInTargetInstance(sourceModel, apiClient, targetGuid, referenceMapper);
+    if (!targetModel) {
+        throw new Error(`Cannot update container ${sourceContainer.referenceName} because its model (ID: ${sourceContainer.contentDefinitionID}) has not been mapped yet.`);
+    }
+
+    // Prepare update payload (preserve target container ID and instance-specific fields)
+    const payload = { ...sourceContainer };
+    payload.contentViewID = targetContainer.contentViewID; // Keep existing ID for update
+    payload.contentDefinitionID = targetModel.id; // Use mapped model ID
+    payload.contentViewCategoryID = targetContainer.contentViewCategoryID || -1; // Preserve category or default
+    
+    // Perform update with forceReferenceName to preserve reference names
+    const updatedContainer = await apiClient.containerMethods.saveContainer(payload, targetGuid, true);
+    return updatedContainer;
+}
+
+/**
+ * Create new container from source
+ */
+async function createNewContainer(
+    sourceContainer: any,
+    sourceData: any,
+    apiClient: ApiClient,
+    targetGuid: string,
+    referenceMapper: ReferenceMapper
+): Promise<mgmtApi.Container> {
+    
+    // Find the source model and map it to target
+    const sourceModel = sourceData.models?.find((m: any) => m.id === sourceContainer.contentDefinitionID);
+    if (!sourceModel) {
+        throw new Error(`Cannot create container ${sourceContainer.referenceName} because its source model (ID: ${sourceContainer.contentDefinitionID}) was not found in source data.`);
+    }
+    
+    const targetModel = await findModelInTargetInstance(sourceModel, apiClient, targetGuid, referenceMapper);
+    if (!targetModel) {
+        throw new Error(`Cannot create container ${sourceContainer.referenceName} because its model (ID: ${sourceContainer.contentDefinitionID}) has not been mapped yet.`);
+    }
+
+    // Prepare create payload
+    const payload = { ...sourceContainer };
+    payload.contentDefinitionID = targetModel.id; // Use mapped model ID
+    payload.contentViewID = -1; // Create as new
+    payload.contentViewCategoryID = -1; // Don't bother with categories for now
+
+    // Create new container with forceReferenceName to preserve reference names
+    const newContainer = await apiClient.containerMethods.saveContainer(payload, targetGuid, true);
+    return newContainer;
 }

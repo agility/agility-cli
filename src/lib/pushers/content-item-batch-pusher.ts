@@ -2,6 +2,7 @@ import * as mgmtApi from '@agility/management-sdk';
 import { ReferenceMapper } from "../shared/reference-mapper";
 import { pollBatchUntilComplete, extractBatchResults } from '../shared/batch-polling';
 import ansiColors from 'ansi-colors';
+import { findContainerInTargetInstance } from '../../lib/finders';
 
 /**
  * Configuration for content batch processing
@@ -24,6 +25,7 @@ export interface ContentBatchConfig {
 export interface BatchProcessingResult {
     successCount: number;
     failureCount: number;
+    skippedCount: number; // Number of items skipped due to existing content
     successfulItems: BatchSuccessItem[];
     failedItems: BatchFailedItem[];
     publishableIds: number[]; // Target content IDs for auto-publishing
@@ -78,10 +80,16 @@ export class ContentBatchProcessor {
         onProgress?: BatchProgressCallback,
         batchType?: string
     ): Promise<BatchProcessingResult> {
-        const batchSize = this.config.batchSize!;
-        const contentBatches = this.createContentBatches(contentItems, batchSize);
+        // Pre-filter content items to skip those that already exist (unless overwrite is enabled)
+        const { filteredItems, skippedItems } = await this.filterExistingContentItems(contentItems);
         
-        console.log(`Processing ${contentItems.length} content items in ${contentBatches.length} bulk batches (${batchSize} items each)`);
+        const batchSize = this.config.batchSize!;
+        const contentBatches = this.createContentBatches(filteredItems, batchSize);
+        
+        // console.log(`Processing ${filteredItems.length} content items in ${contentBatches.length} bulk batches (${batchSize} items each)`);
+        if (skippedItems.length > 0) {
+            // console.log(`Skipped ${skippedItems.length} existing content items (use --overwrite to update)`);
+        }
         
         let totalSuccessCount = 0;
         let totalFailureCount = 0;
@@ -142,6 +150,7 @@ export class ContentBatchProcessor {
                 const batchResult = {
                     successCount: successfulItems.length,
                     failureCount: failedItems.length,
+                    skippedCount: 0, // Individual batches don't track skipped items (handled at processBatches level)
                     successfulItems: successfulItems.map(item => ({
                         originalContent: item.originalItem,
                         newContentId: item.newId
@@ -163,12 +172,12 @@ export class ContentBatchProcessor {
                     this.updateContentIdMappings(batchResult.successfulItems);
                 }
                 
+                console.log('\n')
                 // Display individual item results for better visibility
                 if (batchResult.successfulItems.length > 0) {
-                    console.log(`✅ Batch ${batchNumber} successful items:`);
                     batchResult.successfulItems.forEach(item => {
                         const modelName = item.originalContent.properties.definitionName || 'Unknown';
-                        console.log(`  ✓ Content ${ansiColors.cyan.underline(item.originalContent.properties.referenceName)} (${modelName}) - Source: ${item.originalContent.contentID} Target: ${item.newContentId}`);
+                        console.log(`✓ Content ${ansiColors.cyan.underline(item.originalContent.properties.referenceName)} (${modelName}) ${ansiColors.bold.green("created")}`);
                     });
                 }
                 
@@ -190,7 +199,6 @@ export class ContentBatchProcessor {
                     }
                 }
 
-                console.log(`✅ Batch ${batchNumber} completed successfully`);
                 
                 if (onProgress) {
                     onProgress(batchNumber, contentBatches.length, processedSoFar + contentBatch.length, contentItems.length, 'success');
@@ -225,10 +233,65 @@ export class ContentBatchProcessor {
         return {
             successCount: totalSuccessCount,
             failureCount: totalFailureCount,
+            skippedCount: skippedItems.length,
             successfulItems: allSuccessfulItems,
             failedItems: allFailedItems,
             publishableIds: allSuccessfulItems.map(item => item.newContentId)
         };
+    }
+
+    /**
+     * Filter out content items that already exist in the target instance
+     */
+    private async filterExistingContentItems(contentItems: mgmtApi.ContentItem[]): Promise<{
+        filteredItems: mgmtApi.ContentItem[];
+        skippedItems: mgmtApi.ContentItem[];
+    }> {
+        const { findContentInTargetInstance } = await import('../finders');
+        const { state } = await import('../../core/state');
+        
+        const filteredItems: mgmtApi.ContentItem[] = [];
+        const skippedItems: mgmtApi.ContentItem[] = [];
+        
+        // If overwrite is enabled, don't filter - process all items
+        if (state.overwrite) {
+            return { filteredItems: contentItems, skippedItems: [] };
+        }
+        
+        for (const contentItem of contentItems) {
+            const itemName = contentItem.properties.referenceName || 'Unknown';
+            
+            try {
+                // Check if content item already exists in target
+                const existingContentItem = await findContentInTargetInstance(
+                    contentItem, 
+                    this.config.apiClient, 
+                    this.config.targetGuid, 
+                    this.config.locale, 
+                    this.config.referenceMapper
+                );
+                
+                if (existingContentItem) {
+                    // Content exists - skip it
+                    console.log(`✓ Content ${ansiColors.cyan.underline(itemName)} ${ansiColors.bold.grey('exists, skipping')} - ${ansiColors.green(this.config.targetGuid)}: ID:${existingContentItem.contentID}`);
+                    
+                    // Add mapping for existing content
+                    this.config.referenceMapper.addMapping('content', contentItem, existingContentItem);
+                    
+                    skippedItems.push(contentItem);
+                } else {
+                    // Content doesn't exist - include it for processing
+                    filteredItems.push(contentItem);
+                }
+                
+            } catch (error: any) {
+                // If we can't check, err on the side of processing it
+                console.warn(`⚠️ Could not check if content ${itemName} exists: ${error.message} - will process`);
+                filteredItems.push(contentItem);
+            }
+        }
+        
+        return { filteredItems, skippedItems };
     }
 
     /**
@@ -293,18 +356,20 @@ export class ContentBatchProcessor {
                 }
                 
                 // STEP 3: Find container using reference mapper first, then API lookup (matching original logic)
-                let container;
-                const containerMapping = this.config.referenceMapper.getMapping<any>('container', 'referenceName', contentItem.properties.referenceName);
-                if (containerMapping?.target) {
-                    container = containerMapping.target;
-                } else {
-                    // Fallback to API lookup if not in mapper
-                    try {
-                        container = await this.config.apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, this.config.targetGuid);
-                    } catch (error: any) {
-                        console.log(`[Batch] ✗ Container lookup failed: ${contentItem.properties.referenceName} - ${error.message}`);
-                    }
-                }
+                const container = await findContainerInTargetInstance(contentItem.properties.referenceName, this.config.apiClient, this.config.targetGuid, this.config.referenceMapper);
+
+
+                // const containerMapping = this.config.referenceMapper.getMapping<any>('container', 'referenceName', contentItem.properties.referenceName);
+                // if (containerMapping?.target) {
+                //     container = containerMapping.target;
+                // } else {
+                //     // Fallback to API lookup if not in mapper
+                //     try {
+                //         container = await this.config.apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, this.config.targetGuid);
+                //     } catch (error: any) {
+                //         console.log(`[Batch] ✗ Container lookup failed: ${contentItem.properties.referenceName} - ${error.message}`);
+                //     }
+                // }
                 
                 if (!container) {
                     throw new Error(`Container not found: ${contentItem.properties.referenceName}`);
@@ -347,12 +412,6 @@ export class ContentBatchProcessor {
                     });
                 }
                 
-                // No field processing needed - use source data as-is
-
-                const mappedContentItem = {
-                    ...contentItem,
-                    fields: validatedFields
-                };
 
                 // STEP 7: Define default SEO and Scripts (matching original logic)
                 const defaultSeo = { metaDescription: null, metaKeywords: null, metaHTML: null, menuVisible: null, sitemapVisible: null };
@@ -375,7 +434,10 @@ export class ContentBatchProcessor {
                 payloads.push(payload);
                 
             } catch (error: any) {
-                console.error(`[Batch] ✗ Error preparing payload for ${contentItem.properties.referenceName}: ${error.message}`);
+
+                console.error(ansiColors.yellow(`✗ Error preparing payload for content item ${contentItem.properties.referenceName}, skipping - container missing in source data.`));
+                
+                // console.error(`✗ Error preparing payload for ${contentItem.properties.referenceName}: ${error.message}`);
                 // Skip this item - will be handled as a failed item in the response
                 continue;
             }

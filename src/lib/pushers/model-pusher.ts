@@ -41,7 +41,7 @@ export async function pushModels(
     model: mgmtApi.Model,
     fields: any[] | undefined,
     passName: string
-  ): Promise<boolean> => {
+  ): Promise<'created' | 'updated' | 'skipped' | 'failed'> => {
     const modelName = model.referenceName;
     const id = model.id;
     const isStubPass = Array.isArray(fields) && fields.length === 0;
@@ -53,9 +53,9 @@ export async function pushModels(
       if (existingModel) {
         // Model exists - check if we need to update it
         if (isStubPass) {
-          console.log(`✓ ${passName} ${ansiColors.underline(modelName)} ID: ${id} ${ansiColors.bold.gray("already exists")} - Skipping stub creation.`);
+          console.log(`✓ Model ${ansiColors.cyan.underline(modelName)}, ${ansiColors.bold.gray("exists")}`);
           processedModels.add(model.id);
-          return true;
+          return 'skipped';
         }
 
         // Compare models for differences
@@ -63,9 +63,9 @@ export async function pushModels(
         const targetModel = { ...existingModel, fields: existingModel.fields || [] };
 
         if (!overwrite && !areModelsDifferent(sourceModel, targetModel, test, referenceMapper)) {
-          console.log(`✓ ${passName} ${ansiColors.underline(modelName)} ${ansiColors.bold.gray("is identical")} - No update needed.`);
+          console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${ansiColors.bold.gray("is identical, skipping")}`);
           processedModels.add(model.id);
-          return true;
+          return 'skipped';
         }
 
         // Update existing model
@@ -98,9 +98,9 @@ export async function pushModels(
         const updatedModel = await apiClient.modelMethods.saveModel(updatePayload, targetGuid);
         referenceMapper.addMapping("model", model, updatedModel);
 
-        console.log(`✓ ${passName} ${ansiColors.bold.cyan("updated")} ${ansiColors.underline(modelName)} (ID: ${existingModel.id})`);
+        console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${passName} ${ansiColors.bold.green("updated")}`);
         processedModels.add(model.id);
-        return true;
+        return 'updated';
 
       } else {
         // Model doesn't exist - create it
@@ -127,7 +127,7 @@ export async function pushModels(
         referenceMapper.addMapping("model", model, createdModel);
         console.log(`✓ ${passName} ${ansiColors.bold.cyan("created")} ${ansiColors.underline(modelName)} (ID: ${createdModel.id})`);
         processedModels.add(model.id);
-        return true;
+        return 'created';
       }
 
     } catch (error: any) {
@@ -144,7 +144,7 @@ export async function pushModels(
           if (retrievedModel) {
             console.log(`✓ ${passName} ${ansiColors.underline(modelName)} ${ansiColors.bold.gray("found after error")} - Continuing.`);
             processedModels.add(model.id);
-            return true;
+            return 'skipped';
           }
         } catch (retrieveError) {
           // Fall through to error handling
@@ -183,36 +183,53 @@ export async function pushModels(
       // Additional context for debugging
       // console.error(ansiColors.gray(`   💡 Focus on the API Error Response above to understand why the model save failed`));
       
-      return false;
+      return 'failed';
     }
   };
 
-  console.log(ansiColors.yellow(`Starting 2-pass model synchronization for ${totalModels} models...`));
+  // console.log(ansiColors.yellow(`Starting 2-pass model synchronization for ${totalModels} models...`));
+
+  console.log('\n')
+  // Track which models were successful (created OR updated) vs skipped
+  const successfulModels = new Set<number>();
+  const skippedModels = new Set<number>();
 
   // Pass 1: Create model stubs (empty fields)
-  console.log(ansiColors.blue("\n=== Pass 1: Creating model stubs ==="));
   for (const model of models) {
-    const success = await processModel(model, [], "Pass 1");
-    if (success) successful++;
-    else failed++;
+    const result = await processModel(model, [], "Models first pass");
+    if (result === 'created' || result === 'updated') {
+      successfulModels.add(model.id);
+    } else if (result === 'skipped') {
+      skippedModels.add(model.id);
+    } else {
+      failed++;
+    }
     
-    if (onProgress) onProgress(successful + failed, totalModels, failed > 0 ? "error" : "success");
+    if (onProgress) onProgress(successfulModels.size + skippedModels.size + failed, totalModels, failed > 0 ? "error" : "success");
   }
 
   // Pass 2: Update with full fields
-  console.log(ansiColors.blue("\n=== Pass 2: Updating with full fields ==="));
   for (const model of models) {
-    const success = await processModel(model, undefined, "Pass 2");
-    if (!success) failed++;
+    const result = await processModel(model, undefined, "Models second pass,");
+    if (result === 'created' || result === 'updated') {
+      successfulModels.add(model.id);
+      // Remove from skipped if it was processed successfully in pass 2
+      skippedModels.delete(model.id);
+    } else if (result === 'skipped' && !successfulModels.has(model.id)) {
+      // Only count as skipped if it was also skipped in pass 1
+      skippedModels.add(model.id);
+    } else if (result === 'failed') {
+      failed++;
+    }
     
-    if (onProgress) onProgress(successful + failed, totalModels, failed > 0 ? "error" : "success");
+    if (onProgress) onProgress(successfulModels.size + skippedModels.size + failed, totalModels, failed > 0 ? "error" : "success");
   }
 
-  // Final results
-  successful = processedModels.size;
+  // Final results - count both created and updated as successful
+  successful = successfulModels.size;
+  skipped = skippedModels.size;
   const status: "success" | "error" = failed > 0 ? "error" : "success";
 
-  console.log(ansiColors.yellow(`\n✓ Model synchronization complete: ${successful}/${totalModels} models processed successfully`));
   if (failed > 0) {
     console.log(ansiColors.red(`✗ ${failed} operations failed`));
   }

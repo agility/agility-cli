@@ -605,7 +605,7 @@ export class Pull {
         console.log(ansiColors.green(summaryMessage));
         
         const finalizedLogPath = this.fileOps.finalizeLogFile('pull');
-        console.log(`Log file written to: ${finalizedLogPath}`);
+        process.stdout.write(`Log file written to: ${finalizedLogPath}\n`);
     }
 
     } catch (error: any) {
