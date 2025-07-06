@@ -760,7 +760,7 @@ async function processLinkedContentIndividually(
 /**
  * Check if all content dependencies are resolved for a content item
  */
-function areContentDependenciesResolved(
+export function areContentDependenciesResolved(
     contentItem: mgmtApi.ContentItem,
     referenceMapper: ReferenceMapper,
     models: mgmtApi.Model[]
@@ -888,7 +888,8 @@ export async function pushContent(
 
     // Get state values instead of prop drilling
     const { targetGuid, locale, overwrite, sourceGuid } = state;
-    const apiClient = state.apiClient;
+    const { getApiClient } = await import('../../core/state');
+    const apiClient = getApiClient();
 
     // Use passed models or load from filesystem as fallback
     let resolvedModels: mgmtApi.Model[] = models || [];

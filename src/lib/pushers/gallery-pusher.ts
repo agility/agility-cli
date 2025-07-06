@@ -19,7 +19,8 @@ export async function pushGalleries(
 
     // Get state values instead of prop drilling
     const { targetGuid } = state;
-    const apiClient = state.apiClient;
+    const { getApiClient } = await import('../../core/state');
+    const apiClient = getApiClient();
 
     const totalGroupings = galleries.length;
     let successful = 0;

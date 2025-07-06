@@ -1,6 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapper } from "../shared/reference-mapper";
-import { findContainerInTargetInstance } from "../finders";
+import { findContainerInTargetInstance, findModelInTargetInstance } from "../finders";
 import ansiColors from "ansi-colors";
 import { ApiClient } from '@agility/management-sdk';
 import { state } from '../../core/state';
@@ -22,7 +22,8 @@ export async function pushContainers(
 
     // Get state values instead of prop drilling
     const { targetGuid } = state;
-    const apiClient = state.apiClient;
+    const { getApiClient } = await import('../../core/state');
+    const apiClient = getApiClient();
 
     let successful = 0;
     let failed = 0;
@@ -32,28 +33,11 @@ export async function pushContainers(
 
     for (const container of sourceContainers) {
         const sourceRefName = container.referenceName;
-
+        let targetContainer: mgmtApi.Container | null = null;
         try {
             // SIMPLIFICATION: Remove redundant mapping check - findContainerInTargetInstance handles this
             // The finder function already checks mapping cache first, then API if not found
-            let targetContainer = await findContainerInTargetInstance(container, apiClient, targetGuid, referenceMapper);
-
-            if (targetContainer) {
-                // 🚨 VALIDATION: Check if container has correct model mapping
-                const expectedModelMapping = referenceMapper.getMapping('model', container.contentDefinitionID);
-                const expectedTargetModelId = expectedModelMapping ? (expectedModelMapping as any).id : null;
-                
-                if (expectedTargetModelId && targetContainer.contentDefinitionID !== expectedTargetModelId) {
-                    console.warn(ansiColors.yellow(`⚠️  Container ${sourceRefName} has WRONG model mapping:`));
-                    console.warn(ansiColors.yellow(`   Expected model ID: ${expectedTargetModelId}`));
-                    console.warn(ansiColors.yellow(`   Actual model ID: ${targetContainer.contentDefinitionID}`));
-                    console.warn(ansiColors.yellow(`   🔧 Removing bad container mapping to force recreation...`));
-                    
-                    // Clear the bad mapping to force recreation
-                    referenceMapper.removeMapping('container', container.referenceName);
-                    targetContainer = null; // Force recreation with correct model
-                }
-            }
+            targetContainer = await findContainerInTargetInstance(container, apiClient, targetGuid, referenceMapper);
 
             if (targetContainer) {
                 // Container exists with correct model mapping - this is a skip, not success
@@ -61,14 +45,25 @@ export async function pushContainers(
                 referenceMapper.addMapping('container', container, targetContainer);
                 skipped++; // Existing containers are skipped, not successful
             } else {
+                console.log(ansiColors.yellow(`✗ Container ${container.referenceName} not found in target instance`));
                 // Container doesn't exist or was cleared due to bad mapping - create new one
                 // Prepare payload (needs model mapping first!)
-                const modelMapping = referenceMapper.getMapping('model', container.contentDefinitionID);
-                if (!modelMapping) {
+                
+                // First find the source model from sourceData by ID
+                const sourceModel = sourceData.models?.find((m: any) => m.id === container.contentDefinitionID);
+                if (!sourceModel) {
+                    throw new Error(`Cannot create container ${sourceRefName} because its source model (ID: ${container.contentDefinitionID}) was not found in source data.`);
+                }
+                
+                // Now find the corresponding model in the target instance
+                const model = await findModelInTargetInstance(sourceModel, apiClient, targetGuid, referenceMapper);
+              
+                // const modelMapping = referenceMapper.getMapping('model', container.contentDefinitionID);
+                if (!model) {
                     throw new Error (`Cannot create container ${sourceRefName} because its model (ID: ${container.contentDefinitionID}) has not been mapped yet.`);
                 }
 
-                const targetModelId = (modelMapping as any).id;
+                const targetModelId = model.id;
                 // console.log(`🔧 Creating container ${sourceRefName} with model mapping: ${container.contentDefinitionID} → ${targetModelId}`);
 
                 const payload = { ...container };
@@ -89,7 +84,9 @@ export async function pushContainers(
             }
 
         } catch (error: any) {
-            console.error(`✗ Error processing container ${sourceRefName}:`, error.message);
+            console.error(`✗ Error processing container ${sourceRefName}`);
+            console.log(await error);
+            console.log(targetContainer);
             failed++;
             overallStatus = 'error';
         }

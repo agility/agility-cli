@@ -11,7 +11,8 @@ export async function publishBatch(
 ): Promise<{ success: boolean; batchId: string; error?: string }> {
   try {
     // Get state values instead of parameters
-    const apiClient = state.apiClient;
+    const { getApiClient } = await import('../../core/state');
+const apiClient = getApiClient();
     const targetGuid = state.targetGuid;
 
     if (!apiClient) {

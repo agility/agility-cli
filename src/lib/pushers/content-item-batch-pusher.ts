@@ -75,7 +75,8 @@ export class ContentBatchProcessor {
      */
     async processBatches(
         contentItems: mgmtApi.ContentItem[],
-        onProgress?: BatchProgressCallback
+        onProgress?: BatchProgressCallback,
+        batchType?: string
     ): Promise<BatchProcessingResult> {
         const batchSize = this.config.batchSize!;
         const contentBatches = this.createContentBatches(contentItems, batchSize);
@@ -128,7 +129,10 @@ export class ContentBatchProcessor {
                     this.config.apiClient,
                     batchID,
                     this.config.targetGuid,
-                    contentPayloads // Pass original payloads for FIFO error matching
+                    contentPayloads, // Pass original payloads for FIFO error matching
+                    300, // maxAttempts
+                    2000, // intervalMs
+                    batchType || 'Content' // Use provided batch type or default to 'Content'
                 );
                 
                 // Extract results from completed batch
@@ -164,7 +168,7 @@ export class ContentBatchProcessor {
                     console.log(`✅ Batch ${batchNumber} successful items:`);
                     batchResult.successfulItems.forEach(item => {
                         const modelName = item.originalContent.properties.definitionName || 'Unknown';
-                        console.log(`  ✓ Linked content: ${item.originalContent.properties.referenceName} (${modelName}) - Source: ${item.originalContent.contentID} Target: ${item.newContentId}`);
+                        console.log(`  ✓ Content ${ansiColors.cyan.underline(item.originalContent.properties.referenceName)} (${modelName}) - Source: ${item.originalContent.contentID} Target: ${item.newContentId}`);
                     });
                 }
                 
@@ -266,7 +270,20 @@ export class ContentBatchProcessor {
                 }
                 
                 if (!sourceModel) {
-                    throw new Error(`Source model not found for content definition: ${contentItem.properties.definitionName}`);
+                    // Enhanced error reporting for missing content definitions
+                    const availableModels = models?.map(m => m.referenceName).join(', ') || 'No models available';
+                    const errorDetails = [
+                        `📋 Content Definition Not Found: "${contentItem.properties.definitionName}"`,
+                        `🔍 Content Item: ${contentItem.properties.referenceName}`,
+                        `📊 Available Models: ${availableModels}`,
+                        `💡 Common causes:`,
+                        `   • Model was deleted from source instance`,
+                        `   • Case sensitivity mismatch in model names`,
+                        `   • Model not included in sync elements`,
+                        `   • Content references model that hasn't synced yet`
+                    ].join('\n   ');
+                    
+                    throw new Error(`Source model not found for content definition: ${contentItem.properties.definitionName}\n   ${errorDetails}`);
                 }
                 
                 // STEP 2: Find target model using finder (matching original logic)

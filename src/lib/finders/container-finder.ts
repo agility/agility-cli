@@ -1,5 +1,6 @@
 import * as mgmtApi from '@agility/management-sdk';
 import { ReferenceMapper } from "../shared/reference-mapper";
+import ansiColors from 'ansi-colors';
 
 // Function overloads to handle both Container object and string referenceName
 export async function findContainerInTargetInstance(
@@ -35,7 +36,6 @@ export async function findContainerInTargetInstance(
         // Check mapper cache first
         const mapping = referenceMapper.getMapping<mgmtApi.Container>('container', 'referenceName', referenceName);
         if (mapping?.target) {
-            console.log(`[Container Debug] ✓ Found in cache: ${referenceName} → ID:${mapping.target.contentViewID}`);
             return mapping.target;
         }
 
@@ -43,7 +43,6 @@ export async function findContainerInTargetInstance(
         try {
             const targetContainer = await apiClient.containerMethods.getContainerByReferenceName(referenceName, guid);
             if (targetContainer) {
-                console.log(`[Container Debug] ✓ Found by API: ${referenceName} → ID:${targetContainer.contentViewID}`);
                 return targetContainer;
             }
         } catch (error: any) {
@@ -56,7 +55,6 @@ export async function findContainerInTargetInstance(
                 );
                 
                 if (caseInsensitiveMatch) {
-                    console.log(`[Container Debug] ✓ Found case-insensitive: "${referenceName}" → "${caseInsensitiveMatch.referenceName}" ID:${caseInsensitiveMatch.contentViewID}`);
                     return caseInsensitiveMatch;
                 }
             } catch (listError: any) {
@@ -79,7 +77,6 @@ export async function findContainerInTargetInstance(
                     );
 
                     if (potentialMatch) {
-                        console.log(`[Container Debug] ✓ Found by model mapping: ${referenceName} → ID:${potentialMatch.contentViewID}`);
                         return potentialMatch;
                     }
                 } catch (error: any) {
@@ -88,7 +85,8 @@ export async function findContainerInTargetInstance(
             }
         }
 
-        console.log(`[Container Debug] ✗ Not found: ${referenceName}`);
+        // container not found in target instance
+        // console.log(ansiColors.yellow(`✗ Container Not found in target instance: ${referenceName}`));
         return null;
 
     } catch (error: any) {

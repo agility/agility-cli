@@ -105,8 +105,10 @@ export class Sync {
       // Check if we have any existing content
       let hasExistingContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
 
-      // Determine if we should pull fresh data
-      const shouldPull = state.update || !hasExistingContent;
+      // For sync operations, default to pulling fresh data unless explicitly disabled
+      // Users can skip pulling by using --update=false to use cached data
+      // This ensures we're syncing with current data by default
+      const shouldPull = true;
       
       if (shouldPull) {
         if (!hasExistingContent) {
@@ -267,7 +269,7 @@ export class Sync {
       const reconciliationPercentage: number =
         totalSourceEntities > 0
           ? Math.round(
-              ((syncResults.totalSuccess + syncResults.totalSkipped) / totalSourceEntities) * 100
+              ((syncResults.totalSuccess + syncResults.totalSkipped + syncResults.totalFailures) / totalSourceEntities) * 100
             )
           : 100;
 
@@ -348,35 +350,101 @@ export class Sync {
         // Use batch pusher for better performance (default behavior)
         console.log(ansiColors.gray(`[Content Processing] Using batch pusher (default behavior)`));
         
-        // Set up batch processor with proper configuration
-        const batchConfig = {
-          apiClient: state.apiClient,
-          targetGuid: state.targetGuid,
-          locale: state.locale,
-          referenceMapper,
-          batchSize: 250, // Optimal batch size for normal content
-          useContentFieldMapper: true, // Use enhanced field mapping
-          models: sourceData.models, // Pass models for payload preparation
-          defaultAssetUrl: '', // Will be determined by batch processor
-        };
-        
-        const batchProcessor = new ContentBatchProcessor(batchConfig);
         const contentItems = sourceData.content || [];
         
         if (contentItems.length === 0) {
           return { status: 'success' as const, successful: 0, failed: 0, skipped: 0, publishableIds: [] };
         }
         
+        // Import dependency checking functions
+        const { areContentDependenciesResolved } = await import('../lib/pushers/content-item-pusher');
+        
+        // Separate content items into normal and linked batches
+        const normalContentItems: any[] = [];
+        const linkedContentItems: any[] = [];
+        
+        for (const contentItem of contentItems) {
+          // Find source model for this content item
+          let sourceModel = sourceData.models?.find((m: any) => m.referenceName === contentItem.properties.definitionName);
+          if (!sourceModel && sourceData.models) {
+            sourceModel = sourceData.models.find((m: any) => 
+              m.referenceName.toLowerCase() === contentItem.properties.definitionName.toLowerCase()
+            );
+          }
+          
+          if (!sourceModel) {
+            // No model found - treat as linked content for dependency resolution
+            linkedContentItems.push(contentItem);
+            continue;
+          }
+          
+          // Check if content has unresolved dependencies
+          if (areContentDependenciesResolved(contentItem, referenceMapper, [sourceModel])) {
+            normalContentItems.push(contentItem);
+          } else {
+            linkedContentItems.push(contentItem);
+          }
+        }
+        
+        console.log(ansiColors.gray(`[Content Processing] Separated ${normalContentItems.length} normal content items and ${linkedContentItems.length} linked content items`));
+        
+        let totalSuccessful = 0;
+        let totalFailed = 0;
+        const allPublishableIds: number[] = [];
+        
         try {
-          const batchResult = await batchProcessor.processBatches(contentItems);
+          // Import getApiClient for both batch configurations
+          const { getApiClient } = await import('../core/state');
+          
+          // Process normal content items first (no dependencies)
+          if (normalContentItems.length > 0) {
+            const normalBatchConfig = {
+              apiClient: getApiClient(),
+              targetGuid: state.targetGuid,
+              locale: state.locale,
+              referenceMapper,
+              batchSize: 250,
+              useContentFieldMapper: true,
+              models: sourceData.models,
+              defaultAssetUrl: '',
+            };
+            
+            const normalBatchProcessor = new ContentBatchProcessor(normalBatchConfig);
+            const normalResult = await normalBatchProcessor.processBatches(normalContentItems, undefined, 'Normal Content');
+            
+            totalSuccessful += normalResult.successCount;
+            totalFailed += normalResult.failureCount;
+            allPublishableIds.push(...normalResult.publishableIds);
+          }
+          
+          // Process linked content items second (with dependencies)
+          if (linkedContentItems.length > 0) {
+            const linkedBatchConfig = {
+              apiClient: getApiClient(),
+              targetGuid: state.targetGuid,
+              locale: state.locale,
+              referenceMapper,
+              batchSize: 100, // Smaller batches for linked content due to complexity
+              useContentFieldMapper: true,
+              models: sourceData.models,
+              defaultAssetUrl: '',
+            };
+            
+            const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
+            const linkedResult = await linkedBatchProcessor.processBatches(linkedContentItems, undefined, 'Linked Content');
+            
+            totalSuccessful += linkedResult.successCount;
+            totalFailed += linkedResult.failureCount;
+            allPublishableIds.push(...linkedResult.publishableIds);
+          }
           
           // Convert batch result to expected PusherResult format
           return {
-            status: (batchResult.failureCount > 0 ? 'error' : 'success') as 'success' | 'error',
-            successful: batchResult.successCount,
-            failed: batchResult.failureCount,
+            status: (totalFailed > 0 ? 'error' : 'success') as 'success' | 'error',
+            successful: totalSuccessful,
+            failed: totalFailed,
             skipped: 0, // Batch processor doesn't track skipped items separately
-            publishableIds: batchResult.publishableIds
+            publishableIds: allPublishableIds
           };
         } catch (batchError: any) {
           console.error(ansiColors.red(`❌ Batch processing failed: ${batchError.message}`));
@@ -386,11 +454,12 @@ export class Sync {
       }
     };
 
-    // ULTIMATE OPTIMIZATION: Embed functions directly in config (eliminates separate map)
+    // DEPENDENCY-OPTIMIZED ORDER: Galleries → Assets → Models → Containers → Content → Templates → Pages
+    // This ensures proper dependency resolution with galleries first, then assets, then models that reference them
     const pusherConfig = [
-      { element: 'Models', dataKey: 'models', name: 'Models', pusher: pushModels },
       { element: 'Galleries', dataKey: 'galleries', name: 'Galleries', pusher: pushGalleries },
       { element: 'Assets', dataKey: 'assets', name: 'Assets', pusher: pushAssets },
+      { element: 'Models', dataKey: 'models', name: 'Models', pusher: pushModels },
       { element: 'Containers', dataKey: 'containers', name: 'Containers', pusher: pushContainers },
       { element: 'Content', dataKey: 'content', name: 'Content Items', pusher: smartContentPusher },
       { element: 'Templates', dataKey: 'templates', name: 'Templates', pusher: pushTemplates },
@@ -399,16 +468,17 @@ export class Sync {
 
     try {
       for (const config of pusherConfig) {
-        const data = sourceData[config.dataKey];
+        // Get the specific data array for this element type
+        const elementData = sourceData[config.dataKey] || [];
         
-        // Skip if no data or element not requested
-        if (data.length === 0 || !elements.includes(config.element)) {
+        // Skip if no data for this element type or element not requested
+        if (elementData.length === 0 || !elements.includes(config.element)) {
           continue;
         }
 
         console.log(ansiColors.cyan(`\n📄 Pushing ${config.name}...`));
 
-        // ULTIMATE OPTIMIZATION: Direct function execution from config with unified parameters
+        // Pass FULL sourceData to pusher so it can access whatever it needs (models, assets, etc.)
         const pusherResult: PusherResult = await config.pusher(sourceData, referenceMapper);
 
         // Accumulate results using standardized pattern
@@ -426,11 +496,15 @@ export class Sync {
         }
 
         // Report individual pusher results
+
+        const successfulColor = pusherResult.successful > 0 ? ansiColors.green : ansiColors.gray;
+        const failedColor = pusherResult.failed > 0 ? ansiColors.red : ansiColors.gray;
+        const skippedColor = pusherResult.skipped > 0 ? ansiColors.yellow : ansiColors.gray;
         console.log(
-          ansiColors.gray(`${config.name}: `) +
-          ansiColors.green(`${pusherResult.successful} successful, `) +
-          ansiColors.white(`${pusherResult.skipped} skipped, `) +
-          ansiColors.red(`${pusherResult.failed} failed`)
+          ansiColors.gray(`\n${config.name}: `) +
+          successfulColor(`${pusherResult.successful} successful, `) +
+          skippedColor(`${pusherResult.skipped} skipped, `) +
+          failedColor(`${pusherResult.failed} failed`)
         );
 
         // Save mappings after each pusher

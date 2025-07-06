@@ -12,7 +12,7 @@ export async function pushTemplates(
     // Extract data from sourceData - unified parameter pattern
     const templates: mgmtApi.PageModel[] = sourceData.templates || [];
     
-    console.log(`[Template Debug] Starting template processing. Found ${templates ? templates.length : 0} templates to process.`);
+    // console.log(`[Template Debug] Starting template processing. Found ${templates ? templates.length : 0} templates to process.`);
     
     if (!templates || templates.length === 0) {
         console.log('No templates found to process.');
@@ -21,10 +21,11 @@ export async function pushTemplates(
 
     // Get state values instead of prop drilling
     const { targetGuid, locale } = state;
-    const apiClient = state.apiClient;
+    const { getApiClient } = await import('../../core/state');
+    const apiClient = getApiClient();
 
     // Log template names for debugging
-    console.log(`[Template Debug] Template names: ${templates.map(t => t.pageTemplateName).join(', ')}`);
+    // console.log(`[Template Debug] Template names: ${templates.map(t => t.pageTemplateName).join(', ')}`);
 
     let successful = 0;
     let failed = 0;
@@ -52,7 +53,7 @@ export async function pushTemplates(
             }
         } catch (error: any) {
              if (!(error.response && error.response.status === 404)) { // Log errors other than 404
-                 console.error(`✗ Error checking for existing template ${template.pageTemplateName}: ${error.message}`);
+                //  console.error(`✗ Error checking for existing template ${template.pageTemplateName}: ${error.message}`);
                  // Consider if this should count as a failure or just a warning
              }
              // If 404 or other error, proceed to create
@@ -99,6 +100,5 @@ export async function pushTemplates(
         }
     }
 
-   console.log(ansiColors.yellow(`Processed ${successful}/${totalTemplates} templates (${failed} failed, ${skipped} skipped)`));
    return { status: overallStatus, successful, failed, skipped }; // Return status object
 }

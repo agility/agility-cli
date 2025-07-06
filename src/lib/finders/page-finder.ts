@@ -84,10 +84,21 @@ export async function findPageInTargetInstance(
 
         const targetPages = (websiteChannel as any).flatPages;
 
-        // Find pages with matching names
+        // Find pages with matching names - try multiple name variations
         const nameMatches = targetPages.filter((targetPage: any) => {
             const targetPageName = targetPage.pageName || targetPage.name || targetPage.title;
-            return targetPageName === sourcePage.name;
+            const targetMenuText = targetPage.menuText;
+            
+            // Try exact name match first
+            if (targetPageName === sourcePage.name) return true;
+            
+            // Try matching against menu text
+            if (targetMenuText && targetMenuText === sourcePage.name) return true;
+            
+            // Try matching against source page's title and menuText
+            if (targetPageName === sourcePage.title || targetPageName === sourcePage.menuText) return true;
+            
+            return false;
         });
 
         if (nameMatches.length === 0) {
@@ -112,6 +123,7 @@ export async function findPageInTargetInstance(
             }
         }
 
+        // Find best match based on hierarchy
         const hierarchyMatch = nameMatches.find((targetPage: any) => {
             const targetPageParentId = targetPage.parentPageID || targetPage.parentID || -1;
             return (targetParentId === -1 && targetPageParentId <= 0) || 
@@ -123,7 +135,26 @@ export async function findPageInTargetInstance(
             return fullPage;
         }
 
-        return null;
+        // If no hierarchy match, check for exact path match
+        const pathMatch = nameMatches.find((targetPage: any) => {
+            const targetPath = targetPage.path || '';
+            const sourcePath = sourcePage.path || '';
+            return targetPath === sourcePath;
+        });
+        
+        if (pathMatch) {
+            const fullPage = await apiClient.pageMethods.getPage(pathMatch.pageID, targetGuid, locale);
+            return fullPage;
+        }
+
+        // If still multiple matches, return the first one but log a warning
+        if (nameMatches.length > 1) {
+            console.warn(`⚠️ Multiple pages found with name "${sourcePage.name}" in target instance. Using first match (ID: ${nameMatches[0].pageID})`);
+        }
+        
+        const firstMatch = nameMatches[0];
+        const fullPage = await apiClient.pageMethods.getPage(firstMatch.pageID, targetGuid, locale);
+        return fullPage;
 
     } catch (error: any) {
         return null;

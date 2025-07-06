@@ -25,7 +25,8 @@ export async function pushAssets(
 
     // Get state values instead of prop drilling
     const { sourceGuid, targetGuid, locale, preview: isPreview } = state;
-    const apiClient = state.apiClient;
+    const { getApiClient } = await import('../../core/state');
+    const apiClient = getApiClient();
 
     let defaultContainer: mgmtApi.assetContainer | null = null;
     try {

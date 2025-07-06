@@ -54,7 +54,7 @@ async function processPage(
     referenceMapper: ReferenceMapper,
     overwrite: boolean = false,
     insertBeforePageId: number | null = null
-): Promise<boolean> { // Returns true on success, false on failure
+): Promise<'success' | 'skip' | 'failure'> { // Returns 'success', 'skip', or 'failure'
 
     let existingPage: mgmtApi.PageItem | null = null;
     let correctPageID = -1;
@@ -68,9 +68,9 @@ async function processPage(
             // Find the template mapping
             let templateRef = referenceMapper.getMappingByKey<mgmtApi.PageModel>('template', 'pageTemplateName', page.templateName);
             if (!templateRef?.target) {
-                console.error(`✗ Template ${page.templateName} not found or processed for page: ${page.name}`);
-                console.error(`Available template mappings:`, referenceMapper.getRecordsByType('template').map(r => `${r.source.pageTemplateName} -> ${r.target?.pageTemplateName || 'null'}`));
-                return false;
+                console.error(ansiColors.red(`✗ Page ${page.name} failed Template ${page.templateName} missing in source data`));
+                // console.error(`Available template mappings:`, referenceMapper.getRecordsByType('template').map(r => `${r.source.pageTemplateName} -> ${r.target?.pageTemplateName || 'null'}`));
+                return 'failure';
             }
             targetTemplate = templateRef.target;
         }
@@ -94,8 +94,8 @@ async function processPage(
             // Add to reference mapper for future lookups
             referenceMapper.addRecord('page', page, existingPage);
             
-            console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: ID:${existingPage.pageID} (Template:${page.templateName || 'None'})`);
-            return true; // Skip processing - page already exists
+            console.log(`✓ ${page.pageType === 'folder' ? 'Folder' : page.pageType === 'link' ? 'Link' : 'Page'} ${ansiColors.underline(page.name)} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: ID:${existingPage.pageID} (Template:${page.templateName || 'None'})`);
+            return 'skip'; // Skip processing - page already exists
         } else if (existingPage && overwrite) {
             // Force update mode: use existing page ID for update
             correctPageID = existingPage.pageID;
@@ -211,7 +211,7 @@ async function processPage(
 
             if (missingMappings > 0) {
                 console.error(`✗ Page "${page.name}" failed - ${missingMappings}/${contentIdsToValidate.length} missing content mappings`);
-                return false;
+                return 'failure';
             }
         }
 
@@ -266,7 +266,7 @@ async function processPage(
             // If it never had modules, that's fine (folder pages, etc.)
             if (originalModuleCount > 0 && !existingPage && !isLegitimateEmptyPage(page)) {
                 console.error(`✗ Page "${page.name}" lost all ${originalModuleCount} modules during content mapping`);
-                return false;
+                return 'failure';
             }
         }
 
@@ -293,19 +293,27 @@ async function processPage(
         // CRITICAL FIX: Use parentID as the correct field name (SDK documentation confirms this)
         const sourceParentId = payload.parentPageID;
         if (sourceParentId && sourceParentId > 0) {
+            console.log(`🔍 [Page: ${page.name}] Looking for parent mapping: source parentPageID=${sourceParentId}`);
+            
             const parentPageRef = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourceParentId);
             if (parentPageRef?.target && parentPageRef.target.pageID > 0) {
                 parentIDArg = parentPageRef.target.pageID;
                 // CRITICAL FIX: Set parentID in payload (not parentPageID)
                 payload.parentPageID = parentPageRef.target.pageID;
-                // Parent mapping successful (silent)
+                console.log(`✅ [Page: ${page.name}] Parent mapping found: source=${sourceParentId} → target=${parentPageRef.target.pageID} (${parentPageRef.target.name})`);
             } else {
                 parentIDArg = -1;
                 payload.parentPageID = -1; // No parent
-                // Parent not found - using no parent (silent)
+                console.warn(`⚠️ [Page: ${page.name}] Parent mapping NOT found for parentPageID=${sourceParentId}`);
+                
+                // Debug: Show available page mappings
+                const allPageMappings = referenceMapper.getRecordsByType('page');
+                console.log(`🔍 Available page mappings (${allPageMappings.length}):`, 
+                    allPageMappings.map(m => `${m.source.pageID}:${m.source.name} → ${m.target?.pageID}:${m.target?.name}`).join(', '));
             }
         } else {
             payload.parentPageID = -1; // Ensure no parent
+            console.log(`🔍 [Page: ${page.name}] No parent page (sourceParentId=${sourceParentId})`);
         }
         
         // CRITICAL: Remove both parentPageID and parentID fields to avoid API confusion
@@ -361,7 +369,10 @@ async function processPage(
                 apiClient,
                 batchID,
                 targetGuid,
-                [payload] // Pass payload for FIFO error matching
+                [payload], // Pass payload for FIFO error matching
+                300, // maxAttempts
+                2000, // intervalMs
+                'Page' // batchType
             );
             
             // Extract result from completed batch
@@ -391,7 +402,7 @@ async function processPage(
                 } else {
                     console.log(`✓ Page ${ansiColors.underline(page.name)} ${ansiColors.bold.green('created')} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || 'None'})`);
                 }
-                return true; // Success
+                return 'success'; // Success
             } else {
                 // Show errorData if available, otherwise generic failure
                 if (completedBatch.errorData && completedBatch.errorData.trim()) {
@@ -399,16 +410,16 @@ async function processPage(
                 } else {
                     console.error(`✗ Page "${page.name}" failed - invalid page ID: ${actualPageID}`);
                 }
-                return false;
+                return 'failure';
             }
         } else {
             console.error(`✗ Page "${page.name}" failed - unexpected response format`);
-            return false; // Failure
+            return 'failure'; // Failure
         }
 
     } catch (error: any) {
         console.error(`✗ Page "${page.name}" failed - ${error.message}`);
-        return false; // Failure
+        return 'failure'; // Failure
     }
 }
 
@@ -531,8 +542,9 @@ export async function pushPages(
         return { status: "error", successful: 0, failed: 0, skipped: 0, publishableIds: [] };
     }
 
-    // Use centralized apiClient creation
-    const apiClient = state.apiClient;
+    // Use centralized apiClient creation with lazy initialization
+    const { getApiClient } = await import('../../core/state');
+    const apiClient = getApiClient();
 
     // Use simple legacy pattern - track processed pages directly
     const processedPages: { [oldPageId: number]: number } = {}; // oldPageId -> newPageId
@@ -571,11 +583,19 @@ export async function pushPages(
             }
         }
         
-        const success = await processPage(page, targetGuid, locale, isChildPage, apiClient, referenceMapper, overwrite, insertBeforePageId);
-        if (success) {
+        const result = await processPage(page, targetGuid, locale, isChildPage, apiClient, referenceMapper, overwrite, insertBeforePageId);
+        if (result === 'success') {
             successful++; // Page was processed successfully (created or updated)
             
             // Collect target page ID for auto-publishing
+            const pageMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', page.pageID);
+            if (pageMapping?.target?.pageID) {
+                publishableIds.push(pageMapping.target.pageID);
+            }
+        } else if (result === 'skip') {
+            skipped++; // Page already exists and was skipped
+            
+            // Still collect target page ID for auto-publishing (skipped pages still exist)
             const pageMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', page.pageID);
             if (pageMapping?.target?.pageID) {
                 publishableIds.push(pageMapping.target.pageID);
@@ -586,11 +606,10 @@ export async function pushPages(
         }
         processedPagesCount++;
         if (onProgress && typeof onProgress === 'function') {
-            onProgress(processedPagesCount, totalPages, success ? 'success' : 'error');
+            onProgress(processedPagesCount, totalPages, result === 'failure' ? 'error' : 'success');
         }
     }
 
-    console.log(`Processed ${successful}/${totalPages} pages (${failed} failed, ${skipped} skipped)`);
     return { status, successful, failed, skipped, publishableIds };
 }
 

@@ -9,21 +9,25 @@ export async function pollBatchUntilComplete(
     batchID: number,
     targetGuid: string,
     originalPayloads?: any[], // Original payloads for error matching
-    maxAttempts: number = 120, // 2 minutes at 2s intervals
-    intervalMs: number = 2000 // 2 seconds
+    maxAttempts: number = 300, // 10 minutes at 2s intervals - increased from 120
+    intervalMs: number = 2000, // 2 seconds
+    batchType?: string // Type of batch for better logging
 ): Promise<any> {
     let attempts = 0;
+    let consecutiveErrors = 0;
 
-    // console.log(`🔄 Polling batch ${batchID} until complete...`);
+    // console.log(`🔄 Polling batch ${batchID} until complete (max ${maxAttempts} attempts, ~${Math.round(maxAttempts * intervalMs / 60000)} minutes)...`);
 
     while (attempts < maxAttempts) {
         try {
             // Use getBatch from management SDK
             const batchStatus = await apiClient.batchMethods.getBatch(batchID, targetGuid);
             
+            // Reset consecutive errors on successful API call
+            consecutiveErrors = 0;
        
             if (!batchStatus) {
-                console.warn(`No batch status returned for batch ${batchID} (attempt ${attempts + 1})`);
+                // console.warn(`⚠️ No batch status returned for batch ${batchID} (attempt ${attempts + 1}/${maxAttempts})`);
                 attempts++;
                 await new Promise(resolve => setTimeout(resolve, intervalMs));
                 continue;
@@ -31,7 +35,7 @@ export async function pollBatchUntilComplete(
 
           
             if (batchStatus.batchState === 3) {
-                console.log(`✅ Batch ${batchID} completed successfully`);
+                // console.log(`✅ Batch ${batchID} completed successfully after ${attempts + 1} attempts`);
                     // check for batch item errors
                     if (Array.isArray(batchStatus.items)) {
                         batchStatus.items.forEach((item: any, index: number) => {
@@ -63,8 +67,10 @@ export async function pollBatchUntilComplete(
 
                 // Create a cycling dot pattern that resets every 3 attempts
                 let dots = '.'.repeat((attempts % 3) + 1);
-               
-                console.error(ansiColors.yellow(`Batch ${batchID} in progress ${dots}`));
+                
+                // Include batch type in logging if provided
+                const batchTypeStr = batchType ? `${batchType} batch` : 'Batch';
+                console.error(ansiColors.yellow(`${batchTypeStr} ${batchID} in progress ${dots} (${attempts + 1}/${maxAttempts})`));
                 if (batchStatus.errorData) {
                     console.error(`Error: ${batchStatus.errorData}`);
                 }
@@ -74,16 +80,37 @@ export async function pollBatchUntilComplete(
             await new Promise(resolve => setTimeout(resolve, intervalMs));
 
         } catch (error: any) {
-            console.warn(`⚠️ Error checking batch status (attempt ${attempts + 1}): ${error.message}`);
+            consecutiveErrors++;
+            console.warn(`⚠️ Error checking batch status (attempt ${attempts + 1}/${maxAttempts}, consecutive errors: ${consecutiveErrors}): ${error.message}`);
+            
+            // If we get too many consecutive errors, the batch might have failed
+            if (consecutiveErrors >= 10) {
+                console.warn(`⚠️ ${consecutiveErrors} consecutive errors - batch ${batchID} may have failed or been deleted`);
+                
+                // Try one more time with extended timeout before giving up
+                try {
+                    const finalCheck = await apiClient.batchMethods.getBatch(batchID, targetGuid);
+                    if (finalCheck?.batchState === 3) {
+                        console.log(`✅ Batch ${batchID} was actually successful! Polling errors were transient.`);
+                        return finalCheck;
+                    }
+                } catch (finalError) {
+                    console.warn(`Final batch check also failed: ${finalError.message}`);
+                }
+            }
+            
             attempts++;
             if (attempts >= maxAttempts) {
-                throw new Error(`Failed to poll batch ${batchID} after ${maxAttempts} attempts: ${error.message}`);
+                throw new Error(`Failed to poll batch ${batchID} after ${maxAttempts} attempts (${consecutiveErrors} consecutive errors): ${error.message}`);
             }
-            await new Promise(resolve => setTimeout(resolve, intervalMs));
+            
+            // Exponential backoff for errors, but cap at 10 seconds
+            const backoffMs = Math.min(intervalMs * Math.pow(1.5, consecutiveErrors), 10000);
+            await new Promise(resolve => setTimeout(resolve, backoffMs));
         }
     }
 
-    throw new Error(`Batch ${batchID} polling timed out after ${maxAttempts} attempts`);
+    throw new Error(`Batch ${batchID} polling timed out after ${maxAttempts} attempts (~${Math.round(maxAttempts * intervalMs / 60000)} minutes)`);
 }
 
 /**

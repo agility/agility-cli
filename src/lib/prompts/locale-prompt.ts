@@ -12,11 +12,12 @@ export async function localePrompt(selectedInstance: AgilityInstance) {
   auth = new Auth();
   let guid: string = selectedInstance.guid;
 
-  // Use state-based API client if available, otherwise create one
+  // Use getApiClient for consistent API client initialization
   let apiClient: mgmtApi.ApiClient;
-  if (state.apiClient) {
-    apiClient = state.apiClient;
-  } else {
+  try {
+    const { getApiClient } = await import('../../core/state');
+    apiClient = getApiClient();
+  } catch (error) {
     // Fallback for cases where state isn't fully initialized
     let options = new mgmtApi.Options();
     options.token = await auth.getToken();

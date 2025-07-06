@@ -585,11 +585,7 @@ export class Auth {
         throw new Error("Invalid user data received");
       }
 
-      if (data.websiteAccess && data.websiteAccess.length > 0) {
-        if (!data.websiteAccess.find((access) => access.guid === guid) && !state.dev) {
-          throw new Error("User does not have access to this instance.");
-        }
-      } else {
+      if (!data.websiteAccess || data.websiteAccess.length === 0) {
         throw new Error("User does not have access to any instances.");
       }
 
@@ -690,6 +686,19 @@ export class Auth {
         const targetBaseUrl = state.baseUrl || this.determineBaseUrl(state.targetGuid);
         state.mgmtApiOptions!.baseUrl = targetBaseUrl;
         state.baseUrl = targetBaseUrl;
+        
+        // Get API keys for source instance (needed for pull phase of sync)
+        const previewKey = await this.getPreviewKey(state.sourceGuid!);
+        const fetchKey = await this.getFetchKey(state.sourceGuid!);
+        
+        state.previewKey = previewKey;
+        state.fetchKey = fetchKey;
+        state.apiKeyForPull = state.preview ? previewKey : fetchKey;
+
+        if (!state.apiKeyForPull) {
+          console.log(ansiColors.red(`Could not retrieve the required API key (preview: ${state.preview}) for source instance ${state.sourceGuid}. Check API key configuration in Agility and --baseUrl if used.`));
+          return false;
+        }
         
       } else if (commandType === 'pull' && state.sourceGuid) {
         // Pull operation - validate source access and get API keys

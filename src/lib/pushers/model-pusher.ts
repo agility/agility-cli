@@ -5,6 +5,7 @@ import { SourceData, PusherProgressCallback, PusherResult } from "../../types/so
 import { ReferenceMapper } from "../shared/reference-mapper";
 import { logModelDifferences } from "../loggers";
 import { areModelsDifferent } from "../models";
+import { findModelInTargetInstance } from "../finders/model-finder";
 
 /**
  * Streamlined Model Pusher - 2-pass synchronization approach
@@ -42,28 +43,17 @@ export async function pushModels(
     passName: string
   ): Promise<boolean> => {
     const modelName = model.referenceName;
+    const id = model.id;
     const isStubPass = Array.isArray(fields) && fields.length === 0;
 
     try {
-      // Check if model exists (cache first, then API)
-      let existingModel = referenceMapper.getMapping<mgmtApi.Model>("model", model.id);
-      
-      if (!existingModel || existingModel.id <= 0) {
-        try {
-          existingModel = await apiClient.modelMethods.getModelByReferenceName(modelName, targetGuid);
-          if (existingModel) {
-            referenceMapper.addMapping("model", model, existingModel);
-          }
-        } catch (error: any) {
-          // Model doesn't exist, will create it
-          existingModel = null;
-        }
-      }
+      // Check if model exists using dedicated finder (handles mapping automatically)
+      const existingModel = await findModelInTargetInstance(model, apiClient, targetGuid, referenceMapper);
 
       if (existingModel) {
         // Model exists - check if we need to update it
         if (isStubPass) {
-          console.log(`✓ ${passName} ${ansiColors.underline(modelName)} ${ansiColors.bold.gray("already exists")} - Skipping stub creation.`);
+          console.log(`✓ ${passName} ${ansiColors.underline(modelName)} ID: ${id} ${ansiColors.bold.gray("already exists")} - Skipping stub creation.`);
           processedModels.add(model.id);
           return true;
         }
@@ -141,6 +131,8 @@ export async function pushModels(
       }
 
     } catch (error: any) {
+
+      console.log(await error);
       // Handle "already exists" errors gracefully
       const errorMessage = error.message?.toLowerCase() || "";
       const isAlreadyExistsError = errorMessage.includes("already exists") || 
@@ -148,9 +140,8 @@ export async function pushModels(
 
       if (isAlreadyExistsError) {
         try {
-          const retrievedModel = await apiClient.modelMethods.getModelByReferenceName(modelName, targetGuid);
+          const retrievedModel = await findModelInTargetInstance(model, apiClient, targetGuid, referenceMapper);
           if (retrievedModel) {
-            referenceMapper.addMapping("model", model, retrievedModel);
             console.log(`✓ ${passName} ${ansiColors.underline(modelName)} ${ansiColors.bold.gray("found after error")} - Continuing.`);
             processedModels.add(model.id);
             return true;
@@ -160,7 +151,38 @@ export async function pushModels(
         }
       }
 
-      console.error(ansiColors.red(`✗ ${passName} failed for ${modelName}:`), error.message);
+      // Enhanced error reporting with full API response details
+      console.error(ansiColors.red(`✗ ${passName} failed for ${modelName}: ${error}`));
+      
+      // PRIMARY: Show the API error response that explains WHY it failed
+      if (error.response) {
+        console.error(ansiColors.red(`   📊 HTTP Status: ${error.response.status} ${error.response.statusText}`));
+        if (error.response.data) {
+          console.error(error);
+          console.error(ansiColors.red(JSON.stringify(error.response.data, null, 2)));
+        }
+      } else {
+        console.error(ansiColors.red(`   ⚠️ No API response available - may be a network or connection error`));
+      }
+      
+      // SECONDARY: Show the request payload only if verbose debugging is needed
+      if (state.verbose) {
+        const modelFields = fields || model.fields || [];
+        const attemptedPayload = {
+          ...model,
+          fields: modelFields.map(field => {
+            const cleanField = { ...field };
+            delete cleanField.fieldID;
+            return cleanField;
+          })
+        };
+        console.error(ansiColors.yellow(error));
+        console.error(ansiColors.yellow(JSON.stringify(attemptedPayload, null, 2)));
+      }
+      
+      // Additional context for debugging
+      // console.error(ansiColors.gray(`   💡 Focus on the API Error Response above to understand why the model save failed`));
+      
       return false;
     }
   };
