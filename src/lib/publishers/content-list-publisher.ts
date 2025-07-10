@@ -33,7 +33,7 @@ const apiClient = getApiClient();
         }
 
         // Content lists use the same publish API as content items
-        const result = await apiClient.contentMethods.publishContent(contentListId, targetGuid, locale);
+        const result = await apiClient.contentMethods.publishContent(contentListId, targetGuid[0], locale[0]);
         
         return {
             success: true,

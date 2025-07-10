@@ -26,8 +26,8 @@ export class SitemapHierarchy {
                 // Normal mode: nested structure {rootPath}/{guid}/{locale}/{mode}/nestedsitemap/website.json
                 sitemapPath = path.join(
                     state.rootPath,
-                    state.sourceGuid,
-                    state.locale,
+                    state.sourceGuid[0],
+                    state.locale[0],
                     state.preview ? 'preview' : 'live',
                     'nestedsitemap',
                     'website.json'

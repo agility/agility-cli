@@ -1,9 +1,6 @@
-import { cliToken } from "../types/cliToken";
-import { fileOperations } from "./fileOperations";
+;
 import { serverUser } from "../types/serverUser";
-import { WebsiteUser } from "../types/websiteUser";
 import { state, getState } from "./state";
-import { AgilityInstance } from "../types/agilityInstance";
 import * as mgmtApi from "@agility/management-sdk";
 const open = require("open");
 const FormData = require("form-data");
@@ -296,6 +293,23 @@ export class Auth {
       return false;
     }
 
+    // Step 3: Get API keys for all GUIDs
+    const allGuids = [...state.sourceGuid, ...state.targetGuid];
+    state.apiKeys = [];
+    
+    for (const guid of allGuids) {
+      if (guid) {
+        try {
+          const previewKey = await this.getPreviewKey(guid);
+          const fetchKey = await this.getFetchKey(guid);
+          
+          state.apiKeys.push({ guid, previewKey, fetchKey });
+        } catch (error) {
+          console.log(ansiColors.yellow(`Warning: Could not get keys for GUID ${guid}: ${error.message}`));
+        }
+      }
+    }
+
     // Step 4: Set up UI mode in state
     state.useHeadless = state.headless; // headless takes precedence
     state.useVerbose = !state.useHeadless && state.verbose;
@@ -319,16 +333,99 @@ export class Auth {
     state.mgmtApiOptions = mgmtApiOptions;
 
     // Load user data for interactive prompts and general use
-    if (state.sourceGuid) {
+    if (state.sourceGuid.length > 0) {
       try {
-        const user = await this.getUser(state.sourceGuid);
+        const primaryGuid = state.sourceGuid[0];
+        const user = await this.getUser(primaryGuid);
         if (user) {
           state.user = user;
-          state.currentWebsite = user.websiteAccess.find((website: any) => website.guid === state.sourceGuid);
+          state.currentWebsite = user.websiteAccess.find((website: any) => website.guid === primaryGuid);
         }
       } catch (error) {
         // Non-fatal for interactive mode - user data will be loaded when needed
         console.log(ansiColors.yellow(`Note: Could not load user data: ${error.message}`));
+      }
+    }
+
+    // Step 6: Auto-detect available locales for ALL GUIDs in the matrix
+    if (allGuids.length > 0) {
+      try {
+        const { getApiClient } = await import('./state');
+        const apiClient = getApiClient();
+        
+        // Get locales for each GUID in the matrix
+        const guidLocaleMap = new Map<string, string[]>();
+        const allDetectedLocales = new Set<string>();
+        let totalCombinations = 0;
+        
+        for (const guid of allGuids) {
+          if (guid) {
+            try {
+              const localesArr = await apiClient.instanceMethods.getLocales(guid);
+              const localesForGuid = localesArr.map((locale: any) => locale.localeCode);
+              
+              // Handle user-specified locale filtering per GUID
+              let finalLocalesForGuid = localesForGuid;
+              if (state.locale.length > 0) {
+                // User specified locales: only use those that exist for this GUID
+                finalLocalesForGuid = state.locale.filter(userLocale => 
+                  localesForGuid.includes(userLocale)
+                );
+                
+                // Warn about missing locales for this GUID
+                const missingLocales = state.locale.filter(userLocale => 
+                  !localesForGuid.includes(userLocale)
+                );
+                if (missingLocales.length > 0) {
+                  console.log(ansiColors.yellow(`⚠️  ${guid}: Missing locales ${missingLocales.join(', ')} (available: ${localesForGuid.join(', ')})`));
+                }
+                
+                // Fallback if no user locales exist for this GUID
+                if (finalLocalesForGuid.length === 0) {
+                  console.log(ansiColors.yellow(`⚠️  ${guid}: None of the specified locales exist, using all available`));
+                  finalLocalesForGuid = localesForGuid;
+                }
+              }
+              
+              guidLocaleMap.set(guid, finalLocalesForGuid);
+              totalCombinations += finalLocalesForGuid.length;
+              
+              // Add to set of all detected locales
+              finalLocalesForGuid.forEach(locale => allDetectedLocales.add(locale));
+              
+              console.log(`🌍 ${guid}: ${finalLocalesForGuid.join(', ')}`);
+            } catch (error) {
+              console.log(ansiColors.yellow(`⚠️  Could not get locales for ${guid}: ${error.message}`));
+              const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ['en-us'];
+              guidLocaleMap.set(guid, fallbackLocales);
+              totalCombinations += fallbackLocales.length;
+            }
+          }
+        }
+        
+        // Store the per-GUID locale mapping in state
+        state.guidLocaleMap = guidLocaleMap;
+        state.availableLocales = Array.from(allDetectedLocales);
+        
+        console.log(`🔍 GUID×Locale Matrix: ${allGuids.length} instances × variable locales = ${totalCombinations} total operations`);
+        
+        // Show detailed matrix
+        Array.from(guidLocaleMap.entries()).forEach(([guid, locales]) => {
+          console.log(`   📋 ${guid} → ${locales.length} locale(s): ${locales.join(', ')}`);
+        });
+        
+      } catch (error) {
+        console.log(ansiColors.yellow(`Note: Could not auto-detect locales: ${error.message}`));
+        state.availableLocales = ['en-us']; // Fallback to default
+        
+        // Create fallback mapping for all GUIDs
+        const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ['en-us'];
+        for (const guid of allGuids) {
+          if (guid) {
+            state.guidLocaleMap.set(guid, fallbackLocales);
+          }
+        }
+        console.log(`📝 Using fallback mapping: all GUIDs → ${fallbackLocales.join(', ')}`);
       }
     }
 
@@ -640,15 +737,29 @@ export class Auth {
     // Check command-specific requirements
     switch (commandType) {
       case 'pull':
-        if (!state.sourceGuid) missingFields.push('sourceGuid (use --sourceGuid or AGILITY_GUID in .env)');
-        if (!state.locale) missingFields.push('locale (use --locale or AGILITY_LOCALES in .env)');
+        if (!state.sourceGuid || state.sourceGuid.length === 0) missingFields.push('sourceGuid (use --sourceGuid or AGILITY_GUID in .env)');
+        
+        // Check for locales: either user-specified OR auto-detected per-GUID mappings
+        const hasUserLocales = state.locale && state.locale.length > 0;
+        const hasAutoDetectedLocales = state.guidLocaleMap && state.guidLocaleMap.size > 0;
+        if (!hasUserLocales && !hasAutoDetectedLocales) {
+          missingFields.push('locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)');
+        }
+        
         if (!state.channel) missingFields.push('channel (use --channel or AGILITY_WEBSITE in .env)');
         break;
 
       case 'sync':
-        if (!state.sourceGuid) missingFields.push('sourceGuid (use --sourceGuid or AGILITY_GUID in .env)');
-        if (!state.targetGuid) missingFields.push('targetGuid (use --targetGuid)');
-        if (!state.locale) missingFields.push('locale (use --locale or AGILITY_LOCALES in .env)');
+        if (!state.sourceGuid || state.sourceGuid.length === 0) missingFields.push('sourceGuid (use --sourceGuid or AGILITY_GUID in .env)');
+        if (!state.targetGuid || state.targetGuid.length === 0) missingFields.push('targetGuid (use --targetGuid)');
+        
+        // Check for locales: either user-specified OR auto-detected per-GUID mappings
+        const hasSyncUserLocales = state.locale && state.locale.length > 0;
+        const hasSyncAutoDetectedLocales = state.guidLocaleMap && state.guidLocaleMap.size > 0;
+        if (!hasSyncUserLocales && !hasSyncAutoDetectedLocales) {
+          missingFields.push('locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)');
+        }
+        
         if (!state.channel) missingFields.push('channel (use --channel or AGILITY_WEBSITE in .env)');
         break;
 
@@ -667,7 +778,7 @@ export class Auth {
       missingFields.forEach(field => {
         console.log(ansiColors.red(`   • ${field}`));
       });
-      console.log(ansiColors.yellow('\n💡 Tip: Create a .env file with your configuration to avoid specifying these every time.'));
+      // console.log(ansiColors.yellow('\n💡 Tip: Create a .env file with your configuration to avoid specifying these every time.'));
       return false;
     }
 
@@ -675,51 +786,51 @@ export class Auth {
     const shouldSkip = this.shouldSkipPermissionCheck();
     
     try {
-      if (commandType === 'sync' && state.targetGuid) {
-        // Sync operation - validate access to both source and target
+      if (commandType === 'sync' && state.targetGuid && state.targetGuid.length > 0) {
+        // Sync operation - validate access to both source and target (use first GUID for validation)
         if (!shouldSkip) {
-          await this.validateInstanceAccess(state.sourceGuid!, 'source');
-          await this.validateInstanceAccess(state.targetGuid, 'target');
+          await this.validateInstanceAccess(state.sourceGuid[0], 'source');
+          await this.validateInstanceAccess(state.targetGuid[0], 'target');
         }
         
-        // Configure for target instance (sync writes to target)
-        const targetBaseUrl = state.baseUrl || this.determineBaseUrl(state.targetGuid);
+        // Configure for target instance (sync writes to target - use first target GUID)
+        const targetBaseUrl = state.baseUrl || this.determineBaseUrl(state.targetGuid[0]);
         state.mgmtApiOptions!.baseUrl = targetBaseUrl;
         state.baseUrl = targetBaseUrl;
         
-        // Get API keys for source instance (needed for pull phase of sync)
-        const previewKey = await this.getPreviewKey(state.sourceGuid!);
-        const fetchKey = await this.getFetchKey(state.sourceGuid!);
+        // Get API keys for source instance (needed for pull phase of sync - use first source GUID)
+        const previewKey = await this.getPreviewKey(state.sourceGuid[0]);
+        const fetchKey = await this.getFetchKey(state.sourceGuid[0]);
         
         state.previewKey = previewKey;
         state.fetchKey = fetchKey;
         state.apiKeyForPull = state.preview ? previewKey : fetchKey;
 
         if (!state.apiKeyForPull) {
-          console.log(ansiColors.red(`Could not retrieve the required API key (preview: ${state.preview}) for source instance ${state.sourceGuid}. Check API key configuration in Agility and --baseUrl if used.`));
+          console.log(ansiColors.red(`Could not retrieve the required API key (preview: ${state.preview}) for source instance ${state.sourceGuid[0]}. Check API key configuration in Agility and --baseUrl if used.`));
           return false;
         }
         
-      } else if (commandType === 'pull' && state.sourceGuid) {
-        // Pull operation - validate source access and get API keys
+      } else if (commandType === 'pull' && state.sourceGuid && state.sourceGuid.length > 0) {
+        // Pull operation - validate source access and get API keys (use first source GUID for validation)
         if (!shouldSkip) {
-          await this.validateInstanceAccess(state.sourceGuid, 'instance');
+          await this.validateInstanceAccess(state.sourceGuid[0], 'instance');
         }
         
-        const baseUrl = state.baseUrl || this.determineBaseUrl(state.sourceGuid);
+        const baseUrl = state.baseUrl || this.determineBaseUrl(state.sourceGuid[0]);
         state.mgmtApiOptions!.baseUrl = baseUrl;
         state.baseUrl = baseUrl;
         
-        // Get API keys for pull operations
-        const previewKey = await this.getPreviewKey(state.sourceGuid);
-        const fetchKey = await this.getFetchKey(state.sourceGuid);
+        // Get API keys for pull operations (use first source GUID)
+        const previewKey = await this.getPreviewKey(state.sourceGuid[0]);
+        const fetchKey = await this.getFetchKey(state.sourceGuid[0]);
         
         state.previewKey = previewKey;
         state.fetchKey = fetchKey;
         state.apiKeyForPull = state.preview ? previewKey : fetchKey;
 
         if (!state.apiKeyForPull) {
-          console.log(ansiColors.red(`Could not retrieve the required API key (preview: ${state.preview}) for instance ${state.sourceGuid}. Check API key configuration in Agility and --baseUrl if used.`));
+          console.log(ansiColors.red(`Could not retrieve the required API key (preview: ${state.preview}) for instance ${state.sourceGuid[0]}. Check API key configuration in Agility and --baseUrl if used.`));
           return false;
         }
       }

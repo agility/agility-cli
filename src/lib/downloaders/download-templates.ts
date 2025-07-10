@@ -1,23 +1,18 @@
-import * as mgmtApi from "@agility/management-sdk";
-import * as cliProgress from "cli-progress";
-import { fileOperations } from "../../core/fileOperations"; // Assuming fileOperations is in services
-import { state, getApiClient } from "../../core/state";
-import * as fs from "fs"; // For checking if folder is empty
-import * as path from "path"; // For path operations
+import { fileOperations } from "../../core/fileOperations";
+import { getApiClient, getState } from "../../core/state";
+import * as path from "path";
 import ansiColors from "ansi-colors";
 import { ContentHashComparer } from "../shared/content-hash-comparer";
 
 export async function downloadAllTemplates(
-  multibar: cliProgress.MultiBar,
   fileOps: fileOperations,
-  update: boolean, // Controls whether to update existing files
   progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
 ): Promise<void> {
-  // Get state values instead of parameters
-  const guid = state.sourceGuid;
-  const locale = state.locale;
-  const isPreview = state.preview;
-  const apiClient = getApiClient(); // Use getApiClient() instead of state.apiClient
+  // Get values from fileOps which is already configured for this specific GUID/locale
+  const guid = fileOps.guid;
+  const locale = fileOps.locale; // Templates need locale for API call
+  const update = getState().update; // Use state.update instead of parameter
+  const apiClient = getApiClient();
 
   if (!guid) {
     throw new Error('Source GUID not available in state');

@@ -5,10 +5,10 @@ import * as mgmtApi from "@agility/management-sdk";
 import { type ContentListFilterModel } from "@agility/management-sdk/dist/models/contentListFilterModel";
 
 import { fileOperations } from "../../core/fileOperations";
-import { localePrompt, channelPrompt, isPreviewPrompt, homePrompt, fileSystemPrompt } from "../prompts";
+import { localePrompt, channelPrompt, isPreviewPrompt, homePrompt, fileSystemPrompt } from "../ui/prompts";
 import inquirer from "inquirer";
 import * as path from "path";
-import ansiColors = require("ansi-colors");
+import ansiColors from "ansi-colors";
 
 import { AgilityInstance } from "../../types/agilityInstance";
 

@@ -1,5 +1,5 @@
 import { Auth, fileOperations, state } from "../../core";
-import { homePrompt } from "../prompts";
+import { homePrompt } from "../ui/prompts";
 const FormData = require("form-data");
 
 export async function listInstances() {

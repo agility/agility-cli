@@ -1,20 +1,15 @@
-import * as mgmtApi from "@agility/management-sdk";
-import * as cliProgress from "cli-progress";
 import { fileOperations } from "../../core/fileOperations";
-import { state, getApiClient } from "../../core/state";
+import { getApiClient, getState } from "../../core/state";
 import ansiColors from "ansi-colors";
 import { ContentHashComparer } from "../shared/content-hash-comparer";
 
 export async function downloadAllGalleries(
-  multibar: cliProgress.MultiBar,
   fileOps: fileOperations, 
-  update: boolean, // Controls whether to update existing files
   progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
 ): Promise<void> {
-  // Get state values instead of parameters
-  const guid = state.sourceGuid;
-  const locale = state.locale;
-  const isPreview = state.preview;
+  // Get values from fileOps which is already configured for this specific GUID/locale
+  const guid = fileOps.guid;
+  const update = getState().update; // Use state.update instead of parameter
   const apiClient = getApiClient();
 
   if (!guid) {

@@ -21,7 +21,7 @@ export class Sync {
   private originalConsoleError: typeof console.error;
 
   constructor() {
-    this.fileOps = new fileOperations(state.rootPath, state.sourceGuid, state.locale, state.preview);
+    this.fileOps = new fileOperations(state.rootPath, state.sourceGuid[0], state.locale[0], state.preview);
     
     // Store original console methods for restoration
     this.originalConsoleLog = console.log;
@@ -392,8 +392,8 @@ export class Sync {
           if (normalContentItems.length > 0) {
             const normalBatchConfig = {
               apiClient: getApiClient(),
-              targetGuid: state.targetGuid,
-              locale: state.locale,
+              targetGuid: state.targetGuid[0],
+              locale: state.locale[0],
               referenceMapper,
               batchSize: 250,
               useContentFieldMapper: true,
@@ -414,8 +414,8 @@ export class Sync {
           if (linkedContentItems.length > 0) {
             const linkedBatchConfig = {
               apiClient: getApiClient(),
-              targetGuid: state.targetGuid,
-              locale: state.locale,
+              targetGuid: state.targetGuid[0],
+              locale: state.locale[0],
               referenceMapper,
               batchSize: 100, // Smaller batches for linked content due to complexity
               useContentFieldMapper: true,

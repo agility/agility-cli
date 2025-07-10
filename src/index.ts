@@ -2,14 +2,15 @@
 
 import * as yargs from "yargs";
 
-const colors = require("ansi-colors");
-const inquirer = require("inquirer");
-inquirer.registerPrompt("search-list", require("inquirer-search-list"));
+import colors from "ansi-colors";
+import inquirer from "inquirer";
+import searchList from "inquirer-search-list";
+inquirer.registerPrompt("search-list", searchList);
 
 import { Auth, Clean, Pull, Sync, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
-import { homePrompt, instancesPrompt, localePrompt } from "./lib/prompts";
+import { homePrompt, instancesPrompt, localePrompt } from "./lib/ui/prompts";
 import { generateEnv } from "./lib/shared";
-import { instanceSelector } from "./lib/prompts";
+import { instanceSelector } from "./lib/ui/prompts";
   
 let auth: Auth;
 

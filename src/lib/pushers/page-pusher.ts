@@ -593,7 +593,7 @@ export async function pushPages(
             }
         }
         
-        const result = await processPage(page, targetGuid, locale, isChildPage, apiClient, referenceMapper, overwrite, insertBeforePageId);
+        const result = await processPage(page, targetGuid[0], locale[0], isChildPage, apiClient, referenceMapper, overwrite, insertBeforePageId);
         if (result === 'success') {
             successful++; // Page was processed successfully (created or updated)
             

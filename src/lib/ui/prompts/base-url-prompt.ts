@@ -1,5 +1,5 @@
 import inquirer from "inquirer";
-import { state } from "../../core/state";
+import { state } from "../../../core/state";
 
 
 export async function getBaseURLfromGUID(guid: string): Promise<string> {

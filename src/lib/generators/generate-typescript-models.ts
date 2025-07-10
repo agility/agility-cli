@@ -1,8 +1,8 @@
 const FormData = require("form-data");
 import { Auth, fileOperations, state } from "../../core";
-import { localePrompt, homePrompt, fileSystemPrompt } from "../prompts";
+import { localePrompt, homePrompt, fileSystemPrompt } from "../ui/prompts";
 import * as path from "path";
-import ansiColors = require("ansi-colors");
+import ansiColors from "ansi-colors";
 import { AgilityInstance } from "../../types/agilityInstance";
 
 let AI_ENDPOINT_DEV: string = "https://manager-bff-qa-git-cli-ai.publishwithagility.com/api/ai/cli/typescript-models";

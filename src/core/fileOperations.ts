@@ -61,6 +61,19 @@ export class fileOperations{
     return this._resolvedRootPath;
   }
 
+  // Public getters for instance configuration
+  public get guid(): string {
+    return this._guid;
+  }
+
+  public get locale(): string {
+    return this._locale;
+  }
+
+  public get isPreview(): boolean {
+    return this._isPreview;
+  }
+
   /**
    * Strip ANSI color codes from text for clean log files
    * Matches ANSI escape sequences like [33m, [3m, [23m, [39m, etc.

@@ -25,7 +25,7 @@ const apiClient = getApiClient();
     // Try different batch publishing API methods depending on SDK version
     let result;
 
-    result = await apiClient.batchMethods.publishBatch(batchId, targetGuid, true);
+    result = await apiClient.batchMethods.publishBatch(batchId, targetGuid[0], true);
 
     return {
       success: true,

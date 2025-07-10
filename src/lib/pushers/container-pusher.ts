@@ -45,13 +45,13 @@ export async function pushContainers(
         
         try {
             // Find container in target instance (checks mapping cache first, then API)
-            targetContainer = await findContainerInTargetInstance(sourceContainer, apiClient, targetGuid, referenceMapper);
+            targetContainer = await findContainerInTargetInstance(sourceContainer, apiClient, targetGuid[0], referenceMapper);
 
             if (targetContainer) {
                 // Container exists - determine action based on overwrite flag
                 if (!overwrite) {
                     // overwrite=false: Skip existing containers (current behavior)
-                    console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.bold.grey('exists, skipping')} - ${ansiColors.green(targetGuid)}: ID:${targetContainer.contentViewID}`);
+                    console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.bold.grey('exists, skipping')} - ${ansiColors.green(targetGuid[0])}: ID:${targetContainer.contentViewID}`);
                     referenceMapper.addMapping('container', sourceContainer, targetContainer);
                     skipped++;
                 } else {
@@ -62,23 +62,23 @@ export async function pushContainers(
                         // Content differs - update the container
                         // console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.yellow('checking for updates...')} - ${shouldUpdate.reason}`);
                         
-                        const updatedContainer = await updateExistingContainer(sourceContainer, targetContainer, sourceData, apiClient, targetGuid, referenceMapper);
+                        const updatedContainer = await updateExistingContainer(sourceContainer, targetContainer, sourceData, apiClient, targetGuid[0], referenceMapper);
                         
-                        console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.green('updated')} - ${ansiColors.green(targetGuid)}: ID:${updatedContainer.contentViewID}`);
+                        console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.green('updated')} - ${ansiColors.green(targetGuid[0])}: ID:${updatedContainer.contentViewID}`);
                         referenceMapper.addMapping('container', sourceContainer, updatedContainer);
                         successful++;
                     } else {
                         // Content identical - skip update
-                        console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.bold.grey('unchanged, skipping')} - ${ansiColors.green(targetGuid)}: ID:${targetContainer.contentViewID} (${shouldUpdate.sourceHash})`);
+                        console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.bold.grey('unchanged, skipping')} - ${ansiColors.green(targetGuid[0])}: ID:${targetContainer.contentViewID} (${shouldUpdate.sourceHash})`);
                         referenceMapper.addMapping('container', sourceContainer, targetContainer);
                         skipped++;
                     }
                 }
             } else {
                 // Container doesn't exist - create new one
-                const newContainer = await createNewContainer(sourceContainer, sourceData, apiClient, targetGuid, referenceMapper);
+                const newContainer = await createNewContainer(sourceContainer, sourceData, apiClient, targetGuid[0], referenceMapper);
                 
-                console.log(`✓ Container created: ${ansiColors.cyan.underline(sourceRefName)} - ${ansiColors.green('Source')}: ${sourceContainer.contentViewID} ${ansiColors.green(targetGuid)}: ${newContainer.contentViewID} (Model:${newContainer.contentDefinitionID})`);
+                console.log(`✓ Container created: ${ansiColors.cyan.underline(sourceRefName)} - ${ansiColors.green('Source')}: ${sourceContainer.contentViewID} ${ansiColors.green(targetGuid[0])}: ${newContainer.contentViewID} (Model:${newContainer.contentDefinitionID})`);
                 referenceMapper.addMapping('container', sourceContainer, newContainer);
                 successful++;
             }

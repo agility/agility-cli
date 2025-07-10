@@ -3,14 +3,16 @@ import ansiColors from "ansi-colors"
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const {sleep} = require("../util")
 const { lockSync, unlockSync, checkSync, check }  = require("proper-lockfile")
 
-// Enhanced progress tracking system
-let _itemsSavedStats: Array<{ itemType: string, itemID: string | number, languageCode: string, timestamp: number }> = [];
-let _progressByType: { [itemType: string]: number } = {};
-let _progressCallback: ((stats: ProgressStats) => void) | null = null;
-let _syncStartTime: number = 0;
+// Simple sleep utility function (originally from agility-sync-sdk util.js)
+const sleep = (ms: number) => {
+    return new Promise(resolve => setTimeout(resolve, ms));
+}
+
+// RACE CONDITION FIX: Convert global stats to instance-specific stats
+// Use rootPath as unique identifier for each concurrent download
+const _instanceStats = new Map();
 
 // Type definitions for better TypeScript support
 interface ProgressStats {
@@ -21,48 +23,90 @@ interface ProgressStats {
     recentActivity: Array<{ itemType: string, itemID: string | number, timestamp: number }>;
 }
 
+interface InstanceStatsData {
+    itemsSavedStats: Array<{ itemType: string, itemID: string | number, languageCode: string, timestamp: number }>;
+    progressByType: { [itemType: string]: number };
+    progressCallback: ((stats: ProgressStats) => void) | null;
+    syncStartTime: number;
+}
+
 require("dotenv").config({
 	path: `.env.${process.env.NODE_ENV}`,
 })
 
 /**
+ * Get or create instance-specific stats for the given rootPath
+ */
+const getInstanceStats = (rootPath: string): InstanceStatsData => {
+    if (!_instanceStats.has(rootPath)) {
+        _instanceStats.set(rootPath, {
+            itemsSavedStats: [],
+            progressByType: {},
+            progressCallback: null,
+            syncStartTime: 0
+        });
+    }
+    return _instanceStats.get(rootPath);
+};
+
+/**
  * Set a progress callback function that will be called whenever items are saved
  * This allows the BlessedUI to get real-time updates during sync operations
  */
-const setProgressCallback = (callback: ((stats: ProgressStats) => void) | null) => {
-    _progressCallback = callback;
+const setProgressCallback = (callback: ((stats: ProgressStats) => void) | null, rootPath?: string) => {
+    if (rootPath) {
+        const instanceStats = getInstanceStats(rootPath);
+        instanceStats.progressCallback = callback;
+    } else {
+        // Fallback: set for all instances if rootPath not specified
+        _instanceStats.forEach((stats) => {
+            stats.progressCallback = callback;
+        });
+    }
 };
 
 /**
  * Initialize progress tracking for a new sync operation
  */
-const initializeProgress = () => {
-    _itemsSavedStats = [];
-    _progressByType = {};
-    _syncStartTime = Date.now();
+const initializeProgress = (rootPath?: string) => {
+    if (rootPath) {
+        const instanceStats = getInstanceStats(rootPath);
+        instanceStats.itemsSavedStats = [];
+        instanceStats.progressByType = {};
+        instanceStats.syncStartTime = Date.now();
+    } else {
+        // Fallback: initialize all instances if rootPath not specified
+        _instanceStats.forEach((stats) => {
+            stats.itemsSavedStats = [];
+            stats.progressByType = {};
+            stats.syncStartTime = Date.now();
+        });
+    }
 };
 
 /**
  * Clean up old progress data to prevent memory bloat during long operations
  */
-const cleanupProgressData = () => {
+const cleanupProgressData = (rootPath: string) => {
+    const instanceStats = getInstanceStats(rootPath);
     const MAX_STATS_HISTORY = 200; // Reduced from 500 to match Blessed UI limit
-    if (_itemsSavedStats.length > MAX_STATS_HISTORY) {
-        _itemsSavedStats = _itemsSavedStats.slice(-MAX_STATS_HISTORY);
+    if (instanceStats.itemsSavedStats.length > MAX_STATS_HISTORY) {
+        instanceStats.itemsSavedStats = instanceStats.itemsSavedStats.slice(-MAX_STATS_HISTORY);
     }
 };
 
 /**
  * Get current progress statistics without clearing the data
  */
-const getCurrentProgress = (): ProgressStats => {
+const getCurrentProgress = (rootPath: string): ProgressStats => {
+    const instanceStats = getInstanceStats(rootPath);
     const now = Date.now();
-    const elapsedTime = _syncStartTime > 0 ? now - _syncStartTime : 0;
-    const totalItems = _itemsSavedStats.length;
+    const elapsedTime = instanceStats.syncStartTime > 0 ? now - instanceStats.syncStartTime : 0;
+    const totalItems = instanceStats.itemsSavedStats.length;
     const itemsPerSecond = elapsedTime > 0 ? (totalItems / elapsedTime) * 1000 : 0;
     
     // Get recent activity (last 10 items)
-    const recentActivity = _itemsSavedStats.slice(-10).map(item => ({
+    const recentActivity = instanceStats.itemsSavedStats.slice(-10).map(item => ({
         itemType: item.itemType,
         itemID: item.itemID,
         timestamp: item.timestamp
@@ -70,7 +114,7 @@ const getCurrentProgress = (): ProgressStats => {
 
     return {
         totalItems,
-        itemsByType: { ..._progressByType },
+        itemsByType: { ...instanceStats.progressByType },
         elapsedTime,
         itemsPerSecond,
         recentActivity
@@ -80,24 +124,25 @@ const getCurrentProgress = (): ProgressStats => {
 /**
  * Update progress counters and trigger callback if set (optimized for memory)
  */
-const updateProgress = (itemType: string, itemID: string | number) => {
+const updateProgress = (itemType: string, itemID: string | number, rootPath: string) => {
+    const instanceStats = getInstanceStats(rootPath);
     const timestamp = Date.now();
     
     // Limit stats array size to prevent memory bloat (keep only recent items)
     const MAX_STATS_HISTORY = 200; // Reduced from 1000 to 200
-    if (_itemsSavedStats.length >= MAX_STATS_HISTORY) {
-        _itemsSavedStats.shift(); // Remove oldest entry
+    if (instanceStats.itemsSavedStats.length >= MAX_STATS_HISTORY) {
+        instanceStats.itemsSavedStats.shift(); // Remove oldest entry
     }
-    _itemsSavedStats.push({ itemType, itemID, languageCode: 'current', timestamp });
+    instanceStats.itemsSavedStats.push({ itemType, itemID, languageCode: 'current', timestamp });
     
     // Update type counters
-    _progressByType[itemType] = (_progressByType[itemType] || 0) + 1;
+    instanceStats.progressByType[itemType] = (instanceStats.progressByType[itemType] || 0) + 1;
     
     // More aggressive throttling to reduce UI pressure
-    const totalItems = Object.values(_progressByType).reduce((sum, count) => sum + count, 0);
-    if (_progressCallback && (totalItems % 10 === 0 || totalItems < 50)) { // Call every 10 items after 50, all items before 50
-        const currentStats = getCurrentProgress();
-        _progressCallback(currentStats);
+    const totalItems = Object.values(instanceStats.progressByType).reduce((sum, count) => sum + count, 0);
+    if (instanceStats.progressCallback && (totalItems % 10 === 0 || totalItems < 50)) { // Call every 10 items after 50, all items before 50
+        const currentStats = getCurrentProgress(rootPath);
+        instanceStats.progressCallback(currentStats);
     }
 };
 
@@ -152,7 +197,7 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 
 		// REMOVE direct log, PUSH to stats array
         // console.log(`✓ Downloaded ${ansiColors.cyan(itemType)} (ID: ${itemID})`);
-        updateProgress(itemType, itemID);
+        updateProgress(itemType, itemID, options.rootPath);
        
 		
 	} catch (error) {
@@ -333,15 +378,16 @@ const getFilePath = ({ options, itemType, languageCode, itemID }) => {
 }
 
 // Enhanced function to get and clear saved item stats with progress data
-const getAndClearSavedItemStats = () => {
-    const stats = [..._itemsSavedStats];
-    const progressByType = { ..._progressByType };
-    const finalStats = getCurrentProgress();
+const getAndClearSavedItemStats = (rootPath: string) => {
+    const instanceStats = getInstanceStats(rootPath);
+    const stats = [...instanceStats.itemsSavedStats];
+    const progressByType = { ...instanceStats.progressByType };
+    const finalStats = getCurrentProgress(rootPath);
     
     // Clear the buffers for the next operation
-    _itemsSavedStats = [];
-    _progressByType = {};
-    _syncStartTime = 0;
+    instanceStats.itemsSavedStats = [];
+    instanceStats.progressByType = {};
+    instanceStats.syncStartTime = 0;
     
     return {
         items: stats,

@@ -905,7 +905,7 @@ export async function pushContent(
             // Use source GUID from state instead of complex lookup logic
             
             // Create fileOperations instance for the source data
-            const fileOps = new fileOperations('agility-files', sourceGuid, locale, true);
+            const fileOps = new fileOperations('agility-files', sourceGuid[0], locale[0], true);
             
             resolvedModels = getModelsFromFileSystem(fileOps);
             
@@ -927,7 +927,7 @@ export async function pushContent(
     const publishableIds: number[] = []; // Collect target content IDs for auto-publishing
 
     // Initialize default asset container URL
-    const defaultTargetAssetContainerOriginUrl = await getDefaultAssetContainerUrl(apiClient, targetGuid);
+    const defaultTargetAssetContainerOriginUrl = await getDefaultAssetContainerUrl(apiClient, targetGuid[0]);
 
    
     // BULK MAPPING FILTER: Check for existing mappings unless overwrite is enabled
@@ -965,8 +965,8 @@ export async function pushContent(
 
         const normalResult = await pushNormalContentItems(
             classification.normalContentItems,
-            targetGuid,
-            locale,
+            targetGuid[0],
+            locale[0],
             apiClient,
             referenceMapper,
             resolvedModels,
@@ -992,8 +992,8 @@ export async function pushContent(
 
         const linkedResult = await processLinkedContentIndividually(
             classification.linkedContentItems,
-            targetGuid,
-            locale,
+            targetGuid[0],
+            locale[0],
             apiClient,
             referenceMapper,
             resolvedModels,

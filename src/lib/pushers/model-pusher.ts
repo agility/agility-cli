@@ -48,7 +48,7 @@ export async function pushModels(
 
     try {
       // Check if model exists using dedicated finder (handles mapping automatically)
-      const existingModel = await findModelInTargetInstance(model, apiClient, targetGuid, referenceMapper);
+      const existingModel = await findModelInTargetInstance(model, apiClient, targetGuid[0], referenceMapper);
 
       if (existingModel) {
         // Model exists - check if we need to update it
@@ -95,7 +95,7 @@ export async function pushModels(
           logModelDifferences(sourceModel, targetModel, modelName);
         }
 
-        const updatedModel = await apiClient.modelMethods.saveModel(updatePayload, targetGuid);
+        const updatedModel = await apiClient.modelMethods.saveModel(updatePayload, targetGuid[0]);
         referenceMapper.addMapping("model", model, updatedModel);
 
         console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${passName} ${ansiColors.bold.green("updated")}`);
@@ -118,7 +118,7 @@ export async function pushModels(
         delete createPayload.lastModifiedBy;
         delete createPayload.lastModifiedAuthorID;
 
-        const createdModel = await apiClient.modelMethods.saveModel(createPayload, targetGuid);
+        const createdModel = await apiClient.modelMethods.saveModel(createPayload, targetGuid[0]);
         
         if (!createdModel || !createdModel.id) {
           throw new Error(`Failed to create model ${modelName} - no ID returned`);
@@ -140,7 +140,7 @@ export async function pushModels(
 
       if (isAlreadyExistsError) {
         try {
-          const retrievedModel = await findModelInTargetInstance(model, apiClient, targetGuid, referenceMapper);
+          const retrievedModel = await findModelInTargetInstance(model, apiClient, targetGuid[0], referenceMapper);
           if (retrievedModel) {
             console.log(`✓ ${passName} ${ansiColors.underline(modelName)} ${ansiColors.bold.gray("found after error")} - Continuing.`);
             processedModels.add(model.id);

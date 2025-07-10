@@ -1,5 +1,5 @@
 import inquirer from "inquirer";
-import { getState } from "../../core/state";
+import { getState } from "../../../core/state";
 import colors from "ansi-colors";
 
 export async function instanceSelector() {

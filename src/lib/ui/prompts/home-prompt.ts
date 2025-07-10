@@ -2,9 +2,9 @@ import inquirer from "inquirer";
 import colors from "ansi-colors";
 import { instanceSelector } from "./instance-selector-prompt";
 import { getInstance, instancesPrompt } from "./instance-prompt";
-import { Auth } from "../../core/auth";
+import { Auth } from "../../../core/auth";
 import { AgilityInstance } from "types/agilityInstance";
-import { getUIMode } from "../../core/state";
+import { getUIMode } from "../../../core/state";
 
 export async function homePrompt(prompt?: any) {
   await inquirer

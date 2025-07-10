@@ -34,8 +34,8 @@ export class SourceDataLoader {
         // Use enhanced fileOperations with legacyFolders support
         this.fileOps = new fileOperations(
             state.rootPath,
-            state.sourceGuid,
-            state.locale,
+            state.sourceGuid[0],
+            state.locale[0],
             state.preview,
             state.legacyFolders
         );

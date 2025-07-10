@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import agilitySDK from "@agility/content-fetch";
 import { AgilityInstance } from "../../types/agilityInstance";
-import { localePrompt, fileSystemPrompt, isPreviewPrompt, channelPrompt, websiteAddressPrompt } from "../prompts";
+import { localePrompt, fileSystemPrompt, isPreviewPrompt, channelPrompt, websiteAddressPrompt } from "../ui/prompts";
 
 
 export const generateSitemap = async (selectedInstance: AgilityInstance, keys: any) => {

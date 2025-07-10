@@ -19,9 +19,11 @@ interface CliState {
   blessed: boolean;
   
   // Instance/Connection
-  sourceGuid?: string;
-  targetGuid?: string;
-  locale: string;
+  sourceGuid: string[]; // Array of source GUIDs
+  targetGuid: string[]; // Array of target GUIDs  
+  locale: string[];     // Array of locales (for backward compatibility / user-specified)
+  availableLocales: string[]; // Detected locales from getLocales() during auth
+  guidLocaleMap: Map<string, string[]>; // Per-GUID locale mapping for matrix operations
   channel: string;
   preview: boolean;
   elements: string;
@@ -61,12 +63,14 @@ interface CliState {
   
   // Auth/API objects (set by auth.init())
   mgmtApiOptions?: any;
-  apiClient?: mgmtApi.ApiClient; // Lazy-loaded API client
   user?: any;
   apiKeyForPull?: string;
   previewKey?: string;
   fetchKey?: string;
   currentWebsite?: any;
+
+  // API Keys for download operations (simplified approach)
+  apiKeys: Array<{ guid: string; previewKey: string; fetchKey: string }>;
   
   // Legacy fields (for backward compatibility)
   token: string | null;
@@ -88,7 +92,12 @@ export const state: CliState = {
   blessed: true,
   
   // Instance/Connection
-  locale: "en-us",
+  sourceGuid: [],
+  targetGuid: [],
+  locale: [],
+  availableLocales: [],
+  guidLocaleMap: new Map(),
+  apiKeys: [],
   channel: "website",
   preview: true,
   elements: "Models,Galleries,Assets,Containers,Content,Templates,Pages",
@@ -138,10 +147,47 @@ export function setState(argv: any) {
   if (argv.verbose !== undefined) state.verbose = argv.verbose;
   if (argv.blessed !== undefined) state.blessed = argv.blessed;
   
-  // Instance/Connection
-  if (argv.sourceGuid !== undefined) state.sourceGuid = argv.sourceGuid;
-  if (argv.targetGuid !== undefined) state.targetGuid = argv.targetGuid;
-  if (argv.locale !== undefined) state.locale = argv.locale;
+  // Instance/Connection - Multi-GUID parsing logic
+  if (argv.sourceGuid !== undefined) {
+    if (argv.sourceGuid.includes(',')) {
+      // Multi-GUID specification
+      state.sourceGuid = argv.sourceGuid.split(',')
+        .map((g: string) => g.trim())
+        .filter((g: string) => g.length > 0);
+    } else {
+      // Single GUID
+      state.sourceGuid = [argv.sourceGuid];
+    }
+  }
+  
+  if (argv.targetGuid !== undefined) {
+    if (argv.targetGuid.includes(',')) {
+      // Multi-GUID specification
+      state.targetGuid = argv.targetGuid.split(',')
+        .map((g: string) => g.trim())
+        .filter((g: string) => g.length > 0);
+    } else {
+      // Single GUID
+      state.targetGuid = [argv.targetGuid];
+    }
+  }
+  
+  // Multi-locale parsing logic
+  if (argv.locale !== undefined) {
+    if (argv.locale.trim() === "") {
+      // Empty string = auto-detection
+      state.locale = [];
+    } else if (argv.locale.includes(',') || argv.locale.includes(' ')) {
+      // Multi-locale specification
+      state.locale = argv.locale.split(/[,\s]+/)
+        .map((l: string) => l.trim())
+        .filter((l: string) => l.length > 0);
+    } else {
+      // Single locale
+      state.locale = [argv.locale];
+    }
+  }
+  
   if (argv.channel !== undefined) state.channel = argv.channel;
   if (argv.preview !== undefined) state.preview = argv.preview;
   if (argv.elements !== undefined) state.elements = argv.elements;
@@ -224,8 +270,8 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
       };
 
       // Only prime state values that aren't already set from command line
-      if (envVars.AGILITY_GUID && envVars.AGILITY_GUID[1] && !state.sourceGuid) {
-        state.sourceGuid = envVars.AGILITY_GUID[1].trim();
+      if (envVars.AGILITY_GUID && envVars.AGILITY_GUID[1] && state.sourceGuid.length === 0) {
+        state.sourceGuid = [envVars.AGILITY_GUID[1].trim()];
         primedValues.push('sourceGuid');
       }
       
@@ -234,8 +280,8 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
         primedValues.push('channel');
       }
       
-      if (envVars.AGILITY_LOCALES && envVars.AGILITY_LOCALES[1] && !state.locale) {
-        state.locale = envVars.AGILITY_LOCALES[1].trim().split(',')[0];
+      if (envVars.AGILITY_LOCALES && envVars.AGILITY_LOCALES[1] && state.locale.length === 0) {
+        state.locale = envVars.AGILITY_LOCALES[1].trim().split(',');
         primedValues.push('locale');
       }
       
@@ -281,8 +327,8 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
       }
 
       // Additional system args
-      if (envVars.AGILITY_TARGET_GUID && envVars.AGILITY_TARGET_GUID[1] && !state.targetGuid) {
-        state.targetGuid = envVars.AGILITY_TARGET_GUID[1].trim();
+      if (envVars.AGILITY_TARGET_GUID && envVars.AGILITY_TARGET_GUID[1] && state.targetGuid.length === 0) {
+        state.targetGuid = [envVars.AGILITY_TARGET_GUID[1].trim()];
         primedValues.push('targetGuid');
       }
 
@@ -346,9 +392,12 @@ export function resetState() {
   state.blessed = true;
   
   // Instance/Connection
-  state.sourceGuid = undefined;
-  state.targetGuid = undefined;
-  state.locale = "en-us";
+  state.sourceGuid = [];
+  state.targetGuid = [];
+  state.locale = [];
+  state.availableLocales = [];
+  state.guidLocaleMap = new Map();
+  state.apiKeys = [];
   state.channel = "website";
   state.preview = true;
   state.elements = "Models,Galleries,Assets,Containers,Content,Templates,Pages";
@@ -388,7 +437,6 @@ export function resetState() {
   
   // Clear auth/API objects
   state.mgmtApiOptions = undefined;
-  state.apiClient = undefined;
   state.user = undefined;
   state.apiKeyForPull = undefined;
   state.previewKey = undefined;
@@ -410,23 +458,17 @@ export function getState() {
 }
 
 /**
- * Get or create ApiClient - lazy instantiation on first use
- * This ensures the client is only created when actually needed and uses current auth state
+ * Get or create ApiClient - creates new instance each time
+ * This ensures the client always uses current auth state
  */
 export function getApiClient(): mgmtApi.ApiClient {
-  // Return existing client if available
-  if (state.apiClient) {
-    return state.apiClient;
-  }
-
-  // Create new client on first use
+  // Create new client using current auth state
   if (!state.mgmtApiOptions) {
     throw new Error('Management API options not initialized. Call auth.init() first.');
   }
   
-  // Create and store the client for reuse
-  state.apiClient = new mgmtApi.ApiClient(state.mgmtApiOptions);
-  return state.apiClient;
+  // Always create new client to ensure fresh auth state
+  return new mgmtApi.ApiClient(state.mgmtApiOptions);
 }
 
 /**
@@ -437,10 +479,10 @@ export function createApiClient(): mgmtApi.ApiClient {
 }
 
 /**
- * Clear the cached API client (useful when auth state changes)
+ * Clear the cached API client (no-op since we don't cache anymore)
  */
 export function clearApiClient(): void {
-  state.apiClient = undefined;
+  // No-op since we don't cache the client anymore
 }
 
 /**
@@ -456,4 +498,109 @@ export function getUIMode() {
     useVerbose,
     useBlessed
   };
+}
+
+/**
+ * Get active locale for backward compatibility
+ * Returns first locale from locale array or fallback
+ */
+export function getActiveLocale(): string {
+  if (state.locale && state.locale.length > 0) {
+    return state.locale[0];
+  }
+  return 'en-us';
+}
+
+/**
+ * Get all active locales as array
+ * Returns locale array or fallback to default
+ */
+export function getActiveLocales(): string[] {
+  if (state.locale && state.locale.length > 0) {
+    return state.locale;
+  }
+  return ['en-us'];
+}
+
+/**
+ * Get all active source GUIDs as array
+ * Returns sourceGuid array
+ */
+export function getActiveSourceGuids(): string[] {
+  return state.sourceGuid || [];
+}
+
+/**
+ * Get all active target GUIDs as array
+ * Returns targetGuid array
+ */
+export function getActiveTargetGuids(): string[] {
+  return state.targetGuid || [];
+}
+
+/**
+ * Resolve locales for operation
+ * Uses specified locales or stored available locales from auth.init
+ */
+export function resolveLocales(): string[] {
+  // If locales already specified, use them
+  if (state.locale && state.locale.length > 0) {
+    console.log(`Using specified locales: ${state.locale.join(', ')}`);
+    return state.locale;
+  }
+  
+  // Use available locales detected during auth.init
+  if (state.availableLocales && state.availableLocales.length > 0) {
+    console.log(`Using auto-detected locales: ${state.availableLocales.join(', ')}`);
+    
+    // Update state with detected locales for consistency
+    state.locale = state.availableLocales;
+    
+    return state.availableLocales;
+  }
+  
+  // Fallback if no locales available
+  console.log('⚠️  No locales available, falling back to en-us');
+  return ['en-us'];
+}
+
+/**
+ * Get API keys for a specific GUID
+ */
+export function getApiKeysForGuid(guid: string): { previewKey: string; fetchKey: string } | null {
+  const apiKeyEntry = state.apiKeys.find(item => item.guid === guid);
+  return apiKeyEntry ? { previewKey: apiKeyEntry.previewKey, fetchKey: apiKeyEntry.fetchKey } : null;
+}
+
+/**
+ * Get all API keys
+ */
+export function getAllApiKeys(): Array<{ guid: string; previewKey: string; fetchKey: string }> {
+  return state.apiKeys;
+}
+
+/**
+ * Validate locale format (e.g., en-us, fr-ca, es-es)
+ */
+export function validateLocaleFormat(locale: string): boolean {
+  const localeRegex = /^[a-z]{2}-[a-z]{2}$/i;
+  return localeRegex.test(locale);
+}
+
+/**
+ * Validate array of locales and return valid/invalid splits
+ */
+export function validateLocales(locales: string[]): { valid: string[], invalid: string[] } {
+  const valid: string[] = [];
+  const invalid: string[] = [];
+  
+  for (const locale of locales) {
+    if (validateLocaleFormat(locale)) {
+      valid.push(locale);
+    } else {
+      invalid.push(locale);
+    }
+  }
+  
+  return { valid, invalid };
 } 

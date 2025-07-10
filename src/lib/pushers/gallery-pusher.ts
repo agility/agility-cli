@@ -37,7 +37,7 @@ export async function pushGalleries(
             // Try to get existing gallery
             let existingGallery;
             try {
-                existingGallery = await apiClient.assetMethods.getGalleryByName(targetGuid, mediaGrouping.name);
+                existingGallery = await apiClient.assetMethods.getGalleryByName(targetGuid[0], mediaGrouping.name);
             } catch (error) {
                 // Gallery doesn't exist, which is fine - we'll create it
                 existingGallery = null;
@@ -46,14 +46,14 @@ export async function pushGalleries(
             if (existingGallery) {
                 // Gallery exists, update the reference mapping - this is a skip, not success
                 referenceMapper.addRecord('gallery', mediaGrouping, existingGallery);
-                console.log(`✓ Gallery ${ansiColors.underline(mediaGrouping.name)} ${ansiColors.bold.gray('exists')} - ${ansiColors.green(targetGuid)}: ${existingGallery.mediaGroupingID}`);
+                console.log(`✓ Gallery ${ansiColors.underline(mediaGrouping.name)} ${ansiColors.bold.gray('exists')} - ${ansiColors.green(targetGuid[0])}: ${existingGallery.mediaGroupingID}`);
                 skipped++; // Existing galleries are skipped, not successful
             } else {
                 // Create new gallery
                 const payload = { ...mediaGrouping, mediaGroupingID: 0 };
-                const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
+                const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid[0], payload);
                 referenceMapper.addRecord('gallery', mediaGrouping, savedGallery);
-                console.log(`✓ Gallery created: ${mediaGrouping.name} - ${ansiColors.green('Source')}: ${mediaGrouping.mediaGroupingID} ${ansiColors.green(targetGuid)}: ${savedGallery.mediaGroupingID}`);
+                console.log(`✓ Gallery created: ${mediaGrouping.name} - ${ansiColors.green('Source')}: ${mediaGrouping.mediaGroupingID} ${ansiColors.green(targetGuid[0])}: ${savedGallery.mediaGroupingID}`);
                 successful++;
             }
         } catch (error: any) {

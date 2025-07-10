@@ -30,7 +30,7 @@ export async function pushAssets(
 
     let defaultContainer: mgmtApi.assetContainer | null = null;
     try {
-        defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid);
+        defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid[0]);
     } catch (err: any) {
         console.error("✗ Error fetching default asset container:", err.message);
         return { status: 'error', successful: 0, failed: 0, skipped: 0 }; 
@@ -43,7 +43,7 @@ export async function pushAssets(
     let processedAssetsCount = 0;
     let overallStatus: 'success' | 'error' = 'success';
 
-    const basePath = path.join(process.cwd(), 'agility-files', sourceGuid, locale, isPreview ? 'preview' : 'live', 'assets');
+    const basePath = path.join(process.cwd(), 'agility-files', sourceGuid[0], locale[0], isPreview ? 'preview' : 'live', 'assets');
 
     for (const media of assets) {
         let currentStatus: 'success' | 'error' = 'success';
@@ -56,13 +56,13 @@ export async function pushAssets(
             const folderPath = path.dirname(relativeFilePath) === '.' ? '/' : path.dirname(relativeFilePath);
 
             // SIMPLIFICATION: Use finder function instead of manual mapping/API logic
-            const existingMedia = await findAssetInTargetInstance(media, apiClient, targetGuid, referenceMapper);
+            const existingMedia = await findAssetInTargetInstance(media, apiClient, targetGuid[0], referenceMapper);
 
             if (existingMedia) {
                 // Asset exists in target instance - this is a skip, not a success
                 const sourceFileName = media.originUrl.split('/').pop()?.split('?')[0];
                 const targetFileName = existingMedia.originUrl?.split('/').pop()?.split('?')[0];
-                console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid)}: mediaID:${existingMedia.mediaID} (${targetFileName})`);
+                console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid[0])}: mediaID:${existingMedia.mediaID} (${targetFileName})`);
                 skipped++; // Existing assets are skipped, not successful
             } else {
                 // Handle gallery if present
@@ -75,7 +75,7 @@ export async function pushAssets(
                             targetMediaGroupingID = galleryMapping.target.mediaGroupingID;
                         } else {
                             // Fallback: Check API directly if not in mapper
-                            const gallery = await apiClient.assetMethods.getGalleryByName(targetGuid, media.mediaGroupingName);
+                            const gallery = await apiClient.assetMethods.getGalleryByName(targetGuid[0], media.mediaGroupingName);
                             if (gallery) {
                                 targetMediaGroupingID = gallery.mediaGroupingID;
                                 // Add mapping if found via API
@@ -111,7 +111,7 @@ export async function pushAssets(
                 const fileBuffer = fs.readFileSync(absoluteLocalFilePath);
                 form.append('files', fileBuffer, media.fileName);
                 
-                const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
+                const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid[0], targetMediaGroupingID);
                 
                 if (!uploadedMediaArray || uploadedMediaArray.length === 0) {
                     throw new Error(`API did not return uploaded media details for ${media.fileName}`);
@@ -120,7 +120,7 @@ export async function pushAssets(
                 
                 // PERFORMANCE FIX: Add mapping only after successful upload
                 referenceMapper.addRecord('asset', media, uploadedMedia);
-                console.log(`✓ Asset uploaded: ${media.fileName} to ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`);
+                console.log(`✓ Asset uploaded: ${media.fileName} to ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green(targetGuid[0])}: ${uploadedMedia.mediaID}`);
                 // console.log(`[Asset Debug] Added uploaded asset to cache for future lookups`);
                 successful++;
             }

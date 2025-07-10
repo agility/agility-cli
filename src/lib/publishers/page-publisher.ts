@@ -26,7 +26,7 @@ const apiClient = getApiClient();
             throw new Error('Locale not available in state');
         }
 
-        const result = await apiClient.pageMethods.publishPage(pageId, targetGuid, locale);
+        const result = await apiClient.pageMethods.publishPage(pageId, targetGuid[0], locale[0]);
         
         return {
             success: true,

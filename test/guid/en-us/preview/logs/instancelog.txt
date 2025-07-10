@@ -1,6 +1,0 @@
-ERROR: {
-  "test": "data",
-  "nested": {
-    "key": "value"
-  }
-}

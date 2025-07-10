@@ -32,7 +32,7 @@ const apiClient = getApiClient();
             throw new Error('Locale not available in state');
         }
 
-        const result = await apiClient.contentMethods.publishContent(contentId, targetGuid, locale);
+        const result = await apiClient.contentMethods.publishContent(contentId, targetGuid[0], locale[0]);
         
         return {
             success: true,

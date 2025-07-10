@@ -52,8 +52,8 @@ export class PublishService {
     }
     
     this.apiClient = getApiClient();
-    this.targetGuid = state.targetGuid;
-    this.locale = state.locale;
+    this.targetGuid = state.targetGuid[0];
+    this.locale = state.locale[0];
     this.options = { verbose: false, ...options };
   }
 

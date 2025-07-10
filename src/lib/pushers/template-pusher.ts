@@ -42,12 +42,12 @@ export async function pushTemplates(
 
         try{
             // Check if template exists in target using name
-            let existingTemplate = await apiClient.pageMethods.getPageTemplateName(targetGuid, locale, template.pageTemplateName);
+            let existingTemplate = await apiClient.pageMethods.getPageTemplateName(targetGuid[0], locale[0], template.pageTemplateName);
 
             if(existingTemplate){
                 // Update template ID for mapping purposes - this is a skip, not success
                 referenceMapper.addRecord('template', template, existingTemplate); // Map original source to existing target
-                console.log(`✓ Template ${ansiColors.underline(template.pageTemplateName)} ${ansiColors.bold.gray('exists')} - ${ansiColors.green('Source')}: ${originalID} ${ansiColors.green(targetGuid)}: pageTemplateID:${existingTemplate.pageTemplateID}`);
+                console.log(`✓ Template ${ansiColors.underline(template.pageTemplateName)} ${ansiColors.bold.gray('exists')} - ${ansiColors.green('Source')}: ${originalID} ${ansiColors.green(targetGuid[0])}: pageTemplateID:${existingTemplate.pageTemplateID}`);
                 skipped++; // Existing templates are skipped, not successful
                 templateProcessed = true;
             }
@@ -79,10 +79,10 @@ export async function pushTemplates(
                     }))
                 };
 
-                let createdTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid, locale, createPayload);
+                let createdTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid[0], locale[0], createPayload);
                 
                 referenceMapper.addRecord('template', template, createdTemplate); // Map original source to newly created target
-                console.log(`✓ Template created - ${ansiColors.green('Source')}: ${template.pageTemplateName} (ID: ${originalID}), ${ansiColors.green(targetGuid)}: ${createdTemplate.pageTemplateName} (ID: ${createdTemplate.pageTemplateID})`);
+                console.log(`✓ Template created - ${ansiColors.green('Source')}: ${template.pageTemplateName} (ID: ${originalID}), ${ansiColors.green(targetGuid[0])}: ${createdTemplate.pageTemplateName} (ID: ${createdTemplate.pageTemplateID})`);
                 successful++;
                 templateProcessed = true;
             } catch(createError: any) {

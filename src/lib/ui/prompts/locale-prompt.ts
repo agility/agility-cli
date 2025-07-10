@@ -1,9 +1,9 @@
 import inquirer from 'inquirer';
-import { Auth, fileOperations } from '../../core';
-import { AgilityInstance } from '../../types/agilityInstance';
+import { Auth, fileOperations } from '../../../core';
+import { AgilityInstance } from '../../../types/agilityInstance';
 import * as mgmtApi from '@agility/management-sdk';
 import { getBaseURLfromGUID } from './base-url-prompt';
-import { state } from '../../core/state';
+import { state } from '../../../core/state';
 const FormData = require("form-data");
 
 let auth: Auth;
@@ -15,7 +15,7 @@ export async function localePrompt(selectedInstance: AgilityInstance) {
   // Use getApiClient for consistent API client initialization
   let apiClient: mgmtApi.ApiClient;
   try {
-    const { getApiClient } = await import('../../core/state');
+    const { getApiClient } = await import('../../../core/state');
     apiClient = getApiClient();
   } catch (error) {
     // Fallback for cases where state isn't fully initialized

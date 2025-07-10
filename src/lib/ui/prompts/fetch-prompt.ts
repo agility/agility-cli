@@ -7,13 +7,13 @@ import agilitySDK from "@agility/content-fetch";
 import process from "process";
 import * as path from "path";
 
-import { fileOperations } from "../../core/fileOperations";
+import { fileOperations } from "../../../core/fileOperations";
 import { exec } from "child_process";
 import { homePrompt } from "./home-prompt";
 import { instancesPrompt } from "./instance-prompt";
-import { AgilityInstance } from "../../types/agilityInstance";
+import { AgilityInstance } from "../../../types/agilityInstance";
 import ansiColors from "ansi-colors";
-import { state } from "../../core/state";
+import { state } from "../../../core/state";
 import rootPathPrompt from "./root-path-prompt";
 
 export async function fetchCommandsPrompt(

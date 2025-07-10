@@ -58,10 +58,11 @@ export const systemArgs = {
   
   // Instance/Connection args
   locale: {
-    describe: "Provide the locale for the operation. If not provided, will use AGILITY_LOCALES from .env file if available.",
+    describe: "Provide locale(s) for the operation. Comma-separated for multiple locales (e.g., 'en-us,en-ca,fr-fr'). If not provided, all available locales will be auto-detected and used.",
     demandOption: false,
     type: "string" as const,
-    default: "en-us"
+    alias: ["locales", "Locales", "LOCALES"],
+    // No default - auto-detection when not specified
   },
   channel: {
     describe: "Provide the channel for the operation. If not provided, will use AGILITY_WEBSITE from .env file if available.",
@@ -116,14 +117,14 @@ export const systemArgs = {
   
   // Instance identification args
   sourceGuid: {
-    describe: "Provide the source instance GUID. If not provided, will use AGILITY_GUID from .env file if available.",
-    alias: ["source-guid", "sourceguid", "source", "SourceGuid", "SourceGUID","SOURCE", "SOURCEGUID"],
+    describe: "Provide the source instance GUID(s). Comma-separated for multiple instances (e.g., 'guid1,guid2,guid3'). If not provided, will use AGILITY_GUID from .env file if available.",
+    alias: ["source-guid", "sourceguid", "source", "SourceGuid", "SourceGUID","SOURCE", "SOURCEGUID", "sourceGuids", "source-guids", "SourceGuids", "SOURCEGUIDS"],
     demandOption: false,
     type: "string" as const,
   },
   targetGuid: {
-    describe: "Provide the target instance GUID for sync operations.",
-    alias: ["target-guid", "targetguid", "target", "TargetGuid", "TargetGUID","TARGET", "TARGETGUID"],
+    describe: "Provide the target instance GUID(s) for sync operations. Comma-separated for multiple instances (e.g., 'guid1,guid2,guid3').",
+    alias: ["target-guid", "targetguid", "target", "TargetGuid", "TargetGUID","TARGET", "TARGETGUID", "targetGuids", "target-guids", "TargetGuids", "TARGETGUIDS"],
     demandOption: false,
     type: "string" as const,
   },
