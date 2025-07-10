@@ -23,8 +23,12 @@ export class Pull {
   private consoleManager?: ConsoleManager;
   private progressTracker?: ProgressTracker;
   private downloadOrchestrator: DownloadOrchestrator;
+  private isService: boolean = false;
+  private specificGuids?: string[];
 
-  constructor() {
+  constructor(isService: boolean = false, specificGuids?: string[]) {
+    this.isService = isService;
+    this.specificGuids = specificGuids;
     // Initialize services based on UI mode
     this.initializeServices();
   }
@@ -109,8 +113,8 @@ export class Pull {
   async pullInstance(): Promise<void> {
     const state = getState();
     
-    // Get all GUIDs to process (both source and target)
-    const allGuids = [...state.sourceGuid, ...state.targetGuid];
+    // Get all GUIDs to process - use specific GUIDs if provided, otherwise use all GUIDs
+    const allGuids = this.specificGuids || [...state.sourceGuid, ...state.targetGuid];
     
     if (allGuids.length === 0) {
       throw new Error('No GUIDs specified for pull operation');
@@ -127,7 +131,7 @@ export class Pull {
     }
 
     console.log(ansiColors.cyan('\n🚀 Pull Operation using GUID×Locale Matrix:'));
-    console.log(`Total operations: ${totalOperations} (${allGuids.length} instances × variable locales)`);
+    console.log(`Total operations: ${totalOperations} (${allGuids.length} instance(s) × variable locales)`);
     operationDetails.forEach(detail => console.log(`   📋 ${detail}`));
     console.log(`Channel: ${state.channel} | ${state.preview ? "Preview" : "Live"} | Elements: ${state.elements}`);
     console.log(`Output: ./agility-files/`);
@@ -289,7 +293,8 @@ export class Pull {
     // Clean up services
     this.cleanup();
     
-    if (this.getUIMode() !== 'blessed') {
+    // Only exit if running as standalone command, not when used as service
+    if (this.getUIMode() !== 'blessed' && !this.isService) {
       process.exit(0);
     }
   }

@@ -7,80 +7,89 @@ import * as mgmtApi from '@agility/management-sdk';
 import fs from 'fs';
 import path from 'path';
 
-interface CliState {
-  // Environment modes
-  dev: boolean;
-  local: boolean;
-  preprod: boolean;
-  
-  // UI modes
-  headless: boolean;
-  verbose: boolean;
-  blessed: boolean;
-  
-  // Instance/Connection
-  sourceGuid: string[]; // Array of source GUIDs
-  targetGuid: string[]; // Array of target GUIDs  
-  locale: string[];     // Array of locales (for backward compatibility / user-specified)
-  availableLocales: string[]; // Detected locales from getLocales() during auth
-  guidLocaleMap: Map<string, string[]>; // Per-GUID locale mapping for matrix operations
+interface Website {
+  displayName: string;
+  guid: string;
+  [key: string]: any;
+}
+
+// Use the native Options class from the management SDK
+// interface InstanceOptions {
+//   baseUrl?: string;
+//   [key: string]: any;
+// }
+
+interface ContentSyncOptions {
+  [key: string]: any;
+}
+
+interface State {
+  // **STABLE - DO NOT CHANGE**
+  locale: string[];                    // Multi-locale support
+  sourceGuid: string[];                // Multi-GUID support 
+  targetGuid: string[];                // Multi-GUID support
   channel: string;
   preview: boolean;
   elements: string;
-  
-  // File system
+  overwrite: boolean;
+  update: boolean;
+  reset: boolean;
+  verbose: boolean;
+  headless: boolean;
+  blessed: boolean;
+  dev: boolean;
+  local: boolean;
+  preprod: boolean;
+  test: boolean;
   rootPath: string;
   legacyFolders: boolean;
+  models: string;                      // Task 103: Selective Model-Based Sync
+  publish: boolean;                    // Task 104: Auto-Publishing
+  noBatch: boolean;                    // Task 106: Batch Processing Control
   
-  // Network/Security
-  insecure: boolean;
-  baseUrl?: string;
+  // Multi-target sync configuration
+  continueOnError: boolean;            // Whether to continue with other targets if one fails
+  maxRetries: number;                  // Maximum retry attempts per target
+  retryDelay: number;                  // Delay between retries in milliseconds
   
-  // Debug/Analysis
-  test: boolean;
+  // Additional legacy/compatibility properties
+  availableLocales: string[];          // Detected locales from getLocales() during auth
+  insecure: boolean;                   // Network security option
+  contentItems?: string;               // Content-specific operations
   
-  // Operation control
-  overwrite: boolean;
-  reset: boolean;
-  update: boolean;
-  
-  // Publishing control  
-  publish: boolean;
-  
-  // Batch processing control
-  noBatch: boolean;
-  
-  // Model-specific
-  models: string;
-  
-  // Content-specific
-  contentItems?: string;
-  
-  // Computed UI modes (set by auth.init())
+  // Computed UI modes
   useHeadless?: boolean;
   useVerbose?: boolean;
   useBlessed?: boolean;
   
-  // Auth/API objects (set by auth.init())
-  mgmtApiOptions?: any;
+  // Auth/User properties
   user?: any;
-  apiKeyForPull?: string;
-  previewKey?: string;
-  fetchKey?: string;
-  currentWebsite?: any;
-
-  // API Keys for download operations (simplified approach)
+  token?: string | null;
+  localServer?: string;
+  isAgilityDev?: boolean;
+  forceNGROK?: boolean;
+  
+  // API Keys for download operations
   apiKeys: Array<{ guid: string; previewKey: string; fetchKey: string }>;
   
-  // Legacy fields (for backward compatibility)
-  token: string | null;
-  localServer: string;
-  isAgilityDev: boolean;
-  forceNGROK: boolean;
+  // **AUTO-POPULATION - DERIVED VALUES**
+  mgmtApiOptions?: mgmtApi.Options;
+  previewKey?: string;
+  fetchKey?: string;
+  apiKeyForPull?: string;
+  syncApiOptions?: ContentSyncOptions;
+  baseUrl?: string;
+  
+  // Website configuration (auto-populated during auth)
+  websites: Website[];
+  currentWebsite: Website | null;
+  
+  // GUID-Locale mapping (auto-populated during auth)
+  guidLocaleMap: Map<string, string[]>;
 }
 
 // Global state - populated from argv and referenced throughout the app
-export const state: CliState = {
+export const state: State = {
   // Environment modes
   dev: false,
   local: false,
@@ -96,8 +105,7 @@ export const state: CliState = {
   targetGuid: [],
   locale: [],
   availableLocales: [],
-  guidLocaleMap: new Map(),
-  apiKeys: [],
+  guidLocaleMap: new Map<string, string[]>(),
   channel: "website",
   preview: true,
   elements: "Models,Galleries,Assets,Containers,Content,Templates,Pages",
@@ -115,7 +123,7 @@ export const state: CliState = {
   // Operation control
   overwrite: false,
   reset: false,
-  update: true,
+  update: false,
   
   // Publishing control
   publish: false,
@@ -126,11 +134,23 @@ export const state: CliState = {
   // Model-specific
   models: "",
   
+  // Multi-target sync configuration
+  continueOnError: true,
+  maxRetries: 2,
+  retryDelay: 1000,
+  
+  // API Keys array
+  apiKeys: [],
+  
+  // Website configuration
+  websites: [],
+  currentWebsite: null,
+  
   // Legacy fields
   token: null,
   localServer: "",
   isAgilityDev: false,
-  forceNGROK: false,
+  forceNGROK: false
 };
 
 /**
@@ -214,11 +234,16 @@ export function setState(argv: any) {
   // Batch processing control
   if (argv.noBatch !== undefined) state.noBatch = argv.noBatch;
   
+  // Multi-target sync configuration
+  if (argv.continueOnError !== undefined) state.continueOnError = argv.continueOnError;
+  if (argv.maxRetries !== undefined) state.maxRetries = argv.maxRetries;
+  if (argv.retryDelay !== undefined) state.retryDelay = argv.retryDelay;
+  
   // Model-specific
   if (argv.models !== undefined) state.models = argv.models;
   
   // Content-specific
-  if (argv.contentItems !== undefined) state.contentItems = argv.contentItems;
+  state.contentItems = undefined;
 }
 
 /**
@@ -429,6 +454,11 @@ export function resetState() {
   
   // Content-specific
   state.contentItems = undefined;
+  
+  // Multi-target sync configuration
+  state.continueOnError = false;
+  state.maxRetries = 3;
+  state.retryDelay = 1000;
   
   // Clear computed properties
   state.useHeadless = undefined;
