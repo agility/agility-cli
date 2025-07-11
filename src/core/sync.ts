@@ -71,10 +71,10 @@ export class Sync {
   async syncInstance(): Promise<void> {
     // Log sync header first, before setting up console logging to ensure it's the very first thing in the log
     const headerInfo = generateLogHeader('Sync', {
-      'Source GUID': state.sourceGuid.join(', '),
-      'Target GUID': state.targetGuid.join(', '),
+      'Source GUID': state.sourceGuid,
+      'Target GUID': state.targetGuid,
       'Elements': state.elements,
-      'Locale': state.locale.join(', '),
+      'Locale': state.locale,
       'Channel': state.channel,
       'Preview Mode': state.preview
     });
@@ -91,8 +91,8 @@ export class Sync {
 
     try {
       console.log(ansiColors.cyan(`\nStarting sync operation...`));
-      console.log(ansiColors.gray(`Source: ${state.sourceGuid.join(', ')}`));
-      console.log(ansiColors.gray(`Target: ${state.targetGuid.join(', ')}`));
+      console.log(ansiColors.gray(`Source: ${state.sourceGuid}`));
+      console.log(ansiColors.gray(`Target: ${state.targetGuid}`));
       console.log(ansiColors.gray(`Elements: ${state.elements}`));
 
       // Load source data to check if we have any existing data
@@ -138,7 +138,7 @@ export class Sync {
         } catch (pullError: any) {
           console.error(ansiColors.red(`❌ Failed to pull source data: ${pullError.message}`));
           console.log(ansiColors.gray("💡 Please try running pull manually first:"));
-          console.log(ansiColors.gray(`   agility pull --sourceGuid ${state.sourceGuid.join(',')} --locale ${state.locale.join(',')} --channel ${state.channel} --verbose`));
+          console.log(ansiColors.gray(`   agility pull --sourceGuid ${state.sourceGuid} --locale ${state.locale} --channel ${state.channel} --verbose`));
           return;
         }
       } else {
@@ -154,7 +154,7 @@ export class Sync {
         console.log(ansiColors.gray("   - Authentication issues"));
         console.log(ansiColors.gray("   - Network connectivity problems"));
         console.log(ansiColors.gray("💡 Try running pull manually first:"));
-        console.log(ansiColors.gray(`   agility pull --sourceGuid ${state.sourceGuid.join(',')} --elements ${state.elements} --verbose`));
+        console.log(ansiColors.gray(`   agility pull --sourceGuid ${state.sourceGuid} --elements ${state.elements} --verbose`));
         return;
       }
 
@@ -196,65 +196,10 @@ export class Sync {
       // Set up reference mapper - gets config from state internally
       referenceMapper = new ReferenceMapper();
 
-      // Declare syncResults for both single and multi-target paths
-      let syncResults: {
-        totalSuccess: number;
-        totalFailures: number;
-        totalSkipped: number;
-        publishableContentIds: number[];
-        publishablePageIds: number[];
-      };
+      // Execute sync operation and capture results
+      const syncResults = await this.executePushersInOrder(sourceData, referenceMapper, state.elements.split(","));
 
-      // **NEW: Matrix Orchestration for Multi-Target Sync**
-      if (state.targetGuid.length > 1) {
-        console.log(ansiColors.cyan(`\n🎯 Multi-target sync detected: ${state.targetGuid.length} targets`));
-        console.log(ansiColors.gray(`Using Matrix Orchestrator for coordinated sync...`));
-        
-        // Import and use PusherOrchestrator for multi-target operations
-        const { PusherOrchestrator } = await import('../lib/pushers/orchestrate-pushers');
-        
-        const orchestrator = new PusherOrchestrator({
-          sourceData,
-          elements: state.elements.split(","),
-          onTargetStart: (sourceGuid, targetGuid, locale) => {
-            console.log(ansiColors.blue(`🚀 Starting sync: ${sourceGuid} → ${targetGuid} (${locale})`));
-          },
-          onTargetComplete: (sourceGuid, targetGuid, locale, success) => {
-            const statusColor = success ? ansiColors.green : ansiColors.red;
-            const statusIcon = success ? '✅' : '❌';
-            console.log(statusColor(`${statusIcon} Completed: ${sourceGuid} → ${targetGuid} (${locale})`));
-          },
-          onProgress: (current, total) => {
-            console.log(ansiColors.gray(`📊 Progress: ${current}/${total} operations`));
-          }
-        });
-        
-        // Execute matrix orchestration
-        const orchestrationResults = await orchestrator.orchestrateMatrix();
-        
-        // Convert orchestration results to sync results format
-        syncResults = {
-          totalSuccess: orchestrationResults.overallSuccess,
-          totalFailures: orchestrationResults.overallFailures,
-          totalSkipped: orchestrationResults.overallSkipped,
-          publishableContentIds: orchestrationResults.targetResults.flatMap(r => r.publishableContentIds),
-          publishablePageIds: orchestrationResults.targetResults.flatMap(r => r.publishablePageIds)
-        };
-        
-      } else {
-        // **EXISTING: Single-target sync logic (preserved exactly)**
-        const targetGuid = state.targetGuid[0];
-        console.log(ansiColors.cyan(`\n🎯 Single-target sync: ${targetGuid}`));
-        
-        // Auto-discover locales for target instance like pull operation does
-        const targetLocales = state.guidLocaleMap.get(targetGuid) || state.locale || ['en-us'];
-        console.log(ansiColors.gray(`Target locales: ${targetLocales.join(', ')}`));
-        
-        // Execute sync operation and capture results
-        syncResults = await this.executePushersInOrder(sourceData, referenceMapper, state.elements.split(","));
-      }
-
-      // Execute auto-publishing if --publish flag is set (works for both single and multi-target)
+      // Execute auto-publishing if --publish flag is set
       if (state.publish && (syncResults.publishableContentIds.length > 0 || syncResults.publishablePageIds.length > 0)) {
         
         try {

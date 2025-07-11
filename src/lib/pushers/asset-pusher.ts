@@ -1,8 +1,6 @@
 import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapper } from "../shared/reference-mapper"; // Keep original for compatibility
-// LIGHTWEIGHT MAPPING INTEGRATION: V2 mapper for storage optimization (coming soon)
-// import { ReferenceMapperV2 as ReferenceMapper } from "../shared/reference-mapper-v2";
+import { ReferenceMapper } from "../shared/reference-mapper";
 import { findAssetInTargetInstance } from "../finders";
 import * as fs from 'fs';
 import * as path from 'path';

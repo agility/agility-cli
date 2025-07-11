@@ -217,39 +217,13 @@ yargs.command({
 // New 2-Pass Sync Command using the enhanced dependency system
 yargs.command({
   command: "sync",
-  describe: "Sync your instance using the new 2-pass dependency system with multi-target support.",
+  describe: "Sync your instance using the new 2-pass dependency system.",
   builder: {
-    // Override targetGuid to be required for sync with enhanced multi-target support
+    // Override targetGuid to be required for sync
     targetGuid: {
-      describe: "Provide the target instance GUID(s) to sync your instance to. Use comma-separated values for multi-target sync (e.g., 'guid1,guid2,guid3'). All targets will be validated for locale compatibility.",
+      describe: "Provide the target instance GUID to sync your instance to.",
       demandOption: true,
       type: "string",
-    },
-
-    // Add multi-target specific options
-    continueOnError: {
-      describe: "Continue syncing other targets if one target fails (multi-target sync only). Default: true.",
-      type: "boolean",
-      default: true,
-    },
-    
-    maxRetries: {
-      describe: "Maximum number of retry attempts per target on recoverable errors. Default: 2.",
-      type: "number",
-      default: 2,
-    },
-    
-    retryDelay: {
-      describe: "Delay between retry attempts in milliseconds. Default: 1000ms.",
-      type: "number", 
-      default: 1000,
-    },
-    
-    // Auto-publishing option for sync
-    publish: {
-      describe: "Automatically publish synced content items and pages after successful sync. Only applies to content items and pages.",
-      type: "boolean",
-      default: false,
     },
 
     // System args (commonly repeated across commands)
@@ -265,26 +239,6 @@ yargs.command({
     }
     
     setState(argv);
-    
-    // Enhanced multi-target validation and reporting
-    const isMultiTarget = state.targetGuid.length > 1;
-    if (isMultiTarget) {
-      console.log(colors.cyan(`🎯 Multi-target sync detected: ${state.targetGuid.length} targets`));
-      console.log(colors.gray(`Source: ${state.sourceGuid[0]}`));
-      console.log(colors.gray(`Targets: ${state.targetGuid.join(', ')}`));
-      console.log(colors.gray(`Locales: ${state.locale.join(', ')}`));
-      console.log(colors.gray(`Matrix operations: ${state.targetGuid.length * state.locale.length} total`));
-      console.log(colors.gray(`Configuration: continueOnError=${argv.continueOnError}, maxRetries=${argv.maxRetries}, retryDelay=${argv.retryDelay}ms`));
-      
-      // Validate that all required configurations are present for multi-target
-      if (state.locale.length === 0) {
-        console.log(colors.red('❌ Multi-target sync requires explicit locale specification'));
-        console.log(colors.yellow('💡 Use --locale="en-us" or --locale="en-us,fr-fr" for multiple locales'));
-        return;
-      }
-    } else {
-      console.log(colors.cyan(`🎯 Single-target sync: ${state.targetGuid[0]}`));
-    }
     
     auth = new Auth();
     const isAuthorized = await auth.init();

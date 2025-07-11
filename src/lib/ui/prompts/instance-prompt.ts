@@ -29,7 +29,7 @@ export async function instancesPrompt(selectedInstance?: AgilityInstance, keys?:
       guid: state.sourceGuid[0],
       previewKey: state.previewKey || "",
       fetchKey: state.fetchKey || "",
-      websiteDetails: state.currentWebsite as any, // Cast to any to handle type mismatch
+      websiteDetails: state.currentWebsite,
     };
   }
   

@@ -7,89 +7,80 @@ import * as mgmtApi from '@agility/management-sdk';
 import fs from 'fs';
 import path from 'path';
 
-interface Website {
-  displayName: string;
-  guid: string;
-  [key: string]: any;
-}
-
-// Use the native Options class from the management SDK
-// interface InstanceOptions {
-//   baseUrl?: string;
-//   [key: string]: any;
-// }
-
-interface ContentSyncOptions {
-  [key: string]: any;
-}
-
-interface State {
-  // **STABLE - DO NOT CHANGE**
-  locale: string[];                    // Multi-locale support
-  sourceGuid: string[];                // Multi-GUID support 
-  targetGuid: string[];                // Multi-GUID support
-  channel: string;
-  preview: boolean;
-  elements: string;
-  overwrite: boolean;
-  update: boolean;
-  reset: boolean;
-  verbose: boolean;
-  headless: boolean;
-  blessed: boolean;
+interface CliState {
+  // Environment modes
   dev: boolean;
   local: boolean;
   preprod: boolean;
-  test: boolean;
+  
+  // UI modes
+  headless: boolean;
+  verbose: boolean;
+  blessed: boolean;
+  
+  // Instance/Connection
+  sourceGuid: string[]; // Array of source GUIDs
+  targetGuid: string[]; // Array of target GUIDs  
+  locale: string[];     // Array of locales (for backward compatibility / user-specified)
+  availableLocales: string[]; // Detected locales from getLocales() during auth
+  guidLocaleMap: Map<string, string[]>; // Per-GUID locale mapping for matrix operations
+  channel: string;
+  preview: boolean;
+  elements: string;
+  
+  // File system
   rootPath: string;
   legacyFolders: boolean;
-  models: string;                      // Task 103: Selective Model-Based Sync
-  publish: boolean;                    // Task 104: Auto-Publishing
-  noBatch: boolean;                    // Task 106: Batch Processing Control
   
-  // Multi-target sync configuration
-  continueOnError: boolean;            // Whether to continue with other targets if one fails
-  maxRetries: number;                  // Maximum retry attempts per target
-  retryDelay: number;                  // Delay between retries in milliseconds
+  // Network/Security
+  insecure: boolean;
+  baseUrl?: string;
   
-  // Additional legacy/compatibility properties
-  availableLocales: string[];          // Detected locales from getLocales() during auth
-  insecure: boolean;                   // Network security option
-  contentItems?: string;               // Content-specific operations
+  // Debug/Analysis
+  test: boolean;
   
-  // Computed UI modes
+  // Operation control
+  overwrite: boolean;
+  reset: boolean;
+  update: boolean;
+  
+  // Publishing control  
+  publish: boolean;
+  
+  // Batch processing control
+  noBatch: boolean;
+  
+  // Model-specific
+  models: string;
+  
+  // Content-specific
+  contentItems?: string;
+  
+  // Computed UI modes (set by auth.init())
   useHeadless?: boolean;
   useVerbose?: boolean;
   useBlessed?: boolean;
   
-  // Auth/User properties
+  // Auth/API objects (set by auth.init())
+  mgmtApiOptions?: any;
   user?: any;
-  token?: string | null;
-  localServer?: string;
-  isAgilityDev?: boolean;
-  forceNGROK?: boolean;
-  
-  // API Keys for download operations
-  apiKeys: Array<{ guid: string; previewKey: string; fetchKey: string }>;
-  
-  // **AUTO-POPULATION - DERIVED VALUES**
-  mgmtApiOptions?: mgmtApi.Options;
+  apiKeyForPull?: string;
   previewKey?: string;
   fetchKey?: string;
-  apiKeyForPull?: string;
-  syncApiOptions?: ContentSyncOptions;
-  baseUrl?: string;
+  currentWebsite?: any;
+
+  // API Keys for download operations (simplified approach)
+  apiKeys: Array<{ guid: string; previewKey: string; fetchKey: string }>;
   
-  // Website configuration (auto-populated during auth)
-  websites: Website[];
-  currentWebsite: Website | null;
-  
-  // GUID-Locale mapping (auto-populated during auth)
-  guidLocaleMap: Map<string, string[]>;
+  // Legacy fields (for backward compatibility)
+  token: string | null;
+  localServer: string;
+  isAgilityDev: boolean;
+  forceNGROK: boolean;
 }
 
 // Global state - populated from argv and referenced throughout the app
-export const state: State = {
+export const state: CliState = {
   // Environment modes
   dev: false,
   local: false,
@@ -105,7 +96,8 @@ export const state: State = {
   targetGuid: [],
   locale: [],
   availableLocales: [],
-  guidLocaleMap: new Map<string, string[]>(),
+  guidLocaleMap: new Map(),
+  apiKeys: [],
   channel: "website",
   preview: true,
   elements: "Models,Galleries,Assets,Containers,Content,Templates,Pages",
@@ -123,7 +115,7 @@ export const state: State = {
   // Operation control
   overwrite: false,
   reset: false,
-  update: false,
+  update: true,
   
   // Publishing control
   publish: false,
@@ -134,23 +126,11 @@ export const state: State = {
   // Model-specific
   models: "",
   
-  // Multi-target sync configuration
-  continueOnError: true,
-  maxRetries: 2,
-  retryDelay: 1000,
-  
-  // API Keys array
-  apiKeys: [],
-  
-  // Website configuration
-  websites: [],
-  currentWebsite: null,
-  
   // Legacy fields
   token: null,
   localServer: "",
   isAgilityDev: false,
-  forceNGROK: false
+  forceNGROK: false,
 };
 
 /**
@@ -234,16 +214,11 @@ export function setState(argv: any) {
   // Batch processing control
   if (argv.noBatch !== undefined) state.noBatch = argv.noBatch;
   
-  // Multi-target sync configuration
-  if (argv.continueOnError !== undefined) state.continueOnError = argv.continueOnError;
-  if (argv.maxRetries !== undefined) state.maxRetries = argv.maxRetries;
-  if (argv.retryDelay !== undefined) state.retryDelay = argv.retryDelay;
-  
   // Model-specific
   if (argv.models !== undefined) state.models = argv.models;
   
   // Content-specific
-  state.contentItems = undefined;
+  if (argv.contentItems !== undefined) state.contentItems = argv.contentItems;
 }
 
 /**
@@ -454,11 +429,6 @@ export function resetState() {
   
   // Content-specific
   state.contentItems = undefined;
-  
-  // Multi-target sync configuration
-  state.continueOnError = false;
-  state.maxRetries = 3;
-  state.retryDelay = 1000;
   
   // Clear computed properties
   state.useHeadless = undefined;
