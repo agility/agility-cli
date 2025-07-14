@@ -233,12 +233,13 @@ export class ReferenceMapper {
     /**
      * Get mapping by custom key-value pair
      * For cases where standard identifier isn't sufficient
+     * Supports nested property access using dot notation (e.g., "properties.referenceName")
      */
     getMappingByKey<T>(type: CoreReferenceRecord['type'], key: string, value: any): CoreReferenceResult<T> | null {
         const record = this.records.find(r => 
             r.type === type && 
             r.source && 
-            this.compareValues(r.source[key], value)
+            this.compareValues(this.getNestedValue(r.source, key), value)
         );
 
         return record ? {
@@ -247,6 +248,24 @@ export class ReferenceMapper {
             sourceGUID: record.sourceGUID,
             targetGUID: record.targetGUID
         } : null;
+    }
+
+    /**
+     * Get nested property value using dot notation
+     * Example: getNestedValue(obj, "properties.referenceName") returns obj.properties.referenceName
+     */
+    private getNestedValue(obj: any, path: string): any {
+        if (!obj || !path) return undefined;
+        
+        const keys = path.split('.');
+        let current = obj;
+        
+        for (const key of keys) {
+            if (current === null || current === undefined) return undefined;
+            current = current[key];
+        }
+        
+        return current;
     }
 
     /**

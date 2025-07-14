@@ -155,12 +155,20 @@ async function pushNormalContentItemsIndividual(
             // Extract content ID and update mappings
             const newContentId = extractContentId(result);
             if (newContentId > 0) {
-                // Add mapping to reference mapper
-                referenceMapper.addMapping(
-                    'content',
-                    contentItem,
-                    { contentID: newContentId, properties: { referenceName: itemName } }
-                );
+                // Create full target content item object from API response
+                const targetContentItem = {
+                    ...mappedItem,
+                    contentID: newContentId,
+                    properties: {
+                        ...mappedItem.properties,
+                        referenceName: itemName,
+                        // Use current timestamp as modified date since we just created/updated it
+                        modified: new Date().toISOString()
+                    }
+                };
+                
+                // Add mapping to reference mapper with full target object
+                referenceMapper.addMapping('content', contentItem, targetContentItem);
                 
                 successfulItems++;
                 console.log(ansiColors.green(`[Content Pusher] ✓ ${itemName}: Source ID ${contentItem.contentID} → Target ID ${newContentId}`));
@@ -370,12 +378,20 @@ async function processLinkedContentIndividually(
                 // Extract content ID and update mappings
                 const newContentId = extractContentId(result);
                 if (newContentId > 0) {
-                    // Add mapping to reference mapper
-                    referenceMapper.addMapping(
-                        'content',
-                        contentItem,
-                        { contentID: newContentId, properties: { referenceName: itemName } }
-                    );
+                    // Create full target content item object from API response
+                    const targetContentItem = {
+                        ...mappedItem,
+                        contentID: newContentId,
+                        properties: {
+                            ...mappedItem.properties,
+                            referenceName: itemName,
+                            // Use current timestamp as modified date since we just created/updated it
+                            modified: new Date().toISOString()
+                        }
+                    };
+                    
+                    // Add mapping to reference mapper with full target object
+                    referenceMapper.addMapping('content', contentItem, targetContentItem);
                     
                     successfulItems++;
                     totalProcessed++;

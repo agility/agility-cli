@@ -16,6 +16,7 @@ export interface ContentBatchConfig {
     useContentFieldMapper?: boolean; // Whether to use enhanced field mapping
     models?: any[]; // Models for enhanced payload preparation
     defaultAssetUrl?: string; // Default asset URL for content mapping
+    targetData?: any; // Target instance data for checking existing content
     onBatchComplete?: (batchResult: BatchProcessingResult, batchNumber: number) => Promise<void>; // Callback after each batch completes
 }
 
@@ -59,8 +60,23 @@ export type BatchProgressCallback = (
 ) => void;
 
 /**
- * Content Batch Processor - Reusable utility for bulk content processing
- * Extracted from topological-two-pass-orchestrator.ts and generalized
+ * Result of filtering content items
+ */
+
+/**
+ * Standalone function to filter content items based on target instance state
+ * This should be called BEFORE creating the batch processor
+ */
+
+/**
+
+ * 
+ * USAGE PATTERN:
+ * 1. Filter content items BEFORE creating the batch processor using filterContentItemsForProcessing()
+ * 2. Create the batch processor with pre-filtered items
+ * 3. Call processBatches() with the filtered items
+ * 
+ * This ensures consistent use of the new versioning logic and eliminates duplicate filtering.
  */
 export class ContentBatchProcessor {
     private config: ContentBatchConfig;
@@ -74,25 +90,17 @@ export class ContentBatchProcessor {
 
     /**
      * Process content items in batches using saveContentItems API
+     * NOTE: Content items should already be filtered by the caller using filterContentItemsForProcessing()
      */
     async processBatches(
         contentItems: mgmtApi.ContentItem[],
         onProgress?: BatchProgressCallback,
         batchType?: string
     ): Promise<BatchProcessingResult> {
-        // Pre-filter content items to skip those that already exist (unless overwrite is enabled)
-        const { filteredItems, skippedItems, updateItems } = await this.filterExistingContentItems(contentItems);
-        
-        // Combine create and update items for batch processing
-        const allProcessingItems = [...filteredItems, ...updateItems];
-        
         const batchSize = this.config.batchSize!;
-        const contentBatches = this.createContentBatches(allProcessingItems, batchSize);
+        const contentBatches = this.createContentBatches(contentItems, batchSize);
         
-        console.log(`Processing ${allProcessingItems.length} content items in ${contentBatches.length} bulk batches (${filteredItems.length} creates, ${updateItems.length} updates, ${skippedItems.length} skipped)`);
-        if (skippedItems.length > 0) {
-            console.log(`Skipped ${skippedItems.length} existing content items (up to date)`);
-        }
+        console.log(`Processing ${contentItems.length || 0} content items in ${contentBatches.length} bulk ${batchType || ''} batches`);
         
         let totalSuccessCount = 0;
         let totalFailureCount = 0;
@@ -236,76 +244,14 @@ export class ContentBatchProcessor {
         return {
             successCount: totalSuccessCount,
             failureCount: totalFailureCount,
-            skippedCount: skippedItems.length,
+            skippedCount: 0, // Skipped items are now handled outside the batch processor
             successfulItems: allSuccessfulItems,
             failedItems: allFailedItems,
             publishableIds: allSuccessfulItems.map(item => item.newContentId)
         };
     }
 
-    /**
-     * Filter out content items that already exist in the target instance
-     */
-    private async filterExistingContentItems(contentItems: mgmtApi.ContentItem[]): Promise<{
-        filteredItems: mgmtApi.ContentItem[];
-        skippedItems: mgmtApi.ContentItem[];
-        updateItems: mgmtApi.ContentItem[];
-    }> {
-        const { findContentInTargetInstance } = await import('../finders');
-        const { state } = await import('../../core/state');
-        const { GuidDataLoader } = await import('../shared/source-data-loader');
-        
-        const filteredItems: mgmtApi.ContentItem[] = [];
-        const skippedItems: mgmtApi.ContentItem[] = [];
-        const updateItems: mgmtApi.ContentItem[] = [];
-        
-        // Load target instance data for comparison
-        const targetDataLoader = new GuidDataLoader(this.config.targetGuid);
-        const targetData = await targetDataLoader.loadGuidEntities();
-        
-        for (const contentItem of contentItems) {
-            const itemName = contentItem.properties.referenceName || 'Unknown';
-            
-            try {
-                // Use new finder pattern to determine what action to take
-                const findResult = await findContentInTargetInstance(
-                    contentItem,
-                    this.config.apiClient,
-                    this.config.targetGuid,
-                    this.config.locale,
-                    targetData,
-                    this.config.referenceMapper
-                );
 
-                const { content, shouldUpdate, shouldCreate, shouldSkip } = findResult;
-
-                if (shouldCreate) {
-                    // Content doesn't exist - include it for creation
-                    filteredItems.push(contentItem);
-                } else if (shouldUpdate) {
-                    // Content exists but needs updating
-                    updateItems.push(contentItem);
-                    console.log(`✓ Content ${ansiColors.cyan.underline(itemName)} ${ansiColors.bold.yellow('needs update')} - ${ansiColors.green(this.config.targetGuid)}: ID:${content?.contentID}`);
-                } else if (shouldSkip) {
-                    // Content exists and is up to date - skip
-                    console.log(`✓ Content ${ansiColors.cyan.underline(itemName)} ${ansiColors.bold.gray('exists, skipping')} - ${ansiColors.green(this.config.targetGuid)}: ID:${content?.contentID}`);
-                    
-                    // Add mapping for existing content
-                    if (content) {
-                        this.config.referenceMapper.addRecord('content', contentItem, content);
-                    }
-                    skippedItems.push(contentItem);
-                }
-                
-            } catch (error: any) {
-                // If we can't check, err on the side of processing it
-                console.warn(`⚠️ Could not check if content ${itemName} exists: ${error.message} - will process`);
-                filteredItems.push(contentItem);
-            }
-        }
-        
-        return { filteredItems, skippedItems, updateItems };
-    }
 
     /**
      * Create batches of content items for bulk processing
@@ -388,9 +334,9 @@ export class ContentBatchProcessor {
                     throw new Error(`Container not found: ${contentItem.properties.referenceName}`);
                 }
 
-                // STEP 4: Check if content already exists (matching original logic)
-                const { findContentInTargetInstanceLegacy } = await import('../finders');
-                const existingContentItem = await findContentInTargetInstanceLegacy(contentItem, this.config.apiClient, this.config.targetGuid, this.config.locale, this.config.referenceMapper);
+                // STEP 4: Check if content already exists using reference mapper (since filtering already happened)
+                const existingMapping = this.config.referenceMapper.getMapping('content', contentItem.contentID);
+                const existingContentItem = existingMapping ? existingMapping as mgmtApi.ContentItem : null;
                 
                 // STEP 5: Use proper ContentFieldMapper for field mapping and validation
                 const { ContentFieldMapper } = await import('../content/content-field-mapper');
@@ -472,10 +418,15 @@ export class ContentBatchProcessor {
             const sourceContentItem = item.originalContent;
             const targetContentItem: mgmtApi.ContentItem = {
                 ...sourceContentItem,
-                contentID: item.newContentId
+                contentID: item.newContentId,
+                properties: {
+                    ...sourceContentItem.properties,
+                    // Use current timestamp as modified date since we just created/updated it
+                    modified: new Date().toISOString()
+                }
             };
             
-            this.config.referenceMapper.addRecord('content', sourceContentItem, targetContentItem);
+            this.config.referenceMapper.addMapping('content', sourceContentItem, targetContentItem);
             
             // Debug logging for mapping updates
             // console.log(`🔗 Content mapping: ${sourceContentItem.contentID} → ${item.newContentId}`);

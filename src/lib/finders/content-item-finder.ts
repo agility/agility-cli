@@ -15,28 +15,30 @@ export async function findContentInTargetInstance(
     const overwrite = state.overwrite;
     let existsInTarget = false;
 
+    console.log(ansiColors.cyan(`sourceContent: ${sourceContent.properties.referenceName}`));
+
     // STEP 1: Check for existing mapping of source content to target content
     const existingMapping = referenceMapper.getMappingByKey<mgmtApi.ContentItem>("content", "contentID", sourceContent.contentID);
+   
+    console.log(ansiColors.cyan(`existingMapping: ${JSON.stringify(existingMapping)}`));
     let targetContentFromMapping: mgmtApi.ContentItem | null = existingMapping?.target || null;
 
+    console.log(ansiColors.green(`targetContentFromMapping: ${JSON.stringify(targetContentFromMapping)}`));
+  
     // STEP 2: Find target instance data (local file data) for this content
     const targetInstanceData = targetData.content?.find((c: any) => {
-        // Try multiple matching strategies for target data
-        if (targetContentFromMapping) {
-            // If we have a mapping, match by target content properties
-            return (
-                c.contentID === targetContentFromMapping.contentID ||
-                c.properties?.referenceName === targetContentFromMapping.properties?.referenceName
-            );
-        } else {
-            // If no mapping, match by source content properties
-            return c.properties?.referenceName === sourceContent.properties?.referenceName;
-        }
+        // Always search by source reference name since targetData.content contains
+        // the target instance's current data, which still uses source reference names
+        return c.properties?.referenceName === sourceContent.properties?.referenceName;
     });
 
     if (targetInstanceData) {
         existsInTarget = true;
     }
+
+    console.log(ansiColors.magenta(`targetContentFromMapping: ${JSON.stringify(targetContentFromMapping)}`));
+    // console.log(ansiColors.magenta(`sourceContent: ${JSON.stringify(targetData.content)}`));
+    console.log(ansiColors.magenta(`targetInstanceData: ${JSON.stringify(targetInstanceData)}`));
 
     // STEP 3: Decision logic based on mapping and target data
     let shouldUpdate = false;
@@ -50,17 +52,20 @@ export async function findContentInTargetInstance(
         shouldCreate = false;
 
         if (targetContentFromMapping) {
+
+            // console.log(ansiColors.magenta(`targetContentFromMapping: ${JSON.stringify(targetContentFromMapping)}`));
+            // console.log(ansiColors.magenta(`targetInstanceData: ${JSON.stringify(targetInstanceData)}`));
+
             // Both mapping and target data exist - compare versions for update decision
             const mappingVersionID = targetContentFromMapping.properties?.versionID || 0;
             const targetDataVersionID = targetInstanceData.properties?.versionID || 0;
             
-            // Also compare modified dates as secondary check
-            const mappingModified = new Date(targetContentFromMapping.properties?.modified || 0);
-            const targetDataModified = new Date(targetInstanceData.properties?.modified || 0);
+            // // Also compare modified dates as secondary check
+            // const mappingModified = new Date(targetContentFromMapping.properties?.modified || 0);
+            // const targetDataModified = new Date(targetInstanceData.properties?.modified || 0);
 
             // Use versionID as primary comparison, modified date as secondary
-            if (targetDataVersionID > mappingVersionID || 
-                (targetDataVersionID === mappingVersionID && targetDataModified > mappingModified)) {
+            if (targetDataVersionID !== mappingVersionID) {
                 shouldUpdate = true;
                 shouldSkip = false;
             } else {

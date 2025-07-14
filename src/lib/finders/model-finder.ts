@@ -12,7 +12,8 @@ export async function findModelInTargetInstanceEnhanced(
     apiClient: mgmtApi.ApiClient,
     targetGuid: string,
     targetData: any,
-    referenceMapper: ReferenceMapper
+    referenceMapper: ReferenceMapper,
+    isStubPass: boolean = false
 ): Promise<{ model: mgmtApi.Model | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean }> {
     const state = getState();
     const overwrite = state.overwrite;
@@ -53,21 +54,35 @@ export async function findModelInTargetInstanceEnhanced(
         shouldCreate = false;
 
         if (targetModelFromMapping) {
-            // Both mapping and target data exist - compare dates for update decision
-            const mappingDate = new Date(targetModelFromMapping.lastModifiedDate || 0);
-            const targetDataDate = new Date(targetInstanceData.lastModifiedDate || 0);
-
-            if (targetDataDate > mappingDate) {
-                shouldUpdate = true;
-                shouldSkip = false;
-            } else {
+            // Both mapping and target data exist - decision depends on pass type
+            if (isStubPass) {
+                // STUB PASS: If model exists, always skip (don't update stubs)
                 shouldUpdate = false;
                 shouldSkip = true;
+            } else {
+                // FULL PASS: Compare dates for update decision
+                const mappingDate = new Date(targetModelFromMapping.lastModifiedDate || 0);
+                const targetDataDate = new Date(targetInstanceData.lastModifiedDate || 0);
+
+                if (targetDataDate > mappingDate) {
+                    shouldUpdate = true;
+                    shouldSkip = false;
+                } else {
+                    shouldUpdate = false;
+                    shouldSkip = true;
+                }
             }
         } else {
             // Target data exists but no mapping - this is an existing model, add mapping
-            shouldUpdate = false;
-            shouldSkip = true;
+            if (isStubPass) {
+                // STUB PASS: If model exists, always skip (don't update stubs)
+                shouldUpdate = false;
+                shouldSkip = true;
+            } else {
+                // FULL PASS: Existing model without mapping should be skipped but mapping added
+                shouldUpdate = false;
+                shouldSkip = true;
+            }
         }
 
         // Override with user flags

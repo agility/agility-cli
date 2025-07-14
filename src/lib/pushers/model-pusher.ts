@@ -50,7 +50,8 @@ export async function pushModels(
         apiClient,
         targetGuid[0],
         targetData,
-        referenceMapper
+        referenceMapper,
+        isStubPass
       );
 
       const { model: targetModel, shouldUpdate, shouldCreate, shouldSkip } = findResult;

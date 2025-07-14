@@ -40,7 +40,28 @@ export async function findContainerInTargetInstanceEnhanced(
             );
         } else {
             // If no mapping, match by source container properties
-            return c.referenceName === sourceContainer.referenceName;
+            // Try exact match first
+            if (c.referenceName === sourceContainer.referenceName) {
+                return true;
+            }
+            
+            // Try case-insensitive match
+            if (c.referenceName && sourceContainer.referenceName &&
+                c.referenceName.toLowerCase() === sourceContainer.referenceName.toLowerCase()) {
+                return true;
+            }
+            
+            // Try partial match for containers with generated suffixes
+            // Many containers have patterns like: "containerName_SomeGeneratedSuffix"
+            const sourceBase = sourceContainer.referenceName?.split('_')[0]?.toLowerCase();
+            const targetBase = c.referenceName?.split('_')[0]?.toLowerCase();
+            
+            if (sourceBase && targetBase && sourceBase === targetBase && 
+                sourceBase.length > 5) { // Only match if base name is meaningful
+                return true;
+            }
+            
+            return false;
         }
     });
 

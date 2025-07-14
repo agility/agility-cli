@@ -9,6 +9,14 @@ import { PusherResult, SourceData } from '../types/sourceData';
 import { ModelDependencyTree } from '../lib/models/model-dependency-tree-builder';
 import { PublishService } from './publish';
 
+
+export interface ContentFilterResult {
+  itemsToCreate: mgmtApi.ContentItem[];
+  itemsToUpdate: mgmtApi.ContentItem[];
+  itemsToSkip: mgmtApi.ContentItem[];
+  skippedCount: number;
+}
+
 /**
  * Simplified Sync Operation - Cleaned up from 2000+ line monolithic implementation
  * 
@@ -365,8 +373,10 @@ export class Sync {
               defaultAssetUrl: '',
             };
             
+
+            const filteredNormalContentItems = await this.filterContentItemsForProcessing(normalContentItems, getApiClient(), state.targetGuid[0], state.locale[0], referenceMapper, targetData, 'normal');
             const normalBatchProcessor = new ContentBatchProcessor(normalBatchConfig);
-            const normalResult = await normalBatchProcessor.processBatches(normalContentItems, undefined, 'Normal Content');
+            const normalResult = await normalBatchProcessor.processBatches(filteredNormalContentItems.itemsToCreate as any, undefined, 'Normal Content');
             
             totalSuccessful += normalResult.successCount;
             totalFailed += normalResult.failureCount;
@@ -387,9 +397,11 @@ export class Sync {
               defaultAssetUrl: '',
             };
             
+            const filteredLinkedContentItems = await this.filterContentItemsForProcessing(linkedContentItems as any, getApiClient(), state.targetGuid[0], state.locale[0], referenceMapper, targetData, 'linked');
             const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
-            const linkedResult = await linkedBatchProcessor.processBatches(linkedContentItems, undefined, 'Linked Content');
+            const linkedResult = await linkedBatchProcessor.processBatches(filteredLinkedContentItems as any, undefined, 'Linked Content');
             
+
             totalSuccessful += linkedResult.successCount;
             totalFailed += linkedResult.failureCount;
             totalSkipped += linkedResult.skippedCount; // Capture skipped count
@@ -481,6 +493,71 @@ export class Sync {
     }
   }
 
+
+
+  private async filterContentItemsForProcessing(
+  contentItems: mgmtApi.ContentItem[],
+  apiClient: mgmtApi.ApiClient,
+  targetGuid: string,
+  locale: string,
+  referenceMapper: ReferenceMapper,
+  targetData?: any,
+  type?: 'normal' | 'linked'
+): Promise<ContentFilterResult> {
+  const { findContentInTargetInstance } = await import('../lib/finders/content-item-finder');
+  
+  const itemsToCreate: mgmtApi.ContentItem[] = [];
+  const itemsToUpdate: mgmtApi.ContentItem[] = [];
+  const itemsToSkip: mgmtApi.ContentItem[] = [];
+  
+
+  for (const contentItem of contentItems) {
+      const itemName = contentItem.properties.referenceName || 'Unknown';
+      
+      try {
+          // Use new finder pattern to determine what action to take
+          const findResult = await findContentInTargetInstance(
+              contentItem,
+              apiClient,
+              targetGuid,
+              locale,
+              targetData,
+              referenceMapper
+          );
+
+          const { content, shouldUpdate, shouldCreate, shouldSkip } = findResult;
+
+
+          if (shouldCreate) {
+              // Content doesn't exist - include it for creation
+              itemsToCreate.push(contentItem);
+          } else if (shouldUpdate) {
+              // Content exists but needs updating
+              itemsToUpdate.push(contentItem);
+              console.log(`✓ Content ${ansiColors.cyan.underline(itemName)} vID:${ansiColors.bold.yellow('needs update')} vID:${ansiColors.bold.green(content?.properties?.versionID.toString())} → ${ansiColors.bold.green(contentItem.properties?.versionID.toString())} - ${ansiColors.green(targetGuid)}: ID:${content?.contentID}`);
+              
+          } else if (shouldSkip) {
+              // Content exists and is up to date - skip (using new versioning logic)
+              const versionInfo = content?.properties?.versionID ? `vID:${content.properties.versionID} → vID:${contentItem.properties?.versionID}` : 'no version';
+              console.log(`✓ Content ${ansiColors.cyan.underline(itemName)} ${ansiColors.bold.gray('up to date, skipping')} - ${ansiColors.green(targetGuid)}: ID:${content?.contentID} (${versionInfo})`);
+              itemsToSkip.push(contentItem);
+          }
+          
+      } catch (error: any) {
+          // If we can't check, err on the side of processing it
+          console.warn(`⚠️ Could not check if content ${itemName} exists: ${error.message} - will process`);
+          itemsToCreate.push(contentItem);
+      }
+  }
+  
+  return {
+      itemsToCreate,
+      itemsToUpdate,
+      itemsToSkip,
+      skippedCount: itemsToSkip.length
+  };
+}
+
   /**
    * Filter source data to only include entities in the dependency tree
    * Task 105: Sync Integration - Filter source data by model dependencies
@@ -506,4 +583,6 @@ export class Sync {
     };
   }
 
+
+  
 } 

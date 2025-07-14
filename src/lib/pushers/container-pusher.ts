@@ -35,6 +35,7 @@ export async function pushContainers(
     let processedCount = 0;
     let overallStatus: 'success' | 'error' = 'success';
 
+
     for (const sourceContainer of sourceContainers) {
         const sourceRefName = sourceContainer.referenceName;
         let currentStatus: 'success' | 'error' = 'success';
@@ -139,7 +140,7 @@ async function updateExistingContainer(
 
     // Update the container
     try {
-    const updatedContainer = await apiClient.containerMethods.saveContainer(updatePayload, targetGuid);
+    const updatedContainer = await apiClient.containerMethods.saveContainer(updatePayload, targetGuid, true);
     return updatedContainer;
     } catch (error: any) {
         console.error(`✗ Error updating container ${sourceContainer.referenceName}:`, JSON.stringify(error));
@@ -175,9 +176,11 @@ async function createNewContainer(
 
     // Create the container
     try {
-    const newContainer = await apiClient.containerMethods.saveContainer(createPayload, targetGuid);
+    const newContainer = await apiClient.containerMethods.saveContainer(createPayload, targetGuid, true);
     return newContainer;
     } catch (error: any) {
+
+        console.log(error)
         console.error(`✗ Error creating container 2 ${sourceContainer.referenceName}:`, JSON.stringify(error));
         throw error;
     }
