@@ -81,14 +81,17 @@ export class ContentBatchProcessor {
         batchType?: string
     ): Promise<BatchProcessingResult> {
         // Pre-filter content items to skip those that already exist (unless overwrite is enabled)
-        const { filteredItems, skippedItems } = await this.filterExistingContentItems(contentItems);
+        const { filteredItems, skippedItems, updateItems } = await this.filterExistingContentItems(contentItems);
+        
+        // Combine create and update items for batch processing
+        const allProcessingItems = [...filteredItems, ...updateItems];
         
         const batchSize = this.config.batchSize!;
-        const contentBatches = this.createContentBatches(filteredItems, batchSize);
+        const contentBatches = this.createContentBatches(allProcessingItems, batchSize);
         
-        // console.log(`Processing ${filteredItems.length} content items in ${contentBatches.length} bulk batches (${batchSize} items each)`);
+        console.log(`Processing ${allProcessingItems.length} content items in ${contentBatches.length} bulk batches (${filteredItems.length} creates, ${updateItems.length} updates, ${skippedItems.length} skipped)`);
         if (skippedItems.length > 0) {
-            // console.log(`Skipped ${skippedItems.length} existing content items (use --overwrite to update)`);
+            console.log(`Skipped ${skippedItems.length} existing content items (up to date)`);
         }
         
         let totalSuccessCount = 0;
@@ -246,42 +249,52 @@ export class ContentBatchProcessor {
     private async filterExistingContentItems(contentItems: mgmtApi.ContentItem[]): Promise<{
         filteredItems: mgmtApi.ContentItem[];
         skippedItems: mgmtApi.ContentItem[];
+        updateItems: mgmtApi.ContentItem[];
     }> {
         const { findContentInTargetInstance } = await import('../finders');
         const { state } = await import('../../core/state');
+        const { GuidDataLoader } = await import('../shared/source-data-loader');
         
         const filteredItems: mgmtApi.ContentItem[] = [];
         const skippedItems: mgmtApi.ContentItem[] = [];
+        const updateItems: mgmtApi.ContentItem[] = [];
         
-        // If overwrite is enabled, don't filter - process all items
-        if (state.overwrite) {
-            return { filteredItems: contentItems, skippedItems: [] };
-        }
+        // Load target instance data for comparison
+        const targetDataLoader = new GuidDataLoader(this.config.targetGuid);
+        const targetData = await targetDataLoader.loadGuidEntities();
         
         for (const contentItem of contentItems) {
             const itemName = contentItem.properties.referenceName || 'Unknown';
             
             try {
-                // Check if content item already exists in target
-                const existingContentItem = await findContentInTargetInstance(
-                    contentItem, 
-                    this.config.apiClient, 
-                    this.config.targetGuid, 
-                    this.config.locale, 
+                // Use new finder pattern to determine what action to take
+                const findResult = await findContentInTargetInstance(
+                    contentItem,
+                    this.config.apiClient,
+                    this.config.targetGuid,
+                    this.config.locale,
+                    targetData,
                     this.config.referenceMapper
                 );
-                
-                if (existingContentItem) {
-                    // Content exists - skip it
-                    console.log(`✓ Content ${ansiColors.cyan.underline(itemName)} ${ansiColors.bold.grey('exists, skipping')} - ${ansiColors.green(this.config.targetGuid)}: ID:${existingContentItem.contentID}`);
+
+                const { content, shouldUpdate, shouldCreate, shouldSkip } = findResult;
+
+                if (shouldCreate) {
+                    // Content doesn't exist - include it for creation
+                    filteredItems.push(contentItem);
+                } else if (shouldUpdate) {
+                    // Content exists but needs updating
+                    updateItems.push(contentItem);
+                    console.log(`✓ Content ${ansiColors.cyan.underline(itemName)} ${ansiColors.bold.yellow('needs update')} - ${ansiColors.green(this.config.targetGuid)}: ID:${content?.contentID}`);
+                } else if (shouldSkip) {
+                    // Content exists and is up to date - skip
+                    console.log(`✓ Content ${ansiColors.cyan.underline(itemName)} ${ansiColors.bold.gray('exists, skipping')} - ${ansiColors.green(this.config.targetGuid)}: ID:${content?.contentID}`);
                     
                     // Add mapping for existing content
-                    this.config.referenceMapper.addMapping('content', contentItem, existingContentItem);
-                    
+                    if (content) {
+                        this.config.referenceMapper.addRecord('content', contentItem, content);
+                    }
                     skippedItems.push(contentItem);
-                } else {
-                    // Content doesn't exist - include it for processing
-                    filteredItems.push(contentItem);
                 }
                 
             } catch (error: any) {
@@ -291,7 +304,7 @@ export class ContentBatchProcessor {
             }
         }
         
-        return { filteredItems, skippedItems };
+        return { filteredItems, skippedItems, updateItems };
     }
 
     /**
@@ -376,7 +389,8 @@ export class ContentBatchProcessor {
                 }
 
                 // STEP 4: Check if content already exists (matching original logic)
-                const existingContentItem = await findContentInTargetInstance(contentItem, this.config.apiClient, this.config.targetGuid, this.config.locale, this.config.referenceMapper);
+                const { findContentInTargetInstanceLegacy } = await import('../finders');
+                const existingContentItem = await findContentInTargetInstanceLegacy(contentItem, this.config.apiClient, this.config.targetGuid, this.config.locale, this.config.referenceMapper);
                 
                 // STEP 5: Use proper ContentFieldMapper for field mapping and validation
                 const { ContentFieldMapper } = await import('../content/content-field-mapper');

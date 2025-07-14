@@ -37,10 +37,8 @@ export class PullUICoordinator {
     if (totalOperations > 1 && state.useBlessed) {
       console.log(ansiColors.yellow(`Auto-disabling Blessed UI: ${totalOperations} concurrent operations detected`));
       state.useBlessed = false;
-      // Default to headless mode for concurrent operations
-      if (!state.useVerbose && !state.useHeadless) {
-        state.useHeadless = true;
-      }
+      state.useVerbose = state.useHeadless ? false : true;
+      state.useHeadless = state.useVerbose ? false : true;
     }
     
     // Initialize UI services based on mode

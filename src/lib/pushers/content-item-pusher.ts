@@ -2,6 +2,7 @@ import { ReferenceMapper } from "../shared/reference-mapper";
 import * as mgmtApi from '@agility/management-sdk';
 import { 
   findContentInTargetInstance, 
+  findContentInTargetInstanceLegacy,
   findContainerInTargetInstance, 
   findModelInTargetInstance 
 } from "../finders";
@@ -117,12 +118,23 @@ async function pushNormalContentItemsIndividual(
         const itemName = contentItem.properties.referenceName || 'Unknown';
         
         try {
-            // Check if content item already exists in target
-            const existingContentItem = await findContentInTargetInstance(contentItem, apiClient, targetGuid, locale, referenceMapper);
+            // Check if content item already exists in target using new finder pattern
+            const { GuidDataLoader } = await import('../shared/source-data-loader');
+            const targetDataLoader = new GuidDataLoader(targetGuid);
+            const targetData = await targetDataLoader.loadGuidEntities();
             
-            if (existingContentItem && !state.overwrite) {
-                // Skip if already exists and not overwriting
-                console.log(ansiColors.gray(`[Content Pusher] ↷ Skipping ${itemName}: already exists in target (use --overwrite to update)`));
+            const findResult = await findContentInTargetInstance(contentItem, apiClient, targetGuid, locale, targetData, referenceMapper);
+            const { content: existingContentItem, shouldUpdate, shouldCreate, shouldSkip } = findResult;
+            
+            if (shouldSkip) {
+                // Skip if already exists and up to date
+                console.log(ansiColors.gray(`[Content Pusher] ↷ Skipping ${itemName}: already exists and up to date`));
+                continue;
+            }
+            
+            if (!shouldCreate && !shouldUpdate) {
+                // This shouldn't happen, but handle it gracefully
+                console.log(ansiColors.gray(`[Content Pusher] ↷ Skipping ${itemName}: no action needed`));
                 continue;
             }
             
@@ -333,7 +345,7 @@ async function processLinkedContentIndividually(
                 }
 
                 // Check if content already exists
-                const existingContentItem = await findContentInTargetInstance(contentItem, apiClient, targetGuid, locale, referenceMapper);
+                const existingContentItem = await findContentInTargetInstanceLegacy(contentItem, apiClient, targetGuid, locale, referenceMapper);
                 
                             if (existingContentItem && !state.overwrite) {
                     console.log(ansiColors.gray(`[Content Pusher] ↷ Skipping ${itemName}: already exists in target (use --overwrite to update)`));

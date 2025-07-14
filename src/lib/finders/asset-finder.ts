@@ -69,8 +69,7 @@ export async function findAssetInTargetInstance(
       shouldUpdate = false; // Don't update since it already exists
     }
 
-    // STEP 4: Update/add mapping if target instance data is found
-    referenceMapper.addRecord("asset", sourceAsset, finalTargetAsset);
+    // REMOVED: Do not update mapping here - let the pusher handle it after successful operations
   } else {
     // No target instance data found - asset doesn't exist in target
     shouldCreate = true;
@@ -79,20 +78,15 @@ export async function findAssetInTargetInstance(
     console.log(ansiColors.blue(`Asset ${sourceAsset.fileName} not found in target - should create`));
   }
 
-  // STEP 5: Handle overwrite flag
+  // STEP 4: Handle overwrite flag
   if (overwrite) {
-    if (existsInTarget) {
-      shouldUpdate = true;
-      shouldCreate = false;
-    } else {
-      shouldCreate = true;
-      shouldUpdate = false;
-    }
+    shouldUpdate = existsInTarget;
+    shouldCreate = !existsInTarget;
   }
 
   return {
-    asset: finalTargetAsset || sourceAsset, // If no target asset found, use source asset as fallback
-    shouldUpdate: shouldUpdate,
-    shouldCreate: shouldCreate,
+    asset: finalTargetAsset,
+    shouldUpdate,
+    shouldCreate,
   };
 }

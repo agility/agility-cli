@@ -1,7 +1,6 @@
 import * as path from "path";
 import * as fs from "fs";
 import { getState } from "./state";
-import { fileOperations } from "./fileOperations";
 import ansiColors from "ansi-colors";
 import {
   markPullStart,
