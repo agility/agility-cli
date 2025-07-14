@@ -104,9 +104,9 @@ export async function pushAssets(
         );
 
         // Add mapping for existing asset
-        if (asset) {
-          referenceMapper.addRecord("asset", media, asset);
-        }
+        // if (asset) {
+        //   referenceMapper.addRecord("asset", media, asset);
+        // }
         skipped++;
       }
     } catch (error: any) {
