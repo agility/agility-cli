@@ -209,7 +209,6 @@ export class DownloadOrchestrator {
       const avgDuration = successfulResults.reduce((sum, r) => sum + r.totalDuration, 0) / successfulResults.length;
       const avgSeconds = Math.floor(avgDuration / 1000);
       console.log(ansiColors.gray(`📊 Average per download: ${avgSeconds}s`));
-      console.log(ansiColors.gray(`⚡ Parallelization speedup: ~${Math.floor((avgDuration * totalCombinations) / totalElapsed)}x faster than sequential`));
     }
     
     return successfulResults;

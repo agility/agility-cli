@@ -14,6 +14,7 @@ import { findModelInTargetInstance } from "../finders/model-finder";
  */
 export async function pushModels(
   sourceData: SourceData,
+  targetData: any,
   referenceMapper: ReferenceMapper,
   onProgress?: PusherProgressCallback
 ): Promise<PusherResult> {

@@ -10,13 +10,13 @@ const FormData = require("form-data");
 
 export async function pushAssets(
     sourceData: any,
+    targetData: any,
     referenceMapper: ReferenceMapper, 
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
     
     // Extract data from sourceData - unified parameter pattern
     const assets: mgmtApi.Media[] = sourceData.assets || [];
-    const allGalleries: mgmtApi.assetMediaGrouping[] = sourceData.galleries || [];
     
     if (!assets || assets.length === 0) {
         console.log('No assets found to process.');
@@ -48,82 +48,36 @@ export async function pushAssets(
     for (const media of assets) {
         let currentStatus: 'success' | 'error' = 'success';
         try {
-            // PERFORMANCE FIX: Don't add null records upfront - this pollutes the mapping cache
-            // referenceMapper.addRecord('asset', media, null); // REMOVED
-
             const relativeFilePath = getAssetFilePath(media.originUrl).replace(/%20/g, " "); // Uses imported util
             const absoluteLocalFilePath = path.join(basePath, relativeFilePath);
             const folderPath = path.dirname(relativeFilePath) === '.' ? '/' : path.dirname(relativeFilePath);
 
-            // SIMPLIFICATION: Use finder function instead of manual mapping/API logic
-            const existingMedia = await findAssetInTargetInstance(media, apiClient, targetGuid[0], referenceMapper);
+            const existingMedia = await findAssetInTargetInstance(media, apiClient, targetGuid[0], targetData, referenceMapper);
+            const { asset, shouldUpdate, shouldCreate } = existingMedia;
 
-            if (existingMedia) {
-                // Asset exists in target instance - this is a skip, not a success
-                const sourceFileName = media.originUrl.split('/').pop()?.split('?')[0];
-                const targetFileName = existingMedia.originUrl?.split('/').pop()?.split('?')[0];
-                console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists')} - ${ansiColors.green(targetGuid[0])}: mediaID:${existingMedia.mediaID} (${targetFileName})`);
-                skipped++; // Existing assets are skipped, not successful
-            } else {
-                // Handle gallery if present
-                let targetMediaGroupingID = -1;
-                if (media.mediaGroupingID > 0 && media.mediaGroupingName) {
-                    try {
-                        // Check mapper first
-                        const galleryMapping = referenceMapper.getMappingByKey<mgmtApi.assetMediaGrouping>('gallery', 'name', media.mediaGroupingName);
-                        if (galleryMapping && galleryMapping.target) {
-                            targetMediaGroupingID = galleryMapping.target.mediaGroupingID;
-                        } else {
-                            // Fallback: Check API directly if not in mapper
-                            const gallery = await apiClient.assetMethods.getGalleryByName(targetGuid[0], media.mediaGroupingName);
-                            if (gallery) {
-                                targetMediaGroupingID = gallery.mediaGroupingID;
-                                // Add mapping if found via API
-                                const sourceGalleryGrouping = allGalleries.find(mg => mg.name === media.mediaGroupingName);
-                                
-                                if (sourceGalleryGrouping) {
-                                    referenceMapper.addRecord('gallery', sourceGalleryGrouping, gallery);
-                                } else {
-                                    // Create synthetic source gallery for mapping persistence
-                                    const syntheticSourceGallery = {
-                                        mediaGroupingID: media.mediaGroupingID,
-                                        name: media.mediaGroupingName,
-                                        description: '',
-                                        isActive: true
-                                    };
-                                    referenceMapper.addRecord('gallery', syntheticSourceGallery, gallery);
-                                    console.log(`[Asset] Created synthetic gallery mapping for ${media.mediaGroupingName} (source ID: ${media.mediaGroupingID} -> target ID: ${gallery.mediaGroupingID})`);
-                                }
-                            }
-                        }
-                    } catch (error: any) {
-                        // Gallery doesn't exist - this is normal, asset will upload without gallery
-                        console.log(`[Asset] Gallery ${media.mediaGroupingName} not found - asset will upload without gallery association`);
-                        // Gallery not found, will upload without gallery
-                    }
-                }
-
-                // Upload the asset
-                const form = new FormData();
-                if (!fs.existsSync(absoluteLocalFilePath)) {
-                    throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
-                }
-                const fileBuffer = fs.readFileSync(absoluteLocalFilePath);
-                form.append('files', fileBuffer, media.fileName);
-                
-                const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid[0], targetMediaGroupingID);
-                
-                if (!uploadedMediaArray || uploadedMediaArray.length === 0) {
-                    throw new Error(`API did not return uploaded media details for ${media.fileName}`);
-                }
-                const uploadedMedia = uploadedMediaArray[0]; // Assuming the first item corresponds to our upload
-                
-                // PERFORMANCE FIX: Add mapping only after successful upload
-                referenceMapper.addRecord('asset', media, uploadedMedia);
-                console.log(`✓ Asset uploaded: ${media.fileName} to ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green(targetGuid[0])}: ${uploadedMedia.mediaID}`);
-                // console.log(`[Asset Debug] Added uploaded asset to cache for future lookups`);
+            if (shouldCreate) {
+                // Asset needs to be created (doesn't exist in target)
+                await createAsset(media, absoluteLocalFilePath, folderPath, apiClient, targetGuid[0], referenceMapper);
                 successful++;
+                
+            } else if (shouldUpdate) {
+                // Asset exists but needs updating
+                await updateAsset(media, asset, absoluteLocalFilePath, folderPath, apiClient, targetGuid[0], referenceMapper);
+                successful++;
+                
+            } else {
+                // Asset exists and is up to date - skip
+                const sourceFileName = media.originUrl.split('/').pop()?.split('?')[0];
+                const targetFileName = asset?.originUrl?.split('/').pop()?.split('?')[0];
+                console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists, skipping')} - ${ansiColors.green(targetGuid[0])}: mediaID:${asset?.mediaID} (${targetFileName})`);
+                
+                // Add mapping for existing asset
+                if (asset) {
+                    referenceMapper.addRecord('asset', media, asset);
+                }
+                skipped++;
             }
+
         } catch (error: any) {
             console.error(`✗ Error processing asset ${media.fileName || media.originUrl}:`, error.message);
             failed++;
@@ -140,4 +94,107 @@ export async function pushAssets(
 
     console.log(ansiColors.yellow(`Processed ${successful}/${totalAssets} assets (${failed} failed, ${skipped} skipped)`));
     return { status: overallStatus, successful, failed, skipped };
+}
+
+/**
+ * Create a new asset in the target instance
+ */
+async function createAsset(
+    media: mgmtApi.Media,
+    absoluteLocalFilePath: string,
+    folderPath: string,
+    apiClient: mgmtApi.ApiClient,
+    targetGuid: string,
+    referenceMapper: ReferenceMapper
+): Promise<void> {
+    // Handle gallery if present
+    let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
+
+    // Upload the asset
+    const form = new FormData();
+    if (!fs.existsSync(absoluteLocalFilePath)) {
+        throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
+    }
+    const fileBuffer = fs.readFileSync(absoluteLocalFilePath);
+    form.append('files', fileBuffer, media.fileName);
+    
+    const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
+    
+    if (!uploadedMediaArray || uploadedMediaArray.length === 0) {
+        throw new Error(`API did not return uploaded media details for ${media.fileName}`);
+    }
+    const uploadedMedia = uploadedMediaArray[0];
+    
+    // Add mapping for successful upload
+    referenceMapper.addRecord('asset', media, uploadedMedia);
+    console.log(`✓ Asset ${ansiColors.underline.cyan(media.fileName)} uploaded to path ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`);
+}
+
+/**
+ * Update an existing asset in the target instance
+ */
+async function updateAsset(
+    media: mgmtApi.Media,
+    existingAsset: mgmtApi.Media,
+    absoluteLocalFilePath: string,
+    folderPath: string,
+    apiClient: mgmtApi.ApiClient,
+    targetGuid: string,
+    referenceMapper: ReferenceMapper
+): Promise<void> {
+    // Handle gallery if present
+    let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
+
+    // Upload the asset (this will replace the existing one)
+    const form = new FormData();
+    if (!fs.existsSync(absoluteLocalFilePath)) {
+        throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
+    }
+    const fileBuffer = fs.readFileSync(absoluteLocalFilePath);
+    form.append('files', fileBuffer, media.fileName);
+    
+    const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
+    
+    if (!uploadedMediaArray || uploadedMediaArray.length === 0) {
+        throw new Error(`API did not return uploaded media details for ${media.fileName}`);
+    }
+    const uploadedMedia = uploadedMediaArray[0];
+    
+    // Add mapping for successful update
+    referenceMapper.addRecord('asset', media, uploadedMedia);
+    console.log(`✓ Asset ${ansiColors.underline.cyan(media.fileName)} updated in path ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`);
+}
+
+/**
+ * Resolve gallery mapping for an asset
+ * Returns the target gallery ID or -1 if no gallery
+ */
+async function resolveGalleryMapping(
+    media: mgmtApi.Media,
+    apiClient: mgmtApi.ApiClient,
+    targetGuid: string,
+    referenceMapper: ReferenceMapper
+): Promise<number> {
+    let targetMediaGroupingID = -1;
+    
+    if (media.mediaGroupingID > 0 && media.mediaGroupingName) {
+        try {
+            // Check mapper first for existing gallery mapping
+            const galleryMapping = referenceMapper.getMappingByKey<mgmtApi.assetMediaGrouping>('gallery', 'name', media.mediaGroupingName);
+            if (galleryMapping && galleryMapping.target) {
+                targetMediaGroupingID = galleryMapping.target.mediaGroupingID;
+            } else {
+                // Fallback: Check API directly if not in mapper
+                const gallery = await apiClient.assetMethods.getGalleryByName(targetGuid, media.mediaGroupingName);
+                if (gallery) {
+                    targetMediaGroupingID = gallery.mediaGroupingID;
+                }
+            }
+        } catch (error: any) {
+            // Gallery doesn't exist - this is normal, asset will upload without gallery
+            console.log(`[Asset] Gallery ${media.mediaGroupingName} not found - asset will upload without gallery association`);
+        }
+    }
+    
+    return targetMediaGroupingID;
 }

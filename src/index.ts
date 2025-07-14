@@ -7,7 +7,8 @@ import inquirer from "inquirer";
 import searchList from "inquirer-search-list";
 inquirer.registerPrompt("search-list", searchList);
 
-import { Auth, Clean, Pull, Sync, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
+import { Auth, Clean, Sync, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
+import { PullUICoordinator } from "./core/pull-ui-coordinator";
 import { homePrompt, instancesPrompt, localePrompt } from "./lib/ui/prompts";
 import { generateEnv } from "./lib/shared";
 import { instanceSelector } from "./lib/ui/prompts";
@@ -208,8 +209,8 @@ yargs.command({
       return;
     }
 
-    const pullOperation = new Pull();
-    await pullOperation.pullInstance();
+    const pullOperation = new PullUICoordinator();
+    await pullOperation.execute();
   },
 });
 

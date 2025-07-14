@@ -433,6 +433,7 @@ async function processPage(
 
 export async function pushPages(
     sourceData: SourceData,
+    targetData: any,
     referenceMapper: ReferenceMapper,
     onProgress?: PusherProgressCallback
 ): Promise<PusherResult> {

@@ -21,13 +21,14 @@ export class BlessedUIManager {
   private context: BlessedUIContext | null = null;
   private config: BlessedUIConfig;
   private autoExitTimer?: NodeJS.Timeout;
+  private originalConsole?: { originalLog: typeof console.log; originalError: typeof console.error };
 
   constructor(config: BlessedUIConfig) {
     this.config = config;
   }
 
   /**
-   * Initialize BlessedUI screen and components
+   * Initialize BlessedUI screen and components with automatic console redirection
    */
   setup(): BlessedUIContext {
     // Create screen
@@ -85,6 +86,9 @@ export class BlessedUIManager {
     // Initial render
     screen.render();
     logContainer.focus();
+
+    // Automatically setup console redirection
+    this.setupConsoleRedirection();
 
     return this.context;
   }
@@ -188,7 +192,7 @@ export class BlessedUIManager {
 
     this.log("----------------------------------------------------------------------");
     this.log("All operations completed. Starting auto-exit countdown...");
-    this.log("Press Ctrl+C to exit now");
+    this.log("Press any key to exit now");
 
     let countdown = this.config.autoExitDelay;
     
@@ -204,11 +208,18 @@ export class BlessedUIManager {
   }
 
   /**
-   * Setup console redirection for BlessedUI
+   * Setup console redirection for BlessedUI (internal use)
    */
-  setupConsoleRedirection(): { originalLog: typeof console.log; originalError: typeof console.error } {
-    const originalLog = console.log;
-    const originalError = console.error;
+  private setupConsoleRedirection(): void {
+    if (this.originalConsole) {
+      return; // Already setup
+    }
+
+    // Store original console methods
+    this.originalConsole = {
+      originalLog: console.log,
+      originalError: console.error
+    };
 
     // Memory-efficient console override with small circular buffer
     let logBuffer: string[] = [];
@@ -240,26 +251,26 @@ export class BlessedUIManager {
       // Send to BlessedUI log
       this.log(errorMessage);
     };
-
-    return { originalLog, originalError };
   }
 
   /**
-   * Restore console methods
-   */
-  restoreConsole(originalLog: typeof console.log, originalError: typeof console.error): void {
-    console.log = originalLog;
-    console.error = originalError;
-  }
-
-  /**
-   * Cleanup BlessedUI resources
+   * Cleanup BlessedUI resources and automatically restore console
    */
   cleanup(): void {
-    if (this.autoExitTimer) {
-      clearInterval(this.autoExitTimer);
+    // Restore console first
+    if (this.originalConsole) {
+      console.log = this.originalConsole.originalLog;
+      console.error = this.originalConsole.originalError;
+      this.originalConsole = undefined;
     }
 
+    // Clean up auto-exit timer
+    if (this.autoExitTimer) {
+      clearInterval(this.autoExitTimer);
+      this.autoExitTimer = undefined;
+    }
+
+    // Clean up screen
     if (this.context?.screen && !this.context.screen.destroyed) {
       this.context.screen.destroy();
     }
@@ -279,5 +290,15 @@ export class BlessedUIManager {
    */
   getContext(): BlessedUIContext | null {
     return this.context;
+  }
+
+  /**
+   * @deprecated Use cleanup() instead - console redirection is now automatic during setup()
+   */
+  getOriginalConsole(): { originalLog: typeof console.log; originalError: typeof console.error } {
+    return {
+      originalLog: this.originalConsole?.originalLog || console.log,
+      originalError: this.originalConsole?.originalError || console.error
+    };
   }
 } 

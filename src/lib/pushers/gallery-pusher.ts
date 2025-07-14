@@ -5,6 +5,7 @@ import { state } from '../../core/state';
 
 export async function pushGalleries(
     sourceData: any,
+    targetData: any,
     referenceMapper: ReferenceMapper,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {

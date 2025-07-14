@@ -6,7 +6,7 @@ import { channelPrompt } from "./channel-prompt";
 import { isPreviewPrompt } from "./isPreview-prompt";
 import { elementsPrompt } from "./elements-prompt";
 import { AgilityInstance } from "../../../types/agilityInstance";
-import { Pull } from "../../../core/pull";
+import { PullUICoordinator } from "../../../core/pull-ui-coordinator";
 import rootPathPrompt from "./root-path-prompt";
 
 
@@ -14,10 +14,10 @@ export async function pullFiles(selectedInstance: AgilityInstance, useBlessedUI:
     // Configure state from interactive prompts using refined flag architecture
     await configureStateFromPrompts(selectedInstance, useBlessedUI);
 
-    // Use standard Pull service (authentication already handled by calling command)
-    const pullOperation = new Pull();
+    // Use standard Pull UI coordinator (authentication already handled by calling command)
+    const pullOperation = new PullUICoordinator();
     try {
-        await pullOperation.pullInstance();
+        await pullOperation.execute();
         return true;
     } catch (pullError) {
         console.error(colors.red('Pull operation failed:'), pullError);

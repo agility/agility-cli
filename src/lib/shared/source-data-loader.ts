@@ -1,12 +1,13 @@
 /**
- * Source Data Loader Service
+ * GUID Data Loader Service
  * 
  * Loads all entity types from the filesystem using consistent getter patterns.
- * Provides unified data loading for sync operations.
+ * Provides unified data loading for sync operations for any specified GUID.
  * 
  * ✅ USES: Proven filesystem getter pattern
  * ✅ HANDLES: Correct directory structure (page/, item/, list/, etc.)
  * ✅ SUPPORTS: All Agility CMS entity types
+ * ✅ FLEXIBLE: Works with any GUID (source or target)
  */
 
 import * as fs from 'fs';
@@ -15,7 +16,7 @@ import ansiColors from 'ansi-colors';
 import { fileOperations } from '../../core/fileOperations';
 import { getState } from '../../core/state';
 
-export interface SourceEntities {
+export interface GuidEntities {
     pages: any[];
     templates: any[];
     containers: any[];
@@ -25,16 +26,19 @@ export interface SourceEntities {
     galleries: any[];
 }
 
-export class SourceDataLoader {
+export class GuidDataLoader {
     private fileOps: fileOperations;
+    private guid: string;
 
-    constructor() {
+    constructor(guid: string) {
         const state = getState();
         
-        // Use enhanced fileOperations with legacyFolders support
+        this.guid = guid;
+        
+        // Use enhanced fileOperations with the specified GUID
         this.fileOps = new fileOperations(
             state.rootPath,
-            state.sourceGuid[0],
+            guid,
             state.locale[0],
             state.preview,
             state.legacyFolders
@@ -42,14 +46,14 @@ export class SourceDataLoader {
     }
 
     /**
-     * Load all source entities - guarantees arrays are always returned
+     * Load all entities for the specified GUID - guarantees arrays are always returned
      */
-    async loadSourceEntities(): Promise<SourceEntities> {
+    async loadGuidEntities(): Promise<GuidEntities> {
         const state = getState();
         const elements = state.elements.split(',');
         
         // Initialize with empty arrays - no nulls/undefined ever
-        const sourceEntities: SourceEntities = {
+        const guidEntities: GuidEntities = {
             pages: [],
             templates: [],
             containers: [],
@@ -63,85 +67,96 @@ export class SourceDataLoader {
         if (elements.includes('Galleries')) {
             const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
             const galleries = getGalleriesFromFileSystem(this.fileOps);
-            sourceEntities.galleries = Array.isArray(galleries) ? galleries : [];
+            guidEntities.galleries = Array.isArray(galleries) ? galleries : [];
         }
 
         if (elements.includes('Assets')) {
             const { getAssetsFromFileSystem } = await import('../getters/filesystem/get-assets');
             const assets = getAssetsFromFileSystem(this.fileOps);
-            sourceEntities.assets = Array.isArray(assets) ? assets : [];
+            guidEntities.assets = Array.isArray(assets) ? assets : [];
         }
 
         if (elements.includes('Models')) {
             const { getModelsFromFileSystem } = await import('../getters/filesystem/get-models');
             const models = getModelsFromFileSystem(this.fileOps);
-            sourceEntities.models = Array.isArray(models) ? models : [];
+            guidEntities.models = Array.isArray(models) ? models : [];
         }
 
         if (elements.includes('Containers')) {
             const { getContainersFromFileSystem } = await import('../getters/filesystem/get-containers');
             const containers = getContainersFromFileSystem(this.fileOps);
-            sourceEntities.containers = Array.isArray(containers) ? containers : [];
+            guidEntities.containers = Array.isArray(containers) ? containers : [];
         }
 
         if (elements.includes('Content')) {
             const { getContentItemsFromFileSystem } = await import('../getters/filesystem/get-content-items');
             const content = getContentItemsFromFileSystem(this.fileOps);
-            sourceEntities.content = Array.isArray(content) ? content : [];
+            guidEntities.content = Array.isArray(content) ? content : [];
         }
 
         if (elements.includes('Templates')) {
             const { getTemplatesFromFileSystem } = await import('../getters/filesystem/get-templates');
             const templates = getTemplatesFromFileSystem(this.fileOps);
-            sourceEntities.templates = Array.isArray(templates) ? templates : [];
+            guidEntities.templates = Array.isArray(templates) ? templates : [];
         }
 
         if (elements.includes('Pages')) {
             const { getPagesFromFileSystem } = await import('../getters/filesystem/get-pages');
             const pages = getPagesFromFileSystem(this.fileOps);
-            sourceEntities.pages = Array.isArray(pages) ? pages : [];
+            guidEntities.pages = Array.isArray(pages) ? pages : [];
         }
 
-        return sourceEntities;
+        return guidEntities;
     }
 
     /**
      * Check if we have any content to process
      */
-    hasNoContent(sourceEntities: SourceEntities): boolean {
-        return Object.values(sourceEntities).every((arr: any[]) => arr.length === 0);
+    hasNoContent(guidEntities: GuidEntities): boolean {
+        return Object.values(guidEntities).every((arr: any[]) => arr.length === 0);
     }
 
     /**
      * Get entity counts for summary reporting
      */
-    getEntityCounts(sourceEntities: SourceEntities): Record<string, number> {
+    getEntityCounts(guidEntities: GuidEntities): Record<string, number> {
         return {
-            pages: sourceEntities.pages.length,
-            templates: sourceEntities.templates.length,
-            containers: sourceEntities.containers.length,
-            models: sourceEntities.models.length,
-            content: sourceEntities.content.length,
-            assets: sourceEntities.assets.length,
-            galleries: sourceEntities.galleries.length
+            pages: guidEntities.pages.length,
+            templates: guidEntities.templates.length,
+            containers: guidEntities.containers.length,
+            models: guidEntities.models.length,
+            content: guidEntities.content.length,
+            assets: guidEntities.assets.length,
+            galleries: guidEntities.galleries.length
         };
     }
 
     /**
-     * Validate that the source data directory exists and contains expected structure
+     * Validate that the data directory exists and contains expected structure
      */
-    validateSourceDataStructure(): boolean {
+    validateDataStructure(): boolean {
         const state = getState();
         // Use enhanced fileOperations instancePath property
         const instancePath = this.fileOps.instancePath;
             
         if (!fs.existsSync(instancePath)) {
-            console.error(ansiColors.red(`❌ Source data directory not found: ${instancePath}`));
+            console.error(ansiColors.red(`❌ Data directory not found for GUID ${this.guid}: ${instancePath}`));
             console.log(ansiColors.yellow(`💡 Make sure you have pulled data first:`));
-            console.log(`   node dist/index.js pull --sourceGuid ${state.sourceGuid} --locale ${state.locale} --channel website --verbose`);
+            console.log(`   node dist/index.js pull --guid ${this.guid} --locale ${state.locale} --channel website --verbose`);
             return false;
         }
 
         return true;
     }
-} 
+
+    /**
+     * Get the GUID this loader is configured for
+     */
+    getGuid(): string {
+        return this.guid;
+    }
+}
+
+// Keep backward compatibility with existing code
+export const SourceDataLoader = GuidDataLoader;
+export type SourceEntities = GuidEntities; 

@@ -9,7 +9,6 @@ export { state, setState, resetState, primeFromEnv, getState, getUIMode, configu
 export { systemArgs, type SystemArgsType } from './system-args';
 
 // Main operation services
-export { Pull } from './pull';
 export { Sync } from './sync';
 export { default as Clean } from './clean';
 

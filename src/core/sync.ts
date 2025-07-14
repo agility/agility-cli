@@ -2,8 +2,8 @@ import * as mgmtApi from '@agility/management-sdk';
 import ansiColors from 'ansi-colors';
 import { fileOperations } from './fileOperations';
 import { ReferenceMapper } from '../lib/shared/reference-mapper';
-import { SourceDataLoader } from '../lib/shared/source-data-loader';
-import { generateLogHeader } from '../lib/shared';
+import { GuidDataLoader, GuidEntities, SourceDataLoader } from '../lib/shared/source-data-loader';
+import { EntityComparer, generateLogHeader } from '../lib/shared';
 import { state } from './state';
 import { PusherResult, SourceData } from '../types/sourceData';
 import { ModelDependencyTree } from '../lib/models/model-dependency-tree-builder';
@@ -65,6 +65,53 @@ export class Sync {
     console.error = this.originalConsoleError;
   }
 
+  private async filterSourceDataByModels(sourceData: GuidEntities): Promise<GuidEntities> {
+  // **NEW: Task 105 - Selective Model-Based Sync Integration**
+    if (state.models && state.models.trim().length > 0) {
+      const modelNames = state.models.split(',').map(name => name.trim());
+      console.log(ansiColors.cyan(`Selective Model Sync: ${modelNames.join(', ')}`));
+      
+      // Import and use ModelDependencyTreeBuilder
+      const { ModelDependencyTreeBuilder } = await import('../lib/models/model-dependency-tree-builder');
+      const treeBuilder = new ModelDependencyTreeBuilder(sourceData);
+      
+      // Validate that specified models exist
+      const validation = treeBuilder.validateModels(modelNames);
+      if (validation.invalid.length > 0) {
+        console.log(ansiColors.red(`❌ Invalid model names: ${validation.invalid.join(', ')}`));
+        console.log(ansiColors.gray(`Available models: ${sourceData.models.map(m => m.referenceName).join(', ')}`));
+        return;
+      }
+      
+      // Build dependency tree
+      const dependencyTree = treeBuilder.buildDependencyTree(validation.valid);
+      // Filter source data to only include entities in dependency tree
+      sourceData = this.filterSourceDataByDependencyTree(sourceData, dependencyTree);  
+    
+    }
+    return sourceData;
+  }
+
+  
+  private async loadExistingData(): Promise<{ sourceData: GuidEntities; targetData: GuidEntities }> {
+    const sourceDataLoader = new GuidDataLoader(state.sourceGuid[0]);
+    const targetDataLoader = new GuidDataLoader(state.targetGuid[0]);
+    const sourceData = await sourceDataLoader.loadGuidEntities();
+    const targetData = await targetDataLoader.loadGuidEntities();
+
+    return { sourceData, targetData };
+   
+  }
+
+
+  private async getFreshData(): Promise<{ sourceData: GuidEntities; targetData: GuidEntities }> {
+      const { Pull } = await import('./pull');
+      const pullOperation = new Pull();
+      await pullOperation.pullInstances();
+      return this.loadExistingData();
+  }
+  
+
   /**
    * Main sync execution method - simplified from massive topological implementation
    */
@@ -88,6 +135,8 @@ export class Sync {
     this._setupConsoleLogging();
     
     let referenceMapper: ReferenceMapper | null = null;
+    let sourceData: GuidEntities;
+    let targetData: GuidEntities;
 
     try {
       console.log(ansiColors.cyan(`\nStarting sync operation...`));
@@ -97,107 +146,21 @@ export class Sync {
 
       // Load source data to check if we have any existing data
       console.log(ansiColors.cyan(`\nLoading source data...`));
-      const sourceDataLoader = new SourceDataLoader();
-      let sourceData = await sourceDataLoader.loadSourceEntities();
-
-      // Check if we have any existing content
-      let hasExistingContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
-
-      // For sync operations, default to pulling fresh data unless explicitly disabled
-      // Users can skip pulling by using --update=false to use cached data
-      // This ensures we're syncing with current data by default
-      const shouldPull = true;
+      // const sourceDataLoader = new SourceDataLoader(state.sourceGuid[0]);
       
-      if (shouldPull) {
-        if (!hasExistingContent) {
-          console.log(ansiColors.cyan("🔄 No local source data found. Pulling from source instance..."));
-        } else if (state.update) {
-          console.log(ansiColors.cyan("🔄 Refreshing source data from source instance..."));
-        }
-        
-        try {
-          // Import and use Pull service directly with current state
-          const { Pull } = await import('./pull');
-          const pullOperation = new Pull();
-          
-          console.log(ansiColors.gray("Executing pull operation..."));
-          
-          // Temporarily restore console methods during pull operation
-          this._restoreConsole();
-          
-          await pullOperation.pullInstance();
-          
-          // Re-setup console logging after pull completion
-          this._setupConsoleLogging();
-          
-          // console.log(ansiColors.green("Source data pull completed"));
-          
-          // Reload source data after pull
-          // console.log(ansiColors.cyan("📥 Reloading source data..."));
-          sourceData = await sourceDataLoader.loadSourceEntities();
-        } catch (pullError: any) {
-          console.error(ansiColors.red(`❌ Failed to pull source data: ${pullError.message}`));
-          console.log(ansiColors.gray("💡 Please try running pull manually first:"));
-          console.log(ansiColors.gray(`   agility pull --sourceGuid ${state.sourceGuid} --locale ${state.locale} --channel ${state.channel} --verbose`));
-          return;
-        }
-      } else {
-        console.log(ansiColors.cyan("📋 Using existing local source data (--no-update specified)"));
-      }
+      const freshData = await this.getFreshData();
+      sourceData = freshData.sourceData;
+      targetData = freshData.targetData;
 
-      // Final check if we have any content to sync
-      let hasContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
-      if (!hasContent) {
-        console.log(ansiColors.red("❌ No source data available to sync"));
-        console.log(ansiColors.gray("💡 This may indicate:"));
-        console.log(ansiColors.gray("   - Source instance has no content"));
-        console.log(ansiColors.gray("   - Authentication issues"));
-        console.log(ansiColors.gray("   - Network connectivity problems"));
-        console.log(ansiColors.gray("💡 Try running pull manually first:"));
-        console.log(ansiColors.gray(`   agility pull --sourceGuid ${state.sourceGuid} --elements ${state.elements} --verbose`));
-        return;
-      }
-
-      // **NEW: Task 105 - Selective Model-Based Sync Integration**
-      if (state.models && state.models.trim().length > 0) {
-        const modelNames = state.models.split(',').map(name => name.trim());
-        console.log(ansiColors.cyan(`Selective Model Sync: ${modelNames.join(', ')}`));
-        
-        // Import and use ModelDependencyTreeBuilder
-        const { ModelDependencyTreeBuilder } = await import('../lib/models/model-dependency-tree-builder');
-        const treeBuilder = new ModelDependencyTreeBuilder(sourceData);
-        
-        // Validate that specified models exist
-        const validation = treeBuilder.validateModels(modelNames);
-        if (validation.invalid.length > 0) {
-          console.log(ansiColors.red(`❌ Invalid model names: ${validation.invalid.join(', ')}`));
-          console.log(ansiColors.gray(`Available models: ${sourceData.models.map(m => m.referenceName).join(', ')}`));
-          return;
-        }
-        
-        // Build dependency tree
-        const dependencyTree = treeBuilder.buildDependencyTree(validation.valid);
-        
+      sourceData = await this.filterSourceDataByModels(sourceData);
       
-        
-        // Filter source data to only include entities in dependency tree
-        sourceData = this.filterSourceDataByDependencyTree(sourceData, dependencyTree);
-        
-        // Re-check if we have content after filtering
-        hasContent = Object.values(sourceData).some((arr: any) => Array.isArray(arr) && arr.length > 0);
-        if (!hasContent) {
-          console.log(ansiColors.yellow("⚠️ No content found after model filtering"));
-          return;
-        }
-        
-        // console.log(ansiColors.green('✅ Source data filtered to model dependencies'));
-      }
 
       // Set up reference mapper - gets config from state internally
       referenceMapper = new ReferenceMapper();
+      
 
       // Execute sync operation and capture results
-      const syncResults = await this.executePushersInOrder(sourceData, referenceMapper, state.elements.split(","));
+      const syncResults = await this.executePushersInOrder(sourceData, targetData, referenceMapper, state.elements.split(","));
 
       // Execute auto-publishing if --publish flag is set
       if (state.publish && (syncResults.publishableContentIds.length > 0 || syncResults.publishablePageIds.length > 0)) {
@@ -312,6 +275,7 @@ export class Sync {
    */
   private async executePushersInOrder(
     sourceData: any,
+    targetData: any,
     referenceMapper: ReferenceMapper,
     elements: string[]
   ): Promise<{
@@ -335,10 +299,10 @@ export class Sync {
     const publishablePageIds: number[] = [];
 
     // Create wrapper function for content processing that chooses between individual vs batch pushers
-    const smartContentPusher = async (sourceData: any, referenceMapper: ReferenceMapper) => {
+    const smartContentPusher = async (sourceData: any, targetData: any, referenceMapper: ReferenceMapper) => {
       if (state.noBatch) {
         // Use individual pusher when --no-batch flag is enabled
-        return await pushContent(sourceData, referenceMapper);
+        return await pushContent(sourceData, targetData, referenceMapper);
       } else {
         // Use batch pusher for better performance (default behavior)
         
@@ -443,7 +407,7 @@ export class Sync {
         } catch (batchError: any) {
           console.error(ansiColors.red(`❌ Batch processing failed: ${batchError.message}`));
           console.log(ansiColors.yellow(`🔄 Falling back to individual processing...`));
-          return await pushContent(sourceData, referenceMapper);
+          return await pushContent(sourceData, targetData, referenceMapper);
         }
       }
     };
@@ -471,8 +435,8 @@ export class Sync {
         }
 
         
-        // Pass FULL sourceData to pusher so it can access whatever it needs (models, assets, etc.)
-        const pusherResult: PusherResult = await config.pusher(sourceData, referenceMapper);
+        // Pass FULL sourceData and targetData to pusher so it can access whatever it needs (models, assets, etc.)
+        const pusherResult: PusherResult = await config.pusher(sourceData, targetData, referenceMapper as any);
 
         // Accumulate results using standardized pattern
         totalSuccess += pusherResult.successful || 0;

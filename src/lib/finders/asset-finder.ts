@@ -1,52 +1,98 @@
-import * as mgmtApi from '@agility/management-sdk';
+import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapper } from "../shared/reference-mapper";
+import ansiColors from "ansi-colors";
+import { getState } from "../../core/state";
 
 export async function findAssetInTargetInstance(
-    asset: mgmtApi.Media,
-    apiClient: mgmtApi.ApiClient,
-    targetGuid: string,
-    referenceMapper: ReferenceMapper
-): Promise<mgmtApi.Media | null> {
-    try {
-        // Check mapper cache first (fast)
-        const mapping = referenceMapper.getMapping<mgmtApi.Media>('asset', asset.mediaID);
-        if (mapping) {
-            return mapping;
-        }
+  sourceAsset: mgmtApi.Media,
+  apiClient: mgmtApi.ApiClient,
+  targetGuid: string,
+  targetData: any,
+  referenceMapper: ReferenceMapper
+): Promise<{ asset: mgmtApi.Media | null; shouldUpdate: boolean; shouldCreate: boolean }> {
+  const state = getState();
+  const overwrite = state.overwrite;
+  let existsInTarget = false;
 
-        // Check by originUrl as well (alternative identifier)
-        const urlMapping = referenceMapper.getMapping<mgmtApi.Media>('asset', asset.originUrl);
-        if (urlMapping) {
-            return urlMapping;
-        }
+  // STEP 1: Check for existing mapping of source asset to target asset
+  const existingMapping = referenceMapper.getMappingByKey<mgmtApi.Media>("asset", "mediaID", sourceAsset.mediaID);
+  let targetAssetFromMapping: mgmtApi.Media | null = existingMapping?.target || null;
 
-        // Not in cache - check target instance via API
-        try {
-            const mediaList = await apiClient.assetMethods.getMediaList(1000, 0, targetGuid);
-            const existingAsset = mediaList.assetMedias?.find((a: any) => 
-                a.fileName === asset.fileName ||
-                a.originUrl === asset.originUrl ||
-                a.edgeUrl === asset.originUrl ||
-                a.url === asset.originUrl
-            );
-
-            if (existingAsset) {
-                // Add to mapper for future reference and return
-                referenceMapper.addRecord('asset', asset, existingAsset);
-                return existingAsset;
-            }
-
-            return null;
-
-        } catch (apiError) {
-            // If API call fails, assume asset doesn't exist
-            return null;
-        }
-
-    } catch (error: any) {
-        if (error.response && error.response.status === 404) {
-            return null;
-        }
-        throw error;
+  // STEP 2: Find target instance data (local file data) for this asset
+  const targetInstanceData = targetData.assets?.find((a: any) => {
+    // Try multiple matching strategies for target data
+    if (targetAssetFromMapping) {
+      // If we have a mapping, match by target asset properties
+      return (
+        a.mediaID === targetAssetFromMapping.mediaID ||
+        a.fileName === targetAssetFromMapping.fileName ||
+        a.originUrl === targetAssetFromMapping.originUrl
+      );
+    } else {
+      // If no mapping, match by source asset properties
+      return (
+        a.fileName === sourceAsset.fileName ||
+        a.originUrl === sourceAsset.originUrl ||
+        a.url === sourceAsset.originUrl ||
+        a.edgeUrl === sourceAsset.originUrl
+      );
     }
+  });
+
+  if (targetInstanceData) {
+    existsInTarget = true;
+  }
+ 
+
+  // STEP 3: Decision logic based on mapping and target data
+  let shouldUpdate = false;
+  let shouldCreate = false;
+  let finalTargetAsset: mgmtApi.Media | null = null;
+
+  if (targetInstanceData) {
+    // Target asset exists in target instance
+    finalTargetAsset = targetInstanceData;
+    shouldCreate = false;
+
+    if (targetAssetFromMapping) {
+      // Both mapping and target data exist - compare dates for update decision
+      const mappingDate = new Date(targetAssetFromMapping.dateModified || 0);
+      const targetDataDate = new Date(targetInstanceData.dateModified || 0);
+
+      if (targetDataDate > mappingDate) {
+        shouldUpdate = true;       
+      } else {
+        shouldUpdate = false;
+      }
+    } else {
+      // Target data exists but no mapping - this is an existing asset, add mapping
+      shouldUpdate = false; // Don't update since it already exists
+    }
+
+    // STEP 4: Update/add mapping if target instance data is found
+    referenceMapper.addRecord("asset", sourceAsset, finalTargetAsset);
+  } else {
+    // No target instance data found - asset doesn't exist in target
+    shouldCreate = true;
+    shouldUpdate = false;
+    finalTargetAsset = null;
+    console.log(ansiColors.blue(`Asset ${sourceAsset.fileName} not found in target - should create`));
+  }
+
+  // STEP 5: Handle overwrite flag
+  if (overwrite) {
+    if (existsInTarget) {
+      shouldUpdate = true;
+      shouldCreate = false;
+    } else {
+      shouldCreate = true;
+      shouldUpdate = false;
+    }
+  }
+
+  return {
+    asset: finalTargetAsset || sourceAsset, // If no target asset found, use source asset as fallback
+    shouldUpdate: shouldUpdate,
+    shouldCreate: shouldCreate,
+  };
 }
