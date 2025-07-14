@@ -86,7 +86,7 @@ export async function findContainerInTargetInstanceEnhanced(
         shouldUpdate = false;
         shouldSkip = false;
         finalTargetContainer = null;
-        console.log(ansiColors.blue(`Container ${sourceContainer.referenceName} not found in target - should create`));
+        // console.log(ansiColors.blue(`Container ${sourceContainer.referenceName} not found in target - should create`));
     }
 
     // STEP 5: Handle overwrite flag

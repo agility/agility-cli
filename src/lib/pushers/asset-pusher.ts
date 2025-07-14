@@ -2,167 +2,210 @@ import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapper } from "../shared/reference-mapper";
 import { findAssetInTargetInstance } from "../finders";
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from "fs";
+import * as path from "path";
 import { getAssetFilePath } from "../shared";
-import { state } from '../../core/state';
+import { state } from "../../core/state";
 const FormData = require("form-data");
 
 export async function pushAssets(
-    sourceData: any,
-    targetData: any,
-    referenceMapper: ReferenceMapper, 
-    onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
-): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
-    
-    // Extract data from sourceData - unified parameter pattern
-    const assets: mgmtApi.Media[] = sourceData.assets || [];
-    
-    if (!assets || assets.length === 0) {
-        console.log('No assets found to process.');
-        return { status: 'success', successful: 0, failed: 0, skipped: 0 };
-    }
+  sourceData: any,
+  targetData: any,
+  referenceMapper: ReferenceMapper,
+  onProgress?: (processed: number, total: number, status?: "success" | "error") => void
+): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
+  // Extract data from sourceData - unified parameter pattern
+  const assets: mgmtApi.Media[] = sourceData.assets || [];
 
-    // Get state values instead of prop drilling
-    const { sourceGuid, targetGuid, locale, preview: isPreview } = state;
-    const { getApiClient } = await import('../../core/state');
-    const apiClient = getApiClient();
+  if (!assets || assets.length === 0) {
+    console.log("No assets found to process.");
+    return { status: "success", successful: 0, failed: 0, skipped: 0 };
+  }
 
-    let defaultContainer: mgmtApi.assetContainer | null = null;
+  // Get state values instead of prop drilling
+  const { sourceGuid, targetGuid, locale, preview: isPreview } = state;
+  const { getApiClient } = await import("../../core/state");
+  const apiClient = getApiClient();
+
+  let defaultContainer: mgmtApi.assetContainer | null = null;
+  try {
+    defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid[0]);
+  } catch (err: any) {
+    console.error("✗ Error fetching default asset container:", err.message);
+    return { status: "error", successful: 0, failed: 0, skipped: 0 };
+  }
+
+  const totalAssets = assets.length;
+  let successful = 0;
+  let failed = 0;
+  let skipped = 0;
+  let processedAssetsCount = 0;
+  let overallStatus: "success" | "error" = "success";
+
+  const basePath = path.join(
+    process.cwd(),
+    "agility-files",
+    sourceGuid[0],
+    locale[0],
+    isPreview ? "preview" : "live",
+    "assets"
+  );
+
+  for (const media of assets) {
+    let currentStatus: "success" | "error" = "success";
     try {
-        defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid[0]);
-    } catch (err: any) {
-        console.error("✗ Error fetching default asset container:", err.message);
-        return { status: 'error', successful: 0, failed: 0, skipped: 0 }; 
-    }
-    
-    const totalAssets = assets.length;
-    let successful = 0;
-    let failed = 0;
-    let skipped = 0;
-    let processedAssetsCount = 0;
-    let overallStatus: 'success' | 'error' = 'success';
+      const relativeFilePath = getAssetFilePath(media.originUrl).replace(/%20/g, " "); // Uses imported util
+      const absoluteLocalFilePath = path.join(basePath, relativeFilePath);
+      const folderPath = path.dirname(relativeFilePath) === "." ? "/" : path.dirname(relativeFilePath);
 
-    const basePath = path.join(process.cwd(), 'agility-files', sourceGuid[0], locale[0], isPreview ? 'preview' : 'live', 'assets');
+      const existingMedia = await findAssetInTargetInstance(
+        media,
+        apiClient,
+        targetGuid[0],
+        targetData,
+        referenceMapper
+      );
+      const { asset, shouldUpdate, shouldCreate } = existingMedia;
 
-    for (const media of assets) {
-        let currentStatus: 'success' | 'error' = 'success';
-        try {
-            const relativeFilePath = getAssetFilePath(media.originUrl).replace(/%20/g, " "); // Uses imported util
-            const absoluteLocalFilePath = path.join(basePath, relativeFilePath);
-            const folderPath = path.dirname(relativeFilePath) === '.' ? '/' : path.dirname(relativeFilePath);
+      if (shouldCreate) {
+        // Asset needs to be created (doesn't exist in target)
+        const createdAsset = await createAsset(
+          media,
+          absoluteLocalFilePath,
+          folderPath,
+          apiClient,
+          targetGuid[0],
+          referenceMapper
+        );
+        // referenceMapper.addRecord("asset", media, createdAsset);
+        successful++;
+      } else if (shouldUpdate) {
+        // Asset exists but needs updating
+        const updatedAsset = await updateAsset(
+          media,
+          asset,
+          absoluteLocalFilePath,
+          folderPath,
+          apiClient,
+          targetGuid[0],
+          referenceMapper
+        );
+        // referenceMapper.addRecord("asset", media, updatedAsset);
 
-            const existingMedia = await findAssetInTargetInstance(media, apiClient, targetGuid[0], targetData, referenceMapper);
-            const { asset, shouldUpdate, shouldCreate } = existingMedia;
+        successful++;
+      } else {
+        // Asset exists and is up to date - skip
+        const sourceFileName = media.originUrl.split("/").pop()?.split("?")[0];
+        const targetFileName = asset?.originUrl?.split("/").pop()?.split("?")[0];
+        console.log(
+          `✓ Asset ${ansiColors.underline(sourceFileName || "unknown")} ${ansiColors.bold.grey(
+            "exists, skipping"
+          )} - ${ansiColors.green(targetGuid[0])}: mediaID:${asset?.mediaID} (${targetFileName})`
+        );
 
-            if (shouldCreate) {
-                // Asset needs to be created (doesn't exist in target)
-                await createAsset(media, absoluteLocalFilePath, folderPath, apiClient, targetGuid[0], referenceMapper);
-                successful++;
-                
-            } else if (shouldUpdate) {
-                // Asset exists but needs updating
-                await updateAsset(media, asset, absoluteLocalFilePath, folderPath, apiClient, targetGuid[0], referenceMapper);
-                successful++;
-                
-            } else {
-                // Asset exists and is up to date - skip
-                const sourceFileName = media.originUrl.split('/').pop()?.split('?')[0];
-                const targetFileName = asset?.originUrl?.split('/').pop()?.split('?')[0];
-                console.log(`✓ Asset ${ansiColors.underline(sourceFileName || 'unknown')} ${ansiColors.bold.grey('exists, skipping')} - ${ansiColors.green(targetGuid[0])}: mediaID:${asset?.mediaID} (${targetFileName})`);
-                
-                // Add mapping for existing asset
-                if (asset) {
-                    referenceMapper.addRecord('asset', media, asset);
-                }
-                skipped++;
-            }
-
-        } catch (error: any) {
-            console.error(`✗ Error processing asset ${media.fileName || media.originUrl}:`, error.message);
-            failed++;
-            currentStatus = 'error';
-            overallStatus = 'error';
-        } finally {
-            // Increment and call progress for each media item
-            processedAssetsCount++;
-            if (onProgress) {
-                onProgress(processedAssetsCount, totalAssets, overallStatus);
-            }
+        // Add mapping for existing asset
+        if (asset) {
+          referenceMapper.addRecord("asset", media, asset);
         }
+        skipped++;
+      }
+    } catch (error: any) {
+      console.error(`✗ Error processing asset ${media.fileName || media.originUrl}:`, error.message);
+      failed++;
+      currentStatus = "error";
+      overallStatus = "error";
+    } finally {
+      // Increment and call progress for each media item
+      processedAssetsCount++;
+      if (onProgress) {
+        onProgress(processedAssetsCount, totalAssets, overallStatus);
+      }
     }
+  }
 
-    console.log(ansiColors.yellow(`Processed ${successful}/${totalAssets} assets (${failed} failed, ${skipped} skipped)`));
-    return { status: overallStatus, successful, failed, skipped };
+  console.log(
+    ansiColors.yellow(`Processed ${successful}/${totalAssets} assets (${failed} failed, ${skipped} skipped)`)
+  );
+  return { status: overallStatus, successful, failed, skipped };
 }
 
 /**
  * Create a new asset in the target instance
  */
 async function createAsset(
-    media: mgmtApi.Media,
-    absoluteLocalFilePath: string,
-    folderPath: string,
-    apiClient: mgmtApi.ApiClient,
-    targetGuid: string,
-    referenceMapper: ReferenceMapper
+  media: mgmtApi.Media,
+  absoluteLocalFilePath: string,
+  folderPath: string,
+  apiClient: mgmtApi.ApiClient,
+  targetGuid: string,
+  referenceMapper: ReferenceMapper
 ): Promise<void> {
-    // Handle gallery if present
-    let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
+  // Handle gallery if present
+  let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
 
-    // Upload the asset
-    const form = new FormData();
-    if (!fs.existsSync(absoluteLocalFilePath)) {
-        throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
-    }
-    const fileBuffer = fs.readFileSync(absoluteLocalFilePath);
-    form.append('files', fileBuffer, media.fileName);
-    
-    const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
-    
-    if (!uploadedMediaArray || uploadedMediaArray.length === 0) {
-        throw new Error(`API did not return uploaded media details for ${media.fileName}`);
-    }
-    const uploadedMedia = uploadedMediaArray[0];
-    
-    // Add mapping for successful upload
-    referenceMapper.addRecord('asset', media, uploadedMedia);
-    console.log(`✓ Asset ${ansiColors.underline.cyan(media.fileName)} uploaded to path ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`);
+  // Upload the asset
+  const form = new FormData();
+  if (!fs.existsSync(absoluteLocalFilePath)) {
+    throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
+  }
+  const fileBuffer = fs.readFileSync(absoluteLocalFilePath);
+  form.append("files", fileBuffer, media.fileName);
+
+  const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
+
+  if (!uploadedMediaArray || uploadedMediaArray.length === 0) {
+    throw new Error(`API did not return uploaded media details for ${media.fileName}`);
+  }
+
+  console.log(ansiColors.magenta(`uploadedMediaArray: ${JSON.stringify(uploadedMediaArray)}`));
+  const uploadedMedia = uploadedMediaArray[0];
+
+  // Add mapping for successful upload
+  referenceMapper.addRecord("asset", media, uploadedMedia);
+  console.log(
+    `✓ Asset ${ansiColors.underline.cyan(media.fileName)} uploaded to path ${folderPath} - ${ansiColors.green(
+      "Source"
+    )}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`
+  );
 }
 
 /**
  * Update an existing asset in the target instance
  */
 async function updateAsset(
-    media: mgmtApi.Media,
-    existingAsset: mgmtApi.Media,
-    absoluteLocalFilePath: string,
-    folderPath: string,
-    apiClient: mgmtApi.ApiClient,
-    targetGuid: string,
-    referenceMapper: ReferenceMapper
+  media: mgmtApi.Media,
+  existingAsset: mgmtApi.Media,
+  absoluteLocalFilePath: string,
+  folderPath: string,
+  apiClient: mgmtApi.ApiClient,
+  targetGuid: string,
+  referenceMapper: ReferenceMapper
 ): Promise<void> {
-    // Handle gallery if present
-    let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
+  // Handle gallery if present
+  let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
 
-    // Upload the asset (this will replace the existing one)
-    const form = new FormData();
-    if (!fs.existsSync(absoluteLocalFilePath)) {
-        throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
-    }
-    const fileBuffer = fs.readFileSync(absoluteLocalFilePath);
-    form.append('files', fileBuffer, media.fileName);
-    
-    const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
-    
-    if (!uploadedMediaArray || uploadedMediaArray.length === 0) {
-        throw new Error(`API did not return uploaded media details for ${media.fileName}`);
-    }
-    const uploadedMedia = uploadedMediaArray[0];
-    
-    // Add mapping for successful update
-    referenceMapper.addRecord('asset', media, uploadedMedia);
-    console.log(`✓ Asset ${ansiColors.underline.cyan(media.fileName)} updated in path ${folderPath} - ${ansiColors.green('Source')}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`);
+  // Upload the asset (this will replace the existing one)
+  const form = new FormData();
+  if (!fs.existsSync(absoluteLocalFilePath)) {
+    throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
+  }
+  const fileBuffer = fs.readFileSync(absoluteLocalFilePath);
+  form.append("files", fileBuffer, media.fileName);
+
+  const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
+
+  if (!uploadedMediaArray || uploadedMediaArray.length === 0) {
+    throw new Error(`API did not return uploaded media details for ${media.fileName}`);
+  }
+  const uploadedMedia = uploadedMediaArray[0];
+
+  // Add mapping for successful update
+  referenceMapper.addRecord("asset", media, uploadedMedia);
+  console.log(
+    `✓ Asset ${ansiColors.underline.cyan(media.fileName)} updated in path ${folderPath} - ${ansiColors.green(
+      "Source"
+    )}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`
+  );
 }
 
 /**
@@ -170,31 +213,37 @@ async function updateAsset(
  * Returns the target gallery ID or -1 if no gallery
  */
 async function resolveGalleryMapping(
-    media: mgmtApi.Media,
-    apiClient: mgmtApi.ApiClient,
-    targetGuid: string,
-    referenceMapper: ReferenceMapper
+  media: mgmtApi.Media,
+  apiClient: mgmtApi.ApiClient,
+  targetGuid: string,
+  referenceMapper: ReferenceMapper
 ): Promise<number> {
-    let targetMediaGroupingID = -1;
-    
-    if (media.mediaGroupingID > 0 && media.mediaGroupingName) {
-        try {
-            // Check mapper first for existing gallery mapping
-            const galleryMapping = referenceMapper.getMappingByKey<mgmtApi.assetMediaGrouping>('gallery', 'name', media.mediaGroupingName);
-            if (galleryMapping && galleryMapping.target) {
-                targetMediaGroupingID = galleryMapping.target.mediaGroupingID;
-            } else {
-                // Fallback: Check API directly if not in mapper
-                const gallery = await apiClient.assetMethods.getGalleryByName(targetGuid, media.mediaGroupingName);
-                if (gallery) {
-                    targetMediaGroupingID = gallery.mediaGroupingID;
-                }
-            }
-        } catch (error: any) {
-            // Gallery doesn't exist - this is normal, asset will upload without gallery
-            console.log(`[Asset] Gallery ${media.mediaGroupingName} not found - asset will upload without gallery association`);
+  let targetMediaGroupingID = -1;
+
+  if (media.mediaGroupingID > 0 && media.mediaGroupingName) {
+    try {
+      // Check mapper first for existing gallery mapping
+      const galleryMapping = referenceMapper.getMappingByKey<mgmtApi.assetMediaGrouping>(
+        "gallery",
+        "name",
+        media.mediaGroupingName
+      );
+      if (galleryMapping && galleryMapping.target) {
+        targetMediaGroupingID = galleryMapping.target.mediaGroupingID;
+      } else {
+        // Fallback: Check API directly if not in mapper
+        const gallery = await apiClient.assetMethods.getGalleryByName(targetGuid, media.mediaGroupingName);
+        if (gallery) {
+          targetMediaGroupingID = gallery.mediaGroupingID;
         }
+      }
+    } catch (error: any) {
+      // Gallery doesn't exist - this is normal, asset will upload without gallery
+      console.log(
+        `[Asset] Gallery ${media.mediaGroupingName} not found - asset will upload without gallery association`
+      );
     }
-    
-    return targetMediaGroupingID;
+  }
+
+  return targetMediaGroupingID;
 }

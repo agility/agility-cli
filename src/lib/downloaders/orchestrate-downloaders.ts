@@ -256,18 +256,14 @@ export class DownloadOrchestrator {
         const stepName = stepConfig.name;
 
         try {
-          // Minimal logging during parallel execution - only show progress for verbose mode
-          if (isolatedState.useVerbose) {
-            console.log(`${guid} (${locale}): Starting ${stepName}`);
-          }
+          // Enhanced logging to debug container download issue
+          console.log(`${guid} (${locale}): Starting ${stepName}`);
           
           await this.executeStepForInstanceIsolated(stepConfig, guid, locale, fileOps, isolatedState);
           
           results.successful.push(`${stepName} (${locale})`);
           
-          if (isolatedState.useVerbose) {
-            console.log(`${guid} (${locale}): ${stepName} completed`);
-          }
+          console.log(`${guid} (${locale}): ${stepName} completed successfully`);
           
         } catch (error: any) {
           const errorMessage = error.message || 'Unknown error';
@@ -320,21 +316,21 @@ export class DownloadOrchestrator {
   private filterStepsByElementsIsolated(availableSteps: string[], elements: string): string[] {
     const elementList = elements ? elements.split(",") : ['Galleries', 'Assets', 'Models', 'Templates', 'Containers', 'Content', 'Pages'];
     
-    // Map element names to step names
-    const elementToStepMap: Record<string, string> = {
-      'Galleries': 'downloadAllGalleries',
-      'Assets': 'downloadAllAssets',
-      'Models': 'downloadAllModels',
-      'Templates': 'downloadAllTemplates',
-      'Containers': 'downloadAllContainers',
-      'Content': 'downloadAllSyncSDK',
-      'Pages': 'downloadAllSyncSDK',
-      'Sitemaps': 'downloadAllSyncSDK',
-      'Redirections': 'downloadAllSyncSDK'
+    // Map element names to step names (some elements map to multiple steps)
+    const elementToStepMap: Record<string, string[]> = {
+      'Galleries': ['downloadAllGalleries'],
+      'Assets': ['downloadAllAssets'],
+      'Models': ['downloadAllModels'],
+      'Templates': ['downloadAllTemplates'],
+      'Containers': ['downloadAllContainers', 'downloadAllSyncSDK'], // Run both isolated and sync SDK downloaders
+      'Content': ['downloadAllSyncSDK'],
+      'Pages': ['downloadAllSyncSDK'],
+      'Sitemaps': ['downloadAllSyncSDK'],
+      'Redirections': ['downloadAllSyncSDK']
     };
     
     // Convert elements to step names and filter available steps, removing duplicates
-    const requiredStepNames = Array.from(new Set(elementList.map(element => elementToStepMap[element]).filter(Boolean)));
+    const requiredStepNames = Array.from(new Set(elementList.flatMap(element => elementToStepMap[element] || []).filter(Boolean)));
     return availableSteps.filter(step => requiredStepNames.includes(step));
   }
 
@@ -435,9 +431,7 @@ export class DownloadOrchestrator {
 
     switch (stepName) {
       case 'downloadAllSyncSDK':
-        // TEMPORARY: Comment out Sync SDK downloader to test race condition isolation
-        // await downloadAllSyncSDK(guid, targetLocale, state.preview, state.channel, state.rootPath, state.update);
-        console.log(`${guid} (${targetLocale}): Sync SDK download SKIPPED for testing`);
+        await downloadAllSyncSDK(guid, targetLocale, state.preview, state.channel, state.rootPath, state.update);
         break;
       
       case 'downloadAllModels':

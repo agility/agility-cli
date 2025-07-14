@@ -73,7 +73,7 @@ export async function findGalleryInTargetInstance(
     shouldUpdate = false;
     shouldSkip = false;
     finalTargetGallery = null;
-    console.log(ansiColors.blue(`Gallery ${sourceGallery.name} not found in target - should create`));
+    // console.log(ansiColors.blue(`Gallery ${sourceGallery.name} not found in target - should create`));
   }
 
   // STEP 4: Handle overwrite flag

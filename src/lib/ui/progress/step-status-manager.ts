@@ -68,21 +68,21 @@ export class StepStatusManager {
     const state = getState();
     const elements = state.elements ? state.elements.split(",") : ['Galleries', 'Assets', 'Models', 'Templates', 'Containers', 'Content', 'Pages'];
     
-    // Map element names to step names
-    const elementToStepMap: Record<string, string> = {
-      'Galleries': 'downloadAllGalleries',
-      'Assets': 'downloadAllAssets',
-      'Models': 'downloadAllModels',
-      'Templates': 'downloadAllTemplates',
-      'Containers': 'downloadAllContainers',
-      'Content': 'downloadAllSyncSDK',
-      'Pages': 'downloadAllSyncSDK',
-      'Sitemaps': 'downloadAllSyncSDK',
-      'Redirections': 'downloadAllSyncSDK'
+    // Map element names to step names (some elements map to multiple steps)
+    const elementToStepMap: Record<string, string[]> = {
+      'Galleries': ['downloadAllGalleries'],
+      'Assets': ['downloadAllAssets'],
+      'Models': ['downloadAllModels'],
+      'Templates': ['downloadAllTemplates'],
+      'Containers': ['downloadAllContainers', 'downloadAllSyncSDK'], // Run both isolated and sync SDK downloaders
+      'Content': ['downloadAllSyncSDK'],
+      'Pages': ['downloadAllSyncSDK'],
+      'Sitemaps': ['downloadAllSyncSDK'],
+      'Redirections': ['downloadAllSyncSDK']
     };
     
     // Convert elements to step names and filter available steps, removing duplicates
-    const requiredStepNames = Array.from(new Set(elements.map(element => elementToStepMap[element]).filter(Boolean)));
+    const requiredStepNames = Array.from(new Set(elements.flatMap(element => elementToStepMap[element] || []).filter(Boolean)));
     return availableSteps.filter(step => requiredStepNames.includes(step));
   }
 

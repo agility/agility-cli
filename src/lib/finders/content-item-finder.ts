@@ -82,7 +82,7 @@ export async function findContentInTargetInstance(
         finalTargetContent = null;
         
         const contentName = sourceContent.properties?.referenceName || `ID:${sourceContent.contentID}`;
-        console.log(ansiColors.blue(`Content ${contentName} not found in target - should create`));
+        // console.log(ansiColors.blue(`Content ${contentName} not found in target - should create`));
     }
 
     // STEP 5: Handle overwrite flag

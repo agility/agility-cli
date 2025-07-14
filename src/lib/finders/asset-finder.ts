@@ -59,6 +59,8 @@ export async function findAssetInTargetInstance(
       const mappingDate = new Date(targetAssetFromMapping.dateModified || 0);
       const targetDataDate = new Date(targetInstanceData.dateModified || 0);
 
+      console.log(ansiColors.magenta(`mappingDate: ${mappingDate}`));
+      console.log(ansiColors.magenta(`targetDataDate: ${targetDataDate}`));
       if (targetDataDate > mappingDate) {
         shouldUpdate = true;       
       } else {
@@ -75,7 +77,7 @@ export async function findAssetInTargetInstance(
     shouldCreate = true;
     shouldUpdate = false;
     finalTargetAsset = null;
-    console.log(ansiColors.blue(`Asset ${sourceAsset.fileName} not found in target - should create`));
+    // console.log(ansiColors.blue(`Asset ${sourceAsset.fileName} not found in target - should create`));
   }
 
   // STEP 4: Handle overwrite flag
