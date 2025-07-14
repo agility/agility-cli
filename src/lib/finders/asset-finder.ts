@@ -59,8 +59,6 @@ export async function findAssetInTargetInstance(
       const mappingDate = new Date(targetAssetFromMapping.dateModified || 0);
       const targetDataDate = new Date(targetInstanceData.dateModified || 0);
 
-      console.log(ansiColors.magenta(`mappingDate: ${mappingDate}`));
-      console.log(ansiColors.magenta(`targetDataDate: ${targetDataDate}`));
       if (targetDataDate > mappingDate) {
         shouldUpdate = true;       
       } else {
