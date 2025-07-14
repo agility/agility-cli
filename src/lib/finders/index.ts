@@ -3,7 +3,6 @@
  * Enables clean single-line imports: import { findModelInTargetInstance, findPageInTargetInstance, ... } from './lib/finders'
  */
 
-
 export { findAssetInTargetInstance } from './asset-finder';
 export { findContainerInTargetInstance, findContainerInTargetInstanceEnhanced } from './container-finder';
 export { findContentInTargetInstance, findContentInTargetInstanceLegacy } from './content-item-finder';

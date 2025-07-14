@@ -53,11 +53,6 @@ export async function pushContainers(
             // console.log(ansiColors.magenta(`findResult: ${JSON.stringify(findResult)}`));
             const { container, shouldUpdate, shouldCreate, shouldSkip } = findResult;
 
-
-            console.log(ansiColors.magenta(`shouldCreate: ${shouldCreate}`));
-            console.log(ansiColors.magenta(`shouldUpdate: ${shouldUpdate}`));
-            console.log(ansiColors.magenta(`shouldSkip: ${shouldSkip}`));
-
             if (shouldCreate) {
                 // Container doesn't exist - create new one
                 try {
