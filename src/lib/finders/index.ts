@@ -8,5 +8,5 @@ export { findContainerInTargetInstance, findContainerInTargetInstanceEnhanced } 
 export { findContentInTargetInstance, findContentInTargetInstanceLegacy } from './content-item-finder';
 export { findGalleryInTargetInstance } from './gallery-finder';
 export { findModelInTargetInstance, findModelInTargetInstanceEnhanced } from './model-finder';
-export { findPageInTargetInstance } from './page-finder';
+export { findPageInTargetInstance, findPageInTargetInstanceEnhanced } from './page-finder';
 export { findTemplateInTargetInstanceEnhanced } from './template-finder'; 

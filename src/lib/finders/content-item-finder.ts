@@ -16,50 +16,30 @@ export function findContentInTargetInstance(
     let existsInTarget = false;
 
     // STEP 1: Check for existing mapping of source content to target content
-    const existingMapping = referenceMapper.getMappingByKey<mgmtApi.ContentItem>("content", "contentID", sourceContent.contentID);
-    let targetContentFromMapping: mgmtApi.ContentItem | null = existingMapping?.target || null;
-  
-
-    // console.log(ansiColors.bgCyan(`targetContentFromMapping: ${JSON.stringify(targetContentFromMapping)}`));   
+    const existingMapping = referenceMapper.getMapping<mgmtApi.ContentItem>("content", sourceContent.contentID);
+    let targetContentFromMapping: mgmtApi.ContentItem | null = existingMapping || null;
     // STEP 2: Find target instance data (local file data) for this content
     const targetInstanceData = targetData.content?.find((c: any) => {
-
-        // console.log(ansiColors.bgMagenta(`\nsourceContent: ${JSON.stringify(sourceContent)}`));   
-        // console.log(ansiColors.bgYellowBright(`\nc: ${JSON.stringify(c)}`));   
-        // Always search by source reference name since targetData.content contains
-        // the target instance's current data, which still uses source reference names
-        if(c.contentID === sourceContent.contentID){
-            // console.log(ansiColors.bgCyan(`\targetMapping: ${JSON.stringify(existingMapping)}`));   
-            // console.log(ansiColors.bgGreenBright(`\ntargetInstanceData: ${JSON.stringify(c)}`));   
+        if(c.contentID === targetContentFromMapping?.contentID){
             return c;
         }
-
-
         return null;
     });
 
 
     if (targetInstanceData) {
-        
-        // console.log(ansiColors.bgGreenBright(`\ntargetInstanceData: ${JSON.stringify(targetInstanceData)}`));   
         existsInTarget = true;
     }
 
-    if(targetInstanceData && targetContentFromMapping){
-       console.log(ansiColors.bgGreen('targetInstanceData and targetContentFromMapping'))
-    }
+
 
     // STEP 3: Decision logic based on mapping and target data
     let shouldUpdate = false;
     let shouldCreate = false;
-    let shouldSkip = true;
+    let shouldSkip = false;
     let finalTargetContent: mgmtApi.ContentItem | null = null;
 
     if (targetInstanceData) {
-
-        // console.log(ansiColors.bgCyan(`targetInstanceData: ${targetInstanceData.properties?.referenceName} ContentID: ${targetInstanceData.contentID} Version ID: ${targetInstanceData.properties?.versionID} Modified: ${targetInstanceData.properties?.modified}`));   
-        // console.log(ansiColors.bgGreen(`targetMappingData: ${targetContentFromMapping.properties?.referenceName} ContentID: ${targetContentFromMapping.contentID} Version ID: ${targetContentFromMapping.properties?.versionID} Modified: ${targetContentFromMapping.properties?.modified}`));   
-        // console.log(ansiColors.bgWhite(`sourceContent: ${sourceContent.properties?.referenceName} ContentID: ${sourceContent.contentID} Version ID: ${sourceContent.properties?.versionID} Modified: ${sourceContent.properties?.modified}`));   
 
         // Target content exists in target instance
         finalTargetContent = targetInstanceData;
@@ -67,27 +47,25 @@ export function findContentInTargetInstance(
 
         if (targetContentFromMapping) {
 
-            // console.log(ansiColors.magenta(`targetContentFromMapping: ${JSON.stringify(targetContentFromMapping)}`));
-            // console.log(ansiColors.magenta(`targetInstanceData: ${JSON.stringify(targetInstanceData)}`));
-
             // Both mapping and target data exist - compare versions for update decision
             const mappingVersionID = targetContentFromMapping.properties?.versionID || 0;
             const targetDataVersionID = targetInstanceData.properties?.versionID || 0;
             
-            // // Also compare modified dates as secondary check
-            // const mappingModified = new Date(targetContentFromMapping.properties?.modified || 0);
-            // const targetDataModified = new Date(targetInstanceData.properties?.modified || 0);
+            // if the target instance data versionID is greater than the mapping versionID
+            // this means a user has updated the content in the target instance
+            // we need to WARN the user that the content has been updated in the target instance
+            // and skip the create
 
-            // Use versionID as primary comparison, modified date as secondary
+
+
+
+
+            
             if (targetDataVersionID !== mappingVersionID) {
-                console.log(ansiColors.bgBlueBright('targetDataVersionID !== mappingVersionID'))
-                console.log(ansiColors.bgBlueBright(`targetDataVersionID: ${targetDataVersionID}`))
-                console.log(ansiColors.bgBlueBright(`mappingVersionID: ${mappingVersionID}`))
-                shouldUpdate = true;
+                shouldCreate = true;
+                shouldUpdate = false;
                 shouldSkip = false;
             } else {
-                console.log(ansiColors.bgGreen(`targetDataVersionID: ${targetDataVersionID}`))
-                console.log(ansiColors.bgGreen(`mappingVersionID: ${mappingVersionID}`))
                 shouldUpdate = false;
                 shouldSkip = true;
             }
@@ -103,13 +81,7 @@ export function findContentInTargetInstance(
         const contentName = sourceContent.properties?.referenceName || `ID:${sourceContent.contentID}`;
         
         if (targetContentFromMapping) {
-            // CRITICAL FIX: We have a mapping but no target instance data
-            // This means the content was deleted from target instance or data loading issue
-            // console.log(ansiColors.yellow(`⚠️ Content ${contentName} has mapping but not found in target instance - will recreate`));
-            // console.log(ansiColors.green(`\nsourceContent: ${JSON.stringify(sourceContent)}`));   
-            // console.log(ansiColors.blue(`\ntargetContentFromMapping: ${JSON.stringify(targetContentFromMapping)}`));   
-            // console.log(ansiColors.cyan(`\ntargetData: ${JSON.stringify(targetData)}`));  
-           
+     
 
             shouldCreate = true;
             shouldUpdate = false;

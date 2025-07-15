@@ -37,7 +37,7 @@ export interface BatchProcessingResult {
  */
 export interface BatchSuccessItem {
   originalContent: mgmtApi.ContentItem;
-  newContent: mgmtApi.ContentItem;
+  newItem: mgmtApi.BatchItem;
   newContentId: number;
 }
 
@@ -134,11 +134,16 @@ export class ContentBatchProcessor {
 
       try {
         // Prepare content payloads for bulk upload
+    
         const contentPayloads = await this.prepareContentPayloads(
           contentBatch,
           this.config.models,
           this.config.defaultAssetUrl
         );
+
+  
+
+      
 
         // Execute bulk upload using saveContentItems API with returnBatchID flag
         const batchIDResult = await this.config.apiClient.contentMethods.saveContentItems(
@@ -172,8 +177,8 @@ export class ContentBatchProcessor {
           failureCount: failedItems.length,
           skippedCount: 0, // Individual batches don't track skipped items (handled at processBatches level)
           successfulItems: successfulItems.map((item) => ({
-            newContent: item.newContent,
             originalContent: item.originalItem,
+            newItem: item.newItem,
             newContentId: item.newId,
           })),
           failedItems: failedItems.map((item) => ({
@@ -431,6 +436,8 @@ export class ContentBatchProcessor {
           )
         );
 
+        throw new Error(error);
+
         continue;
       }
     }
@@ -444,8 +451,17 @@ export class ContentBatchProcessor {
   private updateContentIdMappings(successfulItems: BatchSuccessItem[]): void {
     successfulItems.forEach((item) => {
       const sourceContentItem = item.originalContent;
-      const responseContentItem = item.newContent;
-      this.config.referenceMapper.addMapping("content", sourceContentItem, responseContentItem);
+      const targetContentItem = item.newItem as mgmtApi.BatchItem;
+
+      const targetContentItemWithId = {
+        ...sourceContentItem,
+        contentID: targetContentItem.itemID,
+        properties: {
+            versionID: targetContentItem.processedItemVersionID
+        }
+      }
+
+      this.config.referenceMapper.addMapping("content", sourceContentItem, targetContentItemWithId);
     });
   }
 }

@@ -154,7 +154,12 @@ async function processPage(
                         const sourceContentId = module.item.contentid || module.item.contentId;
 
                         if (sourceContentId && sourceContentId > 0) {
-                            const contentRef = referenceMapper.getContentMappingById(sourceContentId);
+
+                            console.log('sourceContentId', sourceContentId)
+
+                            const contentRef = referenceMapper.getMapping<mgmtApi.ContentItem>('content', 'contentID', sourceContentId);
+
+                            console.log(ansiColors.bgGreen('contentRef'), contentRef)
 
                             if (contentRef?.target && (contentRef.target as any).contentID > 0) {
                                 // CRITICAL FIX: Map to target content ID and remove duplicate fields
@@ -171,6 +176,8 @@ async function processPage(
                                 // Content mapping failed - log detailed debug info for troubleshooting
                                 console.error(`❌ No content mapping found for ${module.module}: contentID ${sourceContentId} in page ${page.name}`);
                                 const contentMappings = referenceMapper.getRecordsByType('content');
+                              
+                                console.log('Page', JSON.stringify(page, null, 2))
                                 console.error(`Total content mappings available: ${contentMappings.length}`);
                                 const allContentRecords = referenceMapper.getRecordsByType('content');
                                 const matchingRecord = allContentRecords.find(r => r.source.contentID === sourceContentId);
@@ -221,7 +228,7 @@ async function processPage(
             });
 
             if (missingMappings > 0) {
-                console.error(`✗ Page "${page.name}" failed - ${missingMappings}/${contentIdsToValidate.length} missing content mappings`);
+                console.error(ansiColors.bgRed(`✗ Page "${page.name}" failed - ${missingMappings}/${contentIdsToValidate.length} missing content mappings`));
                 return 'failure';
             }
         }

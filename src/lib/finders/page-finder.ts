@@ -1,5 +1,6 @@
 import * as mgmtApi from '@agility/management-sdk';
 import { ReferenceMapper } from "../shared/reference-mapper";
+import { getState } from '../../core/state';
 
 /**
  * Get target sitemap for page lookups (cached for performance)
@@ -159,4 +160,46 @@ export async function findPageInTargetInstance(
     } catch (error: any) {
         return null;
     }
+} 
+
+export async function findPageInTargetInstanceEnhanced(
+    sourcePage: mgmtApi.PageItem,
+    apiClient: mgmtApi.ApiClient,
+    targetGuid: string,
+    locale: string,
+    targetData: any,
+    referenceMapper: ReferenceMapper
+): Promise<{ page: mgmtApi.PageItem | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean }> {
+    const state = getState();
+    const overwrite = state.overwrite;
+    let existsInTarget = false;
+
+    const existingMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourcePage.pageID);
+    let targetPageFromMapping: mgmtApi.PageItem | null = existingMapping?.target || null;
+
+    const targetInstanceData = targetData.pages?.find((p: any) => 
+        p.pageID === targetPageFromMapping?.pageID || p.name === sourcePage.name || p.path === sourcePage.path
+    );
+
+    let finalTargetPage: mgmtApi.PageItem | null = targetInstanceData || targetPageFromMapping;
+    if (!finalTargetPage) {
+        finalTargetPage = await findPageInTargetInstance(sourcePage, apiClient, targetGuid, locale, referenceMapper);
+    }
+    existsInTarget = !!finalTargetPage;
+
+    let shouldUpdate = false;
+    let shouldCreate = !existsInTarget;
+    let shouldSkip = existsInTarget && !overwrite;
+
+    if (existsInTarget && targetPageFromMapping && targetInstanceData) {
+        const mappingDate = new Date(targetPageFromMapping.properties.modified || 0);
+        const targetDate = new Date(targetInstanceData.properties.modified || 0);
+        shouldUpdate = targetDate > mappingDate || overwrite;
+        shouldSkip = !shouldUpdate;
+    } else if (existsInTarget) {
+        shouldUpdate = overwrite;
+        shouldSkip = !overwrite;
+    }
+
+    return { page: finalTargetPage, shouldUpdate, shouldCreate, shouldSkip };
 } 

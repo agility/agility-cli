@@ -113,7 +113,7 @@ export async function pushModels(
   const skippedModels = new Set<number>();
 
   // 2-pass approach for models
-  console.log(ansiColors.cyan("\n🔄 Pass 1: Model stubs (dependencies)"));
+  console.log(ansiColors.cyan("🔄 Pass 1: Model stubs (dependencies)"));
   for (const model of models) {
     const result = await processModel(model, [], "stub");
     

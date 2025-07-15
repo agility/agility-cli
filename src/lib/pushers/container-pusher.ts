@@ -70,7 +70,7 @@ export async function pushContainers(
                     const createResult = await createNewContainerWithRetry(sourceContainer, sourceData, apiClient, targetGuid[0], referenceMapper, totalFailures);
                     
                     if (createResult.success) {
-                        console.log(`✓ Container created: ${ansiColors.cyan.underline(sourceRefName)} - ${ansiColors.green('Source')}: ${sourceContainer.contentViewID} ${ansiColors.green(targetGuid[0])}: ${createResult.container.contentViewID} (Model:${createResult.container.contentDefinitionID})`);
+                        console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} created - ${ansiColors.green('Source')}: ${sourceContainer.contentViewID} ${ansiColors.green(targetGuid[0])}: ${createResult.container.contentViewID} (Model:${createResult.container.contentDefinitionID})`);
                         referenceMapper.addRecord('container', sourceContainer, createResult.container);
                         successful++;
                     } else {
