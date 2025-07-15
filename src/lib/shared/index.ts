@@ -11,7 +11,7 @@ export { ReferenceMapper } from "./reference-mapper";
 export * from "./batch-polling";
 export * from "./sitemap-hierarchy";
 export * from "./bulk-mapping-filter";
-export { GuidDataLoader, SourceDataLoader, GuidEntities, SourceEntities } from "./source-data-loader";
+export { GuidDataLoader, GuidEntities, SourceEntities } from "./guid-data-loader";
 export { EntityComparer, EntityComparison, ComparisonResult } from "./entity-comparer";
 export function prettyException(error: any): string { return error.message || error.toString(); }
 export function logBatchError(error: any, context: string): void { console.error("Batch Error:", error); }

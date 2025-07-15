@@ -11,7 +11,6 @@
  */
 
 import * as fs from 'fs';
-import * as path from 'path';
 import ansiColors from 'ansi-colors';
 import { fileOperations } from '../../core/fileOperations';
 import { getState } from '../../core/state';
@@ -20,6 +19,7 @@ export interface GuidEntities {
     pages: any[];
     templates: any[];
     containers: any[];
+    lists: any[];
     models: any[];
     content: any[];
     assets: any[];
@@ -57,6 +57,7 @@ export class GuidDataLoader {
             pages: [],
             templates: [],
             containers: [],
+            lists: [],
             models: [],
             content: [],
             assets: [],
@@ -83,9 +84,12 @@ export class GuidDataLoader {
         }
 
         if (elements.includes('Containers')) {
-            const { getContainersFromFileSystem } = await import('../getters/filesystem/get-containers');
+            const { getListsFromFileSystem, getContainersFromFileSystem } = await import('../getters/filesystem/get-containers');
             const containers = getContainersFromFileSystem(this.fileOps);
             guidEntities.containers = Array.isArray(containers) ? containers : [];
+
+            const lists = getListsFromFileSystem(this.fileOps);
+            guidEntities.lists = Array.isArray(lists) ? lists : [];
         }
 
         if (elements.includes('Content')) {
@@ -124,6 +128,7 @@ export class GuidDataLoader {
             pages: guidEntities.pages.length,
             templates: guidEntities.templates.length,
             containers: guidEntities.containers.length,
+            lists: guidEntities.lists.length,
             models: guidEntities.models.length,
             content: guidEntities.content.length,
             assets: guidEntities.assets.length,
@@ -158,5 +163,5 @@ export class GuidDataLoader {
 }
 
 // Keep backward compatibility with existing code
-export const SourceDataLoader = GuidDataLoader;
+// SourceDataLoader deprecated - use GuidDataLoader directly
 export type SourceEntities = GuidEntities; 

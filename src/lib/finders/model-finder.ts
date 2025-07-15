@@ -68,8 +68,14 @@ export async function findModelInTargetInstanceEnhanced(
                     shouldUpdate = true;
                     shouldSkip = false;
                 } else {
+
+                   if(targetInstanceData.fields.length === 0) {
+                    shouldUpdate = true;
+                    shouldSkip = false;
+                   } else {
                     shouldUpdate = false;
                     shouldSkip = true;
+                   }
                 }
             }
         } else {
@@ -80,8 +86,8 @@ export async function findModelInTargetInstanceEnhanced(
                 shouldSkip = true;
             } else {
                 // FULL PASS: Existing model without mapping should be skipped but mapping added
-                shouldUpdate = false;
-                shouldSkip = true;
+                shouldUpdate = true;
+                shouldSkip = false;
             }
         }
 
@@ -93,10 +99,11 @@ export async function findModelInTargetInstanceEnhanced(
     } else {
         // Target model doesn't exist in target instance
         if (targetModelFromMapping) {
-            // We have a mapping but no target data - model was deleted, should create
-            shouldCreate = true;
-            shouldUpdate = false;
+            // We have a mapping but no target data - model exists in target, should update
+            shouldCreate = false;
+            shouldUpdate = true;
             shouldSkip = false;
+            finalTargetModel = targetModelFromMapping;
         } else {
             // No mapping and no target data - brand new model
             shouldCreate = true;

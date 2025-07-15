@@ -9,7 +9,8 @@ export interface SourceData {
     content: mgmtApi.ContentItem[];
     models: mgmtApi.Model[];
     templates: mgmtApi.PageModel[];
-    containers: any[]; // TODO: Find proper container type from management SDK
+    lists: mgmtApi.Container[];
+    containers: mgmtApi.Container[];
     assets: mgmtApi.Media[];
     galleries: mgmtApi.assetMediaGrouping[];
 }

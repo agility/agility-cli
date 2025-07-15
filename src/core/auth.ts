@@ -1,6 +1,6 @@
 ;
 import { serverUser } from "../types/serverUser";
-import { state, getState } from "./state";
+import { state, getState, clearApiClient } from "./state";
 import * as mgmtApi from "@agility/management-sdk";
 const open = require("open");
 const FormData = require("form-data");
@@ -329,8 +329,13 @@ export class Auth {
     const mgmtApiOptions = new (await import("@agility/management-sdk")).Options();
     mgmtApiOptions.token = await this.getToken();
     
-    // Store basic mgmt API options in state
+    // // Store basic mgmt API options in state
     state.mgmtApiOptions = mgmtApiOptions;
+
+    // Clear cached API client to ensure fresh connection with new auth state
+    // const { clearApiClient } = await import('./state');
+    // clearApiClient();
+    state.cachedApiClient = new mgmtApi.ApiClient(state.mgmtApiOptions);
 
     // Load user data for interactive prompts and general use
     if (state.sourceGuid.length > 0) {
@@ -350,8 +355,7 @@ export class Auth {
     // Step 6: Auto-detect available locales for ALL GUIDs in the matrix
     if (allGuids.length > 0) {
       try {
-        const { getApiClient } = await import('./state');
-        const apiClient = getApiClient();
+        
         
         // Get locales for each GUID in the matrix
         const guidLocaleMap = new Map<string, string[]>();
@@ -361,7 +365,7 @@ export class Auth {
         for (const guid of allGuids) {
           if (guid) {
             try {
-              const localesArr = await apiClient.instanceMethods.getLocales(guid);
+              const localesArr = await state.cachedApiClient.instanceMethods.getLocales(guid);
               const localesForGuid = localesArr.map((locale: any) => locale.localeCode);
               
               // Handle user-specified locale filtering per GUID

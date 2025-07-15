@@ -85,8 +85,6 @@ export async function downloadAllModels(
     // Process each batch concurrently
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
-      console.log(`📦 Processing batch ${batchIndex + 1}/${batches.length} (${batch.length} models)...`);
-      
       // Create download promises for this batch
       const downloadPromises = batch.map(async (task) => {
         try {

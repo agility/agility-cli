@@ -2,7 +2,7 @@ import * as mgmtApi from '@agility/management-sdk';
 import ansiColors from 'ansi-colors';
 import { fileOperations } from './fileOperations';
 import { ReferenceMapper } from '../lib/shared/reference-mapper';
-import { GuidDataLoader, GuidEntities, SourceDataLoader } from '../lib/shared/source-data-loader';
+import { GuidDataLoader, GuidEntities } from '../lib/shared/guid-data-loader';
 import { EntityComparer, generateLogHeader } from '../lib/shared';
 import { state } from './state';
 import { PusherResult, SourceData } from '../types/sourceData';
@@ -154,7 +154,6 @@ export class Sync {
 
       // Load source data to check if we have any existing data
       console.log(ansiColors.cyan(`\nLoading source data...`));
-      // const sourceDataLoader = new SourceDataLoader(state.sourceGuid[0]);
       
       const freshData = await this.getFreshData();
       sourceData = freshData.sourceData;
@@ -380,7 +379,7 @@ export class Sync {
             
             totalSuccessful += normalResult.successCount;
             totalFailed += normalResult.failureCount;
-            totalSkipped += normalResult.skippedCount; // Capture skipped count
+            totalSkipped += filteredNormalContentItems.skippedCount; // Capture skipped count
             allPublishableIds.push(...normalResult.publishableIds);
           }
           
@@ -404,7 +403,7 @@ export class Sync {
 
             totalSuccessful += linkedResult.successCount;
             totalFailed += linkedResult.failureCount;
-            totalSkipped += linkedResult.skippedCount; // Capture skipped count
+            totalSkipped += filteredLinkedContentItems.skippedCount; // Capture skipped count
             allPublishableIds.push(...linkedResult.publishableIds);
           }
           
@@ -515,8 +514,8 @@ export class Sync {
       const itemName = contentItem.properties.referenceName || 'Unknown';
       
       try {
-          // Use new finder pattern to determine what action to take
-          const findResult = await findContentInTargetInstance(
+
+          const findResult = findContentInTargetInstance(
               contentItem,
               apiClient,
               targetGuid,
@@ -570,6 +569,7 @@ export class Sync {
     return {
       models: sourceData.models.filter(m => dependencyTree.models.has(m.referenceName)),
       containers: sourceData.containers.filter(c => dependencyTree.containers.has(c.contentViewID)),
+      lists: sourceData.lists.filter(l => dependencyTree.lists.has(l.contentViewID)),
       content: sourceData.content.filter(c => dependencyTree.content.has(c.contentID)),
       templates: sourceData.templates.filter(t => dependencyTree.templates.has(t.pageTemplateID)),
       pages: sourceData.pages.filter(p => dependencyTree.pages.has(p.pageID)),

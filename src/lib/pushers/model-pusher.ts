@@ -41,8 +41,8 @@ export async function pushModels(
     passName: string
   ): Promise<'created' | 'updated' | 'skipped' | 'failed'> => {
     const modelName = model.referenceName;
-    const isStubPass = Array.isArray(fields) && fields.length === 0;
 
+    const isStubPass = Array.isArray(fields) && fields.length === 0;
     try {
       // Use enhanced finder to determine what action to take
       const findResult = await findModelInTargetInstanceEnhanced(
@@ -55,7 +55,6 @@ export async function pushModels(
       );
 
       const { model: targetModel, shouldUpdate, shouldCreate, shouldSkip } = findResult;
-
       if (shouldCreate) {
         // Model doesn't exist - create new one
         try {
@@ -64,6 +63,8 @@ export async function pushModels(
           referenceMapper.addMapping("model", model, newModel);
           return 'created';
         } catch (error: any) {
+          console.log(model)
+          console.log(ansiColors.magenta(`error: ${JSON.stringify(error)}`));
           console.error(`✗ Error creating model ${modelName}:`, error.message);
           return 'failed';
         }
@@ -179,8 +180,13 @@ async function createNewModel(
   delete createPayload.lastModifiedBy;
   delete createPayload.lastModifiedAuthorID;
 
-  const newModel = await apiClient.modelMethods.saveModel(createPayload, targetGuid);
-  return newModel;
+  try {
+    const newModel = await apiClient.modelMethods.saveModel(createPayload, targetGuid);
+    return newModel;
+  } catch (error: any) {
+    console.log(ansiColors.magenta(`error: ${JSON.stringify(error)}`));
+    throw error;
+  }
 }
 
 /**

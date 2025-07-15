@@ -157,7 +157,6 @@ async function createAsset(
     throw new Error(`API did not return uploaded media details for ${media.fileName}`);
   }
 
-  console.log(ansiColors.magenta(`uploadedMediaArray: ${JSON.stringify(uploadedMediaArray)}`));
   const uploadedMedia = uploadedMediaArray[0];
 
   // Add mapping for successful upload

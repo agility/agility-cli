@@ -7,7 +7,7 @@
  */
 
 import ansiColors from 'ansi-colors';
-import { GuidDataLoader, GuidEntities } from './source-data-loader';
+import { GuidDataLoader, GuidEntities } from './guid-data-loader';
 
 export interface EntityComparison {
     entityType: string;

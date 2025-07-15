@@ -3,7 +3,7 @@ import { fileOperations } from '../../../core';
 
 /**
  * Get content items from filesystem without side effects
- * Includes complex deduplication logic combining item/ and list/ content (from ChainDataLoader logic)
+ * Loads ONLY from /item directory (individual content items)
  * Pure function - no filesystem operations, delegates to fileOperations
  */
 export function getContentItemsFromFileSystem(
@@ -15,24 +15,14 @@ export function getContentItemsFromFileSystem(
     // Load content from /item directory (individual content items)
     const itemContent = fileOps.readJsonFilesFromFolder('item');
     for (const contentData of itemContent) {
-        if (contentData.contentID && !processedContentIds.has(contentData.contentID)) {
+        // if (contentData.contentID && !processedContentIds.has(contentData.contentID)) {
             allContent.push(contentData);
-            processedContentIds.add(contentData.contentID);
-        }
+            // processedContentIds.add(contentData.contentID);
+        // }
     }
 
-    // Load content from /list directory (container content lists) - exact logic from ChainDataLoader
-    const listContent = fileOps.readJsonFilesFromFolder('list');
-    for (const contentList of listContent) {
-        if (Array.isArray(contentList)) {
-            for (const contentItem of contentList) {
-                if (contentItem.contentID && !processedContentIds.has(contentItem.contentID)) {
-                    allContent.push(contentItem);
-                    processedContentIds.add(contentItem.contentID);
-                }
-            }
-        }
-    }
+    // REMOVED: /list directory loading - should only load from /item
+    // User confirmed we should ONLY load from /item directory
 
     return allContent;
 }

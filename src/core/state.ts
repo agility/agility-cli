@@ -72,6 +72,9 @@ interface CliState {
   // API Keys for download operations (simplified approach)
   apiKeys: Array<{ guid: string; previewKey: string; fetchKey: string }>;
   
+  // Cached API client instance (to prevent connection pool exhaustion)
+  cachedApiClient?: mgmtApi.ApiClient;
+  
   // Legacy fields (for backward compatibility)
   token: string | null;
   localServer: string;
@@ -125,6 +128,12 @@ export const state: CliState = {
   
   // Model-specific
   models: "",
+  
+  // Cached API client instance (to prevent connection pool exhaustion)
+  cachedApiClient: undefined,
+  
+  // Content-specific
+  contentItems: undefined,
   
   // Legacy fields
   token: null,
@@ -458,17 +467,23 @@ export function getState() {
 }
 
 /**
- * Get or create ApiClient - creates new instance each time
- * This ensures the client always uses current auth state
+ * Get or create ApiClient - reuses cached instance to prevent connection pool exhaustion
+ * This ensures the client always uses current auth state while maintaining connection efficiency
  */
 export function getApiClient(): mgmtApi.ApiClient {
+  // Check if we already have a cached client
+  if (state.cachedApiClient) {
+    return state.cachedApiClient;
+  }
+  
   // Create new client using current auth state
   if (!state.mgmtApiOptions) {
     throw new Error('Management API options not initialized. Call auth.init() first.');
   }
   
-  // Always create new client to ensure fresh auth state
-  return new mgmtApi.ApiClient(state.mgmtApiOptions);
+  // Create and cache the client
+  state.cachedApiClient = new mgmtApi.ApiClient(state.mgmtApiOptions);
+  return state.cachedApiClient;
 }
 
 /**
@@ -479,10 +494,10 @@ export function createApiClient(): mgmtApi.ApiClient {
 }
 
 /**
- * Clear the cached API client (no-op since we don't cache anymore)
+ * Clear the cached API client - forces creation of new instance on next getApiClient() call
  */
 export function clearApiClient(): void {
-  // No-op since we don't cache the client anymore
+  state.cachedApiClient = undefined;
 }
 
 /**

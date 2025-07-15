@@ -70,9 +70,9 @@ export async function pollBatchUntilComplete(
                 
                 // Include batch type in logging if provided
                 const batchTypeStr = batchType ? `${batchType} batch` : 'Batch';
-                console.error(ansiColors.yellow.dim(`${batchTypeStr} ${batchID} in progress ${dots}`));
+                console.log(ansiColors.yellow.dim(`${batchTypeStr} ${batchID} in progress ${dots}`));
                 if (batchStatus.errorData) {
-                    console.error(`Error: ${batchStatus.errorData}`);
+                    console.log(`Error: ${batchStatus.errorData}`);
                 }
             }
             
@@ -141,12 +141,14 @@ export function extractBatchResults(batch: any, originalItems: any[]): { success
             successfulItems.push({
                 originalItem,
                 newId: item.itemID,
+                newItem: item,
                 index
             });
         } else {
             // Failed item
             failedItems.push({
                 originalItem,
+                newItem: null,
                 error: item.itemNull ? 'Item creation returned null' : `Invalid ID: ${item.itemID}`,
                 index
             });

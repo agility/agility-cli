@@ -113,16 +113,23 @@ async function pushNormalContentItemsIndividual(
     
     console.log(ansiColors.cyan(`[Content Pusher] Processing ${normalContentItems.length} normal content items individually`));
     
+    const { GuidDataLoader } = await import('../shared/guid-data-loader');
+    const targetDataLoader = new GuidDataLoader(targetGuid);
+    const targetData = await targetDataLoader.loadGuidEntities();
+
+
+    console.log(ansiColors.bgCyan(`targetContent: ${JSON.stringify(targetData.content)}`))
+    console.log(ansiColors.bgCyan(`normalContentItems : ${JSON.stringify(normalContentItems)}`))
+
     for (let i = 0; i < normalContentItems.length; i++) {
         const contentItem = normalContentItems[i];
         const itemName = contentItem.properties.referenceName || 'Unknown';
         
         try {
             // Check if content item already exists in target using new finder pattern
-            const { GuidDataLoader } = await import('../shared/source-data-loader');
-            const targetDataLoader = new GuidDataLoader(targetGuid);
-            const targetData = await targetDataLoader.loadGuidEntities();
-            
+          
+
+           
             const findResult = await findContentInTargetInstance(contentItem, apiClient, targetGuid, locale, targetData, referenceMapper);
             const { content: existingContentItem, shouldUpdate, shouldCreate, shouldSkip } = findResult;
             
@@ -277,7 +284,9 @@ async function processLinkedContentIndividually(
     const maxAttempts = remainingContentItems.length * 2; // Prevent infinite loops
     let attemptCount = 0;
 
-    console.log(ansiColors.cyan(`[Content Pusher] Processing ${linkedContentItems.length} linked content items individually with dependency resolution`));
+    if(linkedContentItems.length > 0) {
+        console.log(ansiColors.cyan(`[Content Pusher] Processing ${linkedContentItems.length} linked content items individually with dependency resolution`));
+    }
 
     // Legacy do-while pattern: keep processing until no more progress
     do {

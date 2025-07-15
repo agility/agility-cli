@@ -14,7 +14,8 @@ import { SitemapHierarchy } from '../shared/sitemap-hierarchy';
 
 export interface ModelDependencyTree {
   models: Set<string>;        // Model reference names
-  containers: Set<number>;    // Container IDs using these models
+  containers: Set<number>; 
+  lists: Set<number>;   // Container IDs using these models
   content: Set<number>;       // Content item IDs of these models
   templates: Set<number>;     // Template IDs using these containers
   pages: Set<number>;         // Page IDs using these templates/content
@@ -38,6 +39,7 @@ export class ModelDependencyTreeBuilder {
     const tree: ModelDependencyTree = {
       models: new Set(modelNames),
       containers: new Set(),
+      lists: new Set(),
       content: new Set(),
       templates: new Set(),
       pages: new Set(),
