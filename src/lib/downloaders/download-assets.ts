@@ -4,6 +4,7 @@ import ansiColors from "ansi-colors";
 import fs from "fs";
 import path from "path";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
+import { getAssetFilePath } from "../assets/asset-utils";
 
 export async function downloadAllAssets(
   fileOps: fileOperations, 
@@ -19,14 +20,8 @@ export async function downloadAllAssets(
     throw new Error('Source GUID not available in state');
   }
 
-  // Helper function to extract file path from origin URL
-  function getFilePath(originUrl: string): string {
-    let url = new URL(originUrl);
-    let pathName = url.pathname;
-    let extractedStr = pathName.split("/")[1];
-    let removedStr = pathName.replace(`/${extractedStr}/`, "");
-    return removedStr;
-  }
+  // Note: Using shared getAssetFilePath utility for consistent filename handling
+  // This ensures URL decoding is consistent between download and processing phases
 
   // Helper function to get local asset metadata
   function getLocalAssetInfo(filePath: string): { dateModified?: string; exists: boolean } {
@@ -190,8 +185,9 @@ export async function downloadAllAssets(
 
           // Download actual file if it has an originUrl
           if (asset.originUrl) {
-            const filePath = getFilePath(asset.originUrl);
-            const success = await fileOps.downloadFile(asset.originUrl, `assets/files${filePath}`);
+            const filePath = getAssetFilePath(asset.originUrl);
+            const assetFilesPath = path.join(fileOps.getDataFolderPath('assets'), filePath);
+            const success = await fileOps.downloadFile(asset.originUrl, assetFilesPath);
             
             if (success) {
               const sizeDisplay = asset.size ? formatFileSize(asset.size) : '';
