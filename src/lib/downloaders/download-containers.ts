@@ -125,7 +125,7 @@ export async function downloadAllContainers(
       }
     }
 
-    console.log(`Change Detection Results: ${ansiColors.green(downloadableContainers.length.toString())} to download, ${ansiColors.gray(skippableContainers.length.toString())} unchanged`);
+    console.log(`Container Change Detection Results: ${ansiColors.green(downloadableContainers.length.toString())} to download, ${ansiColors.gray(skippableContainers.length.toString())} unchanged`);
 
     // Phase 3: Download only the containers that need updating
     if (downloadableContainers.length === 0) {

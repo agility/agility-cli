@@ -129,7 +129,7 @@ export async function downloadAllModels(
       }
     }
 
-    console.log(`Change Detection Results: ${ansiColors.green(downloadableModels.length.toString())} to download, ${ansiColors.gray(skippableModels.length.toString())} unchanged`);
+    console.log(`Model Change Detection Results: ${ansiColors.green(downloadableModels.length.toString())} to download, ${ansiColors.gray(skippableModels.length.toString())} unchanged`);
 
     // Phase 3: Download only the models that need updating
     if (downloadableModels.length === 0) {

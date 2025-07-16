@@ -155,7 +155,7 @@ export async function downloadAllAssets(
        }
      }
 
-    console.log(`Change Detection Results: ${ansiColors.green(downloadableAssets.length.toString())} to download, ${ansiColors.gray(skippableAssets.length.toString())} unchanged`);
+    console.log(`Asset Change Detection Results: ${ansiColors.green(downloadableAssets.length.toString())} to download, ${ansiColors.gray(skippableAssets.length.toString())} unchanged`);
 
     // Phase 3: Download only the assets that need updating
     if (downloadableAssets.length === 0) {

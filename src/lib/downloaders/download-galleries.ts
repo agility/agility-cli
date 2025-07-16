@@ -84,7 +84,7 @@ export async function downloadAllGalleries(
   try {
     let initialRecords;
     try {
-      initialRecords = await apiClient.assetMethods.getGalleries(guid, "", 500, 0);
+      initialRecords = await apiClient.assetMethods.getGalleries(guid, "", 250, 0);
     } catch (error) {
       console.log("Error loading galleries:");
       console.error(error);
@@ -183,7 +183,7 @@ export async function downloadAllGalleries(
       index++;
     }
 
-    console.log(`Change Detection Results: ${ansiColors.green(downloadedCount.toString())} to download, ${ansiColors.gray(skippedCount.toString())} unchanged`);
+    console.log(`Gallery Change Detection Results: ${ansiColors.green(downloadedCount.toString())} to download, ${ansiColors.gray(skippedCount.toString())} unchanged`);
 
   } catch (error: any) {
     console.error(`Error in downloadAllGalleries: ${error.message}`);
