@@ -15,7 +15,8 @@ export async function findContainerInTargetInstanceEnhanced(
     targetData: any,
     referenceMapper: ReferenceMapper
 ): Promise<{ container: mgmtApi.Container | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: FinderDecision }> {
-    const state = getState();
+    try {
+        const state = getState();
 
     // STEP 1: Find existing mapping
     const existingMapping = referenceMapper.getMappingByKey<mgmtApi.Container>("container", "referenceName", sourceContainer.referenceName);
@@ -70,6 +71,29 @@ export async function findContainerInTargetInstanceEnhanced(
         shouldSkip: decision.shouldSkip,
         decision: decision
     };
+    } catch (error: any) {
+        console.error(`[ContainerFinder] Error in enhanced finder for container ${sourceContainer.referenceName}:`, error);
+        // Fallback to safe defaults - check if container exists in target first
+        const existingContainer = targetData.containers?.find((c: any) => c.referenceName === sourceContainer.referenceName);
+        
+        if (existingContainer) {
+            // Container exists, default to skip unless forced
+            return {
+                container: existingContainer,
+                shouldUpdate: false,
+                shouldCreate: false,
+                shouldSkip: true
+            };
+        } else {
+            // Container doesn't exist, create it
+            return {
+                container: null,
+                shouldUpdate: false,
+                shouldCreate: true,
+                shouldSkip: false
+            };
+        }
+    }
 }
 
 // Function overloads to handle both Container object and string referenceName

@@ -16,7 +16,8 @@ export async function findModelInTargetInstanceEnhanced(
     referenceMapper: ReferenceMapper,
     isStubPass: boolean = false
 ): Promise<{ model: mgmtApi.Model | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: FinderDecision }> {
-    const state = getState();
+    try {
+        const state = getState();
 
     // STEP 1: Find existing mapping
     const existingMapping = referenceMapper.getMappingByKey<mgmtApi.Model>("model", "referenceName", sourceModel.referenceName);
@@ -72,6 +73,16 @@ export async function findModelInTargetInstanceEnhanced(
         shouldSkip: finalDecision.shouldSkip,
         decision: finalDecision
     };
+    } catch (error: any) {
+        console.error(`[ModelFinder] Error in enhanced finder for model ${sourceModel.referenceName}:`, error);
+        // Fallback to safe defaults
+        return {
+            model: null,
+            shouldUpdate: false,
+            shouldCreate: true,
+            shouldSkip: false
+        };
+    }
 }
 
 export async function findModelInTargetInstance(

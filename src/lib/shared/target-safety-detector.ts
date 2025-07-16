@@ -162,10 +162,14 @@ export class TargetSafetyDetector {
         };
     }
     
+    // Validate dates before calling toISOString()
+    const targetDateStr = isNaN(targetDate.getTime()) ? 'invalid-date' : targetDate.toISOString();
+    const mappingDateStr = isNaN(mappingDate.getTime()) ? 'invalid-date' : mappingDate.toISOString();
+    
     return {
       targetNewer: targetDate > mappingDate,
-      targetDate: targetDate.toISOString(),
-      mappingDate: mappingDate.toISOString()
+      targetDate: targetDateStr,
+      mappingDate: mappingDateStr
     };
   }
 }

@@ -112,6 +112,22 @@ Interactive home interface for managing instances.
 agility [options]
 ```
 
+### 📝 Content Management Commands (Upcoming)
+
+#### Update Content
+Update specific content items in an instance (PR #19).
+
+```bash
+agility updatecontent --guid="target-guid" --locale="en-us" --contentItems="123,456" [options]
+```
+
+#### Publish Content  
+Publish specific content items in an instance (PR #19).
+
+```bash
+agility publishcontent --guid="target-guid" --locale="en-us" --contentItems="123,456" [options]
+```
+
 ### Sync Process Flow
 
 ```
@@ -163,6 +179,8 @@ All commands support the following unified system arguments:
 | `--overwrite` | boolean | `false` | **SYNC ONLY**: Force update existing items in target instance instead of creating new items with -1 IDs. Default: false (safer behavior to prevent overwriting existing content) |
 | `--publish` | boolean | `false` | **SYNC ONLY**: Automatically publish synced content and pages after successful sync operations. Uses batch publishing for optimal performance. Default: false |
 | `--reset` | boolean | `false` | **BOTH COMMANDS**: Nuclear option - completely delete instance GUID folder and start fresh. For pull: deletes local data. For sync: deletes source data + regenerates mappings. Default: false |
+| `--force` | boolean | `false` | **SYNC ONLY**: Override target safety conflicts during sync operations. When target instance has changes AND sync delta has updates, --force will apply sync changes anyway. Default: false (safer behavior to prevent data loss) |
+| `--noBatch` | boolean | `false` | **BOTH COMMANDS**: Disable batch processing and use individual item processing instead. Affects both content items and linked content - all items will be processed individually rather than in optimized batches. Default: false (batch processing enabled for better performance) |
 
 > **🎯 Intuitive Flag Design**: `--update` provides consistent fresh data behavior across both pull and sync commands, with safer defaults to prevent accidental overwrites.
 
@@ -298,6 +316,12 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,News
 
 # Complete workflow: force update + auto-publish
 agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite --publish
+
+# Override safety conflicts (use with caution)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --force
+
+# Disable batch processing for troubleshooting
+agility sync --sourceGuid="abc123" --targetGuid="def456" --noBatch
 
 # Performance-optimized sync with auto-publish
 agility sync --sourceGuid="abc123" --targetGuid="def456" --no-update --publish
@@ -461,6 +485,8 @@ AGILITY_RESET=false     # Don't delete local data by default (both pull and sync
 | `AGILITY_OVERWRITE` | `--overwrite` | Default overwrite setting (sync only) |
 | `AGILITY_PUBLISH` | `--publish` | Default auto-publish setting (sync only) |
 | `AGILITY_RESET` | `--reset` | Default reset setting (both pull and sync) |
+| `AGILITY_FORCE` | `--force` | Default force setting (sync only) |
+| `AGILITY_NO_BATCH` | `--noBatch` | Default batch processing setting (both pull and sync) |
 
 **Note**: Command line arguments always override environment variables when both are provided.
 

@@ -137,7 +137,7 @@ export async function pushModels(
     
     // Count Pass 2 results properly
     if (result === 'updated') {
-      // Model was updated in Pass 2 - this is a success
+      // Model was updated in Pass 2 - count as successful
       successful++;
       skipped--; // It was counted as skipped in Pass 1, so adjust
     } else if (result === 'failed') {

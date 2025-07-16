@@ -15,7 +15,7 @@ import { instanceSelector } from "./lib/ui/prompts";
   
 let auth: Auth;
 
-yargs.version("0.0.1_beta").demand(1).exitProcess(false);
+yargs.version("1.0.0-beta.7").demand(1).exitProcess(false);
 
 console.log(colors.yellow("Welcome to Agility CLI."));
 yargs.command({
