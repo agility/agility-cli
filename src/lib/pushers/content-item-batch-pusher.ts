@@ -437,7 +437,7 @@ export class ContentBatchProcessor {
       } catch (error: any) {
         console.error(
           ansiColors.yellow(
-            `✗ Container for  ${contentItem.properties.referenceName} not found in source instance data, skipping - ${error.message || 'payload preparation failed'}.`
+            `✗ Orphaned content item ${contentItem.contentID}, skipping - ${error.message || 'payload preparation failed'}.`
           )
         );
 
