@@ -12,7 +12,14 @@ export function getGalleriesFromFileSystem(
     const galleryLists = fileOps.readJsonFilesFromFolder('assets/galleries');
     
     // Flatten assetMediaGroupings arrays (exact logic from ChainDataLoader)
-    return galleryLists.flatMap((galleryList: any) => 
+    const allGalleries = galleryLists.flatMap((galleryList: any) => 
         galleryList.assetMediaGroupings || []
     );
+    
+    // Deduplicate galleries by mediaGroupingID to prevent double processing
+    const uniqueGalleries = allGalleries.filter((gallery, index, array) => 
+        array.findIndex(g => g.mediaGroupingID === gallery.mediaGroupingID) === index
+    );
+    
+    return uniqueGalleries;
 }

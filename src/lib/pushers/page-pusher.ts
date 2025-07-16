@@ -118,9 +118,7 @@ async function processPage(
         }[page.pageType] || page.pageType;
 
       console.log(
-        `✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.grey("exists")} - ${ansiColors.green(
-          targetGuid
-        )}: ID:${existingPage.pageID} (Template:${page.templateName || "None"})`
+        `✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.grey("up to date, skipping")}`
       );
       return "skip"; // Skip processing - page already exists
     } else if (existingPage && overwrite) {

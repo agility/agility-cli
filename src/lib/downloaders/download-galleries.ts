@@ -116,7 +116,7 @@ export async function downloadAllGalleries(
         });
       }
     } else {
-      console.log(`✓ Gallery file galleries-${index}.json up to date, skipping ${ansiColors.gray(`(${downloadDecision.reason})`)}`);
+      console.log(`✓ Gallery file galleries-${index}.json up to date, skipping`);
       skippedCount++;
       
       // Record in sync delta
@@ -164,7 +164,7 @@ export async function downloadAllGalleries(
           });
         }
       } else {
-        console.log(`✓ Gallery file galleries-${index}.json up to date, skipping ${ansiColors.gray(`(${galleryDownloadDecision.reason})`)}`);
+        console.log(`✓ Gallery file galleries-${index}.json up to date, skipping`);
         skippedCount++;
         
         // Record in sync delta

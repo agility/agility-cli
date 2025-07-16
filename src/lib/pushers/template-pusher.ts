@@ -48,7 +48,7 @@ export async function pushTemplates(
 
         if (shouldSkip) {
             referenceMapper.addRecord('template', template, existingTemplate);
-            console.log(`✓ Template ${ansiColors.underline.cyan(template.pageTemplateName)} ${ansiColors.bold.gray('exists, skipping')} - ${originalID} ${existingTemplate.pageTemplateID}`);
+            console.log(`✓ Template ${ansiColors.underline.cyan(template.pageTemplateName)} ${ansiColors.bold.gray('up to date, skipping')}`);
             skipped++;
         } else {
             let isUpdate = shouldUpdate;

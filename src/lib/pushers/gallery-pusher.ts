@@ -50,7 +50,7 @@ export async function pushGalleries(
                 
             } else if (shouldSkip) {
                 // Gallery exists and is up to date - skip
-                console.log(`✓ Gallery ${ansiColors.underline(mediaGrouping.name)} ${ansiColors.bold.gray('exists, skipping')} - ${ansiColors.green(targetGuid[0])}: ${gallery?.mediaGroupingID}`);
+                console.log(`✓ Gallery ${ansiColors.underline(mediaGrouping.name)} ${ansiColors.bold.gray('up to date, skipping')}`);
                 
                 // Add mapping for existing gallery
                 if (gallery) {

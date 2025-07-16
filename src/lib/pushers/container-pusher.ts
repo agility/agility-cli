@@ -115,7 +115,7 @@ export async function pushContainers(
 
             } else if (shouldSkip) {
                 // Container exists and is up to date - skip
-                console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.bold.gray('exists, skipping')} - ${ansiColors.green(targetGuid[0])}: ID:${container?.contentViewID}`);
+                console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.bold.gray('up to date, skipping')}`);
                 
                 // Add mapping for existing container
                 if (container) {

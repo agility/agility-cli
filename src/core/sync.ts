@@ -570,7 +570,7 @@ export class Sync {
           console.log(
             `✓ Content ${ansiColors.cyan.underline(itemName)} ${ansiColors.bold.gray(
               "up to date, skipping"
-            )} - ${ansiColors.green(targetGuid)}: ID:${content?.contentID} (${versionInfo})`
+            )}`
           );
           itemsToSkip.push(contentItem);
         }
