@@ -70,7 +70,7 @@ export async function pushContainers(
                     const createResult = await createNewContainerWithRetry(sourceContainer, sourceData, apiClient, targetGuid[0], referenceMapper, totalFailures);
                     
                     if (createResult.success) {
-                        console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} created - ${ansiColors.green('Source')}: ${sourceContainer.contentViewID} ${ansiColors.green(targetGuid[0])}: ${createResult.container.contentViewID} (Model:${createResult.container.contentDefinitionID})`);
+                        console.log(`✓ Container ${ansiColors.cyan.underline(sourceRefName)} created - ${ansiColors.green(state.sourceGuid[0])}: ${sourceContainer.contentViewID} ${ansiColors.green(targetGuid[0])}: ${createResult.container.contentViewID} (Model:${createResult.container.contentDefinitionID})`);
                         referenceMapper.addRecord('container', sourceContainer, createResult.container);
                         successful++;
                     } else {
@@ -185,7 +185,7 @@ async function updateExistingContainerWithRetry(
     let failureCount = 0;
     let lastError: string = '';
 
-    for (let attempt = 1; attempt <= 5; attempt++) {
+    for (let attempt = 1; attempt <= 2; attempt++) {
         try {
             const container = await updateExistingContainer(sourceContainer, targetContainer, sourceData, apiClient, targetGuid, referenceMapper);
             return { success: true, container, failureCount };
@@ -194,9 +194,9 @@ async function updateExistingContainerWithRetry(
             totalFailuresRef.value++; // Increment immediately for progressive backoff
             lastError = error.message || JSON.stringify(error);
             
-            if (attempt < 5) {
+            if (attempt < 2) {
                 const backoffTime = totalFailuresRef.value * 2000;
-                console.log(`⚠️ Retry ${attempt}/5 for container ${sourceContainer.referenceName} (waiting ${backoffTime}ms)`);
+                console.log(`⚠️ Retry ${attempt}/2 for container ${sourceContainer.referenceName} (waiting ${backoffTime}ms)`);
                 await sleep(backoffTime);
             }
         }
@@ -264,7 +264,7 @@ async function createNewContainerWithRetry(
             if (attempt < 2) {
                 console.log(error)
                 const backoffTime = totalFailuresRef.value * 2000;
-                console.log(`⚠️ Retry ${attempt}2 for container ${sourceContainer.referenceName} (waiting ${backoffTime}ms)`);
+                console.log(`⚠️ Retry ${attempt}/2 for container ${sourceContainer.referenceName} (waiting ${backoffTime}ms)`);
                 await sleep(backoffTime);
             }
         }

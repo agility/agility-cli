@@ -107,6 +107,7 @@ export class ContentBatchProcessor {
 
     let totalSuccessCount = 0;
     let totalFailureCount = 0;
+    let totalSkippedCount = 0;
     const allSuccessfulItems: BatchSuccessItem[] = [];
     const allFailedItems: BatchFailedItem[] = [];
     const startTime = Date.now();
@@ -135,11 +136,14 @@ export class ContentBatchProcessor {
       try {
         // Prepare content payloads for bulk upload
     
-        const contentPayloads = await this.prepareContentPayloads(
+        const { payloads: contentPayloads, skippedCount: batchSkippedCount } = await this.prepareContentPayloads(
           contentBatch,
           this.config.models,
           this.config.defaultAssetUrl
         );
+
+        // Track skipped items from this batch
+        totalSkippedCount += batchSkippedCount;
 
   
 
@@ -273,7 +277,7 @@ export class ContentBatchProcessor {
     return {
       successCount: totalSuccessCount,
       failureCount: totalFailureCount,
-      skippedCount: 0, // Skipped items are now handled outside the batch processor
+      skippedCount: totalSkippedCount,
       successfulItems: allSuccessfulItems,
       failedItems: allFailedItems,
       publishableIds: allSuccessfulItems.map((item) => item.newContentId),
@@ -299,8 +303,9 @@ export class ContentBatchProcessor {
     contentBatch: mgmtApi.ContentItem[],
     models?: mgmtApi.Model[],
     defaultAssetUrl?: string
-  ): Promise<any[]> {
+  ): Promise<{ payloads: any[]; skippedCount: number }> {
     const payloads: any[] = [];
+    let skippedCount = 0;
 
     // Import required functions dynamically
     const { findModelInTargetInstance } = await import("../finders/model-finder");
@@ -432,17 +437,17 @@ export class ContentBatchProcessor {
       } catch (error: any) {
         console.error(
           ansiColors.yellow(
-            `✗ Error preparing payload for content item ${contentItem.properties.referenceName}, skipping - container missing in source data.`
+            `✗ Error preparing payload for content item ${contentItem.properties.referenceName}, skipping - ${error.message || 'payload preparation failed'}.`
           )
         );
 
-        throw new Error(error);
-
+        // Track skipped item and continue with the rest of the batch
+        skippedCount++;
         continue;
       }
     }
 
-    return payloads;
+    return { payloads, skippedCount };
   }
 
   /**

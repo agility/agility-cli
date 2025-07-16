@@ -396,7 +396,8 @@ export class Sync {
 
             totalSuccessful += normalResult.successCount;
             totalFailed += normalResult.failureCount;
-            totalSkipped += filteredNormalContentItems.skippedCount; // Capture skipped count
+            totalSkipped += filteredNormalContentItems.skippedCount; // Capture skipped count from filtering
+            totalSkipped += normalResult.skippedCount; // Capture skipped count from batch processor
             allPublishableIds.push(...normalResult.publishableIds);
           }
 
@@ -431,7 +432,8 @@ export class Sync {
 
             totalSuccessful += linkedResult.successCount;
             totalFailed += linkedResult.failureCount;
-            totalSkipped += filteredLinkedContentItems.skippedCount; // Capture skipped count
+            totalSkipped += filteredLinkedContentItems.skippedCount; // Capture skipped count from filtering
+            totalSkipped += linkedResult.skippedCount; // Capture skipped count from batch processor
             allPublishableIds.push(...linkedResult.publishableIds);
           }
 

@@ -163,7 +163,7 @@ async function createAsset(
   referenceMapper.addRecord("asset", media, uploadedMedia);
   console.log(
     `✓ Asset ${ansiColors.underline.cyan(media.fileName)} uploaded to path ${folderPath} - ${ansiColors.green(
-      "Source"
+      state.sourceGuid[0]
     )}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`
   );
 }
@@ -202,7 +202,7 @@ async function updateAsset(
   referenceMapper.addRecord("asset", media, uploadedMedia);
   console.log(
     `✓ Asset ${ansiColors.underline.cyan(media.fileName)} updated in path ${folderPath} - ${ansiColors.green(
-      "Source"
+      state.sourceGuid[0]
     )}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`
   );
 }

@@ -524,9 +524,7 @@ export async function pushPages(
         } else {
           // Use the dependency-safe order that also preserves sibling order
           pages = orderingResult.orderedPages;
-          console.log(
-            `✅ Pages reordered for dependency-safe processing with sibling order preservation (${pages.length} pages)`
-          );
+          
         }
 
         // Build child-to-parent mapping for efficient lookup
@@ -568,9 +566,9 @@ export async function pushPages(
           }
         });
 
-        if (enrichedCount > 0) {
-          console.log(`✅ Enriched ${enrichedCount} pages with parent relationships`);
-        }
+        // if (enrichedCount > 0) {
+        //   console.log(`✅ Enriched ${enrichedCount} pages with parent relationships`);
+        // }
 
         // Only warn about orphaned dynamic pages (simplified)
         const orphanedDynamicPages = pages.filter(
