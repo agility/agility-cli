@@ -60,6 +60,8 @@ export async function pushModels(
         try {
           const newModel = await createNewModel(model, fields, apiClient, targetGuid[0]);
           console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${passName} ${ansiColors.bold.green("created")}`);
+          
+          // Store mapping for both stub and full passes so Pass 2 can find stubs created in Pass 1
           referenceMapper.addMapping("model", model, newModel);
           return 'created';
         } catch (error: any) {
@@ -75,6 +77,8 @@ export async function pushModels(
           const updatedModel = await updateExistingModel(model, targetModel, fields, apiClient, targetGuid[0]);
           const updateType = isStubPass ? "stub" : "fields";
           console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${updateType} ${ansiColors.bold.green("updated")}`);
+          
+          // Always store mapping for updates (both stub and full passes)
           referenceMapper.addMapping("model", model, updatedModel);
           return 'updated';
         } catch (error: any) {
@@ -106,28 +110,16 @@ export async function pushModels(
     }
   };
 
-  // console.log(ansiColors.yellow(`Starting 2-pass model synchronization for ${totalModels} models...`));
-
   console.log('\n')
-  // Track which models were successful (created OR updated) vs skipped
-  const successfulModels = new Set<number>();
-  const skippedModels = new Set<number>();
 
   // 2-pass approach for models
   console.log(ansiColors.cyan("🔄 Pass 1: Model stubs (dependencies)"));
   for (const model of models) {
     const result = await processModel(model, [], "stub");
     
-    if (result === 'created' || result === 'updated') {
-      successful++;
-    } else if (result === 'skipped') {
-      skipped++;
-    } else {
+    // Don't count in Pass 1 - only track failures for immediate feedback
+    if (result === 'failed') {
       failed++;
-    }
-
-    if (onProgress) {
-      onProgress(successful + skipped + failed, totalModels, 'success');
     }
   }
 
@@ -135,15 +127,14 @@ export async function pushModels(
   for (const model of models) {
     const result = await processModel(model, model.fields, "full");
     
-    // Count Pass 2 results properly
-    if (result === 'updated') {
-      // Model was updated in Pass 2 - count as successful
+    // Count only in Pass 2 - each model counted exactly once
+    if (result === 'created' || result === 'updated') {
       successful++;
-      // skipped--; // It was counted as skipped in Pass 1, so adjust
+    } else if (result === 'skipped') {
+      skipped++;
     } else if (result === 'failed') {
-      // Count new failures
-      failed++;
-      // skipped--; // Adjust for the model that was skipped in Pass 1 but failed in Pass 2
+      // Only count as failure if not already counted in Pass 1
+      // (failures in Pass 1 remain failures in Pass 2)
     }
 
     if (onProgress) {

@@ -451,40 +451,40 @@ export class SitemapHierarchy {
     extractSiblingOrderFromSitemap(sitemap: SitemapNode[]): Map<number, number | null> {
         const siblingOrderMap = new Map<number, number | null>();
         
-        const processSiblings = (siblings: SitemapNode[]) => {
+        const processSiblings = (siblings: SitemapNode[], depth: number = 0) => {
             for (let i = 0; i < siblings.length; i++) {
                 const currentPage = siblings[i];
                 const nextSibling = i < siblings.length - 1 ? siblings[i + 1] : null;
                 
-                // Map current page to its next sibling (or null if it's the last)
-                siblingOrderMap.set(currentPage.pageID, nextSibling ? nextSibling.pageID : null);
+                // Map current page to its next sibling (or null if last)
+                siblingOrderMap.set(currentPage.pageID, nextSibling?.pageID || null);
                 
-                // Recursively process children if they exist
+                // Process child pages recursively
                 if (currentPage.children && currentPage.children.length > 0) {
-                    processSiblings(currentPage.children);
+                    processSiblings(currentPage.children, depth + 1);
                 }
             }
         };
         
-        // Process root level siblings
-        processSiblings(sitemap);
+        processSiblings(sitemap, 0);
         
         return siblingOrderMap;
     }
 
     /**
      * Get the pageID that should come BEFORE the specified page (for insertBefore parameter)
-     * This is the PREVIOUS sibling, not the next sibling
+     * FIXED: Returns the NEXT sibling (what this page should go before), not the previous sibling
      */
     getInsertBeforePageId(pageId: number, siblingOrder: Map<number, number | null>): number | null {
-        // Find the page that has pageId as its next sibling
-        const entries = Array.from(siblingOrder.entries());
-        for (const [currentPageId, nextSiblingId] of entries) {
-            if (nextSiblingId === pageId) {
-                return currentPageId;  // This page comes right before our target page
-            }
+        
+        // FIXED: Return the next sibling directly - this page should go BEFORE its next sibling
+        const nextSiblingId = siblingOrder.get(pageId) || null;
+        
+        if (nextSiblingId) {
+            return nextSiblingId;
+        } else {
+            return null; // No next sibling found (page is last in its group, will place at end)
         }
-        return null; // No previous sibling found (page is first in its group)
     }
 
     /**

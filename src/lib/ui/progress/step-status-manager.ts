@@ -57,7 +57,8 @@ export class StepStatusManager {
       "downloadAllModels",
       "downloadAllTemplates",
       "downloadAllContainers",
-      "downloadAllSyncSDK"
+      "downloadAllSyncSDK",
+      "downloadAllSitemaps"
     ];
   }
 
@@ -77,7 +78,7 @@ export class StepStatusManager {
       'Containers': ['downloadAllContainers', 'downloadAllSyncSDK'], // Run both isolated and sync SDK downloaders
       'Content': ['downloadAllSyncSDK'],
       'Pages': ['downloadAllSyncSDK'],
-      'Sitemaps': ['downloadAllSyncSDK'],
+      'Sitemaps': ['downloadAllSitemaps'],
       'Redirections': ['downloadAllSyncSDK']
     };
     
@@ -119,7 +120,8 @@ export class StepStatusManager {
       "downloadAllAssets": 3,
       "downloadAllModels": 2,
       "downloadAllTemplates": 1,
-      "downloadAllContainers": 2
+      "downloadAllContainers": 2,
+      "downloadAllSitemaps": 1
     };
     return weights[stepName] || 1;
   }
@@ -134,7 +136,8 @@ export class StepStatusManager {
       "downloadAllAssets": "Download media files and asset metadata",
       "downloadAllModels": "Download content models and field definitions",
       "downloadAllTemplates": "Download page templates and layouts",
-      "downloadAllContainers": "Download content containers and views"
+      "downloadAllContainers": "Download content containers and views",
+      "downloadAllSitemaps": "Download sitemaps"
     };
     return descriptions[stepName] || `Download ${stepName}`;
   }

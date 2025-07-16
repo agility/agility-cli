@@ -11,6 +11,7 @@ import { downloadAllModels } from './download-models';
 import { downloadAllTemplates } from './download-templates';
 import { downloadAllContainers } from './download-containers';
 import { downloadAllSyncSDK } from './download-sync-sdk';
+import { downloadAllSitemaps } from './download-sitemaps';
 
 export interface DownloadResults {
   successful: string[];
@@ -243,9 +244,17 @@ export class DownloadOrchestrator {
     try {
       const instanceStart = Date.now();
       
-      // Initialize SyncDeltaTracker for this download session (local to this instance)
+      // Initialize SyncDeltaTracker ONLY for source instances during sync operations
       const channel = isolatedState.channel || 'website';
-      const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
+      const { getState } = await import('../../core/state');
+      const state = getState();
+      const isSourceInstance = state.sourceGuid?.includes(guid);
+      const isSyncOperation = state.targetGuid && state.targetGuid.length > 0;
+      
+      // Only create SyncDeltaTracker for source instances during sync operations
+      const syncDeltaTracker = (!isSyncOperation || isSourceInstance) 
+        ? new SyncDeltaTracker(guid, locale, channel) 
+        : undefined;
       
       // Create fileOperations instance for this specific GUID and locale
       const fileOps = new fileOperations(isolatedState.rootPath, guid, locale, isolatedState.preview, isolatedState.legacyFolders);
@@ -292,27 +301,14 @@ export class DownloadOrchestrator {
         console.error(`${guid} (${locale}): Could not finalize log file - ${logError.message}`);
       }
 
-      // Write sync delta report
+      // Write sync delta report (only source instances have syncDeltaTracker now)
       if (syncDeltaTracker) {
         try {
-          // Only write sync delta for source instances during sync operations
-          // This prevents target instance from overwriting source instance changes
-          const { getState } = await import('../../core/state');
-          const state = getState();
-          const isSourceInstance = state.sourceGuid?.includes(guid);
-          const isSyncOperation = state.targetGuid && state.targetGuid.length > 0;
-          
-          if (!isSyncOperation || isSourceInstance) {
-            const deltaFilePath = await syncDeltaTracker.writeSyncDelta(isolatedState.rootPath);
-            if (isolatedState.useVerbose) {
-              const operationType = isSyncOperation ? 'sync' : 'pull';
-              console.log(`${guid} (${locale}): ${operationType} delta written to ${deltaFilePath}`);
-              // console.log(syncDeltaTracker.getFormattedSummary());
-            }
-          } else {
-            if (isolatedState.useVerbose) {
-              console.log(`${guid} (${locale}): Skipping sync delta (target instance in sync operation)`);
-            }
+          const deltaFilePath = await syncDeltaTracker.writeSyncDelta(isolatedState.rootPath);
+          if (isolatedState.useVerbose) {
+            const operationType = isSyncOperation ? 'sync' : 'pull';
+            console.log(`${guid} (${locale}): ${operationType} delta written to ${deltaFilePath}`);
+            // console.log(syncDeltaTracker.getFormattedSummary());
           }
         } catch (deltaError: any) {
           console.error(`${guid} (${locale}): Could not write sync delta - ${deltaError.message}`);
@@ -346,7 +342,7 @@ export class DownloadOrchestrator {
    * Filter steps by elements using isolated state (race condition safe)
    */
   private filterStepsByElementsIsolated(availableSteps: string[], elements: string): string[] {
-    const elementList = elements ? elements.split(",") : ['Galleries', 'Assets', 'Models', 'Templates', 'Containers', 'Content', 'Pages'];
+    const elementList = elements ? elements.split(",") : ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages', 'Sitemaps', 'Redirections'];
     
     // Map element names to step names (some elements map to multiple steps)
     const elementToStepMap: Record<string, string[]> = {
@@ -357,8 +353,8 @@ export class DownloadOrchestrator {
       'Containers': ['downloadAllContainers', 'downloadAllSyncSDK'], // Run both isolated and sync SDK downloaders
       'Content': ['downloadAllSyncSDK'],
       'Pages': ['downloadAllSyncSDK'],
-      'Sitemaps': ['downloadAllSyncSDK'],
-      'Redirections': ['downloadAllSyncSDK']
+      'Sitemaps': ['downloadAllSitemaps'],
+      'Redirections': ['downloadAllSyncSDK']  // TODO: Add redirections
     };
     
     // Convert elements to step names and filter available steps, removing duplicates
@@ -397,7 +393,8 @@ export class DownloadOrchestrator {
       "downloadAllAssets": 3,
       "downloadAllModels": 2,
       "downloadAllTemplates": 1,
-      "downloadAllContainers": 2
+      "downloadAllContainers": 2,
+      "downloadAllSitemaps": 1
     };
     return weights[stepName] || 1;
   }
@@ -412,7 +409,8 @@ export class DownloadOrchestrator {
       "downloadAllAssets": "Download media files and asset metadata",
       "downloadAllModels": "Download content models and field definitions",
       "downloadAllTemplates": "Download page templates and layouts",
-      "downloadAllContainers": "Download content containers and views"
+      "downloadAllContainers": "Download content containers and views",
+      "downloadAllSitemaps": "Download sitemaps"
     };
     return descriptions[stepName] || `Download ${stepName}`;
   }
@@ -446,6 +444,10 @@ export class DownloadOrchestrator {
       
       case 'downloadAllGalleries':
         await downloadAllGalleries(fileOps, undefined, syncDeltaTracker);
+        break;
+      
+      case 'downloadAllSitemaps':
+        await downloadAllSitemaps(fileOps, undefined, syncDeltaTracker);
         break;
       
       default:
@@ -484,6 +486,10 @@ export class DownloadOrchestrator {
       
       case 'downloadAllGalleries':
         await downloadAllGalleries(fileOps);
+        break;
+      
+      case 'downloadAllSitemaps':
+        await downloadAllSitemaps(fileOps);
         break;
       
       default:

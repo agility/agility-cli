@@ -59,11 +59,19 @@ export async function findModelInTargetInstanceEnhanced(
     let finalDecision = { ...decision };
 
     // Special case: Empty fields indicate incomplete model that needs updating
-    // BUT only apply this override if there are sync delta changes or we're in a non-sync operation
-    if (targetInstanceData && targetInstanceData.fields?.length === 0 && decision.syncDelta.hasChanges) {
-        finalDecision.shouldUpdate = true;
-        finalDecision.shouldSkip = false;
-        finalDecision.shouldCreate = false;
+    // During sync operations, always update stub models to full models regardless of sync delta
+    // For non-sync operations, still require sync delta changes
+    const isSyncOperation = state.targetGuid && state.targetGuid.length > 0;
+    const hasFieldsToAdd = sourceModel.fields && sourceModel.fields.length > 0;
+    
+    // Check the final resolved target entity (could be from mapping or instance data)
+    const finalTargetEntity = targetInstanceData || targetModelFromMapping;
+    if (finalTargetEntity && finalTargetEntity.fields?.length === 0 && hasFieldsToAdd) {
+        if (isSyncOperation || decision.syncDelta.hasChanges) {
+            finalDecision.shouldUpdate = true;
+            finalDecision.shouldSkip = false;
+            finalDecision.shouldCreate = false;
+        }
     }
 
     return {

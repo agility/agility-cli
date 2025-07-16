@@ -104,7 +104,7 @@ export const state: CliState = {
   apiKeys: [],
   channel: "website",
   preview: true,
-  elements: "Models,Galleries,Assets,Containers,Content,Templates,Pages",
+  elements: "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps",
   
   // File system
   rootPath: "agility-files",
@@ -412,7 +412,7 @@ export function resetState() {
   state.apiKeys = [];
   state.channel = "website";
   state.preview = true;
-  state.elements = "Models,Galleries,Assets,Containers,Content,Templates,Pages";
+  state.elements = "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps";
   
   // File system
   state.rootPath = "agility-files";

@@ -633,17 +633,18 @@ export async function pushPages(
     if (pageOrderingData?.siblingOrder) {
       const sitemapHierarchy = new SitemapHierarchy();
       const sourceInsertBeforeId = sitemapHierarchy.getInsertBeforePageId(page.pageID, pageOrderingData.siblingOrder);
-      if (sourceInsertBeforeId) {
-        // Map source page ID to target page ID
-        const insertBeforePageRef = referenceMapper.getMappingByKey<mgmtApi.PageItem>(
-          "page",
-          "pageID",
-          sourceInsertBeforeId
-        );
-        if (insertBeforePageRef?.target?.pageID) {
-          insertBeforePageId = insertBeforePageRef.target.pageID;
-        }
-      }
+      
+             if (sourceInsertBeforeId !== null) {
+         // Map the source insertBefore ID to target insertBefore ID
+         const insertBeforePageRef = referenceMapper.getMappingByKey<mgmtApi.PageItem>(
+           "page",
+           "pageID",
+           sourceInsertBeforeId
+         );
+         if (insertBeforePageRef?.target?.pageID) {
+           insertBeforePageId = insertBeforePageRef.target.pageID;
+         }
+       }
     }
 
     const result = await processPage(

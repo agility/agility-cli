@@ -77,10 +77,10 @@ export const systemArgs = {
     default: true,
   },
   elements: {
-    describe: "Comma-separated list of elements to process (Models,Galleries,Assets,Containers,Content,Templates,Pages)",
+    describe: "Comma-separated list of elements to process (Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps)",
     demandOption: false,
     type: "string" as const,
-    default: "Models,Galleries,Assets,Containers,Content,Templates,Pages",
+    default: "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps",
   },
 
   // Network/Security args
