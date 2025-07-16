@@ -47,12 +47,9 @@ export class Pull {
       operationDetails.push(`${guid}: ${guidLocales.join(', ')}`);
     }
 
-    console.log(ansiColors.cyan('\n🚀 Pull Operation using GUID×Locale Matrix:'));
-    console.log(`Total operations: ${totalOperations} (${allGuids.length} instances × variable locales)`);
-    operationDetails.forEach(detail => console.log(`   📋 ${detail}`));
-    console.log(`Channel: ${state.channel} | ${state.preview ? "Preview" : "Live"} | Elements: ${state.elements}`);
-    console.log(`Output: ./agility-files/`);
-
+ 
+    operationDetails.forEach(detail => console.log(`${detail}`));
+    
     // Handle --reset flag: completely delete GUID folders and start fresh
     if (state.reset) {
       for (const guid of allGuids) {

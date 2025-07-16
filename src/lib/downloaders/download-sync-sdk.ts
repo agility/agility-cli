@@ -4,6 +4,7 @@ import * as path from "path";
 import * as fs from "fs";
 import ansiColors from "ansi-colors";
 import * as agilitySync from "@agility/content-sync";
+import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
@@ -13,7 +14,8 @@ export async function downloadAllSyncSDK(
   isPreview: boolean, 
   channel: string, 
   rootPath: string, 
-  update: boolean
+  update: boolean,
+  syncDeltaTracker?: SyncDeltaTracker
 ): Promise<void> {
   // Import helper function
   const { getApiKeysForGuid } = await import('../../core/state');
@@ -26,7 +28,7 @@ export async function downloadAllSyncSDK(
     throw new Error('Locale parameter is required for sync operation');
   }
   
-  console.log(`Downloading GUID: ${guid} | Locale: ${locale}`);
+  console.log(`\nDownloading GUID: ${guid} | Locale: ${locale}`);
   
   // Get API keys for this specific GUID
   const apiKeys = getApiKeysForGuid(guid);
@@ -48,6 +50,10 @@ export async function downloadAllSyncSDK(
   // Handle sync token clearing logic based on --update flag
   const syncTokenPath = path.join(instanceSpecificPath, "state", "sync.json");
   
+  // Detect sync mode for delta tracking
+  const syncTokenExists = fs.existsSync(syncTokenPath);
+  const isIncrementalSync = !update && syncTokenExists;
+  
   // Get current state only for UI mode checking (not for core functionality)
   const currentState = getState();
   
@@ -55,7 +61,7 @@ export async function downloadAllSyncSDK(
   // --update=true: Clear sync tokens for complete refresh
   if (!update) {
     // Logic for --update=false (default): if sync token exists, use it for incremental sync
-    if (fs.existsSync(syncTokenPath)) {
+    if (syncTokenExists) {
       if (currentState.useVerbose) console.log("--update=false (default): Existing content sync token found. Performing incremental content sync.");
       else if (currentState.useHeadless) console.log("--update=false (default): Existing content sync token found. Performing incremental content sync.");
     } else {
@@ -64,7 +70,7 @@ export async function downloadAllSyncSDK(
     }
   } else {
     // --update=true: Clear sync tokens for complete refresh
-    if (fs.existsSync(syncTokenPath)) {
+    if (syncTokenExists) {
       try {
         fs.rmSync(syncTokenPath, { force: true });
         if (currentState.useVerbose) console.log("--update=true: Cleared existing sync token. Performing full content sync.");
@@ -89,7 +95,10 @@ export async function downloadAllSyncSDK(
     store: {
       interface: storeInterfaceFileSystem,
       options: {
-        rootPath: instanceSpecificPath
+        rootPath: instanceSpecificPath,
+        // NEW: Pass sync delta tracker and mode
+        syncDeltaTracker: syncDeltaTracker,
+        isIncrementalSync: isIncrementalSync
       }
     }
   };

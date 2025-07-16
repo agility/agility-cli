@@ -19,7 +19,7 @@ export async function downloadAllTemplates(
   }
 
   const templatesFolderPath = fileOps.getDataFolderPath('templates');
-
+  console.log('\n')
   // Individual template file existence checking is now handled below
 
   // Use fileOperations to create templates folder

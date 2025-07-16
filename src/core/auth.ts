@@ -397,7 +397,7 @@ export class Auth {
               // Add to set of all detected locales
               finalLocalesForGuid.forEach(locale => allDetectedLocales.add(locale));
               
-              console.log(`🌍 ${guid}: ${finalLocalesForGuid.join(', ')}`);
+              console.log(`${guid}: ${finalLocalesForGuid.join(', ')}`);
             } catch (error) {
               console.log(ansiColors.yellow(`⚠️  Could not get locales for ${guid}: ${error.message}`));
               const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ['en-us'];
@@ -411,11 +411,10 @@ export class Auth {
         state.guidLocaleMap = guidLocaleMap;
         state.availableLocales = Array.from(allDetectedLocales);
         
-        console.log(`🔍 GUID×Locale Matrix: ${allGuids.length} instances × variable locales = ${totalCombinations} total operations`);
         
         // Show detailed matrix
         Array.from(guidLocaleMap.entries()).forEach(([guid, locales]) => {
-          console.log(`   📋 ${guid} → ${locales.length} locale(s): ${locales.join(', ')}`);
+          console.log(`${guid} → ${locales.length} locale(s): ${locales.join(', ')}`);
         });
         
       } catch (error) {

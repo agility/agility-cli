@@ -1,12 +1,14 @@
 import { fileOperations } from "../../core/fileOperations";
 import { getApiClient, getState } from "../../core/state";
 import ansiColors from "ansi-colors";
-import crypto from "crypto";
 import fs from "fs";
+import path from "path";
+import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 
 export async function downloadAllAssets(
   fileOps: fileOperations, 
-  progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
+  progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void,
+  syncDeltaTracker?: SyncDeltaTracker
 ): Promise<void> {
   // Get values from fileOps which is already configured for this specific GUID/locale
   const guid = fileOps.guid;
@@ -26,22 +28,44 @@ export async function downloadAllAssets(
     return removedStr;
   }
 
-  // Helper function to get file info (hash and size)
-  function getFileInfo(filePath: string): { size: number; hash: string } | null {
+  // Helper function to get local asset metadata
+  function getLocalAssetInfo(filePath: string): { dateModified?: string; exists: boolean } {
     try {
       if (!fs.existsSync(filePath)) {
-        return null;
+        return { exists: false };
       }
-      const stats = fs.statSync(filePath);
-      const content = fs.readFileSync(filePath);
-      const hash = crypto.createHash('sha256').update(content).digest('hex');
+      const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       return {
-        size: stats.size,
-        hash: hash.substring(0, 6) // Show first 6 characters of hash
+        dateModified: content.dateModified,
+        exists: true
       };
     } catch (error) {
-      return null;
+      return { exists: false };
     }
+  }
+
+  // Helper function to check if asset needs download based on dateModified
+  function shouldDownloadAsset(apiAsset: any, localInfo: { dateModified?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
+    if (update) {
+      return { shouldDownload: true, reason: 'forced update' };
+    }
+
+    if (!localInfo.exists) {
+      return { shouldDownload: true, reason: 'new file' };
+    }
+
+    if (!localInfo.dateModified || !apiAsset.dateModified) {
+      return { shouldDownload: true, reason: 'missing date info' };
+    }
+
+    const apiDate = new Date(apiAsset.dateModified);
+    const localDate = new Date(localInfo.dateModified);
+
+    if (apiDate > localDate) {
+      return { shouldDownload: true, reason: 'content changed' };
+    }
+
+    return { shouldDownload: false, reason: 'unchanged' };
   }
 
   // Helper function to format file size
@@ -64,8 +88,6 @@ export async function downloadAllAssets(
   let unProcessedAssets: { [key: number]: string } = {};
 
   try {
-    console.log(`📋 Fetching asset metadata from API...`);
-    
     // Phase 1: Collect all asset metadata from all pages
     let allAssets: any[] = [];
     let initialRecords = await apiClient.assetMethods.getMediaList(
@@ -100,138 +122,178 @@ export async function downloadAllAssets(
           recordOffset,
           guid
         );
-        
-        // Export JSON for this page
+
         fileOps.exportFiles("assets/json", index, assetsPage);
         allAssets.push(...assetsPage.assetMedias);
         index++;
       }
     }
 
-    console.log(`📦 Collected ${allAssets.length} assets. Starting concurrent downloads...`);
+    // Phase 2: Process all assets with intelligent change detection
+    // console.log(`\n📥 Processing ${totalRecords} assets with smart change detection...`);
 
-    // Phase 2: Prepare download tasks for concurrent execution
-    interface AssetDownloadTask {
-      assetMedia: any;
-      targetFilePath: string;
-      fileName: string;
-      shouldDownload: boolean;
+    // Group assets by downloadable batches  
+    const downloadableAssets = [];
+    const skippableAssets = [];
+    
+         for (const asset of allAssets) {
+       const assetJsonPath = path.join(fileOps.getDataFolderPath('assets'), `${asset.mediaID}.json`);
+       const localInfo = getLocalAssetInfo(assetJsonPath);
+       const downloadDecision = shouldDownloadAsset(asset, localInfo);
+       
+       if (downloadDecision.shouldDownload) {
+         downloadableAssets.push({ asset, reason: downloadDecision.reason });
+       } else {
+         skippableAssets.push({ asset, reason: downloadDecision.reason });
+         
+         // Record unchanged asset in sync delta
+         if (syncDeltaTracker) {
+           syncDeltaTracker.recordChange({
+             id: asset.mediaID,
+             type: 'asset',
+             action: 'unchanged',
+             name: asset.fileName,
+             referenceName: asset.fileName,
+             timestamp: '' // Will be overridden by recordChange
+           });
+         }
+       }
+     }
+
+    console.log(`Change Detection Results: ${ansiColors.green(downloadableAssets.length.toString())} to download, ${ansiColors.gray(skippableAssets.length.toString())} unchanged`);
+
+    // Phase 3: Download only the assets that need updating
+    if (downloadableAssets.length === 0) {
+      // console.log("✅ All assets are up to date!");
+      if (progressCallback) progressCallback(totalRecords, totalRecords, 'success');
+      return;
     }
 
-    const downloadTasks: AssetDownloadTask[] = [];
+    // Batch processing for downloads
+    const CONCURRENT_BATCH_SIZE = 10;
+    const batches = [];
+    
+    for (let i = 0; i < downloadableAssets.length; i += CONCURRENT_BATCH_SIZE) {
+      batches.push(downloadableAssets.slice(i, i + CONCURRENT_BATCH_SIZE));
+    }
 
-    // Prepare all download tasks
-    for (const assetMedia of allAssets) {
-      totalAttemptedToProcess++;
-      const originUrl = assetMedia.originUrl;
-      const filePath = getFilePath(originUrl);
-      const folderPath = filePath.split("/").slice(0, -1).join("/");
-      let fileName = `${assetMedia.fileName}`;
+    // Process each batch concurrently
+    for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
+      const batch = batches[batchIndex];
+      
+      // Create download promises for this batch
+      const downloadPromises = batch.map(async (item) => {
+        const { asset, reason } = item;
+        try {
+                     // Export asset JSON metadata
+           fileOps.exportFiles(`assets`, asset.mediaID.toString(), asset);
 
-      // Sanitize filename to avoid filesystem issues
-      fileName = fileName.replace(/[<>:"|?*]/g, '_');
-      fileName = fileName.substring(0, 200);
+          // Download actual file if it has an originUrl
+          if (asset.originUrl) {
+            const filePath = getFilePath(asset.originUrl);
+            const success = await fileOps.downloadFile(asset.originUrl, `assets/files${filePath}`);
+            
+            if (success) {
+              const sizeDisplay = asset.size ? formatFileSize(asset.size) : '';
+              console.log(`✓ Downloaded asset ${ansiColors.cyan(asset.fileName)} ${ansiColors.gray(`(${reason})`)} ${ansiColors.gray(sizeDisplay)}`);
+              
+                             // Record successful download in sync delta
+               if (syncDeltaTracker) {
+                 syncDeltaTracker.recordChange({
+                   id: asset.mediaID,
+                   type: 'asset',
+                   action: reason === 'new file' ? 'created' : 'updated',
+                   name: asset.fileName,
+                   referenceName: asset.fileName,
+                   timestamp: '' // Will be overridden by recordChange
+                 });
+               }
+              
+              return { success: true, asset };
+            } else {
+              throw new Error('Download failed');
+            }
+          } else {
+            // Asset without downloadable file - just metadata
+            console.log(`✓ Saved metadata for ${ansiColors.cyan(asset.fileName)} ${ansiColors.gray(`(${reason}, no file)`)}`);
+            
+                         // Record metadata-only update
+             if (syncDeltaTracker) {
+               syncDeltaTracker.recordChange({
+                 id: asset.mediaID,
+                 type: 'asset',
+                 action: reason === 'new file' ? 'created' : 'updated',
+                 name: asset.fileName,
+                 referenceName: asset.fileName,
+                 timestamp: '' // Will be overridden by recordChange
+               });
+             }
+            
+            return { success: true, asset };
+          }
+        } catch (error: any) {
+          console.error(`✗ Failed to download asset ${ansiColors.red(asset.fileName)}: ${ansiColors.gray(error.message || 'Unknown error')}`);
+          unProcessedAssets[asset.mediaID] = asset.fileName;
+          
+                     // Record error in sync delta
+           if (syncDeltaTracker) {
+             syncDeltaTracker.recordChange({
+               id: asset.mediaID,
+               type: 'asset',
+               action: 'error',
+               name: asset.fileName,
+               referenceName: asset.fileName,
+               timestamp: '' // Will be overridden by recordChange
+             });
+           }
+          
+          return { success: false, asset, error };
+        }
+      });
 
-      const assetFolderPath = folderPath ? `assets/${folderPath}` : "assets";
-      if (folderPath) {
-        fileOps.createFolder(assetFolderPath);
+      // Wait for this batch to complete
+      const results = await Promise.all(downloadPromises);
+      
+      // Update counters
+      for (const result of results) {
+        totalAttemptedToProcess++;
+        if (result.success) {
+          totalSuccessfullyDownloaded++;
+        }
+        
+        // Update progress (include skipped assets in total processed)
+        const totalProcessed = totalAttemptedToProcess + skippableAssets.length;
+        if (progressCallback) {
+          progressCallback(totalProcessed, totalRecords, result.success ? 'success' : 'error');
+        }
       }
-      
-      const targetFilePath = fileOps.getDataFolderPath(`${assetFolderPath}/${fileName}`);
-      
-      // Check if we should download this file
-      const shouldDownload = update || !fileOps.checkFileExists(targetFilePath);
-      
-      if (!shouldDownload) {
-        const fileInfo = getFileInfo(targetFilePath);
-        const hashDisplay = fileInfo 
-          ? `${ansiColors.green(`[${fileInfo.hash}]`)} ${ansiColors.gray(`(${formatFileSize(fileInfo.size)})`)}`
-          : `${ansiColors.yellow('[no-hash]')}`;
-        console.log(ansiColors.grey.italic('Found'), ansiColors.gray(fileName || originUrl.split('/').pop()),ansiColors.grey.italic('skipping download'), hashDisplay);
-        totalSkippedAssets++;
-      }
+    }
 
-      downloadTasks.push({
-        assetMedia,
-        targetFilePath,
-        fileName,
-        shouldDownload
+    // Final skipped assets processing for progress
+    totalSkippedAssets = skippableAssets.length;
+    
+    // Performance and summary reporting
+    const endTime = Date.now();
+    const duration = ((endTime - startTime) / 1000).toFixed(1);
+    const unprocessedCount = Object.keys(unProcessedAssets).length;
+
+    console.log(`\n📊 Asset Download Summary:`);
+    console.log(`   ${ansiColors.green('✓')} Downloaded: ${totalSuccessfullyDownloaded}`);
+    console.log(`   ${ansiColors.gray('⚬')} Unchanged: ${totalSkippedAssets}`);
+    if (unprocessedCount > 0) {
+      console.log(`   ${ansiColors.red('✗')} Failed: ${unprocessedCount}`);
+    }
+    console.log(`   ⏱️  Duration: ${duration}s`);
+
+    if (unprocessedCount > 0) {
+      console.log(`\n⚠️  Unprocessed assets:`);
+      Object.entries(unProcessedAssets).forEach(([id, fileName]) => {
+        console.log(`   • ${fileName} (ID: ${id})`);
       });
     }
 
-    // Phase 3: Execute downloads concurrently (only for files that need downloading)
-    const filesToDownload = downloadTasks.filter(task => task.shouldDownload);
-    
-    if (filesToDownload.length > 0) {
-      console.log(`⚡ Downloading ${filesToDownload.length} files concurrently...`);
-      
-      // Download files in batches to avoid overwhelming the server
-      const CONCURRENT_BATCH_SIZE = 20; // Download max 10 files at once
-      const batches = [];
-      
-      for (let i = 0; i < filesToDownload.length; i += CONCURRENT_BATCH_SIZE) {
-        batches.push(filesToDownload.slice(i, i + CONCURRENT_BATCH_SIZE));
-      }
-
-      // Process each batch concurrently
-      for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
-        const batch = batches[batchIndex];
-        
-        // Create download promises for this batch
-        const downloadPromises = batch.map(async (task) => {
-          try {
-            await fileOps.downloadFile(task.assetMedia.originUrl, task.targetFilePath);
-            
-            // Get file info after download for hash display
-            const fileInfo = getFileInfo(task.targetFilePath);
-            const hashDisplay = fileInfo 
-              ? `${ansiColors.green(`[${fileInfo.hash}]`)} ${ansiColors.gray(`(${formatFileSize(fileInfo.size)})`)}`
-              : '';
-            console.log('✓ Downloaded file', ansiColors.cyan.underline(task.fileName || task.assetMedia.originUrl.split('/').pop()), hashDisplay);
-            return { success: true, task };
-          } catch (downloadError: any) {
-            console.error('✗ Failed to download file', ansiColors.red(task.fileName || task.assetMedia.originUrl.split('/').pop()), ansiColors.gray(downloadError.message ? `- ${downloadError.message}` : ''));
-            unProcessedAssets[task.assetMedia.mediaID] = task.fileName;
-            return { success: false, task, error: downloadError };
-          }
-        });
-
-        // Wait for this batch to complete
-        const results = await Promise.allSettled(downloadPromises);
-        
-        // Count results
-        results.forEach((result) => {
-          if (result.status === 'fulfilled' && result.value.success) {
-            totalSuccessfullyDownloaded++;
-          }
-        });
-
-        // Update progress after each batch
-        const processedAssets = totalSuccessfullyDownloaded + totalSkippedAssets;
-        if (progressCallback) progressCallback(processedAssets, totalRecords, 'progress');
-      }
-    }
-
-    // Final summary
-    const processedAssets = totalSuccessfullyDownloaded + totalSkippedAssets;
-    const errorCount = totalAttemptedToProcess - processedAssets;
-    const elapsedTime = Date.now() - startTime;
-    const elapsedSeconds = (elapsedTime / 1000).toFixed(2);
-    const summaryMessage = `\n🎉 Asset download completed: ${totalSuccessfullyDownloaded} downloaded, ${totalSkippedAssets} skipped, ${errorCount} errors (${elapsedSeconds}s)\n`;
-    
-    console.log(ansiColors.green(summaryMessage));
-    
-    if (progressCallback) progressCallback(processedAssets, totalRecords, processedAssets === totalAttemptedToProcess && totalAttemptedToProcess >= totalRecords ? 'success' : 'error');
-  } catch (error) {
-    const processedAssets = totalSuccessfullyDownloaded + totalSkippedAssets;
-    const errorCount = totalAttemptedToProcess - processedAssets;
-    const elapsedTime = Date.now() - startTime;
-    const elapsedSeconds = (elapsedTime / 1000).toFixed(2);
-    const summaryMessage = `\n❌ Asset download error: ${totalSuccessfullyDownloaded} downloaded, ${totalSkippedAssets} skipped, ${errorCount} errors (${elapsedSeconds}s)\n`;
-    
-    console.log(ansiColors.red(summaryMessage));
-    
-    if (progressCallback) progressCallback(processedAssets, totalRecords, 'error');
+  } catch (error: any) {
+    console.error('Error in downloadAllAssets:', error);
     throw error;
   }
 } 

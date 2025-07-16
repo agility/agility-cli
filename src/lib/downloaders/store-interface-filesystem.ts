@@ -35,6 +35,43 @@ require("dotenv").config({
 })
 
 /**
+ * Map Sync SDK itemType to SyncDeltaTracker entity type
+ */
+function mapItemTypeToEntityType(itemType: string): string {
+  const typeMap = {
+    'item': 'content-item',
+    'page': 'page'
+  };
+  return typeMap[itemType] || itemType;
+}
+
+/**
+ * Extract entity name from item content
+ */
+function extractEntityName(item: any, itemType: string): string {
+  if (itemType === 'page') {
+    return item.name || item.title || `Page ${item.pageID}`;
+  }
+  if (itemType === 'item') {
+    return item.properties?.referenceName || `Content ${item.contentID}`;
+  }
+  return `${itemType} ${item.id || 'Unknown'}`;
+}
+
+/**
+ * Extract reference name from item content
+ */
+function extractReferenceName(item: any, itemType: string): string | undefined {
+  if (itemType === 'page') {
+    return item.name;
+  }
+  if (itemType === 'item') {
+    return item.properties?.referenceName;
+  }
+  return undefined;
+}
+
+/**
  * Get or create instance-specific stats for the given rootPath
  */
 const getInstanceStats = (rootPath: string): InstanceStatsData => {
@@ -98,51 +135,49 @@ const cleanupProgressData = (rootPath: string) => {
 /**
  * Get current progress statistics without clearing the data
  */
-const getCurrentProgress = (rootPath: string): ProgressStats => {
+const getProgressStats = (rootPath: string): ProgressStats => {
     const instanceStats = getInstanceStats(rootPath);
-    const now = Date.now();
-    const elapsedTime = instanceStats.syncStartTime > 0 ? now - instanceStats.syncStartTime : 0;
+    const elapsedTime = Date.now() - instanceStats.syncStartTime;
     const totalItems = instanceStats.itemsSavedStats.length;
-    const itemsPerSecond = elapsedTime > 0 ? (totalItems / elapsedTime) * 1000 : 0;
     
-    // Get recent activity (last 10 items)
-    const recentActivity = instanceStats.itemsSavedStats.slice(-10).map(item => ({
-        itemType: item.itemType,
-        itemID: item.itemID,
-        timestamp: item.timestamp
-    }));
-
     return {
         totalItems,
         itemsByType: { ...instanceStats.progressByType },
         elapsedTime,
-        itemsPerSecond,
-        recentActivity
+        itemsPerSecond: totalItems > 0 ? (totalItems / (elapsedTime / 1000)) : 0,
+        recentActivity: instanceStats.itemsSavedStats.slice(-10).map(item => ({
+            itemType: item.itemType,
+            itemID: item.itemID,
+            timestamp: item.timestamp
+        }))
     };
 };
 
 /**
- * Update progress counters and trigger callback if set (optimized for memory)
+ * Update progress and trigger callback if set
  */
 const updateProgress = (itemType: string, itemID: string | number, rootPath: string) => {
     const instanceStats = getInstanceStats(rootPath);
-    const timestamp = Date.now();
     
-    // Limit stats array size to prevent memory bloat (keep only recent items)
-    const MAX_STATS_HISTORY = 200; // Reduced from 1000 to 200
-    if (instanceStats.itemsSavedStats.length >= MAX_STATS_HISTORY) {
-        instanceStats.itemsSavedStats.shift(); // Remove oldest entry
-    }
-    instanceStats.itemsSavedStats.push({ itemType, itemID, languageCode: 'current', timestamp });
+    // Add to stats
+    instanceStats.itemsSavedStats.push({
+        itemType,
+        itemID,
+        languageCode: 'unknown', // Language not available at this level
+        timestamp: Date.now()
+    });
     
-    // Update type counters
+    // Update type counts
     instanceStats.progressByType[itemType] = (instanceStats.progressByType[itemType] || 0) + 1;
     
-    // More aggressive throttling to reduce UI pressure
-    const totalItems = Object.values(instanceStats.progressByType).reduce((sum, count) => sum + count, 0);
-    if (instanceStats.progressCallback && (totalItems % 10 === 0 || totalItems < 50)) { // Call every 10 items after 50, all items before 50
-        const currentStats = getCurrentProgress(rootPath);
-        instanceStats.progressCallback(currentStats);
+    // Clean up old data periodically
+    if (instanceStats.itemsSavedStats.length % 50 === 0) {
+        cleanupProgressData(rootPath);
+    }
+    
+    // Trigger callback if set
+    if (instanceStats.progressCallback) {
+        instanceStats.progressCallback(getProgressStats(rootPath));
     }
 };
 
@@ -198,6 +233,21 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 		// REMOVE direct log, PUSH to stats array
         // console.log(`✓ Downloaded ${ansiColors.cyan(itemType)} (ID: ${itemID})`);
         updateProgress(itemType, itemID, options.rootPath);
+
+		// NEW: Sync delta tracking (only for pages and content items)
+		if (options.syncDeltaTracker && options.isIncrementalSync && (itemType === 'page' || itemType === 'item')) {
+			const entityType = mapItemTypeToEntityType(itemType);
+			const entityName = extractEntityName(item, itemType);
+			
+			options.syncDeltaTracker.recordChange({
+				id: itemID,
+				type: entityType,
+				action: 'updated', // All items in incremental sync are updates
+				name: entityName,
+				referenceName: extractReferenceName(item, itemType),
+				timestamp: '' // Auto-added by tracker
+			});
+		}
        
 		
 	} catch (error) {
@@ -380,19 +430,23 @@ const getFilePath = ({ options, itemType, languageCode, itemID }) => {
 // Enhanced function to get and clear saved item stats with progress data
 const getAndClearSavedItemStats = (rootPath: string) => {
     const instanceStats = getInstanceStats(rootPath);
-    const stats = [...instanceStats.itemsSavedStats];
-    const progressByType = { ...instanceStats.progressByType };
-    const finalStats = getCurrentProgress(rootPath);
+    const stats = getProgressStats(rootPath);
     
-    // Clear the buffers for the next operation
+    // Prepare detailed summary
+    const summary = {
+        totalItems: stats.totalItems,
+        elapsedTime: stats.elapsedTime,
+        itemsPerSecond: stats.itemsPerSecond
+    };
+    
+    // Clear stats for this instance
     instanceStats.itemsSavedStats = [];
     instanceStats.progressByType = {};
-    instanceStats.syncStartTime = 0;
     
     return {
-        items: stats,
-        summary: finalStats,
-        itemsByType: progressByType
+        summary,
+        itemsByType: stats.itemsByType,
+        recentActivity: stats.recentActivity
     };
 };
 
@@ -406,7 +460,7 @@ module.exports = {
     getAndClearSavedItemStats, // RE-ADD Export
     setProgressCallback,
     initializeProgress,
-    getCurrentProgress,
+    getCurrentProgress: getProgressStats, // Alias for getProgressStats
     updateProgress,
     cleanupProgressData  // NEW: Memory cleanup function
 }

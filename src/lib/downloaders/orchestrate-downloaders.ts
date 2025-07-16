@@ -1,6 +1,7 @@
 import { getState } from '../../core/state';
 import { StepStatusManager, StepExecutionContext } from '../ui/progress/step-status-manager';
 import { fileOperations } from '../../core/fileOperations';
+import { SyncDeltaTracker } from '../shared/sync-delta-tracker';
 import ansiColors from 'ansi-colors';
 
 // Import existing downloaders
@@ -33,6 +34,7 @@ export class DownloadOrchestrator {
   private stepStatusManager: StepStatusManager;
   private config: DownloadOrchestratorConfig;
   private startTime: Date = new Date();
+  private syncDeltaTracker?: SyncDeltaTracker;
 
   constructor(config: DownloadOrchestratorConfig = {}) {
     this.config = config;
@@ -153,9 +155,9 @@ export class DownloadOrchestrator {
       }
     }
     
-    console.log(`🚀 PARALLEL EXECUTION: Starting ${totalCombinations} downloads simultaneously...`);
+    // console.log(`PARALLEL EXECUTION: Starting ${totalCombinations} downloads simultaneously...`);
     downloadOperations.forEach(({ guid, locale }) => {
-      console.log(`   📥 ${guid} (${locale})`);
+      console.log(`${guid} (${locale})`);
     });
     
     // Start ALL downloads simultaneously (true parallel execution)
@@ -165,7 +167,6 @@ export class DownloadOrchestrator {
       downloadTasks.push(downloadPromise);
     });
     
-    console.log(`⏱️  All ${downloadTasks.length} downloads started at ${new Date().toISOString()}`);
     const results = await Promise.allSettled(downloadTasks);
     const totalElapsed = Date.now() - startTime;
     
@@ -194,8 +195,8 @@ export class DownloadOrchestrator {
     
     // Report parallel execution summary
     const totalElapsedSeconds = Math.floor(totalElapsed / 1000);
-    console.log(ansiColors.cyan(`\n🎯 PARALLEL EXECUTION COMPLETE (${totalElapsedSeconds}s total)`));
-    console.log(ansiColors.green(`✅ Successful: ${successfulResults.length}/${totalCombinations}`));
+    // console.log(ansiColors.cyan(`\nPARALLEL EXECUTION COMPLETE (${totalElapsedSeconds}s total)`));
+    // console.log(ansiColors.green(`Successful: ${successfulResults.length}/${totalCombinations}`));
     
     if (failedResults.length > 0) {
       console.log(ansiColors.red(`❌ Failed: ${failedResults.length}/${totalCombinations}`));
@@ -208,7 +209,7 @@ export class DownloadOrchestrator {
     if (successfulResults.length > 0) {
       const avgDuration = successfulResults.reduce((sum, r) => sum + r.totalDuration, 0) / successfulResults.length;
       const avgSeconds = Math.floor(avgDuration / 1000);
-      console.log(ansiColors.gray(`📊 Average per download: ${avgSeconds}s`));
+      // console.log(ansiColors.gray(`Average per download: ${avgSeconds}s`));
     }
     
     return successfulResults;
@@ -242,6 +243,10 @@ export class DownloadOrchestrator {
     try {
       const instanceStart = Date.now();
       
+      // Initialize SyncDeltaTracker for this download session
+      const channel = isolatedState.channel || 'website';
+      this.syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
+      
       // Create fileOperations instance for this specific GUID and locale
       const fileOps = new fileOperations(isolatedState.rootPath, guid, locale, isolatedState.preview, isolatedState.legacyFolders);
 
@@ -257,13 +262,13 @@ export class DownloadOrchestrator {
 
         try {
           // Enhanced logging to debug container download issue
-          console.log(`${guid} (${locale}): Starting ${stepName}`);
+          // console.log(`${guid} (${locale}): Starting ${stepName}`);
           
-          await this.executeStepForInstanceIsolated(stepConfig, guid, locale, fileOps, isolatedState);
+          await this.executeStepForInstanceIsolated(stepConfig, guid, locale, fileOps, isolatedState, this.syncDeltaTracker);
           
           results.successful.push(`${stepName} (${locale})`);
           
-          console.log(`${guid} (${locale}): ${stepName} completed successfully`);
+          // console.log(`${guid} (${locale}): ${stepName} completed successfully`);
           
         } catch (error: any) {
           const errorMessage = error.message || 'Unknown error';
@@ -274,7 +279,7 @@ export class DownloadOrchestrator {
 
       results.totalDuration = Date.now() - startTime;
       const duration = Math.floor(results.totalDuration / 1000);
-      console.log(`✅ ${guid} (${locale}): Completed in ${duration}s`);
+      console.log(`${guid} (${locale}): Completed in ${duration}s`);
 
       // Finalize log file and store the path
       try {
@@ -285,6 +290,19 @@ export class DownloadOrchestrator {
         }
       } catch (logError: any) {
         console.error(`${guid} (${locale}): Could not finalize log file - ${logError.message}`);
+      }
+
+      // Write sync delta report
+      if (this.syncDeltaTracker) {
+        try {
+          const deltaFilePath = await this.syncDeltaTracker.writeSyncDelta(isolatedState.rootPath);
+          if (isolatedState.useVerbose) {
+            console.log(`${guid} (${locale}): Sync delta written to ${deltaFilePath}`);
+            // console.log(this.syncDeltaTracker.getFormattedSummary());
+          }
+        } catch (deltaError: any) {
+          console.error(`${guid} (${locale}): Could not write sync delta - ${deltaError.message}`);
+        }
       }
 
       return results;
@@ -388,16 +406,16 @@ export class DownloadOrchestrator {
   /**
    * Execute a specific step for a specific instance using isolated state
    */
-  private async executeStepForInstanceIsolated(stepConfig: any, guid: string, locale: string, fileOps: fileOperations, isolatedState: any): Promise<void> {
+  private async executeStepForInstanceIsolated(stepConfig: any, guid: string, locale: string, fileOps: fileOperations, isolatedState: any, syncDeltaTracker?: SyncDeltaTracker): Promise<void> {
     const stepName = stepConfig.name;
 
     switch (stepName) {
       case 'downloadAllSyncSDK':
-        await downloadAllSyncSDK(guid, locale, isolatedState.preview, isolatedState.channel, isolatedState.rootPath, isolatedState.update);
+        await downloadAllSyncSDK(guid, locale, isolatedState.preview, isolatedState.channel, isolatedState.rootPath, isolatedState.update, syncDeltaTracker);
         break;
       
       case 'downloadAllModels':
-        await downloadAllModels(fileOps);
+        await downloadAllModels(fileOps, undefined, syncDeltaTracker);
         break;
       
       case 'downloadAllTemplates':
@@ -501,7 +519,7 @@ export async function executeDownloadsWithProgress(
 ): Promise<DownloadResults> {
   const orchestrator = createDownloadOrchestrator({
     onStepStart: (stepName, guid) => {
-      console.log(`Starting ${stepName} for ${guid}`);
+      // console.log(`Starting ${stepName} for ${guid}`);
     },
     onStepProgress: (stepName, guid, percentage) => {
       onProgress?.(stepName, percentage);
