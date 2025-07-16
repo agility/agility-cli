@@ -243,9 +243,9 @@ export class DownloadOrchestrator {
     try {
       const instanceStart = Date.now();
       
-      // Initialize SyncDeltaTracker for this download session
+      // Initialize SyncDeltaTracker for this download session (local to this instance)
       const channel = isolatedState.channel || 'website';
-      this.syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
+      const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
       
       // Create fileOperations instance for this specific GUID and locale
       const fileOps = new fileOperations(isolatedState.rootPath, guid, locale, isolatedState.preview, isolatedState.legacyFolders);
@@ -264,7 +264,7 @@ export class DownloadOrchestrator {
           // Enhanced logging to debug container download issue
           // console.log(`${guid} (${locale}): Starting ${stepName}`);
           
-          await this.executeStepForInstanceIsolated(stepConfig, guid, locale, fileOps, isolatedState, this.syncDeltaTracker);
+          await this.executeStepForInstanceIsolated(stepConfig, guid, locale, fileOps, isolatedState, syncDeltaTracker);
           
           results.successful.push(`${stepName} (${locale})`);
           
@@ -293,12 +293,26 @@ export class DownloadOrchestrator {
       }
 
       // Write sync delta report
-      if (this.syncDeltaTracker) {
+      if (syncDeltaTracker) {
         try {
-          const deltaFilePath = await this.syncDeltaTracker.writeSyncDelta(isolatedState.rootPath);
-          if (isolatedState.useVerbose) {
-            console.log(`${guid} (${locale}): Sync delta written to ${deltaFilePath}`);
-            // console.log(this.syncDeltaTracker.getFormattedSummary());
+          // Only write sync delta for source instances during sync operations
+          // This prevents target instance from overwriting source instance changes
+          const { getState } = await import('../../core/state');
+          const state = getState();
+          const isSourceInstance = state.sourceGuid?.includes(guid);
+          const isSyncOperation = state.targetGuid && state.targetGuid.length > 0;
+          
+          if (!isSyncOperation || isSourceInstance) {
+            const deltaFilePath = await syncDeltaTracker.writeSyncDelta(isolatedState.rootPath);
+            if (isolatedState.useVerbose) {
+              const operationType = isSyncOperation ? 'sync' : 'pull';
+              console.log(`${guid} (${locale}): ${operationType} delta written to ${deltaFilePath}`);
+              // console.log(syncDeltaTracker.getFormattedSummary());
+            }
+          } else {
+            if (isolatedState.useVerbose) {
+              console.log(`${guid} (${locale}): Skipping sync delta (target instance in sync operation)`);
+            }
           }
         } catch (deltaError: any) {
           console.error(`${guid} (${locale}): Could not write sync delta - ${deltaError.message}`);
@@ -423,15 +437,15 @@ export class DownloadOrchestrator {
         break;
       
       case 'downloadAllContainers':
-        await downloadAllContainers(fileOps);
+        await downloadAllContainers(fileOps, undefined, syncDeltaTracker);
         break;
       
       case 'downloadAllAssets':
-        await downloadAllAssets(fileOps);
+        await downloadAllAssets(fileOps, undefined, syncDeltaTracker);
         break;
       
       case 'downloadAllGalleries':
-        await downloadAllGalleries(fileOps);
+        await downloadAllGalleries(fileOps, undefined, syncDeltaTracker);
         break;
       
       default:

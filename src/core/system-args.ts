@@ -136,6 +136,12 @@ export const systemArgs = {
     alias: ["overwrite", "Overwrite", "OVERWRITE"],
     default: false
   },
+  force: {
+    describe: "Override target safety conflicts during sync operations. When target instance has changes AND sync delta has updates, --force will apply sync changes anyway. Default: false (safer behavior to prevent data loss).",
+    type: "boolean" as const,
+    alias: ["force", "Force", "FORCE"],
+    default: false
+  },
   update: {
     describe: "Controls file downloading behavior. --update=false (default): Skip existing files during download (normal efficient behavior). --update=true: Force download/overwrite existing files and clear sync tokens for complete refresh.",
     type: "boolean" as const,
@@ -168,3 +174,28 @@ export const systemArgs = {
  * Type helper for command arguments that include system args
  */
 export type SystemArgsType = typeof systemArgs; 
+
+export interface SystemArgs {
+  help?: boolean;
+  version?: boolean;
+  pull?: boolean;
+  push?: boolean;
+  sync?: boolean;
+  clean?: boolean;
+  generate?: boolean;
+  publish?: boolean;
+  test?: boolean;
+  verbose?: boolean;
+  overwrite?: boolean;
+  force?: boolean; // New: Override target safety conflicts
+  update?: boolean;
+  legacyFolders?: boolean;
+  elements?: string;
+  guid?: string;
+  sourceGuid?: string;
+  targetGuid?: string;
+  locale?: string;
+  channel?: string;
+  preview?: boolean;
+  rootPath?: string;
+} 

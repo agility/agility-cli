@@ -2,10 +2,11 @@ import * as mgmtApi from '@agility/management-sdk';
 import { ReferenceMapper } from "../shared/reference-mapper";
 import ansiColors from 'ansi-colors';
 import { getState } from "../../core/state";
+import { FinderDecisionEngine, FinderDecision } from "../shared/target-safety-detector";
 
 /**
- * Enhanced container finder following the asset-finder pattern
- * Returns shouldUpdate/shouldCreate/shouldSkip decisions based on lastModifiedDate comparison
+ * Enhanced container finder with proper target safety and conflict resolution
+ * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
  */
 export async function findContainerInTargetInstanceEnhanced(
     sourceContainer: mgmtApi.Container,
@@ -13,46 +14,33 @@ export async function findContainerInTargetInstanceEnhanced(
     targetGuid: string,
     targetData: any,
     referenceMapper: ReferenceMapper
-): Promise<{ container: mgmtApi.Container | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean }> {
+): Promise<{ container: mgmtApi.Container | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: FinderDecision }> {
     const state = getState();
-    const overwrite = state.overwrite;
-    let existsInTarget = false;
 
-
-    // STEP 1: Check for existing mapping of source container to target container
+    // STEP 1: Find existing mapping
     const existingMapping = referenceMapper.getMappingByKey<mgmtApi.Container>("container", "referenceName", sourceContainer.referenceName);
     let targetContainerFromMapping: mgmtApi.Container | null = existingMapping?.target || null;
 
-    // console.log(ansiColors.magenta(`existingMapping: ${JSON.stringify(existingMapping)}`));
-    // console.log(ansiColors.magenta(`sourceContainer: ${JSON.stringify(sourceContainer)}`));
-
-    // console.log(ansiColors.green(`targetContainerFromMapping: ${targetContainerFromMapping}`));
-    // console.log(ansiColors.green(`sourceContainer: ${sourceContainer.referenceName}`));
-
-    // STEP 2: Find target instance data (local file data) for this container
+    // STEP 2: Find target instance data with enhanced matching
     const targetInstanceData = targetData.containers?.find((c: any) => {
-        // Try multiple matching strategies for target data
         if (targetContainerFromMapping) {
-            // If we have a mapping, match by target container properties
             return (
                 c.referenceName === targetContainerFromMapping.referenceName ||
                 c.contentViewID === targetContainerFromMapping.contentViewID
             );
         } else {
-            // If no mapping, match by source container properties
-            // Try exact match first
+            // Enhanced matching strategies for containers
             if (c.referenceName === sourceContainer.referenceName) {
                 return true;
             }
             
-            // Try case-insensitive match
+            // Case-insensitive match
             if (c.referenceName && sourceContainer.referenceName &&
                 c.referenceName.toLowerCase() === sourceContainer.referenceName.toLowerCase()) {
                 return true;
             }
             
-            // Try partial match for containers with generated suffixes
-            // Many containers have patterns like: "containerName_SomeGeneratedSuffix"
+            // Partial match for containers with generated suffixes
             const sourceBase = sourceContainer.referenceName?.split('_')[0]?.toLowerCase();
             const targetBase = c.referenceName?.split('_')[0]?.toLowerCase();
             
@@ -65,78 +53,31 @@ export async function findContainerInTargetInstanceEnhanced(
         }
     });
 
-    // console.log(ansiColors.magenta(`targetInstanceData: ${JSON.stringify(targetInstanceData)}`));
-
-    if (targetInstanceData) {
-        existsInTarget = true;
-    }
-
-    // STEP 3: Decision logic based on mapping and target data
-    let shouldUpdate = false;
-    let shouldCreate = false;
-    let shouldSkip = false;
-    let finalTargetContainer: mgmtApi.Container | null = null;
-
-    if (targetInstanceData) {
-        // Target container exists in target instance
-        finalTargetContainer = targetInstanceData;
-        shouldCreate = false;
-
-        if (targetContainerFromMapping) {
-            // Both mapping and target data exist - compare dates for update decision
-            const mappingDate = new Date(targetContainerFromMapping.lastModifiedDate || 0);
-            const targetDataDate = new Date(targetInstanceData.lastModifiedDate || 0);
-
-            if (targetDataDate > mappingDate) {
-                shouldUpdate = true;
-                shouldSkip = false;
-            } else {
-                shouldUpdate = false;
-                shouldSkip = true;
-            }
-        } else {
-            // Target data exists but no mapping - this is an existing container, add mapping
-            shouldUpdate = false;
-            shouldSkip = true;
-        }
-
-        // REMOVED: Do not update mapping here - let the pusher handle it after successful operations
-    } else {
-        // No target instance data found - container doesn't exist in target
-        shouldCreate = true;
-        shouldUpdate = false;
-        shouldSkip = false;
-        finalTargetContainer = null;
-        // console.log(ansiColors.blue(`Container ${sourceContainer.referenceName} not found in target - should create`));
-    }
-
-    // STEP 5: Handle overwrite flag
-    if (overwrite) {
-        if (existsInTarget) {
-            shouldUpdate = true;
-            shouldCreate = false;
-            shouldSkip = false;
-        } else {
-            shouldCreate = true;
-            shouldUpdate = false;
-            shouldSkip = false;
-        }
-    }
+    // STEP 3: Use FinderDecisionEngine for proper conflict resolution
+    const decision = FinderDecisionEngine.makeDecision(
+        'container',
+        sourceContainer.contentViewID,
+        sourceContainer.referenceName || `Container-${sourceContainer.contentViewID}`,
+        sourceContainer,
+        targetContainerFromMapping,
+        targetInstanceData
+    );
 
     return {
-        container: finalTargetContainer || sourceContainer, // If no target container found, use source container as fallback
-        shouldUpdate: shouldUpdate,
-        shouldCreate: shouldCreate,
-        shouldSkip: shouldSkip,
+        container: decision.entity || sourceContainer, // Fallback to source container if no target found
+        shouldUpdate: decision.shouldUpdate,
+        shouldCreate: decision.shouldCreate,
+        shouldSkip: decision.shouldSkip,
+        decision: decision
     };
 }
 
 // Function overloads to handle both Container object and string referenceName
 export async function findContainerInTargetInstance(
-    container: mgmtApi.Container, 
-    apiClient: mgmtApi.ApiClient, 
-    guid: string,
-    referenceMapper: ReferenceMapper
+  container: mgmtApi.Container,
+  apiClient: mgmtApi.ApiClient,
+  guid: string,
+  referenceMapper: ReferenceMapper
 ): Promise<mgmtApi.Container | null>;
 
 export async function findContainerInTargetInstance(
@@ -152,77 +93,35 @@ export async function findContainerInTargetInstance(
     guid: string,
     referenceMapper: ReferenceMapper
 ): Promise<mgmtApi.Container | null> {
-    try {
-        // Extract referenceName from either Container object or string
-        const referenceName = typeof containerOrReferenceName === 'string' 
-            ? containerOrReferenceName 
-            : containerOrReferenceName.referenceName;
-        
-        const contentDefinitionID = typeof containerOrReferenceName === 'string' 
-            ? undefined 
-            : containerOrReferenceName.contentDefinitionID;
+  try {
+    // Extract referenceName from either Container object or string
+    const referenceName = typeof containerOrReferenceName === 'string' 
+        ? containerOrReferenceName 
+        : containerOrReferenceName.referenceName;
 
-        // Check mapper cache first
-        const mapping = referenceMapper.getMapping<mgmtApi.Container>('container', 'referenceName', referenceName);
-        if (mapping?.target) {
-            return mapping.target;
-        }
+    // First check the local reference mapper for a container with the same reference name
+    const mappingResult = referenceMapper.getMappingByKey("container", "referenceName", referenceName);
+    const targetMapping = mappingResult?.target;
 
-        // Try to find container by reference name in target instance
-        try {
-            const targetContainer = await apiClient.containerMethods.getContainerByReferenceName(referenceName, guid);
-            if (targetContainer) {
-                return targetContainer;
-            }
-        } catch (error: any) {
-            // Container not found with exact case - try case-insensitive search
-            try {
-                const allContainers = await apiClient.containerMethods.getContainerList(guid);
-                const caseInsensitiveMatch = allContainers.find(c => 
-                    c.referenceName && referenceName &&
-                    c.referenceName.toLowerCase() === referenceName.toLowerCase()
-                );
-                
-                if (caseInsensitiveMatch) {
-                    return caseInsensitiveMatch;
-                }
-            } catch (listError: any) {
-                // Continue to model-based lookup
-            }
-        }
-
-        // Try to find by model mapping (for containers with model dependencies) - only if we have contentDefinitionID
-        if (contentDefinitionID) {
-            const modelMapping = referenceMapper.getMapping<mgmtApi.Model>('model', 'id', contentDefinitionID);
-            if (modelMapping?.target) {
-                try {
-                    // Get all containers and find one with matching model ID and EXACT reference name
-                    const allContainers = await apiClient.containerMethods.getContainerList(guid);
-                    const potentialMatch = allContainers.find(c => 
-                        c.contentDefinitionID === modelMapping.target.id &&
-                        (c.referenceName === referenceName || 
-                         (c.referenceName && referenceName && 
-                          c.referenceName.toLowerCase() === referenceName.toLowerCase()))
-                    );
-
-                    if (potentialMatch) {
-                        return potentialMatch;
-                    }
-                } catch (error: any) {
-                    // Continue - will create new container
-                }
-            }
-        }
-
-        // container not found in target instance
-        // console.log(ansiColors.yellow(`✗ Container Not found in target instance: ${referenceName}`));
-        return null;
-
-    } catch (error: any) {
-        if (error.response && error.response.status === 404) {
-            return null;
-        }
-        // console.error(`[Container Finder] Error searching for ${typeof containerOrReferenceName === 'string' ? containerOrReferenceName : containerOrReferenceName.referenceName}:`, error.message);
-        throw error;
+    if (targetMapping) {
+      return targetMapping as mgmtApi.Container;
     }
+
+    // If not in mapper, try to find it in the target instance by referenceName
+    const containers = await apiClient.containerMethods.getContainerList(guid);
+    const targetContainer = containers.find(c => c.referenceName === referenceName);
+
+    if (targetContainer) {
+      // CRITICAL: Add the mapping so we don't lose track of it
+      // Only add mapping if we have the full container object
+      if (typeof containerOrReferenceName !== 'string') {
+        referenceMapper.addMapping("container", containerOrReferenceName, targetContainer);
+      }
+      return targetContainer;
+    }
+
+    return null;
+  } catch (error: any) {
+    return null;
+  }
 }

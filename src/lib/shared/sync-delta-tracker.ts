@@ -197,3 +197,85 @@ export class SyncDeltaTracker {
     return lines.join('\n');
   }
 } 
+
+/**
+ * Static utility methods for reading sync delta data
+ */
+export class SyncDeltaReader {
+  /**
+   * Load sync delta from file system
+   */
+  static loadSyncDelta(rootPath: string = process.cwd()): SyncDelta | null {
+    try {
+      const agilityFilesDir = rootPath.endsWith('agility-files') 
+        ? rootPath 
+        : path.join(rootPath, 'agility-files');
+      const filePath = path.join(agilityFilesDir, 'sync-delta.json');
+      
+      if (!fs.existsSync(filePath)) {
+        return null;
+      }
+      
+      const content = fs.readFileSync(filePath, 'utf8');
+      return JSON.parse(content) as SyncDelta;
+    } catch (error) {
+      console.warn('Warning: Could not load sync delta file:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Check if an entity is marked for update in sync delta
+   */
+  static isEntityInSyncDelta(
+    entityType: string,
+    entityId: string | number,
+    referenceName?: string,
+    rootPath: string = process.cwd()
+  ): boolean {
+    const syncDelta = this.loadSyncDelta(rootPath);
+    if (!syncDelta) {
+      return false;
+    }
+
+    return syncDelta.entities.some(entity => {
+      // Match by type first
+      if (entity.type !== entityType) {
+        return false;
+      }
+      
+      // Match by ID or referenceName
+      const idMatches = entity.id.toString() === entityId.toString();
+      const nameMatches = referenceName && entity.referenceName === referenceName;
+      
+      // Entity is in sync delta if it matches by ID or name AND has an action that requires updating
+      return (idMatches || nameMatches) && (entity.action === 'updated' || entity.action === 'created');
+    });
+  }
+
+  /**
+   * Get sync delta entity by type and identifier
+   */
+  static getSyncDeltaEntity(
+    entityType: string,
+    entityId: string | number,
+    referenceName?: string,
+    rootPath: string = process.cwd()
+  ): EntityChange | null {
+    const syncDelta = this.loadSyncDelta(rootPath);
+    if (!syncDelta) {
+      return null;
+    }
+
+    return syncDelta.entities.find(entity => {
+      if (entity.type !== entityType) {
+        return false;
+      }
+      
+      const idMatches = entity.id.toString() === entityId.toString();
+      const nameMatches = referenceName && entity.referenceName === referenceName;
+      
+      return idMatches || nameMatches;
+    }) || null;
+  }
+} 

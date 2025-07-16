@@ -1,11 +1,14 @@
 import { fileOperations } from "../../core/fileOperations";
 import { getApiClient, getState } from "../../core/state";
 import ansiColors from "ansi-colors";
-import { ContentHashComparer } from "../shared/content-hash-comparer";
+import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
+import * as fs from "fs";
+import * as path from "path";
 
 export async function downloadAllGalleries(
   fileOps: fileOperations, 
-  progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
+  progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void,
+  syncDeltaTracker?: SyncDeltaTracker
 ): Promise<void> {
   // Get values from fileOps which is already configured for this specific GUID/locale
   const guid = fileOps.guid;
@@ -16,130 +19,188 @@ export async function downloadAllGalleries(
     throw new Error('Source GUID not available in state');
   }
 
-  let pageSize = 250;
-  let rowIndex = 0;
-  let index = 1;
-  let processedCount = 0;
+  // Helper function to get local gallery metadata
+  function getLocalGalleryInfo(filePath: string): { modifiedOn?: string; exists: boolean } {
+    try {
+      if (!fs.existsSync(filePath)) {
+        return { exists: false };
+      }
+      const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      // Gallery files contain assetMediaGroupings arrays, find the most recent modifiedOn
+      if (content.assetMediaGroupings && Array.isArray(content.assetMediaGroupings)) {
+        const dates = content.assetMediaGroupings
+          .map((g: any) => g.modifiedOn)
+          .filter((date: any) => date)
+          .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime());
+        return {
+          modifiedOn: dates[0],
+          exists: true
+        };
+      }
+      return { exists: true };
+    } catch (error) {
+      return { exists: false };
+    }
+  }
+
+  // Helper function to check if gallery needs download based on modifiedOn date
+  function shouldDownloadGallery(apiGalleries: any[], localInfo: { modifiedOn?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
+    if (update) {
+      return { shouldDownload: true, reason: 'forced update' };
+    }
+
+    if (!localInfo.exists) {
+      return { shouldDownload: true, reason: 'new file' };
+    }
+
+    if (!localInfo.modifiedOn || !apiGalleries || apiGalleries.length === 0) {
+      return { shouldDownload: true, reason: 'missing date info' };
+    }
+
+    // Find the most recent modifiedOn date from API galleries
+    const apiDates = apiGalleries
+      .map((g: any) => g.modifiedOn)
+      .filter((date: any) => date)
+      .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime());
+
+    if (apiDates.length === 0) {
+      return { shouldDownload: false, reason: 'unchanged' };
+    }
+
+    const apiDate = new Date(apiDates[0]);
+    const localDate = new Date(localInfo.modifiedOn);
+
+    if (apiDate > localDate) {
+      return { shouldDownload: true, reason: 'content changed' };
+    }
+
+    return { shouldDownload: false, reason: 'unchanged' };
+  }
+
+  let index = 0;
   let skippedCount = 0;
-  const startTime = Date.now(); // Track start time for performance measurement
+  let downloadedCount = 0;
 
   try {
-    let initialRecords = await apiClient.assetMethods.getGalleries(
-      guid,
-      "",
-      pageSize,
-      rowIndex
-    );
-
-    let totalRecords = initialRecords.totalCount;
-    let iterations = Math.ceil(totalRecords / pageSize);
-    
-    if (iterations === 0) {
-      iterations = 1;
+    let initialRecords;
+    try {
+      initialRecords = await apiClient.assetMethods.getGalleries(guid, "", 500, 0);
+    } catch (error) {
+      console.log("Error loading galleries:");
+      console.error(error);
+      if (progressCallback) progressCallback(0, 0, 'error');
+      return;
     }
 
     fileOps.createFolder("assets/galleries");
     
     // Process initial records
     const initialFilePath = fileOps.getDataFolderPath(`assets/galleries/${index}.json`);
-    if (!update) {
-      const hashComparison = ContentHashComparer.getHashComparison(initialRecords, initialFilePath);
+    const localInfo = getLocalGalleryInfo(initialFilePath);
+    const downloadDecision = shouldDownloadGallery(initialRecords.assetMediaGroupings, localInfo);
+    
+    if (downloadDecision.shouldDownload) {
+      fileOps.exportFiles("assets/galleries", index, initialRecords);
+      console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${downloadDecision.reason})`)}`);
+      downloadedCount++;
       
-      if (hashComparison.status === 'unchanged') {
-        const hashDisplay = hashComparison.shortHashes 
-          ? `${ansiColors.green(`[${hashComparison.shortHashes.api}]`)}`
-          : '';
-        console.log(ansiColors.grey.italic('Found'), ansiColors.gray(`galleries-${index}.json`), ansiColors.grey.italic('content unchanged, skipping'), hashDisplay);
-        skippedCount++;
-      } else {
-        fileOps.exportFiles("assets/galleries", index, initialRecords);
-        
-        if (hashComparison.status === 'modified') {
-          const hashDisplay = hashComparison.shortHashes 
-            ? `${ansiColors.red(`[${hashComparison.shortHashes.local}`)} → ${ansiColors.green(`${hashComparison.shortHashes.api}]`)}`
-            : '';
-          console.log(`✓ Updated gallery ${ansiColors.cyan(`galleries-${index}.json`)} ${ansiColors.gray('(content changed)')} ${hashDisplay}`);
-        } else if (hashComparison.status === 'not-exists') {
-          const hashDisplay = hashComparison.apiHash 
-            ? `${ansiColors.green(`[${hashComparison.apiHash.substring(0, 6)}]`)}`
-            : '';
-          console.log(`✓ Downloaded gallery ${ansiColors.cyan(`galleries-${index}.json`)} ${ansiColors.gray('(new file)')} ${hashDisplay}`);
-        } else {
-          console.log(`✓ Downloaded gallery ${ansiColors.cyan(`galleries-${index}.json`)} ${ansiColors.gray('(error reading local file)')}`);
-        }
+      // Record in sync delta
+      if (syncDeltaTracker) {
+        syncDeltaTracker.recordChange({
+          id: index,
+          type: 'gallery',
+          action: downloadDecision.reason === 'new file' ? 'created' : 'updated',
+          name: `galleries-${index}.json`,
+          referenceName: `galleries-${index}`,
+          timestamp: ''
+        });
       }
     } else {
-      // Force update mode
-      fileOps.exportFiles("assets/galleries", index, initialRecords);
-      console.log(`✓ Downloaded gallery ${ansiColors.cyan(`galleries-${index}.json`)} ${ansiColors.gray('(forced update)')}`);
-    }
-    
-    processedCount++;
-    index++;
-
-    // Process remaining pages if needed
-    if (totalRecords > pageSize) {
-      for (let i = 1; i < iterations; i++) {
-        rowIndex += pageSize;
-        
-        let galleries = await apiClient.assetMethods.getGalleries(
-          guid,
-          "",
-          pageSize,
-          rowIndex
-        );
-
-        const galleryFilePath = fileOps.getDataFolderPath(`assets/galleries/${index}.json`);
-        
-        if (!update) {
-          const hashComparison = ContentHashComparer.getHashComparison(galleries, galleryFilePath);
-          
-          if (hashComparison.status === 'unchanged') {
-            const hashDisplay = hashComparison.shortHashes 
-              ? `${ansiColors.green(`[${hashComparison.shortHashes.api}]`)}`
-              : '';
-            console.log(ansiColors.grey.italic('Found'), ansiColors.gray(`galleries-${index}.json`), ansiColors.grey.italic('content unchanged, skipping'), hashDisplay);
-            skippedCount++;
-          } else {
-            fileOps.exportFiles("assets/galleries", index, galleries);
-            
-            if (hashComparison.status === 'modified') {
-              const hashDisplay = hashComparison.shortHashes 
-                ? `${ansiColors.red(`[${hashComparison.shortHashes.local}`)} → ${ansiColors.green(`${hashComparison.shortHashes.api}]`)}`
-                : '';
-              console.log(`✓ Updated gallery ${ansiColors.cyan(`galleries-${index}.json`)} ${ansiColors.gray('(content changed)')} ${hashDisplay}`);
-            } else if (hashComparison.status === 'not-exists') {
-              const hashDisplay = hashComparison.apiHash 
-                ? `${ansiColors.green(`[${hashComparison.apiHash.substring(0, 6)}]`)}`
-                : '';
-              console.log(`✓ Downloaded gallery ${ansiColors.cyan(`galleries-${index}.json`)} ${ansiColors.gray('(new file)')} ${hashDisplay}`);
-            } else {
-              console.log(`✓ Downloaded gallery ${ansiColors.cyan(`galleries-${index}.json`)} ${ansiColors.gray('(error reading local file)')}`);
-            }
-          }
-        } else {
-          // Force update mode
-          fileOps.exportFiles("assets/galleries", index, galleries);
-          console.log(`✓ Downloaded gallery ${ansiColors.cyan(`galleries-${index}.json`)} ${ansiColors.gray('(forced update)')}`);
-        }
-        
-        processedCount++;
-        index++;
-        
-        if (progressCallback) progressCallback(processedCount, totalRecords, 'progress');
+      console.log(`✓ Gallery file galleries-${index}.json up to date, skipping ${ansiColors.gray(`(${downloadDecision.reason})`)}`);
+      skippedCount++;
+      
+      // Record in sync delta
+      if (syncDeltaTracker) {
+        syncDeltaTracker.recordChange({
+          id: index,
+          type: 'gallery',
+          action: 'unchanged',
+          name: `galleries-${index}.json`,
+          referenceName: `galleries-${index}`,
+          timestamp: ''
+        });
       }
     }
 
-    // Summary
-    const downloadedCount = processedCount - skippedCount;
-    const elapsedTime = Date.now() - startTime;
-    const elapsedSeconds = (elapsedTime / 1000).toFixed(2);
-    console.log(ansiColors.yellow(`\nDownloaded ${downloadedCount} galleries (${downloadedCount}/${processedCount} galleries, ${skippedCount} skipped, 0 errors) in ${elapsedSeconds}s\n`));
+    index++;
+
+    // Process remaining records in batches
+    for (let rowIndex = 500; rowIndex < initialRecords.totalCount; rowIndex += 500) {
+      const galleries = await apiClient.assetMethods.getGalleries(
+        guid,
+        "",
+        500,
+        rowIndex
+      );
+
+      const galleryFilePath = fileOps.getDataFolderPath(`assets/galleries/${index}.json`);
+      const localGalleryInfo = getLocalGalleryInfo(galleryFilePath);
+      const galleryDownloadDecision = shouldDownloadGallery(galleries.assetMediaGroupings, localGalleryInfo);
+      
+      if (galleryDownloadDecision.shouldDownload) {
+        fileOps.exportFiles("assets/galleries", index, galleries);
+        console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${galleryDownloadDecision.reason})`)}`);
+        downloadedCount++;
+        
+        // Record in sync delta
+        if (syncDeltaTracker) {
+          syncDeltaTracker.recordChange({
+            id: index,
+            type: 'gallery',
+            action: galleryDownloadDecision.reason === 'new file' ? 'created' : 'updated',
+            name: `galleries-${index}.json`,
+            referenceName: `galleries-${index}`,
+            timestamp: ''
+          });
+        }
+      } else {
+        console.log(`✓ Gallery file galleries-${index}.json up to date, skipping ${ansiColors.gray(`(${galleryDownloadDecision.reason})`)}`);
+        skippedCount++;
+        
+        // Record in sync delta
+        if (syncDeltaTracker) {
+          syncDeltaTracker.recordChange({
+            id: index,
+            type: 'gallery',
+            action: 'unchanged',
+            name: `galleries-${index}.json`,
+            referenceName: `galleries-${index}`,
+            timestamp: ''
+          });
+        }
+      }
+
+      index++;
+    }
+
+    console.log(`Change Detection Results: ${ansiColors.green(downloadedCount.toString())} to download, ${ansiColors.gray(skippedCount.toString())} unchanged`);
+
+  } catch (error: any) {
+    console.error(`Error in downloadAllGalleries: ${error.message}`);
     
-    if (progressCallback) progressCallback(processedCount, totalRecords, 'success');
-  } catch (error) {
-    console.error("\nError downloading galleries:", error);
-    if (progressCallback) progressCallback(0, 1, 'error');
+    // Record error in sync delta
+    if (syncDeltaTracker) {
+      syncDeltaTracker.recordChange({
+        id: 'gallery-error',
+        type: 'gallery',
+        action: 'error',
+        name: 'Gallery download error',
+        referenceName: 'gallery-error',
+        timestamp: ''
+      });
+    }
+    
+    if (progressCallback) progressCallback(0, 0, 'error');
     throw error;
   }
 } 

@@ -41,6 +41,7 @@ interface CliState {
   
   // Operation control
   overwrite: boolean;
+  force: boolean; // New: Override target safety conflicts
   reset: boolean;
   update: boolean;
   
@@ -117,6 +118,7 @@ export const state: CliState = {
   
   // Operation control
   overwrite: false,
+  force: false,
   reset: false,
   update: true,
   
@@ -214,6 +216,7 @@ export function setState(argv: any) {
   
   // Operation control
   if (argv.overwrite !== undefined) state.overwrite = argv.overwrite;
+  if (argv.force !== undefined) state.force = argv.force;
   if (argv.reset !== undefined) state.reset = argv.reset;
   if (argv.update !== undefined) state.update = argv.update;
   
@@ -424,6 +427,7 @@ export function resetState() {
   
   // Operation control
   state.overwrite = false;
+  state.force = false;
   state.reset = false;
   state.update = true;
   

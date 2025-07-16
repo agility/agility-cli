@@ -2,10 +2,11 @@ import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapper } from "../shared/reference-mapper";
 import ansiColors from 'ansi-colors';
 import { getState } from "../../core/state";
+import { FinderDecisionEngine, FinderDecision } from "../shared/target-safety-detector";
 
 /**
- * Enhanced model finder following the asset-finder pattern
- * Returns shouldUpdate/shouldCreate/shouldSkip decisions based on lastModifiedDate comparison
+ * Enhanced model finder with proper target safety and conflict resolution
+ * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
  */
 export async function findModelInTargetInstanceEnhanced(
     sourceModel: mgmtApi.Model,
@@ -14,110 +15,62 @@ export async function findModelInTargetInstanceEnhanced(
     targetData: any,
     referenceMapper: ReferenceMapper,
     isStubPass: boolean = false
-): Promise<{ model: mgmtApi.Model | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean }> {
+): Promise<{ model: mgmtApi.Model | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: FinderDecision }> {
     const state = getState();
-    const overwrite = state.overwrite;
-    let existsInTarget = false;
 
-    // STEP 1: Check for existing mapping of source model to target model
+    // STEP 1: Find existing mapping
     const existingMapping = referenceMapper.getMappingByKey<mgmtApi.Model>("model", "referenceName", sourceModel.referenceName);
     let targetModelFromMapping: mgmtApi.Model | null = existingMapping?.target || null;
 
-    // STEP 2: Find target instance data (local file data) for this model
+    // STEP 2: Find target instance data
     const targetInstanceData = targetData.models?.find((m: any) => {
-        // Try multiple matching strategies for target data
         if (targetModelFromMapping) {
-            // If we have a mapping, match by target model properties
             return (
                 m.id === targetModelFromMapping.id ||
                 m.referenceName === targetModelFromMapping.referenceName
             );
         } else {
-            // If no mapping, match by source model properties
             return m.referenceName === sourceModel.referenceName;
         }
     });
 
-    if (targetInstanceData) {
-        existsInTarget = true;
+    // STEP 3: Handle stub pass (simplified logic for dependencies)
+    if (isStubPass) {
+        return {
+            model: targetInstanceData || targetModelFromMapping,
+            shouldUpdate: false,
+            shouldCreate: !targetInstanceData && !targetModelFromMapping,
+            shouldSkip: !!(targetInstanceData || targetModelFromMapping)
+        };
     }
 
-    // STEP 3: Decision logic based on mapping and target data
-    let shouldUpdate = false;
-    let shouldCreate = false;
-    let shouldSkip = false;
-    let finalTargetModel: mgmtApi.Model | null = null;
+    // STEP 4: Use FinderDecisionEngine for proper conflict resolution
+    const decision = FinderDecisionEngine.makeDecision(
+        'model',
+        sourceModel.id,
+        sourceModel.referenceName || `Model-${sourceModel.id}`,
+        sourceModel,
+        targetModelFromMapping,
+        targetInstanceData
+    );
 
-    if (targetInstanceData) {
-        // Target model exists in target instance
-        finalTargetModel = targetInstanceData;
-        shouldCreate = false;
+    // STEP 5: Apply model-specific logic overrides
+    let finalDecision = { ...decision };
 
-        if (targetModelFromMapping) {
-            // Both mapping and target data exist - decision depends on pass type
-            if (isStubPass) {
-                // STUB PASS: If model exists, always skip (don't update stubs)
-                shouldUpdate = false;
-                shouldSkip = true;
-            } else {
-                // FULL PASS: Compare dates for update decision
-                const mappingDate = new Date(targetModelFromMapping.lastModifiedDate || 0);
-                const targetDataDate = new Date(targetInstanceData.lastModifiedDate || 0);
-
-                if (targetDataDate > mappingDate) {
-                    shouldUpdate = true;
-                    shouldSkip = false;
-                } else {
-
-                   if(targetInstanceData.fields.length === 0) {
-                    shouldUpdate = true;
-                    shouldSkip = false;
-                   } else {
-                    shouldUpdate = false;
-                    shouldSkip = true;
-                   }
-                }
-            }
-        } else {
-            // Target data exists but no mapping - this is an existing model, add mapping
-            if (isStubPass) {
-                // STUB PASS: If model exists, always skip (don't update stubs)
-                shouldUpdate = false;
-                shouldSkip = true;
-            } else {
-                // FULL PASS: Existing model without mapping should be skipped but mapping added
-                shouldUpdate = true;
-                shouldSkip = false;
-            }
-        }
-
-        // Override with user flags
-        if (overwrite) {
-            shouldUpdate = true;
-            shouldSkip = false;
-        }
-    } else {
-        // Target model doesn't exist in target instance
-        if (targetModelFromMapping) {
-            // We have a mapping but no target data - model exists in target, should update
-            shouldCreate = false;
-            shouldUpdate = true;
-            shouldSkip = false;
-            finalTargetModel = targetModelFromMapping;
-        } else {
-            // No mapping and no target data - brand new model
-            shouldCreate = true;
-            shouldUpdate = false;
-            shouldSkip = false;
-        }
+    // Special case: Empty fields indicate incomplete model that needs updating
+    // BUT only apply this override if there are sync delta changes or we're in a non-sync operation
+    if (targetInstanceData && targetInstanceData.fields?.length === 0 && decision.syncDelta.hasChanges) {
+        finalDecision.shouldUpdate = true;
+        finalDecision.shouldSkip = false;
+        finalDecision.shouldCreate = false;
     }
-
 
     return {
-        model: finalTargetModel,
-        shouldUpdate,
-        shouldCreate,
-        shouldSkip
+        model: finalDecision.entity,
+        shouldUpdate: finalDecision.shouldUpdate,
+        shouldCreate: finalDecision.shouldCreate,
+        shouldSkip: finalDecision.shouldSkip,
+        decision: finalDecision
     };
 }
 

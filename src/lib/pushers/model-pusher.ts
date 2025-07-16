@@ -42,7 +42,7 @@ export async function pushModels(
   ): Promise<'created' | 'updated' | 'skipped' | 'failed'> => {
     const modelName = model.referenceName;
 
-    const isStubPass = Array.isArray(fields) && fields.length === 0;
+    const isStubPass = passName === "stub";
     try {
       // Use enhanced finder to determine what action to take
       const findResult = await findModelInTargetInstanceEnhanced(
@@ -73,7 +73,8 @@ export async function pushModels(
         // Model exists but needs updating
         try {
           const updatedModel = await updateExistingModel(model, targetModel, fields, apiClient, targetGuid[0]);
-          console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${passName} ${ansiColors.bold.green("updated")}`);
+          const updateType = isStubPass ? "stub" : "fields";
+          console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${updateType} ${ansiColors.bold.green("updated")}`);
           referenceMapper.addMapping("model", model, updatedModel);
           return 'updated';
         } catch (error: any) {
@@ -134,13 +135,15 @@ export async function pushModels(
   for (const model of models) {
     const result = await processModel(model, model.fields, "full");
     
-    // Don't double-count - these are updates to existing models
+    // Count Pass 2 results properly
     if (result === 'updated') {
-      // Already counted in pass 1
+      // Model was updated in Pass 2 - this is a success
+      successful++;
+      skipped--; // It was counted as skipped in Pass 1, so adjust
     } else if (result === 'failed') {
       // Count new failures
       failed++;
-      successful--; // Adjust for the stub that succeeded but full failed
+      skipped--; // Adjust for the model that was skipped in Pass 1 but failed in Pass 2
     }
 
     if (onProgress) {

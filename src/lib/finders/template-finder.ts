@@ -1,23 +1,26 @@
 import * as mgmtApi from '@agility/management-sdk';
 import { ReferenceMapper } from "../shared/reference-mapper";
 import { getState } from "../../core/state";
+import { FinderDecisionEngine, FinderDecision } from "../shared/target-safety-detector";
 
+/**
+ * Enhanced template finder with proper target safety and conflict resolution
+ * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
+ */
 export async function findTemplateInTargetInstanceEnhanced(
     sourceTemplate: mgmtApi.PageModel,
     apiClient: mgmtApi.ApiClient,
     targetGuid: string,
     targetData: any,
     referenceMapper: ReferenceMapper
-): Promise<{ template: mgmtApi.PageModel | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean }> {
+): Promise<{ template: mgmtApi.PageModel | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: FinderDecision }> {
     const state = getState();
-    const overwrite = state.overwrite;
-    let existsInTarget = false;
 
-    // STEP 1: Check for existing mapping
+    // STEP 1: Find existing mapping
     const existingMapping = referenceMapper.getMappingByKey<mgmtApi.PageModel>("template", "pageTemplateName", sourceTemplate.pageTemplateName);
     let targetTemplateFromMapping: mgmtApi.PageModel | null = existingMapping?.target || null;
 
-    // STEP 2: Find in targetData.templates
+    // STEP 2: Find target instance data
     const targetInstanceData = targetData.templates?.find((t: any) => {
         if (targetTemplateFromMapping) {
             return t.pageTemplateName === targetTemplateFromMapping.pageTemplateName ||
@@ -27,52 +30,21 @@ export async function findTemplateInTargetInstanceEnhanced(
         }
     });
 
-    if (targetInstanceData) {
-        existsInTarget = true;
-    }
-
-    // STEP 3: Decision logic
-    let shouldUpdate = false;
-    let shouldCreate = false;
-    let shouldSkip = false;
-    let finalTargetTemplate: mgmtApi.PageModel | null = null;
-
-    if (targetInstanceData) {
-        finalTargetTemplate = targetInstanceData;
-        shouldCreate = false;
-
-        if (targetTemplateFromMapping) {
-            shouldUpdate = overwrite;
-            shouldSkip = !overwrite;
-        } else {
-            shouldUpdate = false;
-            shouldSkip = true;
-        }
-
-    } else {
-        shouldCreate = true;
-        shouldUpdate = false;
-        shouldSkip = false;
-        finalTargetTemplate = null;
-    }
-
-    // Handle overwrite
-    if (overwrite) {
-        if (existsInTarget) {
-            shouldUpdate = true;
-            shouldCreate = false;
-            shouldSkip = false;
-        } else {
-            shouldCreate = true;
-            shouldUpdate = false;
-            shouldSkip = false;
-        }
-    }
+    // STEP 3: Use FinderDecisionEngine for proper conflict resolution
+    const decision = FinderDecisionEngine.makeDecision(
+        'template',
+        sourceTemplate.pageTemplateID,
+        sourceTemplate.pageTemplateName || `Template-${sourceTemplate.pageTemplateID}`,
+        sourceTemplate,
+        targetTemplateFromMapping,
+        targetInstanceData
+    );
 
     return {
-        template: finalTargetTemplate,
-        shouldUpdate,
-        shouldCreate,
-        shouldSkip,
+        template: decision.entity,
+        shouldUpdate: decision.shouldUpdate,
+        shouldCreate: decision.shouldCreate,
+        shouldSkip: decision.shouldSkip,
+        decision: decision
     };
 } 

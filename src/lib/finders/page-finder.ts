@@ -1,6 +1,8 @@
 import * as mgmtApi from '@agility/management-sdk';
 import { ReferenceMapper } from "../shared/reference-mapper";
 import { getState } from '../../core/state';
+import { SyncDeltaReader } from "../shared/sync-delta-tracker";
+import { FinderDecisionEngine, FinderDecision } from "../shared/target-safety-detector";
 
 /**
  * Get target sitemap for page lookups (cached for performance)
@@ -169,37 +171,39 @@ export async function findPageInTargetInstanceEnhanced(
     locale: string,
     targetData: any,
     referenceMapper: ReferenceMapper
-): Promise<{ page: mgmtApi.PageItem | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean }> {
+): Promise<{ page: mgmtApi.PageItem | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: FinderDecision }> {
     const state = getState();
-    const overwrite = state.overwrite;
-    let existsInTarget = false;
 
+    // STEP 1: Find existing mapping
     const existingMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourcePage.pageID);
     let targetPageFromMapping: mgmtApi.PageItem | null = existingMapping?.target || null;
 
+    // STEP 2: Find target instance data
     const targetInstanceData = targetData.pages?.find((p: any) => 
         p.pageID === targetPageFromMapping?.pageID || p.name === sourcePage.name || p.path === sourcePage.path
     );
 
+    // STEP 3: Fallback to API search if not found in data
     let finalTargetPage: mgmtApi.PageItem | null = targetInstanceData || targetPageFromMapping;
     if (!finalTargetPage) {
         finalTargetPage = await findPageInTargetInstance(sourcePage, apiClient, targetGuid, locale, referenceMapper);
     }
-    existsInTarget = !!finalTargetPage;
 
-    let shouldUpdate = false;
-    let shouldCreate = !existsInTarget;
-    let shouldSkip = existsInTarget && !overwrite;
+    // STEP 4: Use FinderDecisionEngine for proper conflict resolution
+    const decision = FinderDecisionEngine.makeDecision(
+        'page',
+        sourcePage.pageID,
+        sourcePage.name || `Page-${sourcePage.pageID}`,
+        sourcePage,
+        targetPageFromMapping,
+        targetInstanceData
+    );
 
-    if (existsInTarget && targetPageFromMapping && targetInstanceData) {
-        const mappingDate = new Date(targetPageFromMapping.properties.modified || 0);
-        const targetDate = new Date(targetInstanceData.properties.modified || 0);
-        shouldUpdate = targetDate > mappingDate || overwrite;
-        shouldSkip = !shouldUpdate;
-    } else if (existsInTarget) {
-        shouldUpdate = overwrite;
-        shouldSkip = !overwrite;
-    }
-
-    return { page: finalTargetPage, shouldUpdate, shouldCreate, shouldSkip };
+    return { 
+        page: finalTargetPage, 
+        shouldUpdate: decision.shouldUpdate, 
+        shouldCreate: decision.shouldCreate, 
+        shouldSkip: decision.shouldSkip,
+        decision: decision
+    };
 } 
