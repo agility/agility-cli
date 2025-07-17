@@ -62,7 +62,7 @@ export class Pull {
     const totalStartTime = Date.now();
 
     try {
-      // Execute concurrent downloads for all GUIDs and locales
+      // Execute concurrent downloads for all GUIDs, locales and channels (sitemaps)
       const results = await this.downloadOrchestrator.executeAllDownloadsConcurrently();
       
       const totalElapsedTime = Date.now() - totalStartTime;

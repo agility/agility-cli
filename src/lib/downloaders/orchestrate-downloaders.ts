@@ -1,5 +1,4 @@
 import { getState } from '../../core/state';
-import { StepStatusManager, StepExecutionContext } from '../ui/progress/step-status-manager';
 import { fileOperations } from '../../core/fileOperations';
 import { SyncDeltaTracker } from '../shared/sync-delta-tracker';
 import ansiColors from 'ansi-colors';
@@ -15,31 +14,34 @@ import { downloadAllSitemaps } from './download-sitemaps';
 
 export interface DownloadResults {
   successful: string[];
-  failed: Array<{ step: string; error: string; locale?: string }>;
+  failed: Array<{ operation: string; error: string; locale?: string }>;
   skipped: string[];
   totalDuration: number;
   guidProcessed: string;
   localesProcessed: string[];
-  logFilePath?: string; // Add log file path to results
+  logFilePath?: string;
 }
 
 export interface DownloadOrchestratorConfig {
   operationName?: string;
-  onStepStart?: (stepName: string, guid: string) => void;
-  onStepComplete?: (stepName: string, guid: string, success: boolean) => void;
-  onStepProgress?: (stepName: string, guid: string, percentage: number) => void;
+  onOperationStart?: (operationName: string, guid: string) => void;
+  onOperationComplete?: (operationName: string, guid: string, success: boolean) => void;
+  onOperationProgress?: (operationName: string, guid: string, percentage: number) => void;
   onOverallProgress?: (processed: number, total: number) => void;
 }
 
+export interface DownloadOperation {
+  name: string;
+  execute: (guid: string, locale: string, fileOps: fileOperations, isolatedState: any, syncDeltaTracker?: SyncDeltaTracker) => Promise<void>;
+  description?: string;
+}
+
 export class DownloadOrchestrator {
-  private stepStatusManager: StepStatusManager;
   private config: DownloadOrchestratorConfig;
   private startTime: Date = new Date();
-  private syncDeltaTracker?: SyncDeltaTracker;
 
   constructor(config: DownloadOrchestratorConfig = {}) {
     this.config = config;
-    this.stepStatusManager = new StepStatusManager(config.operationName || 'Download');
   }
 
   /**
@@ -71,48 +73,12 @@ export class DownloadOrchestrator {
 
       console.log(`Processing ${locales.length} locale(s) for ${targetGuid}: ${locales.join(', ')}`);
 
-      // Get available steps and filter by elements
-      const availableSteps = StepStatusManager.getAvailableSteps();
-      const filteredSteps = StepStatusManager.filterStepsByElements(availableSteps);
-      const stepConfigs = StepStatusManager.createStepConfigs(filteredSteps);
+      // TODO: Execute downloads for guid lovel
 
-      // Initialize step status manager
-      this.stepStatusManager.initializeSteps(stepConfigs);
-
-      // Execute each step for each locale
+      // Execute downloads for each locale
       for (const locale of locales) {
         console.log(`Processing locale: ${locale}`);
-
-        for (let i = 0; i < stepConfigs.length; i++) {
-          const stepConfig = stepConfigs[i];
-          const stepName = stepConfig.name;
-
-          try {
-            this.config.onStepStart?.(stepName, targetGuid);
-            
-            const stepContext = this.stepStatusManager.startStep(i);
-            await this.executeStep(stepContext, targetGuid, locale);
-            
-            stepContext.complete();
-            results.successful.push(`${stepName} (${locale})`);
-            this.config.onStepComplete?.(stepName, targetGuid, true);
-            
-          } catch (error: any) {
-            const errorMessage = error.message || 'Unknown error';
-            results.failed.push({ step: stepName, error: errorMessage, locale });
-            
-            const stepContext = this.stepStatusManager.startStep(i);
-            stepContext.fail(errorMessage);
-            this.config.onStepComplete?.(stepName, targetGuid, false);
-            
-            console.error(`Failed ${stepName} for locale ${locale}: ${errorMessage}`);
-          }
-
-          // Report overall progress
-          const totalOperations = stepConfigs.length * locales.length;
-          const completedOperations = (locales.indexOf(locale) * stepConfigs.length) + (i + 1);
-          this.config.onOverallProgress?.(completedOperations, totalOperations);
-        }
+        await this.executeDownloadsForLocale(targetGuid, locale, results);
       }
 
       // Calculate final duration
@@ -121,7 +87,7 @@ export class DownloadOrchestrator {
       return results;
 
     } catch (error: any) {
-      results.failed.push({ step: 'orchestration', error: error.message });
+      results.failed.push({ operation: 'orchestration', error: error.message });
       results.totalDuration = Date.now() - this.startTime.getTime();
       throw error;
     }
@@ -156,7 +122,6 @@ export class DownloadOrchestrator {
       }
     }
     
-    // console.log(`PARALLEL EXECUTION: Starting ${totalCombinations} downloads simultaneously...`);
     downloadOperations.forEach(({ guid, locale }) => {
       console.log(`${guid} (${locale})`);
     });
@@ -196,8 +161,6 @@ export class DownloadOrchestrator {
     
     // Report parallel execution summary
     const totalElapsedSeconds = Math.floor(totalElapsed / 1000);
-    // console.log(ansiColors.cyan(`\nPARALLEL EXECUTION COMPLETE (${totalElapsedSeconds}s total)`));
-    // console.log(ansiColors.green(`Successful: ${successfulResults.length}/${totalCombinations}`));
     
     if (failedResults.length > 0) {
       console.log(ansiColors.red(`❌ Failed: ${failedResults.length}/${totalCombinations}`));
@@ -210,7 +173,6 @@ export class DownloadOrchestrator {
     if (successfulResults.length > 0) {
       const avgDuration = successfulResults.reduce((sum, r) => sum + r.totalDuration, 0) / successfulResults.length;
       const avgSeconds = Math.floor(avgDuration / 1000);
-      // console.log(ansiColors.gray(`Average per download: ${avgSeconds}s`));
     }
     
     return successfulResults;
@@ -259,32 +221,8 @@ export class DownloadOrchestrator {
       // Create fileOperations instance for this specific GUID and locale
       const fileOps = new fileOperations(isolatedState.rootPath, guid, locale, isolatedState.preview, isolatedState.legacyFolders);
 
-      // Get filtered steps using isolated state to prevent race conditions
-      const availableSteps = StepStatusManager.getAvailableSteps();
-      const filteredSteps = this.filterStepsByElementsIsolated(availableSteps, isolatedState.elements);
-      const stepConfigs = this.createStepConfigsIsolated(filteredSteps);
-
-      // Execute each step for this specific instance
-      for (let i = 0; i < stepConfigs.length; i++) {
-        const stepConfig = stepConfigs[i];
-        const stepName = stepConfig.name;
-
-        try {
-          // Enhanced logging to debug container download issue
-          // console.log(`${guid} (${locale}): Starting ${stepName}`);
-          
-          await this.executeStepForInstanceIsolated(stepConfig, guid, locale, fileOps, isolatedState, syncDeltaTracker);
-          
-          results.successful.push(`${stepName} (${locale})`);
-          
-          // console.log(`${guid} (${locale}): ${stepName} completed successfully`);
-          
-        } catch (error: any) {
-          const errorMessage = error.message || 'Unknown error';
-          results.failed.push({ step: stepName, error: errorMessage, locale });
-          console.error(`❌ ${guid} (${locale}): ${stepName} failed - ${errorMessage}`);
-        }
-      }
+      // Execute downloads for this specific instance
+      await this.executeDownloadsForLocale(guid, locale, results, fileOps, isolatedState, syncDeltaTracker);
 
       results.totalDuration = Date.now() - startTime;
       const duration = Math.floor(results.totalDuration / 1000);
@@ -308,7 +246,6 @@ export class DownloadOrchestrator {
           if (isolatedState.useVerbose) {
             const operationType = isSyncOperation ? 'sync' : 'pull';
             console.log(`${guid} (${locale}): ${operationType} delta written to ${deltaFilePath}`);
-            // console.log(syncDeltaTracker.getFormattedSummary());
           }
         } catch (deltaError: any) {
           console.error(`${guid} (${locale}): Could not write sync delta - ${deltaError.message}`);
@@ -318,7 +255,7 @@ export class DownloadOrchestrator {
       return results;
 
     } catch (error: any) {
-      results.failed.push({ step: 'instance-orchestration', error: error.message, locale });
+      results.failed.push({ operation: 'instance-orchestration', error: error.message, locale });
       results.totalDuration = Date.now() - startTime;
       console.error(`${guid} (${locale}): Instance failed - ${error.message}`);
       
@@ -339,70 +276,124 @@ export class DownloadOrchestrator {
   }
 
   /**
-   * Filter steps by elements using isolated state (race condition safe)
+   * Execute downloads for a specific locale
+   * This method can be overridden to customize the download sequence
    */
-  private filterStepsByElementsIsolated(availableSteps: string[], elements: string): string[] {
+  protected async executeDownloadsForLocale(
+    guid: string, 
+    locale: string, 
+    results: DownloadResults,
+    fileOps?: fileOperations,
+    isolatedState?: any,
+    syncDeltaTracker?: SyncDeltaTracker
+  ): Promise<void> {
+    // Create fileOperations if not provided
+    if (!fileOps) {
+      const state = getState();
+      fileOps = new fileOperations(state.rootPath, guid, locale, state.preview, state.legacyFolders);
+    }
+
+    // Use isolated state if provided, otherwise use global state
+    const state = isolatedState || getState();
+
+    // Get operations based on elements filter
+    const operations = this.getOperationsForElements(state.elements, true);
+
+    // Execute each operation
+    for (const operation of operations) {
+      try {
+        this.config.onOperationStart?.(operation.name, guid);
+        
+        await operation.execute(guid, locale, fileOps, state, syncDeltaTracker);
+        
+        results.successful.push(`${operation.name} (${locale})`);
+        this.config.onOperationComplete?.(operation.name, guid, true);
+        
+      } catch (error: any) {
+        const errorMessage = error.message || 'Unknown error';
+        results.failed.push({ operation: operation.name, error: errorMessage, locale });
+        
+        this.config.onOperationComplete?.(operation.name, guid, false);
+        console.error(`❌ ${guid} (${locale}): ${operation.name} failed - ${errorMessage}`);
+      }
+    }
+  }
+
+  /**
+   * Get operations based on elements filter
+   */
+  private getOperationsForElements(elements?: string, isLocaleOperation?: boolean): DownloadOperation[] {
     const elementList = elements ? elements.split(",") : ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages', 'Sitemaps', 'Redirections'];
     
-    // Map element names to step names (some elements map to multiple steps)
-    const elementToStepMap: Record<string, string[]> = {
+    // Map element names to operations
+    const elementToOperationMap: Record<string, string[]> = isLocaleOperation ? {
+      'Content': ['downloadAllSyncSDK'],
+      'Pages': ['downloadAllSyncSDK'],
+      'Sitemaps': ['downloadAllSitemaps'],
+    } : {
       'Galleries': ['downloadAllGalleries'],
       'Assets': ['downloadAllAssets'],
       'Models': ['downloadAllModels'],
       'Templates': ['downloadAllTemplates'],
-      'Containers': ['downloadAllContainers', 'downloadAllSyncSDK'], // Run both isolated and sync SDK downloaders
-      'Content': ['downloadAllSyncSDK'],
-      'Pages': ['downloadAllSyncSDK'],
-      'Sitemaps': ['downloadAllSitemaps'],
-      'Redirections': ['downloadAllSyncSDK']  // TODO: Add redirections
+      'Containers': ['downloadAllContainers'], // Run both isolated and sync SDK downloaders
+      'Redirections': ['downloadAllSyncSDK']
     };
     
-    // Convert elements to step names and filter available steps, removing duplicates
-    const requiredStepNames = Array.from(new Set(elementList.flatMap(element => elementToStepMap[element] || []).filter(Boolean)));
-    return availableSteps.filter(step => requiredStepNames.includes(step));
+    // Convert elements to operation names and remove duplicates
+    const requiredOperationNames = Array.from(new Set(elementList.flatMap(element => elementToOperationMap[element] || []).filter(Boolean)));
+    
+    // Create operation objects
+    return requiredOperationNames.map(name => this.createOperation(name));
   }
 
   /**
-   * Create step configurations using isolated state (race condition safe)
+   * Create a download operation
    */
-  private createStepConfigsIsolated(stepNames: string[]): any[] {
-    return stepNames.map(stepName => {
-      const config: any = {
-        name: stepName,
-        weight: this.getStepWeight(stepName),
-        description: this.getStepDescription(stepName),
-        isOptional: false
-      };
-
-      // Add dependencies for certain steps
-      if (stepName === "downloadAllSyncSDK") {
-        config.dependencies = ["downloadAllModels", "downloadAllContainers"];
+  private createOperation(operationName: string): DownloadOperation {
+    return {
+      name: operationName,
+      description: this.getOperationDescription(operationName),
+      execute: async (guid: string, locale: string, fileOps: fileOperations, isolatedState: any, syncDeltaTracker?: SyncDeltaTracker) => {
+        switch (operationName) {
+          case 'downloadAllSyncSDK':
+            await downloadAllSyncSDK(guid, locale, isolatedState.preview, isolatedState.channel, isolatedState.rootPath, isolatedState.update, syncDeltaTracker);
+            break;
+          
+          case 'downloadAllModels':
+            await downloadAllModels(fileOps, undefined, syncDeltaTracker);
+            break;
+          
+          case 'downloadAllTemplates':
+            await downloadAllTemplates(fileOps);
+            break;
+          
+          case 'downloadAllContainers':
+            await downloadAllContainers(fileOps, undefined, syncDeltaTracker);
+            break;
+          
+          case 'downloadAllAssets':
+            await downloadAllAssets(fileOps, undefined, syncDeltaTracker);
+            break;
+          
+          case 'downloadAllGalleries':
+            await downloadAllGalleries(fileOps, undefined, syncDeltaTracker);
+            break;
+          
+          case 'downloadAllSitemaps':
+            await downloadAllSitemaps(fileOps, undefined, syncDeltaTracker);
+            break;
+          
+          default:
+            throw new Error(`Unknown operation: ${operationName}`);
+        }
       }
-
-      return config;
-    });
-  }
-
-  /**
-   * Get step weight for weighted progress calculation
-   */
-  private getStepWeight(stepName: string): number {
-    const weights: Record<string, number> = {
-      "downloadAllSyncSDK": 5,     // Content Sync SDK is usually the heaviest operation
-      "downloadAllGalleries": 1,
-      "downloadAllAssets": 3,
-      "downloadAllModels": 2,
-      "downloadAllTemplates": 1,
-      "downloadAllContainers": 2,
-      "downloadAllSitemaps": 1
     };
-    return weights[stepName] || 1;
   }
 
   /**
-   * Get step description
+   * Get operation description
    */
-  private getStepDescription(stepName: string): string {
+  private getOperationDescription(operationName: string): string {
     const descriptions: Record<string, string> = {
       "downloadAllSyncSDK": "Download content items, pages, sitemaps, and redirections via Content Sync SDK",
       "downloadAllGalleries": "Download asset galleries and media groupings",
@@ -412,118 +403,38 @@ export class DownloadOrchestrator {
       "downloadAllContainers": "Download content containers and views",
       "downloadAllSitemaps": "Download sitemaps"
     };
-    return descriptions[stepName] || `Download ${stepName}`;
+    return descriptions[operationName] || `Download ${operationName}`;
   }
 
   /**
-   * Execute a specific step for a specific instance using isolated state
+   * Get download summary
    */
-  private async executeStepForInstanceIsolated(stepConfig: any, guid: string, locale: string, fileOps: fileOperations, isolatedState: any, syncDeltaTracker?: SyncDeltaTracker): Promise<void> {
-    const stepName = stepConfig.name;
-
-    switch (stepName) {
-      case 'downloadAllSyncSDK':
-        await downloadAllSyncSDK(guid, locale, isolatedState.preview, isolatedState.channel, isolatedState.rootPath, isolatedState.update, syncDeltaTracker);
-        break;
-      
-      case 'downloadAllModels':
-        await downloadAllModels(fileOps, undefined, syncDeltaTracker);
-        break;
-      
-      case 'downloadAllTemplates':
-        await downloadAllTemplates(fileOps);
-        break;
-      
-      case 'downloadAllContainers':
-        await downloadAllContainers(fileOps, undefined, syncDeltaTracker);
-        break;
-      
-      case 'downloadAllAssets':
-        await downloadAllAssets(fileOps, undefined, syncDeltaTracker);
-        break;
-      
-      case 'downloadAllGalleries':
-        await downloadAllGalleries(fileOps, undefined, syncDeltaTracker);
-        break;
-      
-      case 'downloadAllSitemaps':
-        await downloadAllSitemaps(fileOps, undefined, syncDeltaTracker);
-        break;
-      
-      default:
-        throw new Error(`Unknown step: ${stepName}`);
-    }
-  }
-
-  private async executeStep(stepContext: StepExecutionContext, guid: string, locale?: string): Promise<void> {
-    const stepName = stepContext.stepName;
-    const state = getState();
-    const targetLocale = locale || state.locale[0] || 'en-us';
-    
-    // Create fileOperations instance for this specific GUID and locale
-    const fileOps = new fileOperations(state.rootPath, guid, targetLocale, state.preview, state.legacyFolders);
-
-    switch (stepName) {
-      case 'downloadAllSyncSDK':
-        await downloadAllSyncSDK(guid, targetLocale, state.preview, state.channel, state.rootPath, state.update);
-        break;
-      
-      case 'downloadAllModels':
-        await downloadAllModels(fileOps);
-        break;
-      
-      case 'downloadAllTemplates':
-        await downloadAllTemplates(fileOps);
-        break;
-      
-      case 'downloadAllContainers':
-        await downloadAllContainers(fileOps);
-        break;
-      
-      case 'downloadAllAssets':
-        await downloadAllAssets(fileOps);
-        break;
-      
-      case 'downloadAllGalleries':
-        await downloadAllGalleries(fileOps);
-        break;
-      
-      case 'downloadAllSitemaps':
-        await downloadAllSitemaps(fileOps);
-        break;
-      
-      default:
-        throw new Error(`Unknown step: ${stepName}`);
-    }
-  }
-
-  getStepStatusManager(): StepStatusManager {
-    return this.stepStatusManager;
-  }
-
   getDownloadSummary(): {
-    totalSteps: number;
-    successfulSteps: number;
-    failedSteps: number;
+    totalOperations: number;
+    successfulOperations: number;
+    failedOperations: number;
     overallSuccess: boolean;
     duration: number;
   } {
-    const summary = this.stepStatusManager.getExecutionSummary();
-    
     return {
-      totalSteps: summary.totalSteps,
-      successfulSteps: summary.successfulSteps,
-      failedSteps: summary.errorSteps,
-      overallSuccess: summary.overallSuccess,
+      totalOperations: 0, // This would need to be tracked if needed
+      successfulOperations: 0,
+      failedOperations: 0,
+      overallSuccess: true,
       duration: Date.now() - this.startTime.getTime()
     };
   }
 
+  /**
+   * Reset orchestrator state
+   */
   reset(): void {
-    this.stepStatusManager = new StepStatusManager(this.config.operationName || 'Download');
     this.startTime = new Date();
   }
 
+  /**
+   * Update configuration
+   */
   updateConfig(config: Partial<DownloadOrchestratorConfig>): void {
     this.config = { ...this.config, ...config };
   }
@@ -535,14 +446,14 @@ export function createDownloadOrchestrator(config: DownloadOrchestratorConfig = 
 
 export async function executeDownloadsWithProgress(
   guid?: string,
-  onProgress?: (step: string, percentage: number) => void
+  onProgress?: (operation: string, percentage: number) => void
 ): Promise<DownloadResults> {
   const orchestrator = createDownloadOrchestrator({
-    onStepStart: (stepName, guid) => {
-      // console.log(`Starting ${stepName} for ${guid}`);
+    onOperationStart: (operationName, guid) => {
+      // console.log(`Starting ${operationName} for ${guid}`);
     },
-    onStepProgress: (stepName, guid, percentage) => {
-      onProgress?.(stepName, percentage);
+    onOperationProgress: (operationName, guid, percentage) => {
+      onProgress?.(operationName, percentage);
     }
   });
 
@@ -556,8 +467,8 @@ export async function executeAllDownloadsWithProgress(
   onProgress?: (completed: number, total: number) => void
 ): Promise<DownloadResults[]> {
   const orchestrator = createDownloadOrchestrator({
-    onStepStart: (stepName, guid) => {
-      console.log(`Starting ${stepName} for ${guid}`);
+    onOperationStart: (operationName, guid) => {
+      console.log(`Starting ${operationName} for ${guid}`);
     },
     onOverallProgress: (completed, total) => {
       onProgress?.(completed, total);
