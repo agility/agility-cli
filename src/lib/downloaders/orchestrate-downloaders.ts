@@ -32,7 +32,7 @@ export interface DownloadOrchestratorConfig {
 
 export interface DownloadOperation {
   name: string;
-  execute: (guid: string, locale: string, fileOps: fileOperations, isolatedState: any, syncDeltaTracker?: SyncDeltaTracker) => Promise<void>;
+  execute: (guid: string, isolatedState: any, syncDeltaTracker?: SyncDeltaTracker, locale?: string) => Promise<void>;
   description?: string;
 }
 
@@ -71,15 +71,19 @@ export class DownloadOrchestrator {
       const locales = state.locale.length > 0 ? state.locale : ['en-us'];
       results.localesProcessed = locales;
 
+      
+
       console.log(`Processing ${locales.length} locale(s) for ${targetGuid}: ${locales.join(', ')}`);
 
       // TODO: Execute downloads for guid lovel
+      await this.executeDownloadsForGuidLevel(targetGuid, results);
 
       // Execute downloads for each locale
       for (const locale of locales) {
         console.log(`Processing locale: ${locale}`);
         await this.executeDownloadsForLocale(targetGuid, locale, results);
       }
+
 
       // Calculate final duration
       results.totalDuration = Date.now() - this.startTime.getTime();
@@ -275,6 +279,43 @@ export class DownloadOrchestrator {
     }
   }
 
+ /**
+   * Execute downloads for guid level items (Assets, Models, Containers, URLredirects, Templates)
+   * This method can be overridden to customize the download sequence
+   */
+ protected async executeDownloadsForGuidLevel(
+  guid: string, 
+  results: DownloadResults,
+  isolatedState?: any,
+  syncDeltaTracker?: SyncDeltaTracker
+): Promise<void> {
+
+  // Use isolated state if provided, otherwise use global state
+  const state = isolatedState || getState();
+
+  // Get operations based on elements filter
+  const operations = this.getOperationsForElements(state.elements, true);
+
+  // Execute each operation
+  for (const operation of operations) {
+    try {
+      this.config.onOperationStart?.(operation.name, guid);
+      
+      await operation.execute(guid, state, syncDeltaTracker);
+      
+      results.successful.push(`${operation.name} (${guid})`);
+      this.config.onOperationComplete?.(operation.name, guid, true);
+      
+    } catch (error: any) {
+      const errorMessage = error.message || 'Unknown error';
+      results.failed.push({ operation: operation.name, error: errorMessage });
+      
+      this.config.onOperationComplete?.(operation.name, guid, false);
+      console.error(`❌ ${guid}: ${operation.name} failed - ${errorMessage}`);
+    }
+  }
+}
+
   /**
    * Execute downloads for a specific locale
    * This method can be overridden to customize the download sequence
@@ -304,7 +345,7 @@ export class DownloadOrchestrator {
       try {
         this.config.onOperationStart?.(operation.name, guid);
         
-        await operation.execute(guid, locale, fileOps, state, syncDeltaTracker);
+        await operation.execute(guid, state, syncDeltaTracker, locale);
         
         results.successful.push(`${operation.name} (${locale})`);
         this.config.onOperationComplete?.(operation.name, guid, true);
@@ -353,34 +394,36 @@ export class DownloadOrchestrator {
     return {
       name: operationName,
       description: this.getOperationDescription(operationName),
-      execute: async (guid: string, locale: string, fileOps: fileOperations, isolatedState: any, syncDeltaTracker?: SyncDeltaTracker) => {
+      execute: async (guid: string, isolatedState: any, syncDeltaTracker?: SyncDeltaTracker, locale?: string) => {
+        // const fileOps = new fileOperations(isolatedState.rootPath, guid, locale, isolatedState.preview, isolatedState.legacyFolders);
+
         switch (operationName) {
           case 'downloadAllSyncSDK':
             await downloadAllSyncSDK(guid, locale, isolatedState.preview, isolatedState.channel, isolatedState.rootPath, isolatedState.update, syncDeltaTracker);
             break;
           
           case 'downloadAllModels':
-            await downloadAllModels(fileOps, undefined, syncDeltaTracker);
+            await downloadAllModels(undefined, syncDeltaTracker);
             break;
           
           case 'downloadAllTemplates':
-            await downloadAllTemplates(fileOps);
+            await downloadAllTemplates();
             break;
           
           case 'downloadAllContainers':
-            await downloadAllContainers(fileOps, undefined, syncDeltaTracker);
+            await downloadAllContainers(undefined, syncDeltaTracker);
             break;
           
           case 'downloadAllAssets':
-            await downloadAllAssets(fileOps, undefined, syncDeltaTracker);
+            await downloadAllAssets(undefined, syncDeltaTracker);
             break;
           
           case 'downloadAllGalleries':
-            await downloadAllGalleries(fileOps, undefined, syncDeltaTracker);
+            await downloadAllGalleries(undefined, syncDeltaTracker);
             break;
           
           case 'downloadAllSitemaps':
-            await downloadAllSitemaps(fileOps, undefined, syncDeltaTracker);
+            await downloadAllSitemaps(undefined, syncDeltaTracker);
             break;
           
           default:

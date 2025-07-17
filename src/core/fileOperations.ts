@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as Https from 'https';
 import * as path from 'path';
 const os = require('os');
+import { state } from './state';
 os.tmpDir = os.tmpdir;
 
 export class fileOperations{
@@ -9,7 +10,6 @@ export class fileOperations{
   private _rootPath: string;
   private _guid: string;
   private _locale: string;
-  private _isPreview: boolean;
   private _legacyFolders: boolean;
   private _resolvedRootPath: string;
   private _basePath: string;
@@ -18,19 +18,19 @@ export class fileOperations{
   private _isGuidLevel: boolean;
   private _mappingsPath: string;
 
-  constructor(rootPath: string, guid: string, legacyFolders: boolean = false, locale?: string,) {
-    this._rootPath = rootPath;
+  constructor(guid: string, locale?: string) {
+    this._rootPath = state.rootPath;
     this._guid = guid;
     this._isGuidLevel = locale === undefined || locale === null || locale === ""
     this._locale = locale ?? "";
-    this._legacyFolders = legacyFolders;
+    this._legacyFolders = state.legacyFolders;
     
     // Keep paths relative instead of resolving to absolute paths
     // This prevents files from being written to /Users/ directories
-    this._resolvedRootPath = rootPath;
+    this._resolvedRootPath = state.rootPath;
     
     // Calculate paths based on legacy mode
-    if (legacyFolders) {
+    if (state.legacyFolders) {
       // Legacy mode: flat structure
       this._basePath = this._resolvedRootPath;
       this._mappingsPath = path.join(this._resolvedRootPath, 'mappings');
@@ -69,10 +69,6 @@ export class fileOperations{
 
   public get locale(): string {
     return this._locale;
-  }
-
-  public get isPreview(): boolean {
-    return this._isPreview;
   }
 
   /**
@@ -220,7 +216,6 @@ export class fileOperations{
   async downloadFile(url: string, targetFile: string) {  
     return await new Promise((resolve, reject) => {
       // Ensure the target directory exists
-      const path = require('path');
       const targetDir = path.dirname(targetFile);
       
       if (!fs.existsSync(targetDir)) {
