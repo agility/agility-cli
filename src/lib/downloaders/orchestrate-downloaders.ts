@@ -403,27 +403,27 @@ export class DownloadOrchestrator {
             break;
           
           case 'downloadAllModels':
-            await downloadAllModels(undefined, syncDeltaTracker);
+            await downloadAllModels(guid, syncDeltaTracker);
             break;
           
           case 'downloadAllTemplates':
-            await downloadAllTemplates();
+            await downloadAllTemplates(guid);
             break;
           
           case 'downloadAllContainers':
-            await downloadAllContainers(undefined, syncDeltaTracker);
+            await downloadAllContainers(guid, syncDeltaTracker);
             break;
           
           case 'downloadAllAssets':
-            await downloadAllAssets(undefined, syncDeltaTracker);
+            await downloadAllAssets(guid, syncDeltaTracker);
             break;
           
           case 'downloadAllGalleries':
-            await downloadAllGalleries(undefined, syncDeltaTracker);
+            await downloadAllGalleries(guid, syncDeltaTracker);
             break;
           
           case 'downloadAllSitemaps':
-            await downloadAllSitemaps(undefined, syncDeltaTracker);
+            await downloadAllSitemaps(guid, syncDeltaTracker);
             break;
           
           default:

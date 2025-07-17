@@ -1,26 +1,21 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState } from "../../core/state";
+import { getApiClient, getState, state } from "../../core/state";
 import ansiColors from "ansi-colors";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import * as path from "path";
 import * as fs from "fs";
 
 export async function downloadAllModels(
-  fileOps: fileOperations,
+  guid: string,
   progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void,
   syncDeltaTracker?: SyncDeltaTracker
 ): Promise<void> {
   // Get values from fileOps which is already configured for this specific GUID/locale
-  const guid = fileOps.guid;
-  const update = getState().update; // Use state.update instead of parameter
+  
+  const fileOps = new fileOperations(guid);
   const apiClient = getApiClient();
 
-  if (!guid) {
-    throw new Error('Source GUID not available in state');
-  }
-
   const modelsFolderPath = fileOps.getDataFolderPath('models');
-
   // Use fileOperations to create models folder
   fileOps.createFolder('models');
 
@@ -45,7 +40,8 @@ export async function downloadAllModels(
 
   // Helper function to check if model needs download based on lastModifiedDate
   function shouldDownloadModel(apiModel: any, localInfo: { lastModifiedDate?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
-    if (update) {
+    
+    if (state.update) {
       return { shouldDownload: true, reason: 'forced update' };
     }
 
