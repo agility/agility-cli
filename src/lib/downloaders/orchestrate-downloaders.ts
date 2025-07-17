@@ -1,7 +1,7 @@
 import { getState } from '../../core/state';
 import { fileOperations } from '../../core/fileOperations';
 import ansiColors from 'ansi-colors';
-import { DownloadOperationsRegistry, OperationConfig } from './download-operations-config';
+import { DownloadOperationsRegistry } from './download-operations-config';
 
 export interface DownloadResults {
   successful: string[];
@@ -12,19 +12,16 @@ export interface DownloadResults {
   logFilePath?: string;
 }
 
-export interface DownloadOrchestratorConfig {
-  operationName?: string;
+export interface DownloaderConfig {
   onOperationStart?: (operationName: string, guid: string) => void;
   onOperationComplete?: (operationName: string, guid: string, success: boolean) => void;
-  onOperationProgress?: (operationName: string, guid: string, percentage: number) => void;
-  onOverallProgress?: (processed: number, total: number) => void;
 }
 
-export class DownloadOrchestrator {
-  private config: DownloadOrchestratorConfig;
+export class Downloader {
+  private config: DownloaderConfig;
   private startTime: Date = new Date();
 
-  constructor(config: DownloadOrchestratorConfig = {}) {
+  constructor(config: DownloaderConfig = {}) {
     this.config = config;
   }
 
@@ -33,15 +30,6 @@ export class DownloadOrchestrator {
    */
   async guidDownloader(guid: string): Promise<DownloadResults> {
     const startTime = Date.now();
-    
-    // Create isolated state snapshot for this download
-    const globalState = getState();
-    const isolatedState = {
-      ...globalState,
-      // Override with instance-specific values to prevent race conditions
-      sourceGuid: [guid],  // Isolate to this specific GUID
-      targetGuid: [],      // Clear target to avoid conflicts
-    };
     
     const results: DownloadResults = {
       successful: [],
@@ -55,7 +43,7 @@ export class DownloadOrchestrator {
       console.log(`Processing ${guid}...`);
 
       // Execute all data elements for this GUID
-      await this.downloadDataElements(guid, results, isolatedState);
+      await this.downloadDataElements(guid, results);
 
       // Calculate final duration
       results.totalDuration = Date.now() - startTime;
@@ -66,9 +54,6 @@ export class DownloadOrchestrator {
       try {
         const logFilePath = fileOps.finalizeLogFile("pull");
         results.logFilePath = logFilePath;
-        if (isolatedState.useVerbose) {
-          console.log(`${guid}: Log file written to ${logFilePath}`);
-        }
       } catch (logError: any) {
         console.error(`${guid}: Could not finalize log file - ${logError.message}`);
       }
@@ -88,9 +73,6 @@ export class DownloadOrchestrator {
         const fileOps = new fileOperations(guid);
         const logFilePath = fileOps.finalizeLogFile("pull");
         results.logFilePath = logFilePath;
-        if (isolatedState.useVerbose) {
-          console.log(`${guid}: Log file written to ${logFilePath}`);
-        }
       } catch (logError: any) {
         console.error(`${guid}: Could not finalize log file - ${logError.message}`);
       }
@@ -102,7 +84,7 @@ export class DownloadOrchestrator {
   /**
    * Orchestrate multiple GUIDs concurrently (DEFAULT METHOD)
    */
-  async guidOrchestrator(): Promise<DownloadResults[]> {
+  async instanceOrchestrator(): Promise<DownloadResults[]> {
     const state = getState();
     const allGuids = [...state.sourceGuid, ...state.targetGuid];
     
@@ -158,10 +140,9 @@ export class DownloadOrchestrator {
   private async downloadDataElements(
     guid: string, 
     results: DownloadResults,
-    isolatedState: any
   ): Promise<void> {
     // Get operations based on elements filter
-    const operations = DownloadOperationsRegistry.getOperationsForElements(isolatedState.elements);
+    const operations = DownloadOperationsRegistry.getOperationsForElements();
 
     console.log(`${guid}: Processing ${operations.length} data element(s)...`);
 
@@ -170,7 +151,7 @@ export class DownloadOrchestrator {
       try {
         this.config.onOperationStart?.(operation.name, guid);
         
-        await operation.handler(guid, isolatedState);
+        await operation.handler(guid);
         
         results.successful.push(`${operation.name} (${guid})`);
         this.config.onOperationComplete?.(operation.name, guid, true);
@@ -197,13 +178,6 @@ export class DownloadOrchestrator {
     }
 
     return await this.guidDownloader(targetGuid);
-  }
-
-  /**
-   * Execute all downloads for all GUIDs (alias for guidOrchestrator for backward compatibility)
-   */
-  async executeAllDownloadsConcurrently(): Promise<DownloadResults[]> {
-    return await this.guidOrchestrator();
   }
 
   /**
@@ -235,45 +209,7 @@ export class DownloadOrchestrator {
   /**
    * Update configuration
    */
-  updateConfig(config: Partial<DownloadOrchestratorConfig>): void {
+  updateConfig(config: Partial<DownloaderConfig>): void {
     this.config = { ...this.config, ...config };
   }
-}
-
-export function createDownloadOrchestrator(config: DownloadOrchestratorConfig = {}): DownloadOrchestrator {
-  return new DownloadOrchestrator(config);
-}
-
-export async function executeDownloadsWithProgress(
-  guid?: string,
-  onProgress?: (operation: string, percentage: number) => void
-): Promise<DownloadResults> {
-  const orchestrator = createDownloadOrchestrator({
-    onOperationStart: (operationName, guid) => {
-      console.log(`Starting ${operationName} for ${guid}`);
-    },
-    onOperationProgress: (operationName, guid, percentage) => {
-      onProgress?.(operationName, percentage);
-    }
-  });
-
-  return await orchestrator.executeDownloads(guid);
-}
-
-/**
- * Execute all downloads for all GUIDs concurrently (RECOMMENDED)
- */
-export async function executeAllDownloadsWithProgress(
-  onProgress?: (completed: number, total: number) => void
-): Promise<DownloadResults[]> {
-  const orchestrator = createDownloadOrchestrator({
-    onOperationStart: (operationName, guid) => {
-      console.log(`Starting ${operationName} for ${guid}`);
-    },
-    onOverallProgress: (completed, total) => {
-      onProgress?.(completed, total);
-    }
-  });
-
-  return await orchestrator.executeAllDownloadsConcurrently();
 }

@@ -6,12 +6,13 @@ import { downloadAllTemplates } from './download-templates';
 import { downloadAllContainers } from './download-containers';
 import { downloadAllSyncSDK } from './download-sync-sdk';
 import { downloadAllSitemaps } from './download-sitemaps';
+import { getState } from 'core';
 
 // Central configuration for all download operations
 export interface OperationConfig {
   name: string;
   description: string;
-  handler: (guid: string, isolatedState: any) => Promise<void>;
+  handler: (guid: string) => Promise<void>;
   elements: string[];
 }
 
@@ -19,18 +20,17 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
   syncSDK: {
     name: 'downloadAllSyncSDK',
     description: 'Download content items, pages, sitemaps via Content Sync SDK',
-    handler: async (guid, isolatedState) => {
+    handler: async (guid) => {
       // Sync SDK will handle locales internally via guidLocaleMap (user will update this)
       // For now, use default locale - this will be converted to use guidLocaleMap internally
-      const defaultLocale = isolatedState.locale?.[0] || 'en-us';
-      await downloadAllSyncSDK(guid, defaultLocale, isolatedState.channel);
+      await downloadAllSyncSDK(guid);
     },
     elements: ['Content', 'Pages', 'Sitemaps']
   },
   galleries: {
     name: 'downloadAllGalleries',
     description: 'Download asset galleries and media groupings', 
-    handler: async (guid, isolatedState) => {
+    handler: async (guid) => {
       await downloadAllGalleries(guid);
     },
     elements: ['Galleries']
@@ -38,7 +38,7 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
   assets: {
     name: 'downloadAllAssets',
     description: 'Download media files and asset metadata',
-    handler: async (guid, isolatedState) => {
+    handler: async (guid) => {
       await downloadAllAssets(guid);
     },
     elements: ['Assets']
@@ -46,7 +46,7 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
   models: {
     name: 'downloadAllModels', 
     description: 'Download content models and field definitions',
-    handler: async (guid, isolatedState) => {
+    handler: async (guid) => {
       await downloadAllModels(guid);
     },
     elements: ['Models']
@@ -54,7 +54,7 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
   templates: {
     name: 'downloadAllTemplates',
     description: 'Download page templates and layouts',
-    handler: async (guid, isolatedState) => {
+    handler: async (guid) => {
       await downloadAllTemplates(guid);
     },
     elements: ['Templates']
@@ -62,7 +62,7 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
   containers: {
     name: 'downloadAllContainers',
     description: 'Download content containers and views',
-    handler: async (guid, isolatedState) => {
+    handler: async (guid) => {
       await downloadAllContainers(guid);
     },
     elements: ['Containers']
@@ -70,7 +70,7 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
   sitemaps: {
     name: 'downloadAllSitemaps',
     description: 'Download sitemaps',
-    handler: async (guid, isolatedState) => {
+    handler: async (guid) => {
       await downloadAllSitemaps(guid);
     },
     elements: ['Sitemaps']
@@ -78,10 +78,11 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
 };
 
 export class DownloadOperationsRegistry {
-  /**
+  /*
    * Get operations based on elements filter
    */
-  static getOperationsForElements(elements?: string): OperationConfig[] {
+  static getOperationsForElements(): OperationConfig[] {
+    const { elements } = getState()
     const elementList = elements ? elements.split(",") : 
       ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages', 'Sitemaps', 'Redirections'];
     

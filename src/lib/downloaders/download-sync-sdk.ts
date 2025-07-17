@@ -1,5 +1,3 @@
-
-import { getState } from "../../core/state";
 import * as path from "path";
 import * as fs from "fs";
 import ansiColors from "ansi-colors";
@@ -8,14 +6,33 @@ import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import { state, getApiKeysForGuid } from "../../core/state";
 import { fileOperations } from "core/fileOperations";
 import { handleSyncToken } from "lib/shared/sync-token-handler";
+import { getAllChannels } from "lib/shared/get-all-channels";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
-export async function downloadAllSyncSDK(
+export async function downloadAllSyncSDK(guid: string)
+{
+  const locales: string[] = state.guidLocaleMap[guid];
+  const channels = await getAllChannels(guid, locales[0]);
+  const downloads: Promise<any>[] = [];
+
+  channels.forEach(channel => {
+    locales.forEach(locale => {
+      downloads.push(downloadSyncSDKByLocaleAndChannel(guid, channel.channel, locale));
+    });
+  });
+
+  await Promise.allSettled(downloads);
+  console.log("All sync SDKs completed downloading.")
+
+}
+
+export async function downloadSyncSDKByLocaleAndChannel(
   guid: string, 
-  locale: string, 
-  channel: string
+  channel: string,
+  locale: string
 ): Promise<void> {
+
   
   console.log(`\nDownloading GUID: ${guid} | Locale: ${locale}`);
   const fileOps = new fileOperations(guid, locale);
