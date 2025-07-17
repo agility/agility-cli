@@ -6,13 +6,16 @@ import * as path from "path";
 import ansiColors from "ansi-colors";
 
 export async function downloadAllSitemaps(  
-  guid: string,
-  syncDeltaTracker?: SyncDeltaTracker
+  guid: string
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const locale = fileOps.locale;
   const update = state.update;
   const apiClient = getApiClient();
+  
+  // Create SyncDeltaTracker internally
+  const channel = state.channel || 'website';
+  const syncDeltaTracker = new SyncDeltaTracker(guid, locale || 'en-us', channel);
 
   if (!locale) {
     throw new Error('Locale not available in fileOps');

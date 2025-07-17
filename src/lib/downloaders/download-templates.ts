@@ -6,13 +6,16 @@ import { ContentHashComparer } from "../shared/content-hash-comparer";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 
 export async function downloadAllTemplates(
-  guid: string,
-  syncDeltaTracker?: SyncDeltaTracker
+  guid: string
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const locale = fileOps.locale; // Templates need locale for API call
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
+  
+  // Create SyncDeltaTracker internally
+  const channel = state.channel || 'website';
+  const syncDeltaTracker = new SyncDeltaTracker(guid, locale || 'en-us', channel);
 
   const templatesFolderPath = fileOps.getDataFolderPath('templates');
   console.log('\n')

@@ -7,12 +7,16 @@ import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import { getAssetFilePath } from "../assets/asset-utils";
 
 export async function downloadAllAssets(
-  guid: string,
-  syncDeltaTracker?: SyncDeltaTracker
+  guid: string
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
+  
+  // Create SyncDeltaTracker internally
+  const locale = fileOps.locale || 'en-us';
+  const channel = state.channel || 'website';
+  const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
 
   // Note: Using shared getAssetFilePath utility for consistent filename handling
   // This ensures URL decoding is consistent between download and processing phases

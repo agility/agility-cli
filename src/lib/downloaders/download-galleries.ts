@@ -6,12 +6,16 @@ import * as fs from "fs";
 import * as path from "path";
 
 export async function downloadAllGalleries(
-  guid: string,
-  syncDeltaTracker?: SyncDeltaTracker
+  guid: string
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
+  
+  // Create SyncDeltaTracker internally
+  const locale = fileOps.locale || 'en-us';
+  const channel = state.channel || 'website';
+  const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
 
   // Helper function to get local gallery metadata
   function getLocalGalleryInfo(filePath: string): { modifiedOn?: string; exists: boolean } {

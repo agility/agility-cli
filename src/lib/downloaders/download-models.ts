@@ -6,13 +6,17 @@ import * as path from "path";
 import * as fs from "fs";
 
 export async function downloadAllModels(
-  guid: string,
-  syncDeltaTracker?: SyncDeltaTracker
+  guid: string
 ): Promise<void> {
   // Get values from fileOps which is already configured for this specific GUID/locale
   
   const fileOps = new fileOperations(guid);
   const apiClient = getApiClient();
+  
+  // Create SyncDeltaTracker internally
+  const locale = fileOps.locale || 'en-us';
+  const channel = state.channel || 'website';
+  const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
 
   const modelsFolderPath = fileOps.getDataFolderPath('models');
   // Use fileOperations to create models folder

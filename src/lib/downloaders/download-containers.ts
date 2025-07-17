@@ -6,12 +6,16 @@ import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import * as fs from "fs";
 
 export async function downloadAllContainers(
-  guid: string,
-  syncDeltaTracker?: SyncDeltaTracker
+  guid: string
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
+  
+  // Create SyncDeltaTracker internally
+  const locale = fileOps.locale || 'en-us';
+  const channel = state.channel || 'website';
+  const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
 
   const containersFolderPath = fileOps.getDataFolderPath('containers');
 

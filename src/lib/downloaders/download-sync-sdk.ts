@@ -14,12 +14,14 @@ const storeInterfaceFileSystem = require("./store-interface-filesystem");
 export async function downloadAllSyncSDK(
   guid: string, 
   locale: string, 
-  channel: string, 
-  syncDeltaTracker?: SyncDeltaTracker
+  channel: string
 ): Promise<void> {
   
   console.log(`\nDownloading GUID: ${guid} | Locale: ${locale}`);
   const fileOps = new fileOperations(guid, locale);
+  
+  // Create SyncDeltaTracker internally
+  const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
   // Get API keys for this specific GUID
   const { previewKey:apiKey} = getApiKeysForGuid(guid);  
   const startTime = Date.now(); // Track start time for performance measurement
