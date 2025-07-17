@@ -1,5 +1,5 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState } from "../../core/state";
+import { getApiClient, getState, state } from "../../core/state";
 import ansiColors from "ansi-colors";
 import fs from "fs";
 import path from "path";
@@ -7,18 +7,12 @@ import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import { getAssetFilePath } from "../assets/asset-utils";
 
 export async function downloadAllAssets(
-  fileOps: fileOperations, 
-  progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void,
+  guid: string,
   syncDeltaTracker?: SyncDeltaTracker
 ): Promise<void> {
-  // Get values from fileOps which is already configured for this specific GUID/locale
-  const guid = fileOps.guid;
-  const update = getState().update; // Use state.update instead of parameter
+  const fileOps = new fileOperations(guid);
+  const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
-
-  if (!guid) {
-    throw new Error('Source GUID not available in state');
-  }
 
   // Note: Using shared getAssetFilePath utility for consistent filename handling
   // This ensures URL decoding is consistent between download and processing phases
@@ -92,7 +86,6 @@ export async function downloadAllAssets(
     );
 
     totalRecords = initialRecords.totalCount;
-    if (progressCallback) progressCallback(0, totalRecords, 'progress');
 
     fileOps.createFolder("assets/json");
 
@@ -160,7 +153,6 @@ export async function downloadAllAssets(
     // Phase 3: Download only the assets that need updating
     if (downloadableAssets.length === 0) {
       // console.log("✅ All assets are up to date!");
-      if (progressCallback) progressCallback(totalRecords, totalRecords, 'success');
       return;
     }
 
@@ -259,9 +251,6 @@ export async function downloadAllAssets(
         
         // Update progress (include skipped assets in total processed)
         const totalProcessed = totalAttemptedToProcess + skippableAssets.length;
-        if (progressCallback) {
-          progressCallback(totalProcessed, totalRecords, result.success ? 'success' : 'error');
-        }
       }
     }
 

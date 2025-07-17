@@ -1,23 +1,17 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState } from "../../core/state";
+import { getApiClient, getState, state } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import * as fs from "fs";
 
 export async function downloadAllContainers(
-  fileOps: fileOperations,
-  progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void,
+  guid: string,
   syncDeltaTracker?: SyncDeltaTracker
 ): Promise<void> {
-  // Get values from fileOps which is already configured for this specific GUID/locale
-  const guid = fileOps.guid;
-  const update = getState().update; // Use state.update instead of parameter
+  const fileOps = new fileOperations(guid);
+  const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
-
-  if (!guid) {
-    throw new Error('Source GUID not available in state');
-  }
 
   const containersFolderPath = fileOps.getDataFolderPath('containers');
 
@@ -75,11 +69,9 @@ export async function downloadAllContainers(
     
     if (totalContainers === 0) {
       console.log("No containers found to download.");
-      if (progressCallback) progressCallback(0, 0, 'success');
       return;
     }
 
-    if (progressCallback) progressCallback(0, totalContainers, 'progress');
 
     // Phase 2: Analyze which containers need downloading
     // console.log(`\n📥 Processing ${totalContainers} containers with smart change detection...`);
@@ -130,7 +122,6 @@ export async function downloadAllContainers(
     // Phase 3: Download only the containers that need updating
     if (downloadableContainers.length === 0) {
       // console.log("✅ All containers are up to date!");
-      if (progressCallback) progressCallback(totalContainers, totalContainers, 'success');
       return;
     }
 
@@ -205,9 +196,6 @@ export async function downloadAllContainers(
         
         // Update progress (include skipped containers in total processed)
         const totalProcessed = processedCount + skippedCount;
-        if (progressCallback) {
-          progressCallback(totalProcessed, totalContainers, result.success ? 'success' : 'error');
-        }
       }
     }
 

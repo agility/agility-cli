@@ -5,91 +5,35 @@ import * as fs from "fs";
 import ansiColors from "ansi-colors";
 import * as agilitySync from "@agility/content-sync";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
+import { state, getApiKeysForGuid } from "../../core/state";
+import { fileOperations } from "core/fileOperations";
+import { handleSyncToken } from "lib/shared/sync-token-handler";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
 export async function downloadAllSyncSDK(
   guid: string, 
   locale: string, 
-  isPreview: boolean, 
   channel: string, 
-  rootPath: string, 
-  update: boolean,
   syncDeltaTracker?: SyncDeltaTracker
 ): Promise<void> {
-  // Import helper function
-  const { getApiKeysForGuid } = await import('../../core/state');
-  
-  if (!guid) {
-    throw new Error('GUID parameter is required for sync operation');
-  }
-  
-  if (!locale) {
-    throw new Error('Locale parameter is required for sync operation');
-  }
   
   console.log(`\nDownloading GUID: ${guid} | Locale: ${locale}`);
-  
+  const fileOps = new fileOperations(guid, locale);
   // Get API keys for this specific GUID
-  const apiKeys = getApiKeysForGuid(guid);
-  if (!apiKeys) {
-    throw new Error(`API keys not found for GUID: ${guid}`);
-  }
-  
-  const apiKey = isPreview ? apiKeys.previewKey : apiKeys.fetchKey;
+  const { previewKey:apiKey} = getApiKeysForGuid(guid);  
   const startTime = Date.now(); // Track start time for performance measurement
   
   // Build the path to the instance-specific folder
-  const instanceSpecificPath = path.join(rootPath, guid, locale, isPreview ? 'preview' : 'live');
-
-  // Create the instance-specific folder if it doesn't exist
-  if (!fs.existsSync(instanceSpecificPath)) {
-    fs.mkdirSync(instanceSpecificPath, { recursive: true });
-  }
-
-  // Handle sync token clearing logic based on --update flag
-  const syncTokenPath = path.join(instanceSpecificPath, "state", "sync.json");
-  
-  // Detect sync mode for delta tracking
-  const syncTokenExists = fs.existsSync(syncTokenPath);
-  const isIncrementalSync = !update && syncTokenExists;
-  
-  // Get current state only for UI mode checking (not for core functionality)
-  const currentState = getState();
-  
-  // --update=false (default): Use existing sync tokens for incremental sync
-  // --update=true: Clear sync tokens for complete refresh
-  if (!update) {
-    // Logic for --update=false (default): if sync token exists, use it for incremental sync
-    if (syncTokenExists) {
-      if (currentState.useVerbose) console.log("--update=false (default): Existing content sync token found. Performing incremental content sync.");
-      else if (currentState.useHeadless) console.log("--update=false (default): Existing content sync token found. Performing incremental content sync.");
-    } else {
-      if (currentState.useVerbose) console.log("--update=false (default): No existing content sync token. Performing full content sync by default.");
-      else if (currentState.useHeadless) console.log("--update=false (default): No existing content sync token. Performing full content sync by default.");
-    }
-  } else {
-    // --update=true: Clear sync tokens for complete refresh
-    if (syncTokenExists) {
-      try {
-        fs.rmSync(syncTokenPath, { force: true });
-        if (currentState.useVerbose) console.log("--update=true: Cleared existing sync token. Performing full content sync.");
-        else if (currentState.useHeadless) console.log("--update=true: Cleared existing sync token. Performing full content sync.");
-      } catch (error: any) {
-        if (currentState.useVerbose) console.log(`--update=true: Error clearing sync token: ${error.message}. Proceeding with full sync.`);
-        else if (currentState.useHeadless) console.log(`--update=true: Error clearing sync token: ${error.message}. Proceeding with full sync.`);
-      }
-    } else {
-      if (currentState.useVerbose) console.log("--update=true: No existing sync token. Performing full content sync.");
-      else if (currentState.useHeadless) console.log("--update=true: No existing sync token. Performing full content sync.");
-    }
-  }
+  const instanceSpecificPath = fileOps.getDataFolderPath();
+  const syncTokenPath = fileOps.getDataFilePath('state', 'sync.json');
+  const isIncrementalSync = await handleSyncToken(syncTokenPath, state.update);
 
   // Configure the Agility Sync client
   const agilityConfig = {
     guid: guid,
     apiKey: apiKey,
-    isPreview: isPreview,
+    isPreview: true,
     languages: [locale],
     channels: [channel],
     store: {
@@ -131,7 +75,7 @@ export async function downloadAllSyncSDK(
     console.log(`  Performance: ${summary.itemsPerSecond.toFixed(1)} items/sec`);
     
     // Detailed logging for verbose mode
-    if (currentState.useVerbose) {
+    if (state.useVerbose) {
       console.log("--- Detailed Sync Results ---");
       Object.entries(syncResults.itemsByType).forEach(([itemType, count]) => {
         console.log(`  ${ansiColors.cyan(itemType)}: ${count} items`);

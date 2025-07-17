@@ -1,24 +1,18 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState } from "../../core/state";
+import { getApiClient, getState, state } from "../../core/state";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import * as fs from "fs";
 import * as path from "path";
 import ansiColors from "ansi-colors";
 
 export async function downloadAllSitemaps(  
-  fileOps: fileOperations, 
-  progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void,
+  guid: string,
   syncDeltaTracker?: SyncDeltaTracker
 ): Promise<void> {
-  // Get values from fileOps which is already configured for this specific GUID/locale
-  const guid = fileOps.guid;
+  const fileOps = new fileOperations(guid);
   const locale = fileOps.locale;
-  const update = getState().update;
+  const update = state.update;
   const apiClient = getApiClient();
-
-  if (!guid) {
-    throw new Error('Source GUID not available in fileOps');
-  }
 
   if (!locale) {
     throw new Error('Locale not available in fileOps');
@@ -37,7 +31,6 @@ export async function downloadAllSitemaps(
     
     if (!sitemap || sitemap.length === 0) {
       console.log("No sitemap found to download.");
-      if (progressCallback) progressCallback(0, 0, 'success');
       return;
     }
 
@@ -51,8 +44,6 @@ export async function downloadAllSitemaps(
     // Check if download is needed (sitemap is an array, so we use the first channel for lastModified check)
     const firstChannel = sitemap[0];
     const sitemapDownloadDecision = shouldDownloadSitemap(firstChannel, localSitemapInfo, update);
-
-    if (progressCallback) progressCallback(0, 1, 'progress');
 
     if (sitemapDownloadDecision.shouldDownload) {
       // Write sitemap file
@@ -71,10 +62,8 @@ export async function downloadAllSitemaps(
       }
 
       console.log(`✓ Downloaded ${ansiColors.underline.cyan(sitemapFileName)} ${ansiColors.gray(`(${sitemapDownloadDecision.reason})`)}`);
-      if (progressCallback) progressCallback(1, 1, 'success');
     } else {
       console.log(ansiColors.yellow(`⚠ Skipped ${sitemapFileName} ${ansiColors.gray(`(${sitemapDownloadDecision.reason})`)}`));
-      if (progressCallback) progressCallback(1, 1, 'success');
     }
 
     const endTime = Date.now();
@@ -83,7 +72,6 @@ export async function downloadAllSitemaps(
 
   } catch (error: any) {
     console.error(`❌ Failed to download sitemap: ${error.message}`);
-    if (progressCallback) progressCallback(0, 1, 'error');
     throw error;
   }
 }

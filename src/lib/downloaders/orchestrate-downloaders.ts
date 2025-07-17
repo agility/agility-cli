@@ -223,10 +223,10 @@ export class DownloadOrchestrator {
         : undefined;
       
       // Create fileOperations instance for this specific GUID and locale
-      const fileOps = new fileOperations(isolatedState.rootPath, guid, locale, isolatedState.preview, isolatedState.legacyFolders);
+      const fileOps = new fileOperations(guid);
 
       // Execute downloads for this specific instance
-      await this.executeDownloadsForLocale(guid, locale, results, fileOps, isolatedState, syncDeltaTracker);
+      await this.executeDownloadsForLocale(guid, locale, results, isolatedState, syncDeltaTracker);
 
       results.totalDuration = Date.now() - startTime;
       const duration = Math.floor(results.totalDuration / 1000);
@@ -261,18 +261,18 @@ export class DownloadOrchestrator {
     } catch (error: any) {
       results.failed.push({ operation: 'instance-orchestration', error: error.message, locale });
       results.totalDuration = Date.now() - startTime;
-      console.error(`${guid} (${locale}): Instance failed - ${error.message}`);
+      console.error(`${guid}: Instance failed - ${error.message}`);
       
       // Try to finalize log file even on error
       try {
-        const fileOps = new fileOperations(isolatedState.rootPath, guid, locale, isolatedState.preview, isolatedState.legacyFolders);
+        const fileOps = new fileOperations(guid);
         const logFilePath = fileOps.finalizeLogFile("pull");
         results.logFilePath = logFilePath;
         if (isolatedState.useVerbose) {
-          console.log(`${guid} (${locale}): Log file written to ${logFilePath}`);
+          console.log(`${guid}: Log file written to ${logFilePath}`);
         }
       } catch (logError: any) {
-        console.error(`${guid} (${locale}): Could not finalize log file - ${logError.message}`);
+        console.error(`${guid}: Could not finalize log file - ${logError.message}`);
       }
       
       return results;
@@ -324,15 +324,10 @@ export class DownloadOrchestrator {
     guid: string, 
     locale: string, 
     results: DownloadResults,
-    fileOps?: fileOperations,
     isolatedState?: any,
     syncDeltaTracker?: SyncDeltaTracker
   ): Promise<void> {
-    // Create fileOperations if not provided
-    if (!fileOps) {
-      const state = getState();
-      fileOps = new fileOperations(state.rootPath, guid, locale, state.preview, state.legacyFolders);
-    }
+
 
     // Use isolated state if provided, otherwise use global state
     const state = isolatedState || getState();
@@ -344,16 +339,13 @@ export class DownloadOrchestrator {
     for (const operation of operations) {
       try {
         this.config.onOperationStart?.(operation.name, guid);
-        
         await operation.execute(guid, state, syncDeltaTracker, locale);
-        
         results.successful.push(`${operation.name} (${locale})`);
         this.config.onOperationComplete?.(operation.name, guid, true);
         
       } catch (error: any) {
         const errorMessage = error.message || 'Unknown error';
         results.failed.push({ operation: operation.name, error: errorMessage, locale });
-        
         this.config.onOperationComplete?.(operation.name, guid, false);
         console.error(`❌ ${guid} (${locale}): ${operation.name} failed - ${errorMessage}`);
       }
@@ -376,8 +368,7 @@ export class DownloadOrchestrator {
       'Assets': ['downloadAllAssets'],
       'Models': ['downloadAllModels'],
       'Templates': ['downloadAllTemplates'],
-      'Containers': ['downloadAllContainers'], // Run both isolated and sync SDK downloaders
-      'Redirections': ['downloadAllSyncSDK']
+      'Containers': ['downloadAllContainers'],
     };
     
     // Convert elements to operation names and remove duplicates
@@ -395,11 +386,9 @@ export class DownloadOrchestrator {
       name: operationName,
       description: this.getOperationDescription(operationName),
       execute: async (guid: string, isolatedState: any, syncDeltaTracker?: SyncDeltaTracker, locale?: string) => {
-        // const fileOps = new fileOperations(isolatedState.rootPath, guid, locale, isolatedState.preview, isolatedState.legacyFolders);
-
         switch (operationName) {
           case 'downloadAllSyncSDK':
-            await downloadAllSyncSDK(guid, locale, isolatedState.preview, isolatedState.channel, isolatedState.rootPath, isolatedState.update, syncDeltaTracker);
+            await downloadAllSyncSDK(guid, locale, isolatedState.channel, syncDeltaTracker);
             break;
           
           case 'downloadAllModels':
@@ -407,7 +396,7 @@ export class DownloadOrchestrator {
             break;
           
           case 'downloadAllTemplates':
-            await downloadAllTemplates(guid);
+            await downloadAllTemplates(guid, syncDeltaTracker);
             break;
           
           case 'downloadAllContainers':

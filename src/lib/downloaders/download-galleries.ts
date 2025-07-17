@@ -1,23 +1,17 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState } from "../../core/state";
+import { getApiClient, getState, state } from "../../core/state";
 import ansiColors from "ansi-colors";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import * as fs from "fs";
 import * as path from "path";
 
 export async function downloadAllGalleries(
-  fileOps: fileOperations, 
-  progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void,
+  guid: string,
   syncDeltaTracker?: SyncDeltaTracker
 ): Promise<void> {
-  // Get values from fileOps which is already configured for this specific GUID/locale
-  const guid = fileOps.guid;
-  const update = getState().update; // Use state.update instead of parameter
+  const fileOps = new fileOperations(guid);
+  const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
-
-  if (!guid) {
-    throw new Error('Source GUID not available in state');
-  }
 
   // Helper function to get local gallery metadata
   function getLocalGalleryInfo(filePath: string): { modifiedOn?: string; exists: boolean } {
@@ -88,7 +82,6 @@ export async function downloadAllGalleries(
     } catch (error) {
       console.log("Error loading galleries:");
       console.error(error);
-      if (progressCallback) progressCallback(0, 0, 'error');
       return;
     }
 
@@ -200,7 +193,6 @@ export async function downloadAllGalleries(
       });
     }
     
-    if (progressCallback) progressCallback(0, 0, 'error');
     throw error;
   }
 } 

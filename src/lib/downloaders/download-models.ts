@@ -7,7 +7,6 @@ import * as fs from "fs";
 
 export async function downloadAllModels(
   guid: string,
-  progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void,
   syncDeltaTracker?: SyncDeltaTracker
 ): Promise<void> {
   // Get values from fileOps which is already configured for this specific GUID/locale
@@ -71,12 +70,12 @@ export async function downloadAllModels(
     const allModels = [...contentModules, ...pageModules];
     totalModels = allModels.length;
     
-    if (totalModels === 0) {
-      if (progressCallback) progressCallback(0, 0, 'success');
-      return;
-    }
+    // if (totalModels === 0) {
+    //   if (progressCallback) progressCallback(0, 0, 'success');
+    //   return;
+    // }
 
-    if (progressCallback) progressCallback(0, totalModels, 'progress');
+    // if (progressCallback) progressCallback(0, totalModels, 'progress');
 
     // Phase 2: Analyze which models need downloading
     // console.log(`\n📥 Processing ${totalModels} models with smart change detection...`);
@@ -130,7 +129,7 @@ export async function downloadAllModels(
     // Phase 3: Download only the models that need updating
     if (downloadableModels.length === 0) {
       // console.log("✅ All models are up to date!");
-      if (progressCallback) progressCallback(totalModels, totalModels, 'success');
+      // if (progressCallback) progressCallback(totalModels, totalModels, 'success');
       return;
     }
 
@@ -212,9 +211,9 @@ export async function downloadAllModels(
         
         // Update progress (include skipped models in total processed)
         const totalProcessed = processedCount + skippedCount;
-        if (progressCallback) {
-          progressCallback(totalProcessed, totalModels, result.success ? 'success' : 'error');
-        }
+            // if (progressCallback) {
+            //   progressCallback(totalProcessed, totalModels, result.success ? 'success' : 'error');
+            // }
       }
     }
 
