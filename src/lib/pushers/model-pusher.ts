@@ -54,7 +54,7 @@ export async function pushModels(
         isStubPass
       );
 
-      const { model: targetModel, shouldUpdate, shouldCreate, shouldSkip } = findResult;
+      const { model: targetModel, shouldUpdate, shouldCreate, shouldSkip, sourceEntity } = findResult;
       if (shouldCreate) {
         // Model doesn't exist - create new one
         try {
@@ -89,7 +89,7 @@ export async function pushModels(
       } else if (shouldSkip) {
         // Model exists and is up to date - skip
         if (isStubPass) {
-          console.log(`✓ Model ${ansiColors.cyan.underline(modelName)}, ${ansiColors.bold.gray("exists")}`);
+          console.log(`✓ Model ${ansiColors.cyan.underline(modelName)}, ${ansiColors.bold.gray("exists, skipping")}`);
         } else {
           console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${ansiColors.bold.gray("is up to date, skipping")}`);
         }

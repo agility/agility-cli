@@ -42,6 +42,7 @@ export interface FinderDecision {
   targetSafety: TargetSafetyResult;
   syncDelta: SyncDeltaResult;
   resolution: ConflictResolution;
+  sourceEntity: any;
 }
 
 /**
@@ -141,8 +142,8 @@ export class TargetSafetyDetector {
         };
         
       case 'page':
-        mappingDate = new Date(targetMapping.properties?.modified || 0);
-        targetDate = new Date(targetInstanceData.properties?.modified || 0);
+        mappingDate = targetMapping.pageVersionID || 0;
+        targetDate = targetInstanceData.pageVersionID || 0;
         break;
         
       case 'template':
@@ -298,12 +299,14 @@ export class FinderDecisionEngine {
     const existsInTarget = !!targetInstanceData || !!targetMapping;
     const finalTargetEntity = targetInstanceData || targetMapping;
     
+    // console.log(ansiColors.bold.magenta(`sourceEntity: ${JSON.stringify(sourceEntity)}`));
     // STEP 1: Check Target Safety (FIRST)
     const targetSafety = TargetSafetyDetector.checkTargetSafety(
       entityType,
       targetMapping,
       targetInstanceData
     );
+
     
     // STEP 2: Check Sync Delta (SECOND)
     const syncDelta: SyncDeltaResult = {
@@ -320,7 +323,6 @@ export class FinderDecisionEngine {
         state.rootPath
       )
     };
-    
     // STEP 3: Conflict Resolution (THIRD)
     const resolution = ConflictResolver.resolveConflict(
       entityType,
@@ -330,7 +332,6 @@ export class FinderDecisionEngine {
       syncDelta,
       existsInTarget
     );
-    
     return {
       entity: finalTargetEntity,
       shouldUpdate: resolution.shouldUpdate,
@@ -338,7 +339,8 @@ export class FinderDecisionEngine {
       shouldSkip: resolution.shouldSkip,
       targetSafety,
       syncDelta,
-      resolution
+      resolution,
+      sourceEntity
     };
   }
 } 
