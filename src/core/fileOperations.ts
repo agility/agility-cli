@@ -15,13 +15,14 @@ export class fileOperations{
   private _basePath: string;
   private _instanceLogDir: string;
   private _currentLogFilePath: string;
+  private _isGuidLevel: boolean;
   private _mappingsPath: string;
 
-  constructor(rootPath: string, guid: string, locale: string, isPreview: boolean, legacyFolders: boolean = false) {
+  constructor(rootPath: string, guid: string, legacyFolders: boolean = false, locale?: string,) {
     this._rootPath = rootPath;
     this._guid = guid;
-    this._locale = locale;
-    this._isPreview = isPreview;
+    this._isGuidLevel = locale === undefined || locale === null || locale === ""
+    this._locale = locale ?? "";
     this._legacyFolders = legacyFolders;
     
     // Keep paths relative instead of resolving to absolute paths
@@ -36,7 +37,7 @@ export class fileOperations{
       this._instanceLogDir = path.join(this._resolvedRootPath, 'logs');
     } else {
       // Normal mode: nested structure  
-      this._basePath = path.join(this._resolvedRootPath, this._guid, this._locale, this._isPreview ? 'preview' : 'live');
+      this._basePath = this._isGuidLevel ? path.join(this._resolvedRootPath, this._guid) : path.join(this._resolvedRootPath, this._guid, this._locale);
       this._mappingsPath = path.join(this._resolvedRootPath, this._guid, 'mappings');
       this._instanceLogDir = path.join(this._basePath, 'logs');
     }
