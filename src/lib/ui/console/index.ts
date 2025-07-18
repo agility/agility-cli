@@ -23,7 +23,7 @@ export {
 export {
   createConsoleSetup,
   cleanupConsoleSetup,
-  createConsoleSetupWithBlessedHandlers,
+  // Remove blessed handlers - no longer supported
   createHeadlessConsoleSetup,
   createVerboseConsoleSetup,
   validateConsoleSetup,

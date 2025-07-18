@@ -7,7 +7,7 @@ import * as mgmtApi from '@agility/management-sdk';
 import fs from 'fs';
 import path from 'path';
 
-interface CliState {
+export interface State {
   // Environment modes
   dev: boolean;
   local: boolean;
@@ -16,7 +16,6 @@ interface CliState {
   // UI modes
   headless: boolean;
   verbose: boolean;
-  blessed: boolean;
   
   // Instance/Connection
   sourceGuid: string[]; // Array of source GUIDs
@@ -60,7 +59,6 @@ interface CliState {
   // Computed UI modes (set by auth.init())
   useHeadless?: boolean;
   useVerbose?: boolean;
-  useBlessed?: boolean;
   
   // Auth/API objects (set by auth.init())
   mgmtApiOptions?: any;
@@ -84,7 +82,7 @@ interface CliState {
 }
 
 // Global state - populated from argv and referenced throughout the app
-export const state: CliState = {
+export const state: State = {
   // Environment modes
   dev: false,
   local: false,
@@ -93,7 +91,6 @@ export const state: CliState = {
   // UI modes
   headless: false,
   verbose: false,
-  blessed: true,
   
   // Instance/Connection
   sourceGuid: [],
@@ -156,7 +153,6 @@ export function setState(argv: any) {
   // UI modes
   if (argv.headless !== undefined) state.headless = argv.headless;
   if (argv.verbose !== undefined) state.verbose = argv.verbose;
-  if (argv.blessed !== undefined) state.blessed = argv.blessed;
   
   // Instance/Connection - Multi-GUID parsing logic
   if (argv.sourceGuid !== undefined) {
@@ -274,7 +270,6 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
         AGILITY_DEV: envContent.match(/AGILITY_DEV=([^\n]+)/),
         AGILITY_LOCAL: envContent.match(/AGILITY_LOCAL=([^\n]+)/),
         AGILITY_PREPROD: envContent.match(/AGILITY_PREPROD=([^\n]+)/),
-        AGILITY_BLESSED: envContent.match(/AGILITY_BLESSED=([^\n]+)/),
         AGILITY_LEGACY_FOLDERS: envContent.match(/AGILITY_LEGACY_FOLDERS=([^\n]+)/),
         AGILITY_INSECURE: envContent.match(/AGILITY_INSECURE=([^\n]+)/),
         
@@ -359,11 +354,6 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
         primedValues.push('preprod');
       }
 
-      if (envVars.AGILITY_BLESSED && envVars.AGILITY_BLESSED[1] && state.blessed === undefined) {
-        state.blessed = envVars.AGILITY_BLESSED[1].trim().toLowerCase() === 'true';
-        primedValues.push('blessed');
-      }
-
       if (envVars.AGILITY_LEGACY_FOLDERS && envVars.AGILITY_LEGACY_FOLDERS[1] && state.legacyFolders === undefined) {
         state.legacyFolders = envVars.AGILITY_LEGACY_FOLDERS[1].trim().toLowerCase() === 'true';
         primedValues.push('legacyFolders');
@@ -401,7 +391,6 @@ export function resetState() {
   // UI modes
   state.headless = false;
   state.verbose = false;
-  state.blessed = true;
   
   // Instance/Connection
   state.sourceGuid = [];
@@ -446,7 +435,6 @@ export function resetState() {
   // Clear computed properties
   state.useHeadless = undefined;
   state.useVerbose = undefined;
-  state.useBlessed = undefined;
   
   // Clear auth/API objects
   state.mgmtApiOptions = undefined;
@@ -510,12 +498,10 @@ export function clearApiClient(): void {
 export function getUIMode() {
   const useHeadless = state.headless;
   const useVerbose = !useHeadless && state.verbose;
-  const useBlessed = !useHeadless && !useVerbose && state.blessed;
   
   return {
     useHeadless,
     useVerbose,
-    useBlessed
   };
 }
 

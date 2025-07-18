@@ -12,7 +12,7 @@ import rootPathPrompt from "./root-path-prompt";
 /**
  * Modern push functionality using the sync system - replaces legacy push
  */
-export async function pushFiles(sourceInstance: AgilityInstance, useBlessedUI: boolean) {
+export async function pushFiles(sourceInstance: AgilityInstance) {
     const { guid } = sourceInstance;
 
     // Select target instance for sync operation
@@ -26,7 +26,7 @@ export async function pushFiles(sourceInstance: AgilityInstance, useBlessedUI: b
     console.log(colors.cyan(`✔ Target instance: ${targetInstance.websiteDetails?.displayName} (${targetInstance.guid})`));
 
     // Configure state from interactive prompts using refined flag architecture
-    await configureStateFromSyncPrompts(sourceInstance, targetInstance, useBlessedUI);
+    await configureStateFromSyncPrompts(sourceInstance, targetInstance);
 
     // Use standard Sync service (authentication already handled by calling command)
     const syncOperation = new Sync();
@@ -42,7 +42,7 @@ export async function pushFiles(sourceInstance: AgilityInstance, useBlessedUI: b
 /**
  * Configure state from interactive prompts for sync operations - modern state-based approach
  */
-async function configureStateFromSyncPrompts(sourceInstance: AgilityInstance, targetInstance: AgilityInstance, useBlessedUI: boolean) {
+async function configureStateFromSyncPrompts(sourceInstance: AgilityInstance, targetInstance: AgilityInstance) {
     // Gather configuration through prompts
     const locale = await localePrompt(sourceInstance);
     console.log(colors.cyan(`✔ Locale: ${locale}`));
@@ -88,7 +88,7 @@ async function configureStateFromSyncPrompts(sourceInstance: AgilityInstance, ta
         preview: preview,
         rootPath: rootPath,
         elements: elements.join(','),
-        blessed: useBlessedUI,
+        // Remove blessed: no longer supported
         headless: false,
         verbose: false,
         update: updateChoice.update,

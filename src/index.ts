@@ -8,7 +8,7 @@ import searchList from "inquirer-search-list";
 inquirer.registerPrompt("search-list", searchList);
 
 import { Auth, Sync, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
-import { PullUICoordinator } from "./core/pull-ui-coordinator";
+import { Pull } from "./core/pull";
 import { homePrompt, instancesPrompt, localePrompt } from "./lib/ui/prompts";
 import { generateEnv } from "./lib/shared";
 import { instanceSelector } from "./lib/ui/prompts";
@@ -171,8 +171,43 @@ yargs.command({
       return;
     }
 
-    const pullOperation = new PullUICoordinator();
-    await pullOperation.execute();
+    try {
+      const pull = new Pull();
+      const result = await pull.pullInstances();
+      
+      // Simple completion summary
+      const totalElapsedSeconds = Math.floor(result.elapsedTime / 1000);
+      const minutes = Math.floor(totalElapsedSeconds / 60);
+      const seconds = totalElapsedSeconds % 60;
+      const timeDisplay = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+      
+      let totalSuccessful = 0;
+      let totalFailed = 0;
+      
+      result.results.forEach(res => {
+        if (res.failed?.length > 0) {
+          totalFailed++;
+        } else {
+          totalSuccessful++;
+        }
+      });
+      
+      console.log(colors.cyan('\nSummary:'));
+      console.log(`Processed ${result.results.length} GUID/locale combinations`);
+      console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
+      console.log(`Total time: ${timeDisplay}`);
+      
+      if (result.success) {
+        console.log(colors.green(`✓ Pull completed successfully`));
+        process.exit(0);
+      } else {
+        console.log(colors.red(`✗ Pull completed with errors`));
+        process.exit(1);
+      }
+    } catch (error: any) {
+      console.error(colors.red("\n❌ Pull command failed:"), error.message);
+      process.exit(1);
+    }
   },
 });
 
@@ -180,6 +215,7 @@ yargs.command({
 // New 2-Pass Sync Command using the enhanced dependency system
 yargs.command({
   command: "sync",
+  // aliases: ["push"],
   describe: "Sync your instance using the new 2-pass dependency system.",
   builder: {
     // Override targetGuid to be required for sync
@@ -193,6 +229,11 @@ yargs.command({
     ...systemArgs
   },
   handler: async function (argv) {
+
+    // const invokedAs = Array.isArray(argv._) && argv._.length > 0 ? String(argv._[0]) : "";
+    // const pushCommandUsed = invokedAs === "push"; 
+
+    
     resetState(); // Clear any previous command state
     
     // Prime state from .env file before applying command line args
@@ -203,6 +244,11 @@ yargs.command({
     
     setState(argv);
     
+    // if the user is "pushing" only, we need to turn off the updates on the downloaders
+    // if (pushCommandUsed) {
+    //   state.update = false;
+    // }
+
     auth = new Auth();
     const isAuthorized = await auth.init();
     if (!isAuthorized) {

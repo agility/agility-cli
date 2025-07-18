@@ -2,7 +2,7 @@ import { fileOperations } from '../../../core/fileOperations';
 import { getState } from '../../../core/state';
 import ansiColors from 'ansi-colors';
 
-export type ConsoleMode = 'headless' | 'verbose' | 'blessed' | 'plain';
+export type ConsoleMode = 'headless' | 'verbose' | 'plain';
 
 export interface ConsoleState {
   mode: ConsoleMode;
@@ -45,9 +45,7 @@ export class ConsoleManager {
       case 'verbose':
         this.setupVerboseMode();
         break;
-      case 'blessed':
-        this.setupBlessedMode();
-        break;
+      // Remove blessed case - no longer supported
       case 'plain':
         this.setupPlainMode();
         break;
@@ -94,27 +92,7 @@ export class ConsoleManager {
     this.state.isRedirected = true;
   }
 
-  /**
-   * Setup blessed mode (redirect to UI + file logging)
-   */
-  private setupBlessedMode(): void {
-    if (this.state.isRedirected) return;
-
-    console.log = (...args: any[]) => {
-      const message = this.formatMessage(args);
-      this.redirectionHandlers?.onLog?.(message); // Send to BlessedUI
-      this.logToFile(message); // Also log to file
-    };
-
-    console.error = (...args: any[]) => {
-      const rawMessage = this.formatMessage(args);
-      const errorMessage = `ERROR: ${rawMessage}`;
-      this.redirectionHandlers?.onError?.(errorMessage); // Send to BlessedUI
-      this.logToFile(rawMessage, true); // Log to file
-    };
-
-    this.state.isRedirected = true;
-  }
+  // Remove setupBlessedMode - no longer supported
 
   /**
    * Setup plain mode (console + file logging, like verbose but less verbose)

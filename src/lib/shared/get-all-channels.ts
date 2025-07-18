@@ -1,4 +1,4 @@
-import { getApiClient } from "core/state";
+import { getApiClient } from "../../core/state";
 
 export async function getAllChannels(  
   guid: string,

@@ -4,17 +4,19 @@ import ansiColors from "ansi-colors";
 import * as agilitySync from "@agility/content-sync";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import { state, getApiKeysForGuid } from "../../core/state";
-import { fileOperations } from "core/fileOperations";
-import { handleSyncToken } from "lib/shared/sync-token-handler";
-import { getAllChannels } from "lib/shared/get-all-channels";
+import { fileOperations } from "../../core/fileOperations";
+import { handleSyncToken } from "../shared/sync-token-handler";
+import { getAllChannels } from "../shared/get-all-channels";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
 export async function downloadAllSyncSDK(guid: string)
 {
-  const locales: string[] = state.guidLocaleMap[guid];
+  const locales: string[] = state.guidLocaleMap.get(guid);
   const channels = await getAllChannels(guid, locales[0]);
   const downloads: Promise<any>[] = [];
+
+
 
   channels.forEach(channel => {
     locales.forEach(locale => {

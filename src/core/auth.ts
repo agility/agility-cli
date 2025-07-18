@@ -313,7 +313,7 @@ export class Auth {
     // Step 4: Set up UI mode in state
     state.useHeadless = state.headless; // headless takes precedence
     state.useVerbose = !state.useHeadless && state.verbose;
-    state.useBlessed = !state.useHeadless && !state.useVerbose && state.blessed;
+    // Remove blessed mode - no longer supported
 
     // Step 5: Check permission bypass flags
     const shouldSkip = this.shouldSkipPermissionCheck();

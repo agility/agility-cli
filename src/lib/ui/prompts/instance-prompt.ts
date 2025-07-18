@@ -18,7 +18,7 @@ const FormData = require("form-data");
 inquirer.registerPrompt("search-list", require("inquirer-search-list"));
 
 export async function instancesPrompt(selectedInstance?: AgilityInstance, keys?: any) {
-  const { useBlessed } = getUIMode();
+  // Remove blessed mode - no longer supported
   const { state } = await import('../../../core/state');
   
   console.log('selectedInstance', selectedInstance);
@@ -80,13 +80,13 @@ export async function instancesPrompt(selectedInstance?: AgilityInstance, keys?:
 
   switch (answers.instanceAction) {
     case "pull":
-      await pullFiles(selectedInstance, useBlessed);
+              await pullFiles(selectedInstance);
       // if (pullResult) {
       //   homePrompt();
       // }
       break;
     case "push":
-      await pushFiles(selectedInstance, useBlessed);
+              await pushFiles(selectedInstance);
       break;
     case "syncModels":
       console.log('Sync models needs implementation.');

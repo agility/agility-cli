@@ -4,6 +4,7 @@ import ansiColors from "ansi-colors";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import * as fs from "fs";
 import * as path from "path";
+import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllGalleries(
   guid: string
@@ -13,9 +14,9 @@ export async function downloadAllGalleries(
   const apiClient = getApiClient();
   
   // Create SyncDeltaTracker internally
-  const locale = fileOps.locale || 'en-us';
-  const channel = state.channel || 'website';
-  const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
+  const locales = state.guidLocaleMap.get(guid);
+  const channels = await getAllChannels(guid, locales[0]);
+  // const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
 
   // Helper function to get local gallery metadata
   function getLocalGalleryInfo(filePath: string): { modifiedOn?: string; exists: boolean } {
@@ -102,31 +103,31 @@ export async function downloadAllGalleries(
       downloadedCount++;
       
       // Record in sync delta
-      if (syncDeltaTracker) {
-        syncDeltaTracker.recordChange({
-          id: index,
-          type: 'gallery',
-          action: downloadDecision.reason === 'new file' ? 'created' : 'updated',
-          name: `galleries-${index}.json`,
-          referenceName: `galleries-${index}`,
-          timestamp: ''
-        });
-      }
+      // if (syncDeltaTracker) {
+      //   syncDeltaTracker.recordChange({
+      //     id: index,
+      //     type: 'gallery',
+      //     action: downloadDecision.reason === 'new file' ? 'created' : 'updated',
+      //     name: `galleries-${index}.json`,
+      //     referenceName: `galleries-${index}`,
+      //     timestamp: ''
+      //   });
+      // }
     } else {
       console.log(`✓ Gallery file galleries-${index}.json up to date, skipping`);
       skippedCount++;
       
       // Record in sync delta
-      if (syncDeltaTracker) {
-        syncDeltaTracker.recordChange({
-          id: index,
-          type: 'gallery',
-          action: 'unchanged',
-          name: `galleries-${index}.json`,
-          referenceName: `galleries-${index}`,
-          timestamp: ''
-        });
-      }
+      // if (syncDeltaTracker) {
+      //   syncDeltaTracker.recordChange({
+      //     id: index,
+      //     type: 'gallery',
+      //     action: 'unchanged',
+      //     name: `galleries-${index}.json`,
+      //     referenceName: `galleries-${index}`,
+      //     timestamp: ''
+      //   });
+      // }
     }
 
     index++;
@@ -150,52 +151,52 @@ export async function downloadAllGalleries(
         downloadedCount++;
         
         // Record in sync delta
-        if (syncDeltaTracker) {
-          syncDeltaTracker.recordChange({
-            id: index,
-            type: 'gallery',
-            action: galleryDownloadDecision.reason === 'new file' ? 'created' : 'updated',
-            name: `galleries-${index}.json`,
-            referenceName: `galleries-${index}`,
-            timestamp: ''
-          });
-        }
+        // if (syncDeltaTracker) {
+        //   syncDeltaTracker.recordChange({
+        //     id: index,
+        //     type: 'gallery',
+        //     action: galleryDownloadDecision.reason === 'new file' ? 'created' : 'updated',
+        //     name: `galleries-${index}.json`,
+        //     referenceName: `galleries-${index}`,
+        //     timestamp: ''
+        //   });
+        // }
       } else {
-        console.log(`✓ Gallery file galleries-${index}.json up to date, skipping`);
+        console.log(ansiColors.yellow(`✓ Gallery file galleries-${index}.json up to date, skipping`));
         skippedCount++;
         
         // Record in sync delta
-        if (syncDeltaTracker) {
-          syncDeltaTracker.recordChange({
-            id: index,
-            type: 'gallery',
-            action: 'unchanged',
-            name: `galleries-${index}.json`,
-            referenceName: `galleries-${index}`,
-            timestamp: ''
-          });
-        }
+        // if (syncDeltaTracker) {
+        //   syncDeltaTracker.recordChange({
+        //     id: index,
+        //     type: 'gallery',
+        //     action: 'unchanged',
+        //     name: `galleries-${index}.json`,
+        //     referenceName: `galleries-${index}`,
+        //     timestamp: ''
+        //   });
+        // }
       }
 
       index++;
     }
 
-    console.log(`Gallery Change Detection Results: ${ansiColors.green(downloadedCount.toString())} to download, ${ansiColors.gray(skippedCount.toString())} unchanged`);
+    console.log(`\nGallery Change Detection Results: ${ansiColors.green(downloadedCount.toString())} to download, ${ansiColors.gray(skippedCount.toString())} unchanged`);
 
   } catch (error: any) {
     console.error(`Error in downloadAllGalleries: ${error.message}`);
     
     // Record error in sync delta
-    if (syncDeltaTracker) {
-      syncDeltaTracker.recordChange({
-        id: 'gallery-error',
-        type: 'gallery',
-        action: 'error',
-        name: 'Gallery download error',
-        referenceName: 'gallery-error',
-        timestamp: ''
-      });
-    }
+    // if (syncDeltaTracker) {
+    //   syncDeltaTracker.recordChange({
+    //     id: 'gallery-error',
+    //     type: 'gallery',
+    //     action: 'error',
+    //     name: 'Gallery download error',
+    //     referenceName: 'gallery-error',
+    //     timestamp: ''
+    //   });
+    // }
     
     throw error;
   }

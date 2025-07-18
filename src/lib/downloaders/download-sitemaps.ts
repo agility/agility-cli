@@ -4,24 +4,20 @@ import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import * as fs from "fs";
 import * as path from "path";
 import ansiColors from "ansi-colors";
+import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllSitemaps(  
   guid: string
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
-  const locale = fileOps.locale;
+  const locales = state.guidLocaleMap.get(guid);
   const update = state.update;
   const apiClient = getApiClient();
   
-  // Create SyncDeltaTracker internally
-  const channel = state.channel || 'website';
-  const syncDeltaTracker = new SyncDeltaTracker(guid, locale || 'en-us', channel);
 
-  if (!locale) {
-    throw new Error('Locale not available in fileOps');
-  }
+  // const channels = await getAllChannels(guid, locales[0]);
+  // const syncDeltaTracker = new SyncDeltaTracker(guid, locale || 'en-us', channel);
 
-  console.log(`\nDownloading sitemaps for ${guid} (${locale})...`);
 
   // Use fileOperations to create sitemaps folder
   fileOps.createFolder('sitemaps');
@@ -30,7 +26,7 @@ export async function downloadAllSitemaps(
 
   try {
     // Get the sitemap from API
-    const sitemap = await apiClient.pageMethods.getSitemap(guid, locale);
+    const sitemap = await apiClient.pageMethods.getSitemap(guid, locales[0]);
     
     if (!sitemap || sitemap.length === 0) {
       console.log("No sitemap found to download.");
@@ -38,7 +34,7 @@ export async function downloadAllSitemaps(
     }
 
     // File path for the sitemap
-    const sitemapFileName = `sitemap-${guid}-${locale}.json`;
+    const sitemapFileName = `sitemap.json`;
     const sitemapFilePath = fileOps.getDataFolderPath(`sitemaps/${sitemapFileName}`);
     
     // Get local sitemap info for comparison
@@ -53,16 +49,16 @@ export async function downloadAllSitemaps(
       fs.writeFileSync(sitemapFilePath, JSON.stringify(sitemap, null, 2));
       
       // Track in sync delta if provided
-      if (syncDeltaTracker) {
-        syncDeltaTracker.recordChange({
-          id: `sitemap-${guid}-${locale}`,
-          type: 'page', // Sitemaps are page-related
-          action: localSitemapInfo.exists ? 'updated' : 'created',
-          name: `Sitemap ${guid} (${locale})`,
-          referenceName: sitemapFileName,
-          timestamp: '' // Will be overridden by recordChange
-        });
-      }
+      // if (syncDeltaTracker) {
+      //   syncDeltaTracker.recordChange({
+      //     id: `sitemap-${guid}-${locales[0]}`,
+      //     type: 'page', // Sitemaps are page-related
+      //     action: localSitemapInfo.exists ? 'updated' : 'created',
+      //     name: `Sitemap ${guid} (${locales[0]})`,
+      //     referenceName: sitemapFileName,
+      //     timestamp: '' // Will be overridden by recordChange
+      //   });
+      // }
 
       console.log(`✓ Downloaded ${ansiColors.underline.cyan(sitemapFileName)} ${ansiColors.gray(`(${sitemapDownloadDecision.reason})`)}`);
     } else {

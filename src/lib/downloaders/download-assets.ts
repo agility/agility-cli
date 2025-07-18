@@ -5,6 +5,7 @@ import fs from "fs";
 import path from "path";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import { getAssetFilePath } from "../assets/asset-utils";
+import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllAssets(
   guid: string
@@ -14,9 +15,9 @@ export async function downloadAllAssets(
   const apiClient = getApiClient();
   
   // Create SyncDeltaTracker internally
-  const locale = fileOps.locale || 'en-us';
-  const channel = state.channel || 'website';
-  const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
+  const locales = state.guidLocaleMap.get(guid);
+  const channels = await getAllChannels(guid, locales[0]);
+  // const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
 
   // Note: Using shared getAssetFilePath utility for consistent filename handling
   // This ensures URL decoding is consistent between download and processing phases
@@ -139,20 +140,20 @@ export async function downloadAllAssets(
          skippableAssets.push({ asset, reason: downloadDecision.reason });
          
          // Record unchanged asset in sync delta
-         if (syncDeltaTracker) {
-           syncDeltaTracker.recordChange({
-             id: asset.mediaID,
-             type: 'asset',
-             action: 'unchanged',
-             name: asset.fileName,
-             referenceName: asset.fileName,
-             timestamp: '' // Will be overridden by recordChange
-           });
-         }
+        //  if (syncDeltaTracker) {
+        //    syncDeltaTracker.recordChange({
+        //      id: asset.mediaID,
+        //      type: 'asset',
+        //      action: 'unchanged',
+        //      name: asset.fileName,
+        //      referenceName: asset.fileName,
+        //      timestamp: '' // Will be overridden by recordChange
+        //    });
+        //  }
        }
      }
 
-    console.log(`Asset Change Detection Results: ${ansiColors.green(downloadableAssets.length.toString())} to download, ${ansiColors.gray(skippableAssets.length.toString())} unchanged`);
+    console.log(`\nAsset Change Detection Results: ${ansiColors.green(downloadableAssets.length.toString())} to download, ${ansiColors.gray(skippableAssets.length.toString())} unchanged`);
 
     // Phase 3: Download only the assets that need updating
     if (downloadableAssets.length === 0) {
@@ -190,16 +191,16 @@ export async function downloadAllAssets(
               console.log(`✓ Downloaded asset ${ansiColors.cyan(asset.fileName)} ${ansiColors.gray(`(${reason})`)} ${ansiColors.gray(sizeDisplay)}`);
               
                              // Record successful download in sync delta
-               if (syncDeltaTracker) {
-                 syncDeltaTracker.recordChange({
-                   id: asset.mediaID,
-                   type: 'asset',
-                   action: reason === 'new file' ? 'created' : 'updated',
-                   name: asset.fileName,
-                   referenceName: asset.fileName,
-                   timestamp: '' // Will be overridden by recordChange
-                 });
-               }
+              //  if (syncDeltaTracker) {
+              //    syncDeltaTracker.recordChange({
+              //      id: asset.mediaID,
+              //      type: 'asset',
+              //      action: reason === 'new file' ? 'created' : 'updated',
+              //      name: asset.fileName,
+              //      referenceName: asset.fileName,
+              //      timestamp: '' // Will be overridden by recordChange
+              //    });
+              //  }
               
               return { success: true, asset };
             } else {
@@ -210,16 +211,16 @@ export async function downloadAllAssets(
             console.log(`✓ Saved metadata for ${ansiColors.cyan(asset.fileName)} ${ansiColors.gray(`(${reason}, no file)`)}`);
             
                          // Record metadata-only update
-             if (syncDeltaTracker) {
-               syncDeltaTracker.recordChange({
-                 id: asset.mediaID,
-                 type: 'asset',
-                 action: reason === 'new file' ? 'created' : 'updated',
-                 name: asset.fileName,
-                 referenceName: asset.fileName,
-                 timestamp: '' // Will be overridden by recordChange
-               });
-             }
+            //  if (syncDeltaTracker) {
+            //    syncDeltaTracker.recordChange({
+            //      id: asset.mediaID,
+            //      type: 'asset',
+            //      action: reason === 'new file' ? 'created' : 'updated',
+            //      name: asset.fileName,
+            //      referenceName: asset.fileName,
+            //      timestamp: '' // Will be overridden by recordChange
+            //    });
+            //  }
             
             return { success: true, asset };
           }
@@ -228,16 +229,16 @@ export async function downloadAllAssets(
           unProcessedAssets[asset.mediaID] = asset.fileName;
           
                      // Record error in sync delta
-           if (syncDeltaTracker) {
-             syncDeltaTracker.recordChange({
-               id: asset.mediaID,
-               type: 'asset',
-               action: 'error',
-               name: asset.fileName,
-               referenceName: asset.fileName,
-               timestamp: '' // Will be overridden by recordChange
-             });
-           }
+          //  if (syncDeltaTracker) {
+          //    syncDeltaTracker.recordChange({
+          //      id: asset.mediaID,
+          //      type: 'asset',
+          //      action: 'error',
+          //      name: asset.fileName,
+          //      referenceName: asset.fileName,
+          //      timestamp: '' // Will be overridden by recordChange
+          //    });
+          //  }
           
           return { success: false, asset, error };
         }

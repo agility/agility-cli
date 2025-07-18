@@ -34,11 +34,6 @@ export const systemArgs = {
   verbose: {
     describe: "Run in verbose mode: all logs to console, no UI elements. Overridden by headless.",
     type: "boolean" as const,
-    default: false,
-  },
-  blessed: {
-    describe: "Use the experimental Blessed UI for operations.",
-    type: "boolean" as const,
     default: true,
   },
   

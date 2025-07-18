@@ -600,7 +600,7 @@ export class fileOperations{
       // This might happen if no logging occurred.
       // We can either create an empty one to signify the operation or just return an expected path.
       // For now, let's log a message and return the expected path if it were created.
-      console.warn(`Log file ${this._currentLogFilePath} not found. Cannot finalize.`);
+      console.warn(`\nLog file ${this._currentLogFilePath} not found. Cannot finalize.`);
       const newLogFileName = `${operationType}-${semanticTimestamp}.txt`;
       return path.join(this._instanceLogDir, newLogFileName);
     }

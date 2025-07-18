@@ -6,7 +6,7 @@ import { downloadAllTemplates } from './download-templates';
 import { downloadAllContainers } from './download-containers';
 import { downloadAllSyncSDK } from './download-sync-sdk';
 import { downloadAllSitemaps } from './download-sitemaps';
-import { getState } from 'core';
+import { getState } from '../../core/state';
 
 // Central configuration for all download operations
 export interface OperationConfig {

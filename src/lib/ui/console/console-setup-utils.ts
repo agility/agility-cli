@@ -61,19 +61,7 @@ export function cleanupConsoleSetup(setup: ConsoleSetupResult): string | null {
   return logPath;
 }
 
-/**
- * Create console setup with BlessedUI handlers
- */
-export function createConsoleSetupWithBlessedHandlers(
-  config: ConsoleSetupConfig,
-  onLog: (message: string) => void,
-  onError: (message: string) => void
-): ConsoleSetupResult {
-  return createConsoleSetup({
-    ...config,
-    handlers: { onLog, onError }
-  });
-}
+// Remove blessed handler function - no longer supported
 
 /**
  * Quick console setup for headless mode

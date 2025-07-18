@@ -3,22 +3,20 @@ import { getApiClient, getState, state } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
 import { ContentHashComparer } from "../shared/content-hash-comparer";
-import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
+// import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
+import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllTemplates(
   guid: string
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
-  const locale = fileOps.locale; // Templates need locale for API call
+  const locales = state.guidLocaleMap.get(guid); // Templates need locale for API call
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
   
-  // Create SyncDeltaTracker internally
-  const channel = state.channel || 'website';
-  const syncDeltaTracker = new SyncDeltaTracker(guid, locale || 'en-us', channel);
-
+  const channels = await getAllChannels(guid, locales[0]);
+  // const syncDeltaTracker = new SyncDeltaTracker(guid, locale || 'en-us', channel);
   const templatesFolderPath = fileOps.getDataFolderPath('templates');
-  console.log('\n')
   // Individual template file existence checking is now handled below
 
   // Use fileOperations to create templates folder
@@ -28,7 +26,7 @@ export async function downloadAllTemplates(
   const startTime = Date.now(); // Track start time for performance measurement
   try {
     // console.log("Fetching list of page templates...");
-    let pageTemplates = await apiClient.pageMethods.getPageTemplates(guid, locale, true); 
+    let pageTemplates = await apiClient.pageMethods.getPageTemplates(guid, locales[0], true); 
     totalTemplates = pageTemplates.length; // Assign here
     // console.log(`Found ${totalTemplates} page templates to download.`);
 

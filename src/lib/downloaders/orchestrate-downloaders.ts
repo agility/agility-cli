@@ -157,6 +157,7 @@ export class Downloader {
         this.config.onOperationComplete?.(operation.name, guid, true);
         
       } catch (error: any) {
+        console.log(error);
         const errorMessage = error.message || 'Unknown error';
         results.failed.push({ operation: operation.name, error: errorMessage });
         

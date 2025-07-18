@@ -17,10 +17,8 @@ export class LoggingModes {
   static determineMode(): ConsoleMode {
     const state = getState();
 
-    // Priority order: useBlessed > useHeadless > useVerbose > default (plain)
-    if (state.useBlessed) {
-      return 'blessed';
-    }
+    // Priority order: useHeadless > useVerbose > default (plain)
+    // Remove blessed from priority order
     
     if (state.useHeadless) {
       return 'headless';
@@ -58,15 +56,16 @@ export class LoggingModes {
           shouldShowVerboseOutput: true
         };
 
-      case 'blessed':
-        return {
-          mode: 'blessed',
-          shouldLogToFile: true,
-          shouldLogToConsole: false,
-          shouldRedirectToUI: true,
-          shouldShowProgress: true,
-          shouldShowVerboseOutput: false
-        };
+      // Remove blessed case:
+      // case 'blessed':
+      //   return {
+      //     mode: 'blessed',
+      //     shouldLogToFile: true,
+      //     shouldLogToConsole: false,
+      //     shouldRedirectToUI: true,
+      //     shouldShowProgress: true,
+      //     shouldShowVerboseOutput: false
+      //   };
 
       case 'plain':
       default:
@@ -93,8 +92,8 @@ export class LoggingModes {
    * Check if current mode supports specific functionality
    */
   static supportsInteractiveUI(): boolean {
-    const mode = this.determineMode();
-    return mode === 'blessed';
+    // Remove blessed support - no interactive UI now
+    return false;
   }
 
   static supportsProgressBars(): boolean {
@@ -170,13 +169,14 @@ export class LoggingModes {
           includeProgressBars: true
         };
 
-      case 'blessed':
-        return {
-          includeTimestamp: false,
-          includeLevel: false,
-          includeColors: true,
-          includeProgressBars: true
-        };
+      // Remove blessed case:
+      // case 'blessed':
+      //   return {
+      //     includeTimestamp: false,
+      //     includeLevel: false,
+      //     includeColors: true,
+      //     includeProgressBars: true
+      //   };
 
       case 'plain':
       default:
@@ -246,13 +246,14 @@ export class LoggingModes {
           bufferedOutput: false
         };
 
-      case 'blessed':
-        return {
-          redirectConsole: true,
-          showInlineProgress: true,
-          enableColors: true,
-          bufferedOutput: true
-        };
+      // Remove blessed case:
+      // case 'blessed':
+      //   return {
+      //     redirectConsole: true,
+      //     showInlineProgress: true,
+      //     enableColors: true,
+      //     bufferedOutput: true
+      //   };
 
       case 'plain':
       default:
@@ -287,13 +288,12 @@ export class LoggingModes {
 
     // Check for conflicting modes
     const modeCount = [
-      state.useBlessed,
       state.useHeadless,
       state.useVerbose
     ].filter(Boolean).length;
 
     if (modeCount > 1) {
-      warnings.push('Multiple console modes specified, using priority order: blessed > headless > verbose');
+      warnings.push('Multiple console modes specified, using priority order: headless > verbose');
     }
 
     // Check for required state values
@@ -325,8 +325,7 @@ export class LoggingModes {
         return 'Headless mode - All output redirected to log file only';
       case 'verbose':
         return 'Verbose mode - Full console output with detailed progress information';
-      case 'blessed':
-        return 'Blessed mode - Interactive terminal UI with progress bars and real-time updates';
+      // Remove blessed case - no longer supported
       case 'plain':
         return 'Plain mode - Standard console output with basic progress information';
       default:
