@@ -15,8 +15,7 @@ export async function downloadAllSitemaps(
   const apiClient = getApiClient();
   
 
-  // const channels = await getAllChannels(guid, locales[0]);
-  // const syncDeltaTracker = new SyncDeltaTracker(guid, locale || 'en-us', channel);
+  const syncDeltaTracker = new SyncDeltaTracker(guid);
 
 
   // Use fileOperations to create sitemaps folder
@@ -49,16 +48,16 @@ export async function downloadAllSitemaps(
       fs.writeFileSync(sitemapFilePath, JSON.stringify(sitemap, null, 2));
       
       // Track in sync delta if provided
-      // if (syncDeltaTracker) {
-      //   syncDeltaTracker.recordChange({
-      //     id: `sitemap-${guid}-${locales[0]}`,
-      //     type: 'page', // Sitemaps are page-related
-      //     action: localSitemapInfo.exists ? 'updated' : 'created',
-      //     name: `Sitemap ${guid} (${locales[0]})`,
-      //     referenceName: sitemapFileName,
-      //     timestamp: '' // Will be overridden by recordChange
-      //   });
-      // }
+      if (syncDeltaTracker) {
+        syncDeltaTracker.recordChange({
+          guid,
+          id: `sitemap-${guid}-${locales[0]}`,
+          type: 'page', // Sitemaps are page-related
+          action: localSitemapInfo.exists ? 'updated' : 'created',
+          name: `Sitemap ${guid} (${locales[0]})`,
+          referenceName: sitemapFileName,
+        });
+      }
 
       console.log(`✓ Downloaded ${ansiColors.underline.cyan(sitemapFileName)} ${ansiColors.gray(`(${sitemapDownloadDecision.reason})`)}`);
     } else {

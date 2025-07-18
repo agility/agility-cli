@@ -14,9 +14,7 @@ export async function downloadAllGalleries(
   const apiClient = getApiClient();
   
   // Create SyncDeltaTracker internally
-  const locales = state.guidLocaleMap.get(guid);
-  const channels = await getAllChannels(guid, locales[0]);
-  // const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
+  const syncDeltaTracker = new SyncDeltaTracker(guid);
 
   // Helper function to get local gallery metadata
   function getLocalGalleryInfo(filePath: string): { modifiedOn?: string; exists: boolean } {
@@ -103,31 +101,31 @@ export async function downloadAllGalleries(
       downloadedCount++;
       
       // Record in sync delta
-      // if (syncDeltaTracker) {
-      //   syncDeltaTracker.recordChange({
-      //     id: index,
-      //     type: 'gallery',
-      //     action: downloadDecision.reason === 'new file' ? 'created' : 'updated',
-      //     name: `galleries-${index}.json`,
-      //     referenceName: `galleries-${index}`,
-      //     timestamp: ''
-      //   });
-      // }
+      if (syncDeltaTracker) {
+        syncDeltaTracker.recordChange({
+          guid,
+          id: index,
+          type: 'gallery',
+          action: downloadDecision.reason === 'new file' ? 'created' : 'updated',
+          name: `galleries-${index}.json`,
+          referenceName: `galleries-${index}`,
+        });
+      }
     } else {
       console.log(`✓ Gallery file galleries-${index}.json up to date, skipping`);
       skippedCount++;
       
       // Record in sync delta
-      // if (syncDeltaTracker) {
-      //   syncDeltaTracker.recordChange({
-      //     id: index,
-      //     type: 'gallery',
-      //     action: 'unchanged',
-      //     name: `galleries-${index}.json`,
-      //     referenceName: `galleries-${index}`,
-      //     timestamp: ''
-      //   });
-      // }
+      if (syncDeltaTracker) {
+        syncDeltaTracker.recordChange({
+          guid,
+          id: index,
+          type: 'gallery',
+          action: 'unchanged',
+          name: `galleries-${index}.json`,
+          referenceName: `galleries-${index}`,
+        });
+      }
     }
 
     index++;
@@ -151,31 +149,31 @@ export async function downloadAllGalleries(
         downloadedCount++;
         
         // Record in sync delta
-        // if (syncDeltaTracker) {
-        //   syncDeltaTracker.recordChange({
-        //     id: index,
-        //     type: 'gallery',
-        //     action: galleryDownloadDecision.reason === 'new file' ? 'created' : 'updated',
-        //     name: `galleries-${index}.json`,
-        //     referenceName: `galleries-${index}`,
-        //     timestamp: ''
-        //   });
-        // }
+        if (syncDeltaTracker) {
+          syncDeltaTracker.recordChange({
+            guid,
+            id: index,
+            type: 'gallery',
+            action: galleryDownloadDecision.reason === 'new file' ? 'created' : 'updated',
+            name: `galleries-${index}.json`,
+            referenceName: `galleries-${index}`,
+          });
+        }
       } else {
         console.log(ansiColors.yellow(`✓ Gallery file galleries-${index}.json up to date, skipping`));
         skippedCount++;
         
         // Record in sync delta
-        // if (syncDeltaTracker) {
-        //   syncDeltaTracker.recordChange({
-        //     id: index,
-        //     type: 'gallery',
-        //     action: 'unchanged',
-        //     name: `galleries-${index}.json`,
-        //     referenceName: `galleries-${index}`,
-        //     timestamp: ''
-        //   });
-        // }
+        if (syncDeltaTracker) {
+          syncDeltaTracker.recordChange({
+            guid,
+            id: index,
+            type: 'gallery',
+            action: 'unchanged',
+            name: `galleries-${index}.json`,
+            referenceName: `galleries-${index}`,
+          });
+        }
       }
 
       index++;
@@ -187,16 +185,16 @@ export async function downloadAllGalleries(
     console.error(`Error in downloadAllGalleries: ${error.message}`);
     
     // Record error in sync delta
-    // if (syncDeltaTracker) {
-    //   syncDeltaTracker.recordChange({
-    //     id: 'gallery-error',
-    //     type: 'gallery',
-    //     action: 'error',
-    //     name: 'Gallery download error',
-    //     referenceName: 'gallery-error',
-    //     timestamp: ''
-    //   });
-    // }
+    if (syncDeltaTracker) {
+      syncDeltaTracker.recordChange({
+        guid,
+        id: 'gallery-error',
+        type: 'gallery',
+        action: 'error',
+        name: 'Gallery download error',
+        referenceName: 'gallery-error',
+      });
+    }
     
     throw error;
   }

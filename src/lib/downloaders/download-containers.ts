@@ -14,9 +14,7 @@ export async function downloadAllContainers(
   const apiClient = getApiClient();
 
   // Create SyncDeltaTracker internally
-  const locales = state.guidLocaleMap.get(guid);
-  const channels = await getAllChannels(guid, locales[0]);
-  // const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
+  const syncDeltaTracker = new SyncDeltaTracker(guid);
 
   const containersFolderPath = fileOps.getDataFolderPath('containers');
 
@@ -109,16 +107,16 @@ export async function downloadAllContainers(
         });
         
         // Record unchanged container in sync delta
-        // if (syncDeltaTracker) {
-        //   syncDeltaTracker.recordChange({
-        //     id: containerRef.contentViewID,
-        //     type: 'container',
-        //     action: 'unchanged',
-        //     name: containerRef.referenceName,
-        //     referenceName: containerRef.referenceName,
-        //     timestamp: '' // Will be overridden by recordChange
-        //   });
-        // }
+        if (syncDeltaTracker) {
+          syncDeltaTracker.recordChange({
+            guid,
+            id: containerRef.contentViewID,
+            type: 'container',
+            action: 'unchanged',
+            name: containerRef.referenceName,
+            referenceName: containerRef.referenceName,
+          });
+        }
       }
     }
 
@@ -158,32 +156,32 @@ export async function downloadAllContainers(
           console.log(`✓ Downloaded container ${ansiColors.cyan(container.referenceName)} ID: ${container.contentViewID} ${ansiColors.gray(`(${reason})`)}`);
           
           // Record successful download in sync delta
-          // if (syncDeltaTracker) {
-          //   syncDeltaTracker.recordChange({
-          //     id: container.contentViewID,
-          //     type: 'container',
-          //     action: reason === 'new file' ? 'created' : 'updated',
-          //     name: container.referenceName,
-          //     referenceName: container.referenceName,
-          //     timestamp: '' // Will be overridden by recordChange
-          //   });
-          // }
+          if (syncDeltaTracker) {
+            syncDeltaTracker.recordChange({
+              guid,
+              id: container.contentViewID,
+              type: 'container',
+              action: reason === 'new file' ? 'created' : 'updated',
+              name: container.referenceName,
+              referenceName: container.referenceName,
+            });
+          }
           
           return { success: true, container };
         } catch (error: any) {
           console.error(`✗ Failed to download container ${ansiColors.red(containerName)} ID: ${containerID}`, ansiColors.gray(error.message ? `- ${error.message}` : ''));
           
           // Record error in sync delta
-          // if (syncDeltaTracker) {
-          //   syncDeltaTracker.recordChange({
-          //     id: containerRef.contentViewID,
-          //     type: 'container',
-          //     action: 'error',
-          //     name: containerRef.referenceName,
-          //     referenceName: containerRef.referenceName,
-          //     timestamp: '' // Will be overridden by recordChange
-          //   });
-          // }
+          if (syncDeltaTracker) {
+            syncDeltaTracker.recordChange({
+              guid,
+              id: containerRef.contentViewID,
+              type: 'container',
+              action: 'error',
+              name: containerRef.referenceName,
+              referenceName: containerRef.referenceName,
+            });
+          }
           
           return { success: false, containerRef, error };
         }

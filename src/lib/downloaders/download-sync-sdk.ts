@@ -40,7 +40,7 @@ export async function downloadSyncSDKByLocaleAndChannel(
   const fileOps = new fileOperations(guid, locale);
   
   // Create SyncDeltaTracker internally
-  const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
+  const syncDeltaTracker = new SyncDeltaTracker(guid);
   // Get API keys for this specific GUID
   const { previewKey:apiKey} = getApiKeysForGuid(guid);  
   const startTime = Date.now(); // Track start time for performance measurement

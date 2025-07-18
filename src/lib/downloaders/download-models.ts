@@ -10,14 +10,11 @@ export async function downloadAllModels(
   guid: string
 ): Promise<void> {
   // Get values from fileOps which is already configured for this specific GUID/locale
-
   const fileOps = new fileOperations(guid);
   const apiClient = getApiClient();
   
   // Create SyncDeltaTracker internally
-  const locales = state.guidLocaleMap.get(guid);
-  // const channels = await getAllChannels(guid, locales[0]);
-  // const syncDeltaTracker = new SyncDeltaTracker(guid, locale || 'en-us', channel);
+  const syncDeltaTracker = new SyncDeltaTracker(guid);
 
   const modelsFolderPath = fileOps.getDataFolderPath('models');
   // Use fileOperations to create models folder
@@ -116,16 +113,16 @@ export async function downloadAllModels(
         });
         
         // Record unchanged model in sync delta
-        // if (syncDeltaTracker) {
-        //   syncDeltaTracker.recordChange({
-        //     id: modelSummary.id,
-        //     type: 'model',
-        //     action: 'unchanged',
-        //     name: modelSummary.referenceName || modelSummary.displayName,
-        //     referenceName: modelSummary.referenceName,
-        //     timestamp: '' // Will be overridden by recordChange
-        //   });
-        // }
+        if (syncDeltaTracker) {
+          syncDeltaTracker.recordChange({
+            guid,
+            id: modelSummary.id,
+            type: 'model',
+            action: 'unchanged',
+            name: modelSummary.referenceName || modelSummary.displayName,
+            referenceName: modelSummary.referenceName,
+          });
+        }
       }
     }
 
@@ -172,16 +169,16 @@ export async function downloadAllModels(
           console.log(`✓ Downloaded ${modelType} model ${ansiColors.cyan(modelDisplayName)} ${ansiColors.gray(`(${reason})`)}`);
           
           // Record successful download in sync delta
-          // if (syncDeltaTracker) {
-          //   syncDeltaTracker.recordChange({
-          //     id: modelDetails.id,
-          //     type: 'model',
-          //     action: reason === 'new file' ? 'created' : 'updated',
-          //     name: modelDisplayName,
-          //     referenceName: modelDetails.referenceName,
-          //     timestamp: '' // Will be overridden by recordChange
-          //   });
-          // }
+          if (syncDeltaTracker) {
+            syncDeltaTracker.recordChange({
+              guid,
+              id: modelDetails.id,
+              type: 'model',
+              action: reason === 'new file' ? 'created' : 'updated',
+              name: modelDisplayName,
+              referenceName: modelDetails.referenceName,
+            });
+          }
           
           return { success: true, modelDetails };
         } catch (error: any) {
@@ -189,16 +186,16 @@ export async function downloadAllModels(
           console.error(`✗ Failed to download ${modelType} model ${ansiColors.red(modelDisplayName)}:`, ansiColors.gray(error.message || 'Unknown error'));
           
           // Record error in sync delta
-          // if (syncDeltaTracker) {
-          //   syncDeltaTracker.recordChange({
-          //     id: modelSummary.id,
-          //     type: 'model',
-          //     action: 'error',
-          //     name: modelDisplayName,
-          //     referenceName: modelSummary.referenceName,
-          //     timestamp: '' // Will be overridden by recordChange
-          //   });
-          // }
+          if (syncDeltaTracker) {
+            syncDeltaTracker.recordChange({
+              guid,
+              id: modelSummary.id,
+              type: 'model',
+              action: 'error',
+              name: modelDisplayName,
+              referenceName: modelSummary.referenceName,
+            });
+          }
           
           return { success: false, modelSummary, error };
         }
