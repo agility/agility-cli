@@ -8,5 +8,5 @@ export * from './download-sync-sdk';
 
 // Download orchestration modules
 export * from './orchestrate-downloaders';
-export * from './download-step-executor';
+export * from './download-operations-config';
  

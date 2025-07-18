@@ -2,6 +2,7 @@ import * as fs from 'fs';
 import * as Https from 'https';
 import * as path from 'path';
 const os = require('os');
+import { state } from './state';
 os.tmpDir = os.tmpdir;
 
 export class fileOperations{
@@ -9,34 +10,34 @@ export class fileOperations{
   private _rootPath: string;
   private _guid: string;
   private _locale: string;
-  private _isPreview: boolean;
   private _legacyFolders: boolean;
   private _resolvedRootPath: string;
   private _basePath: string;
   private _instanceLogDir: string;
   private _currentLogFilePath: string;
+  private _isGuidLevel: boolean;
   private _mappingsPath: string;
 
-  constructor(rootPath: string, guid: string, locale: string, isPreview: boolean, legacyFolders: boolean = false) {
-    this._rootPath = rootPath;
+  constructor(guid: string, locale?: string) {
+    this._rootPath = state.rootPath;
     this._guid = guid;
-    this._locale = locale;
-    this._isPreview = isPreview;
-    this._legacyFolders = legacyFolders;
+    this._isGuidLevel = locale === undefined || locale === null || locale === ""
+    this._locale = locale ?? "";
+    this._legacyFolders = state.legacyFolders;
     
     // Keep paths relative instead of resolving to absolute paths
     // This prevents files from being written to /Users/ directories
-    this._resolvedRootPath = rootPath;
+    this._resolvedRootPath = state.rootPath;
     
     // Calculate paths based on legacy mode
-    if (legacyFolders) {
+    if (state.legacyFolders) {
       // Legacy mode: flat structure
       this._basePath = this._resolvedRootPath;
       this._mappingsPath = path.join(this._resolvedRootPath, 'mappings');
       this._instanceLogDir = path.join(this._resolvedRootPath, 'logs');
     } else {
       // Normal mode: nested structure  
-      this._basePath = path.join(this._resolvedRootPath, this._guid, this._locale, this._isPreview ? 'preview' : 'live');
+      this._basePath = this._isGuidLevel ? path.join(this._resolvedRootPath, this._guid) : path.join(this._resolvedRootPath, this._guid, this._locale);
       this._mappingsPath = path.join(this._resolvedRootPath, this._guid, 'mappings');
       this._instanceLogDir = path.join(this._basePath, 'logs');
     }
@@ -68,10 +69,6 @@ export class fileOperations{
 
   public get locale(): string {
     return this._locale;
-  }
-
-  public get isPreview(): boolean {
-    return this._isPreview;
   }
 
   /**
@@ -219,7 +216,6 @@ export class fileOperations{
   async downloadFile(url: string, targetFile: string) {  
     return await new Promise((resolve, reject) => {
       // Ensure the target directory exists
-      const path = require('path');
       const targetDir = path.dirname(targetFile);
       
       if (!fs.existsSync(targetDir)) {
@@ -371,8 +367,24 @@ export class fileOperations{
   }
 
   // Data folder path utilities
-  getDataFolderPath(folderName: string): string {
-    return path.join(this._basePath, folderName);
+  getDataFolderPath(folderName?: string): string {
+    if(folderName){
+      return path.join(this._basePath, folderName);
+    }
+    return this._basePath;
+  }
+
+  getDataFilePath(folderName?: string, fileName?: string): string {
+    if(folderName && fileName){
+      return path.join(this._basePath, folderName, fileName);
+    }
+    else if(folderName){
+      return path.join(this._basePath, folderName);
+    }
+    else if(fileName){
+      return path.join(this._basePath, fileName);
+    }
+    return this._basePath;
   }
 
   getNestedSitemapPath(): string {
@@ -588,7 +600,7 @@ export class fileOperations{
       // This might happen if no logging occurred.
       // We can either create an empty one to signify the operation or just return an expected path.
       // For now, let's log a message and return the expected path if it were created.
-      console.warn(`Log file ${this._currentLogFilePath} not found. Cannot finalize.`);
+      console.warn(`\nLog file ${this._currentLogFilePath} not found. Cannot finalize.`);
       const newLogFileName = `${operationType}-${semanticTimestamp}.txt`;
       return path.join(this._instanceLogDir, newLogFileName);
     }

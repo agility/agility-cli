@@ -4,11 +4,10 @@ const fs = require('fs')
 const os = require('os')
 const path = require('path')
 const { lockSync, unlockSync, checkSync, check }  = require("proper-lockfile")
+import { sleep } from "../shared/sleep";
 
-// Simple sleep utility function (originally from agility-sync-sdk util.js)
-const sleep = (ms: number) => {
-    return new Promise(resolve => setTimeout(resolve, ms));
-}
+const { getState } = require('../../core/state');	
+
 
 // RACE CONDITION FIX: Convert global stats to instance-specific stats
 // Use rootPath as unique identifier for each concurrent download
@@ -88,7 +87,7 @@ const getInstanceStats = (rootPath: string): InstanceStatsData => {
 
 /**
  * Set a progress callback function that will be called whenever items are saved
- * This allows the BlessedUI to get real-time updates during sync operations
+ * This allows the UI to get real-time updates during sync operations
  */
 const setProgressCallback = (callback: ((stats: ProgressStats) => void) | null, rootPath?: string) => {
     if (rootPath) {
@@ -126,7 +125,7 @@ const initializeProgress = (rootPath?: string) => {
  */
 const cleanupProgressData = (rootPath: string) => {
     const instanceStats = getInstanceStats(rootPath);
-    const MAX_STATS_HISTORY = 200; // Reduced from 500 to match Blessed UI limit
+    const MAX_STATS_HISTORY = 200; // Limit for memory management
     if (instanceStats.itemsSavedStats.length > MAX_STATS_HISTORY) {
         instanceStats.itemsSavedStats = instanceStats.itemsSavedStats.slice(-MAX_STATS_HISTORY);
     }
@@ -194,6 +193,11 @@ const updateProgress = (itemType: string, itemID: string | number, rootPath: str
  */
 const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 
+	// Null/undefined safety check - prevent crashes when SDK passes undefined items
+	if (item === null || item === undefined) {
+		console.warn(`⚠️  Skipping save for ${itemType} (ID: ${itemID}) - item is ${item}`);
+		return;
+	}
 
 	// console.log('saveItem-> ', itemType, languageCode, itemID);
 	const cwd = process.cwd();
@@ -218,11 +222,10 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 		fs.writeFileSync(absoluteFilePath, json);
         // console.log(`[Debug saveItem] Write successful for: ${absoluteFilePath}`);
 		
-		// Only log when verbose is enabled or blessed UI is disabled
-		// This prevents UI clutter when blessed UI is active on large instances
-		const { getState } = require('../../core/state');
+		// Only log when verbose is enabled
+		// This prevents UI clutter on large instances
 		const state = getState();
-		if (state.verbose || !state.blessed) {
+		if (state.verbose) {
 			console.log('✓ Downloaded',ansiColors.cyan(itemType), ansiColors.white(itemID));
 		}
 

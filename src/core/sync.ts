@@ -28,7 +28,7 @@ export class Sync {
   private originalConsoleError: typeof console.error;
 
   constructor() {
-    this.fileOps = new fileOperations(state.rootPath, state.sourceGuid[0], state.locale[0], state.preview);
+    this.fileOps = new fileOperations(state.sourceGuid[0], state.locale[0]);
 
     // Store original console methods for restoration
     this.originalConsoleLog = console.log;

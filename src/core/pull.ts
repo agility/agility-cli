@@ -7,24 +7,14 @@ import {
   clearTimestamps,
 } from "../lib/incremental";
 
-import { DownloadOrchestrator } from "../lib/downloaders/orchestrate-downloaders";
+import { Downloader } from "../lib/downloaders/orchestrate-downloaders";
 
 export class Pull {
-  private downloadOrchestrator: DownloadOrchestrator;
+  private downloader: Downloader;
 
   constructor() {
     // Initialize download orchestrator (pure business logic)
-    this.downloadOrchestrator = new DownloadOrchestrator({
-      operationName: 'Pull',
-      onStepStart: (stepName, guid) => console.log(`Starting ${stepName} for ${guid}...`),
-      onStepComplete: (stepName, guid, success) => {
-        if (success) {
-          console.log(`✓ ${stepName} completed successfully`);
-        } else {
-          console.log(`✗ ${stepName} failed`);
-        }
-      }
-    });
+    this.downloader = new Downloader();
   }
 
   async pullInstances(): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
@@ -46,7 +36,6 @@ export class Pull {
       totalOperations += guidLocales.length;
       operationDetails.push(`${guid}: ${guidLocales.join(', ')}`);
     }
-
  
     operationDetails.forEach(detail => console.log(`${detail}`));
     
@@ -62,8 +51,8 @@ export class Pull {
     const totalStartTime = Date.now();
 
     try {
-      // Execute concurrent downloads for all GUIDs and locales
-      const results = await this.downloadOrchestrator.executeAllDownloadsConcurrently();
+      // Execute concurrent downloads for all GUIDs, locales and channels (sitemaps)
+      const results = await this.downloader.instanceOrchestrator();
       
       const totalElapsedTime = Date.now() - totalStartTime;
 

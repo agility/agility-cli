@@ -1,25 +1,22 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState } from "../../core/state";
+import { getApiClient, getState, state } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
 import { ContentHashComparer } from "../shared/content-hash-comparer";
+// import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
+import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllTemplates(
-  fileOps: fileOperations,
-  progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void
+  guid: string
 ): Promise<void> {
-  // Get values from fileOps which is already configured for this specific GUID/locale
-  const guid = fileOps.guid;
-  const locale = fileOps.locale; // Templates need locale for API call
-  const update = getState().update; // Use state.update instead of parameter
+  const fileOps = new fileOperations(guid);
+  const locales = state.guidLocaleMap.get(guid); // Templates need locale for API call
+  const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
-
-  if (!guid) {
-    throw new Error('Source GUID not available in state');
-  }
-
+  
+  const channels = await getAllChannels(guid, locales[0]);
+  // const syncDeltaTracker = new SyncDeltaTracker(guid, locale || 'en-us', channel);
   const templatesFolderPath = fileOps.getDataFolderPath('templates');
-  console.log('\n')
   // Individual template file existence checking is now handled below
 
   // Use fileOperations to create templates folder
@@ -29,19 +26,17 @@ export async function downloadAllTemplates(
   const startTime = Date.now(); // Track start time for performance measurement
   try {
     // console.log("Fetching list of page templates...");
-    let pageTemplates = await apiClient.pageMethods.getPageTemplates(guid, locale, true); 
+    let pageTemplates = await apiClient.pageMethods.getPageTemplates(guid, locales[0], true); 
     totalTemplates = pageTemplates.length; // Assign here
     // console.log(`Found ${totalTemplates} page templates to download.`);
 
     if (totalTemplates === 0) {
         console.log("No page templates found to download.");
-        if (progressCallback) progressCallback(0, 0, 'success'); 
         return;
     }
 
     let processedCount = 0;
     let skippedCount = 0;
-    if (progressCallback) progressCallback(0, totalTemplates, 'progress');
     // console.log("Starting download of page templates...");
 
     for (let i = 0; i < totalTemplates; i++) {
@@ -85,7 +80,6 @@ export async function downloadAllTemplates(
       }
       
       processedCount++;
-      if (progressCallback) progressCallback(processedCount, totalTemplates, 'progress');
     }
     
     // Summary of downloaded templates
@@ -94,11 +88,9 @@ export async function downloadAllTemplates(
     const elapsedSeconds = (elapsedTime / 1000).toFixed(2);
     console.log(ansiColors.yellow(`\nDownloaded ${downloadedCount} templates (${downloadedCount}/${totalTemplates} templates, ${skippedCount} skipped, 0 errors) in ${elapsedSeconds}s\n`));
     // console.log("All page templates downloaded successfully.");
-    if (progressCallback) progressCallback(totalTemplates, totalTemplates, 'success');
   } catch (error) {
     console.error("\nError downloading page templates:", error);
     // Use the totalTemplates variable from the outer scope
-    if (progressCallback) progressCallback(0, totalTemplates, 'error'); 
     throw error; 
   }
 } 

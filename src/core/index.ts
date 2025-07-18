@@ -10,7 +10,6 @@ export { systemArgs, type SystemArgsType } from './system-args';
 
 // Main operation services
 export { Sync } from './sync';
-export { default as Clean } from './clean';
 
 // Publishing service
 export { PublishService, createPublishService, type PublishResult, type PublishOptions } from './publish';

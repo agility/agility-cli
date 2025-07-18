@@ -25,10 +25,8 @@ export class FileLogger {
   constructor(config: FileLoggerConfig) {
     this.config = config;
     this.fileOps = new fileOperations(
-      config.rootPath,
       config.guid,
-      config.locale,
-      config.preview
+      config.locale
     );
   }
 

@@ -37,11 +37,8 @@ export class GuidDataLoader {
         
         // Use enhanced fileOperations with the specified GUID
         this.fileOps = new fileOperations(
-            state.rootPath,
             guid,
-            state.locale[0],
-            state.preview,
-            state.legacyFolders
+            state.locale[0]
         );
     }
 

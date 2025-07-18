@@ -15,9 +15,3 @@ export {
   type ProgressWindow
 } from './progress-calculator';
 
-// Step Status Manager - Step lifecycle and execution management
-export {
-  StepStatusManager,
-  type StepConfig,
-  type StepExecutionContext
-} from './step-status-manager'; 

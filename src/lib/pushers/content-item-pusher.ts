@@ -637,7 +637,7 @@ export async function pushContent(
             // Use source GUID from state instead of complex lookup logic
             
             // Create fileOperations instance for the source data
-            const fileOps = new fileOperations('agility-files', sourceGuid[0], locale[0], true);
+            const fileOps = new fileOperations(sourceGuid[0], locale[0]);
             
             resolvedModels = getModelsFromFileSystem(fileOps);
             

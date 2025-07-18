@@ -1,23 +1,22 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState } from "../../core/state";
+import { getApiClient, getState, state } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import * as fs from "fs";
+import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllContainers(
-  fileOps: fileOperations,
-  progressCallback?: (processed: number, total: number, status?: 'success' | 'error' | 'progress') => void,
-  syncDeltaTracker?: SyncDeltaTracker
+  guid: string
 ): Promise<void> {
-  // Get values from fileOps which is already configured for this specific GUID/locale
-  const guid = fileOps.guid;
-  const update = getState().update; // Use state.update instead of parameter
+  const fileOps = new fileOperations(guid);
+  const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
 
-  if (!guid) {
-    throw new Error('Source GUID not available in state');
-  }
+  // Create SyncDeltaTracker internally
+  const locales = state.guidLocaleMap.get(guid);
+  const channels = await getAllChannels(guid, locales[0]);
+  // const syncDeltaTracker = new SyncDeltaTracker(guid, locale, channel);
 
   const containersFolderPath = fileOps.getDataFolderPath('containers');
 
@@ -75,11 +74,9 @@ export async function downloadAllContainers(
     
     if (totalContainers === 0) {
       console.log("No containers found to download.");
-      if (progressCallback) progressCallback(0, 0, 'success');
       return;
     }
 
-    if (progressCallback) progressCallback(0, totalContainers, 'progress');
 
     // Phase 2: Analyze which containers need downloading
     // console.log(`\n📥 Processing ${totalContainers} containers with smart change detection...`);
@@ -112,25 +109,24 @@ export async function downloadAllContainers(
         });
         
         // Record unchanged container in sync delta
-        if (syncDeltaTracker) {
-          syncDeltaTracker.recordChange({
-            id: containerRef.contentViewID,
-            type: 'container',
-            action: 'unchanged',
-            name: containerRef.referenceName,
-            referenceName: containerRef.referenceName,
-            timestamp: '' // Will be overridden by recordChange
-          });
-        }
+        // if (syncDeltaTracker) {
+        //   syncDeltaTracker.recordChange({
+        //     id: containerRef.contentViewID,
+        //     type: 'container',
+        //     action: 'unchanged',
+        //     name: containerRef.referenceName,
+        //     referenceName: containerRef.referenceName,
+        //     timestamp: '' // Will be overridden by recordChange
+        //   });
+        // }
       }
     }
 
-    console.log(`Container Change Detection Results: ${ansiColors.green(downloadableContainers.length.toString())} to download, ${ansiColors.gray(skippableContainers.length.toString())} unchanged`);
+    console.log(`\nContainer Change Detection Results: ${ansiColors.green(downloadableContainers.length.toString())} to download, ${ansiColors.gray(skippableContainers.length.toString())} unchanged`);
 
     // Phase 3: Download only the containers that need updating
     if (downloadableContainers.length === 0) {
       // console.log("✅ All containers are up to date!");
-      if (progressCallback) progressCallback(totalContainers, totalContainers, 'success');
       return;
     }
 
@@ -162,32 +158,32 @@ export async function downloadAllContainers(
           console.log(`✓ Downloaded container ${ansiColors.cyan(container.referenceName)} ID: ${container.contentViewID} ${ansiColors.gray(`(${reason})`)}`);
           
           // Record successful download in sync delta
-          if (syncDeltaTracker) {
-            syncDeltaTracker.recordChange({
-              id: container.contentViewID,
-              type: 'container',
-              action: reason === 'new file' ? 'created' : 'updated',
-              name: container.referenceName,
-              referenceName: container.referenceName,
-              timestamp: '' // Will be overridden by recordChange
-            });
-          }
+          // if (syncDeltaTracker) {
+          //   syncDeltaTracker.recordChange({
+          //     id: container.contentViewID,
+          //     type: 'container',
+          //     action: reason === 'new file' ? 'created' : 'updated',
+          //     name: container.referenceName,
+          //     referenceName: container.referenceName,
+          //     timestamp: '' // Will be overridden by recordChange
+          //   });
+          // }
           
           return { success: true, container };
         } catch (error: any) {
           console.error(`✗ Failed to download container ${ansiColors.red(containerName)} ID: ${containerID}`, ansiColors.gray(error.message ? `- ${error.message}` : ''));
           
           // Record error in sync delta
-          if (syncDeltaTracker) {
-            syncDeltaTracker.recordChange({
-              id: containerRef.contentViewID,
-              type: 'container',
-              action: 'error',
-              name: containerRef.referenceName,
-              referenceName: containerRef.referenceName,
-              timestamp: '' // Will be overridden by recordChange
-            });
-          }
+          // if (syncDeltaTracker) {
+          //   syncDeltaTracker.recordChange({
+          //     id: containerRef.contentViewID,
+          //     type: 'container',
+          //     action: 'error',
+          //     name: containerRef.referenceName,
+          //     referenceName: containerRef.referenceName,
+          //     timestamp: '' // Will be overridden by recordChange
+          //   });
+          // }
           
           return { success: false, containerRef, error };
         }
@@ -205,9 +201,6 @@ export async function downloadAllContainers(
         
         // Update progress (include skipped containers in total processed)
         const totalProcessed = processedCount + skippedCount;
-        if (progressCallback) {
-          progressCallback(totalProcessed, totalContainers, result.success ? 'success' : 'error');
-        }
       }
     }
 

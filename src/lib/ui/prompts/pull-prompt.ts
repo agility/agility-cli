@@ -6,18 +6,21 @@ import { channelPrompt } from "./channel-prompt";
 import { isPreviewPrompt } from "./isPreview-prompt";
 import { elementsPrompt } from "./elements-prompt";
 import { AgilityInstance } from "../../../types/agilityInstance";
-import { PullUICoordinator } from "../../../core/pull-ui-coordinator";
 import rootPathPrompt from "./root-path-prompt";
+import { Pull } from "../../../core/pull";
 
 
-export async function pullFiles(selectedInstance: AgilityInstance, useBlessedUI: boolean) {
+export async function pullFiles(selectedInstance: AgilityInstance) {
     // Configure state from interactive prompts using refined flag architecture
-    await configureStateFromPrompts(selectedInstance, useBlessedUI);
+    await configureStateFromPrompts(selectedInstance);
 
-    // Use standard Pull UI coordinator (authentication already handled by calling command)
-    const pullOperation = new PullUICoordinator();
+    // Use standard Pull class (authentication already handled by calling command)
+    const pull = new Pull();
     try {
-        await pullOperation.execute();
+        const result = await pull.pullInstances();
+        
+        // Simple completion message
+        console.log(colors.green(`✓ Pull completed successfully in ${Math.floor(result.elapsedTime / 1000)}s`));
         return true;
     } catch (pullError) {
         console.error(colors.red('Pull operation failed:'), pullError);
@@ -28,7 +31,7 @@ export async function pullFiles(selectedInstance: AgilityInstance, useBlessedUI:
 /**
  * Configure state from interactive prompts - modern state-based approach
  */
-async function configureStateFromPrompts(selectedInstance: AgilityInstance, useBlessedUI: boolean) {
+async function configureStateFromPrompts(selectedInstance: AgilityInstance) {
     const { guid } = selectedInstance;
     
     // Gather configuration through prompts
@@ -67,7 +70,7 @@ async function configureStateFromPrompts(selectedInstance: AgilityInstance, useB
         preview: preview,
         rootPath: rootPath,
         elements: elements.join(','),
-        blessed: useBlessedUI,
+        // Remove blessed: no longer supported
         headless: false,
         verbose: false,
         update: updateChoice.update,
