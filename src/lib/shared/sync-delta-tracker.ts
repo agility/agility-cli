@@ -72,10 +72,10 @@ export class SyncDelta {
     // Create action maps
     this._changes = {} as EntityChangeStore;
 
-    for (const action of ENTITY_ACTIONS) {
-      this._changes[action] = {} as Record<EntityType, Record<string, EntityChange>>;
-      for (const type of ENTITY_TYPES) {
-        this._changes[action][type] = {};
+    for (const type of ENTITY_TYPES) {
+      this._changes[type] = {} as Record<EntityChangeAction, Record<string, EntityChange>>;
+      for (const action of ENTITY_ACTIONS) {
+        this._changes[type][action] = {};
       }
     }
   }
