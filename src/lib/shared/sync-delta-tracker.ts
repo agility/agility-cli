@@ -1,11 +1,11 @@
 import * as fs from "fs";
 import * as path from "path";
 
-type EntityType = "model" | "container" | "asset" | "gallery" | "template" | "page" | "content-item";
-type EntityChangeAction = "created" | "updated" | "unchanged" | "error";
+export type EntityType = "model" | "container" | "asset" | "gallery" | "template" | "page" | "content-item";
+export type EntityChangeAction = "created" | "updated";
 
 const ENTITY_TYPES: EntityType[] = ["model", "container", "asset", "gallery", "template", "page", "content-item"];
-const ENTITY_ACTIONS: EntityChangeAction[] = ["created", "updated", "unchanged", "error"];
+const ENTITY_ACTIONS: EntityChangeAction[] = ["created", "updated"];
 
 export interface EntityPayload {
   guid: string;
@@ -23,7 +23,6 @@ export interface EntityChange {
   type: EntityType;
   action: EntityChangeAction;
   timestamp?: string;
-  guid: string;
   locale?: string;
   channel?: string;
   hash?: {
@@ -40,7 +39,7 @@ type EntityChangeStore = Record<EntityType, Record<EntityChangeAction, Record<st
 /**
  * Sync delta summary for writing to file
  */
-export interface SyncDelta {
+export interface SyncDeltaSummary {
   guid: string;
   timestamp: string;
   totalChanges: number;
@@ -50,7 +49,7 @@ export interface SyncDelta {
 /**
  * Generates an entity key for the map
  */
-function generateEntityKey(entityPayload: EntityPayload): string {
+export function generateEntityKey(entityPayload: EntityPayload): string {
   const { guid, locale, channel, referenceName, id } = entityPayload;
   const parts: (string | number | undefined)[] = [guid, locale, channel, referenceName, id];
 
@@ -61,7 +60,7 @@ function generateEntityKey(entityPayload: EntityPayload): string {
  * Tracks all entity changes during a download/sync operation
  * and writes a comprehensive delta report to sync-delta.json
  */
-export class SyncDeltaTracker {
+export class SyncDelta {
   private _changes: EntityChangeStore;
   private _guid: string;
   private _startTime: string;
@@ -85,8 +84,8 @@ export class SyncDeltaTracker {
    * Record an entity change
    */
   recordChange(change: EntityChange): void {
-    const { guid, locale, channel, type, referenceName, id, action } = change;
-    const entityKey = generateEntityKey({ guid, locale, channel, referenceName, id });
+    const { locale, channel, type, referenceName, id, action } = change;
+    const entityKey = generateEntityKey({ guid: this._guid, locale, channel, referenceName, id });
     change.timestamp = new Date().toISOString();
     this._changes[type][action][entityKey] = change;
   }
@@ -106,16 +105,12 @@ export class SyncDeltaTracker {
     changesByType: Record<string, number>;
     changesByAction: Record<string, number>;
     modifiedEntities: number;
-    unchangedEntities: number;
-    errorEntities: number;
   } {
     const changesByType: Record<string, number> = {};
     const changesByAction: Record<string, number> = {};
     
     let totalChanges = 0;
     let modifiedEntities = 0;
-    let unchangedEntities = 0;
-    let errorEntities = 0;
 
     // Count directly from the nested structure (now type -> action -> key)
     for (const type of ENTITY_TYPES) {
@@ -134,10 +129,6 @@ export class SyncDeltaTracker {
         // Count by action type
         if (action === 'created' || action === 'updated') {
           modifiedEntities += actionCount;
-        } else if (action === 'unchanged') {
-          unchangedEntities += actionCount;
-        } else if (action === 'error') {
-          errorEntities += actionCount;
         }
       }
       
@@ -150,8 +141,6 @@ export class SyncDeltaTracker {
       changesByType,
       changesByAction,
       modifiedEntities,
-      unchangedEntities,
-      errorEntities,
     };
   }
 
@@ -164,16 +153,13 @@ export class SyncDeltaTracker {
     let totalChanges = 0;
 
     ENTITY_TYPES.forEach(entityType => {
-      delete changedEntities[entityType]['unchanged']
-      delete changedEntities[entityType]['error']
-
       const createdCount = Object.keys(changedEntities[entityType]?.['created'] || {}).length;
       const updatedCount = Object.keys(changedEntities[entityType]?.['updated'] || {}).length;
 
       totalChanges = totalChanges + createdCount + updatedCount;
     })
 
-    const syncDelta: SyncDelta = {
+    const syncDelta: SyncDeltaSummary = {
       guid: this._guid,
       timestamp: this._startTime,
       totalChanges: totalChanges,
@@ -231,57 +217,10 @@ export class SyncDeltaTracker {
 
     return lines.join("\n");
   }
-}
 
-/**
- * Static utility methods for reading sync delta data
- */
-export class SyncDeltaReader {
-  /**
-   * Load sync delta from file system
-   */
-  static loadSyncDelta(rootPath: string = process.cwd()): SyncDelta | null {
-    try {
-      const agilityFilesDir = rootPath.endsWith("agility-files") ? rootPath : path.join(rootPath, "agility-files");
-      const filePath = path.join(agilityFilesDir, "sync-delta.json");
 
-      if (!fs.existsSync(filePath)) {
-        return null;
-      }
-
-      const content = fs.readFileSync(filePath, "utf8");
-      return JSON.parse(content) as SyncDelta;
-    } catch (error) {
-      console.warn("Warning: Could not load sync delta file:", error);
-      return null;
-    }
-  }
-
-  /**
-   * Check if an entity is marked for create/update in sync delta
-   */
-  static getSyncDeltaEntityActionType(
-    type: EntityType,
-    entityPayload: EntityPayload,
-    rootPath: string = process.cwd(),
-  ): EntityChangeAction {
-    const syncDelta = this.loadSyncDelta(rootPath);
-
-    if (!syncDelta) {
-      console.error('sync delta does not exist');
-      throw new Error('sync delta does not exist');
-    }
-
-    const entityKey = generateEntityKey(entityPayload)
-
-    const syncDeltaCreatedPartition = syncDelta.entities[type]['created'];
-    const syncDeltaUpdatedPartition = syncDelta.entities[type]['updated'];
-
-    if (syncDeltaCreatedPartition[entityKey]) return 'created';
-    if (syncDeltaUpdatedPartition[entityKey]) return 'updated';
-
-    throw new Error(`No entity with GUID: ${entityPayload.guid}, LOCALE: ${entityPayload.locale}, CHANNEL: ${entityPayload.channel}, ID: ${entityPayload.id}, REFERENCE_NAME: ${entityPayload.referenceName} found in sync delta for type ${type}`);
-
-  }
 
 }
+
+
+

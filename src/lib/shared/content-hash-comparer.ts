@@ -374,11 +374,7 @@ if(!matches){
       action = 'created';
     } else if (comparison.status === 'modified') {
       action = 'updated';
-    } else if (comparison.status === 'unchanged') {
-      action = 'unchanged';
-    } else {
-      action = 'error';
-    }
+    } 
 
     return {
       id: modelContent.id || modelContent.contentID || 'unknown',
@@ -407,11 +403,7 @@ if(!matches){
       action = 'created';
     } else if (comparison.status === 'modified') {
       action = 'updated';
-    } else if (comparison.status === 'unchanged') {
-      action = 'unchanged';
-    } else {
-      action = 'error';
-    }
+    } 
 
     return {
       id: apiContent[idField] || 'unknown',

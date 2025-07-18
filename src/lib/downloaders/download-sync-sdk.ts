@@ -2,7 +2,7 @@ import * as path from "path";
 import * as fs from "fs";
 import ansiColors from "ansi-colors";
 import * as agilitySync from "@agility/content-sync";
-import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
+import { SyncDelta } from "../shared/sync-delta-tracker";
 import { state, getApiKeysForGuid } from "../../core/state";
 import { fileOperations } from "../../core/fileOperations";
 import { handleSyncToken } from "../shared/sync-token-handler";
@@ -39,8 +39,8 @@ export async function downloadSyncSDKByLocaleAndChannel(
   console.log(`\nDownloading GUID: ${guid} | Locale: ${locale}`);
   const fileOps = new fileOperations(guid, locale);
   
-  // Create SyncDeltaTracker internally
-  const syncDeltaTracker = new SyncDeltaTracker(guid);
+  // Create SyncDelta internally
+  const syncDelta = new SyncDelta(guid);
   // Get API keys for this specific GUID
   const { previewKey:apiKey} = getApiKeysForGuid(guid);  
   const startTime = Date.now(); // Track start time for performance measurement
@@ -62,7 +62,7 @@ export async function downloadSyncSDKByLocaleAndChannel(
       options: {
         rootPath: instanceSpecificPath,
         // NEW: Pass sync delta tracker and mode
-        syncDeltaTracker: syncDeltaTracker,
+        syncDeltaTracker: syncDelta,
         isIncrementalSync: isIncrementalSync
       }
     }
