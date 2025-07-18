@@ -215,7 +215,7 @@ yargs.command({
 // New 2-Pass Sync Command using the enhanced dependency system
 yargs.command({
   command: "sync",
-  // aliases: ["push"],
+  aliases: ["push"],
   describe: "Sync your instance using the new 2-pass dependency system.",
   builder: {
     // Override targetGuid to be required for sync
@@ -230,8 +230,8 @@ yargs.command({
   },
   handler: async function (argv) {
 
-    // const invokedAs = Array.isArray(argv._) && argv._.length > 0 ? String(argv._[0]) : "";
-    // const pushCommandUsed = invokedAs === "push"; 
+    const invokedAs = Array.isArray(argv._) && argv._.length > 0 ? String(argv._[0]) : "";
+    const pushCommandUsed = invokedAs === "push"; 
 
     
     resetState(); // Clear any previous command state
@@ -245,9 +245,9 @@ yargs.command({
     setState(argv);
     
     // if the user is "pushing" only, we need to turn off the updates on the downloaders
-    // if (pushCommandUsed) {
-    //   state.update = false;
-    // }
+    if (pushCommandUsed) {
+      state.update = false;
+    }
 
     auth = new Auth();
     const isAuthorized = await auth.init();
