@@ -7,7 +7,7 @@ import inquirer from "inquirer";
 import searchList from "inquirer-search-list";
 inquirer.registerPrompt("search-list", searchList);
 
-import { Auth, Clean, Sync, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
+import { Auth, Sync, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
 import { PullUICoordinator } from "./core/pull-ui-coordinator";
 import { homePrompt, instancesPrompt, localePrompt } from "./lib/ui/prompts";
 import { generateEnv } from "./lib/shared";
@@ -107,44 +107,6 @@ yargs.command({
   },
 });
 
-yargs.command({
-  command: "clean",
-  describe: "Scrub all the data out of an instance",
-  builder: {
-    // System args (commonly repeated across commands)
-    ...systemArgs
-  },
-  handler: async function (argv) {
-    resetState(); // Clear any previous command state
-    
-    // Prime state from .env file before applying command line args
-    const envPriming = primeFromEnv();
-    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
-      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
-    }
-    
-    setState(argv);
-    // Force local mode for clean operations
-    state.local = true;
-    
-    auth = new Auth();
-    const isAuthorized = await auth.init();
-    if (!isAuthorized) {
-      return;
-    }
-
-    // Validate clean command requirements (minimal validation)
-    const isValidCommand = await auth.validateCommand('clean');
-    if (!isValidCommand) {
-      return;
-    }
-
-    const selectedInstance = await instanceSelector();
-    const locale = await localePrompt(selectedInstance);
-    const clean = new Clean(selectedInstance, locale);
-    await clean.cleanAll();
-  },
-});
 
 yargs.command({
   command: "genenv",

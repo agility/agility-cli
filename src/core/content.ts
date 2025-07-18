@@ -23,7 +23,7 @@ export class content {
 
   async updateContentItems(selectedContentItems: string) {
     const apiClient = new mgmtApi.ApiClient(this._options);
-    const fileOperation = new fileOperations(this._rootPath, this._guid, this._locale, this._isPreview);
+    const fileOperation = new fileOperations(this._guid, this._locale);
     const contentItemsArray: mgmtApi.ContentItem[] = [];
 
     fileOperation.createLogFile("logs", "instancelog");

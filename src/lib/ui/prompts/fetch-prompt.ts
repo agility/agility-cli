@@ -24,9 +24,8 @@ export async function fetchCommandsPrompt(
   channel: string,
   isPreview: boolean,
   apiKey: string,
-  rootPath: string
 ) {
-  let files = new fileOperations(rootPath, guid, locale, isPreview);
+  let files = new fileOperations(guid, locale);
   let data: any = null;
   const api = agilitySDK.getApi({
     guid,
@@ -200,14 +199,13 @@ export async function fetchAPIPrompt(selectedInstance: AgilityInstance, keys: an
   const channel = await channelPrompt();
   const isPreview = await isPreviewPrompt();
   const baseUrl = await getBaseURLfromGUID(guid);
-  const rootPath = await rootPathPrompt();
   const apiKey = isPreview ? keys.previewKey : keys.fetchKey;
-  let code = new fileOperations(rootPath, guid, locale, isPreview);
+  let code = new fileOperations(guid, locale);
 
   // we need to make sure there's a fetch folder in the path directory
   code.createFolder(`/${guid}/${locale}/${isPreview ? 'preview' : 'live'}/fetch`);
 
-  const data = await fetchCommandsPrompt(selectedInstance, keys, guid, locale, channel, isPreview, apiKey, rootPath);
+  const data = await fetchCommandsPrompt(selectedInstance, keys, guid, locale, channel, isPreview, apiKey);
 
   if (data) {
     console.log(ansiColors.yellow("\Search the data or hit enter/return to view full API response."));

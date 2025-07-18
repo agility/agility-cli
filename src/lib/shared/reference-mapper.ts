@@ -78,7 +78,7 @@ export class ReferenceMapper {
         this.targetGUID = state.targetGuid[0];
         
         // Create fileOperations service for disk persistence using locale from state
-        this.fileOps = new fileOperations(state.rootPath, state.sourceGuid[0], state.locale[0], state.preview, state.legacyFolders);
+        this.fileOps = new fileOperations(state.sourceGuid[0], state.locale[0]);
         
         // Automatically load existing mappings with fallback support
         this.loadMappingWithFallback(this.sourceGUID, this.targetGUID);

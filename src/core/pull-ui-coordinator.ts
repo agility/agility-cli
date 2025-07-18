@@ -65,10 +65,8 @@ export class PullUICoordinator {
     } else if (this.consoleManager) {
       // Setup console manager for non-blessed modes
       const tempFileOps = new fileOperations(
-        state.rootPath, 
-        state.sourceGuid[0] || 'temp', 
-        state.locale[0] || 'en-us', 
-        state.preview
+        state.sourceGuid[0] || 'temp',
+        state.locale[0] || 'en-us'
       );
       
       this.consoleManager.setupMode(

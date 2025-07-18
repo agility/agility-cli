@@ -4,7 +4,6 @@ import { homePrompt } from "./home-prompt";
 import { fetchAPIPrompt, fetchCommandsPrompt } from "./fetch-prompt";
 import { pullFiles } from "./pull-prompt";
 import { pushFiles } from "./push-prompt";
-import Clean from "../../../core/clean";
 import { localePrompt } from "./locale-prompt";
 import { 
   generateTypescriptModels, 
@@ -68,16 +67,6 @@ export async function instancesPrompt(selectedInstance?: AgilityInstance, keys?:
   ];
 
 
-  // choices.push(  new inquirer.Separator() )
-  // choices.push({ name: "Generate TypeScript interfaces (beta)", value: "types" });
-  // choices.push({ name: "Generate React Components (beta)", value: "reactcomponents" });
-  choices.push(new inquirer.Separator())
-  choices.push({ name: "Clean instance (warning: data loss)", value: "clean" })
-
-
-
-
-
   const questions = [
     {
       type: "list",
@@ -134,14 +123,7 @@ export async function instancesPrompt(selectedInstance?: AgilityInstance, keys?:
         homePrompt();
       }
       break;
-    case "clean":
-      const locale = await localePrompt(selectedInstance);
-      const clean = new Clean(selectedInstance, locale);
-      const cleaned = await clean.cleanAll();
-      if (cleaned) {
-        homePrompt();
-      }
-      break;
+    
     case "home":
       homePrompt();
       break;
