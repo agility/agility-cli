@@ -10,3 +10,6 @@ export * from './websiteListing';
 export * from './websiteUser';
 export * from './cliToken';
 // Note: comparisonResult.ts doesn't export anything, skipping 
+
+// ReferenceMapperV2 types
+export * from './referenceMapperV2'; 

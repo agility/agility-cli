@@ -1,4 +1,4 @@
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import * as mgmtApi from '@agility/management-sdk';
 import { 
   findContentInTargetInstance, 
@@ -28,7 +28,7 @@ import { state } from '../../core/state';
 // Enhanced content item mapping using sophisticated field mapper
 async function mapContentItem(
     contentItem: mgmtApi.ContentItem,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     apiClient: mgmtApi.ApiClient,
     targetGuid: string,
     defaultAssetUrl: string,
@@ -102,7 +102,7 @@ async function pushNormalContentItemsIndividual(
     targetGuid: string,
     locale: string,
     apiClient: mgmtApi.ApiClient,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     models: mgmtApi.Model[],
     defaultAssetUrl: string,
     onProgress?: (processed: number, total: number, item: string, status: 'success' | 'error') => void
@@ -113,7 +113,7 @@ async function pushNormalContentItemsIndividual(
     
     console.log(ansiColors.cyan(`[Content Pusher] Processing ${normalContentItems.length} normal content items individually`));
     
-    const { GuidDataLoader } = await import('../shared/guid-data-loader');
+    const { GuidDataLoader } = await import('./guid-data-loader');
     const targetDataLoader = new GuidDataLoader(targetGuid);
     const targetData = await targetDataLoader.loadGuidEntities();
 
@@ -232,7 +232,7 @@ async function pushNormalContentItems(
     targetGuid: string,
     locale: string,
     apiClient: mgmtApi.ApiClient,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     models: mgmtApi.Model[],
     defaultAssetUrl: string,
     onProgress?: (processed: number, total: number, item: string, status: 'success' | 'error') => void
@@ -267,7 +267,7 @@ async function processLinkedContentIndividually(
     targetGuid: string,
     locale: string,
     apiClient: mgmtApi.ApiClient,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     models: mgmtApi.Model[],
     defaultAssetUrl: string,
     onProgress?: (processed: number, total: number, item: string, status: 'success' | 'error') => void
@@ -341,7 +341,7 @@ async function processLinkedContentIndividually(
                 }
 
                 // Find container
-                const containerMapping = referenceMapper.getMapping<mgmtApi.Container>('container', 'referenceName', contentItem.properties.referenceName);
+                const containerMapping = referenceMapper.getMappingByKey<mgmtApi.Container>('container', 'referenceName', contentItem.properties.referenceName);
                 let container: mgmtApi.Container | undefined;
                 
                 if (containerMapping?.target) {
@@ -493,7 +493,7 @@ async function processLinkedContentIndividually(
  */
 export function areContentDependenciesResolved(
     contentItem: mgmtApi.ContentItem,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     models: mgmtApi.Model[]
 ): boolean {
     if (!contentItem.fields) {
@@ -513,7 +513,7 @@ export function areContentDependenciesResolved(
 /**
  * Recursively check for unresolved content references
  */
-function hasUnresolvedContentReferences(obj: any, referenceMapper: ReferenceMapper): boolean {
+function hasUnresolvedContentReferences(obj: any, referenceMapper: ReferenceMapperV2): boolean {
     if (typeof obj !== 'object' || obj === null) {
         return false;
     }
@@ -605,7 +605,7 @@ function extractContentId(targetContentId: any): number {
 export async function pushContent(
     sourceData: any,
     targetData: any,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number, publishableIds: number[] }> {
 

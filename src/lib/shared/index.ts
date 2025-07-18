@@ -9,14 +9,18 @@ export * from './sync-delta-tracker';
 export * from "./instance-lister";
 export { LinkTypeDetector } from "./link-type-detector";
 export { ReferenceMapper } from "./reference-mapper";
-export * from "./batch-polling";
+
+// // ReferenceMapperV2 exports
+// export * from './reference-mapper-v2';
+// export * from './reference-mapper-v2-compatibility';
+export * from "../pushers/batch-polling";
 export * from "./sitemap-hierarchy";
 export * from "./bulk-mapping-filter";
-export { GuidDataLoader, GuidEntities, SourceEntities } from "./guid-data-loader";
+export { GuidDataLoader, GuidEntities, SourceEntities } from "../pushers/guid-data-loader";
 export { EntityComparer, EntityComparison, ComparisonResult } from "./entity-comparer";
 export function prettyException(error: any): string { return error.message || error.toString(); }
 export function logBatchError(error: any, context: string): void { console.error("Batch Error:", error); }
-export { pollBatchUntilComplete, extractBatchResults } from "./batch-polling";
+export { pollBatchUntilComplete, extractBatchResults } from "../pushers/batch-polling";
 
 // Version utility
 import * as fs from 'fs';

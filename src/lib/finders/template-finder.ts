@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { getState } from "../../core/state";
 import { FinderDecisionEngine, FinderDecision } from "../shared/target-safety-detector";
 
@@ -12,7 +12,7 @@ export async function findTemplateInTargetInstanceEnhanced(
     apiClient: mgmtApi.ApiClient,
     targetGuid: string,
     targetData: any,
-    referenceMapper: ReferenceMapper
+    referenceMapper: ReferenceMapperV2
 ): Promise<{ template: mgmtApi.PageModel | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: FinderDecision }> {
     const state = getState();
 

@@ -2,7 +2,7 @@ import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { fileOperations } from "./fileOperations";
 import { ReferenceMapper } from "../lib/shared/reference-mapper";
-import { GuidDataLoader, GuidEntities } from "../lib/shared/guid-data-loader";
+import { GuidDataLoader, GuidEntities } from "../lib/pushers/guid-data-loader";
 import { EntityComparer, generateLogHeader } from "../lib/shared";
 import { state } from "./state";
 import { PusherResult, SourceData } from "../types/sourceData";
