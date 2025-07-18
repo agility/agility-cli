@@ -1,1 +1,0 @@
-import * as mgmtApi from "@agility/management-sdk"; export function findExistingModel(models: mgmtApi.Model[], referenceName: string): mgmtApi.Model | undefined { return models.find(model => model.referenceName.toLowerCase() === referenceName.toLowerCase()); }

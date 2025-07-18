@@ -5,7 +5,7 @@ import * as agilitySync from "@agility/content-sync";
 import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import { state, getApiKeysForGuid } from "../../core/state";
 import { fileOperations } from "../../core/fileOperations";
-import { handleSyncToken } from "../shared/sync-token-handler";
+import { handleSyncToken } from "./sync-token-handler";
 import { getAllChannels } from "../shared/get-all-channels";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");

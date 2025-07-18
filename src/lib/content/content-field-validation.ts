@@ -8,7 +8,7 @@
  * - Field type compliance with Agility CMS expectations
  */
 
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { LinkTypeDetector } from '../shared/link-type-detector';
 
 export interface FieldValidationResult {
@@ -20,7 +20,7 @@ export interface FieldValidationResult {
 }
 
 export interface ContentValidationOptions {
-    referenceMapper?: ReferenceMapper;
+    referenceMapper?: ReferenceMapperV2;
     sourceAssets?: any[];
     sourceContainers?: any[];
     modelDefinitions?: any[];
@@ -137,7 +137,7 @@ export class ContentFieldValidator {
                 result.isValid = false;
             } else if (options.referenceMapper) {
                 // Check if content ID exists in reference mapper
-                const mappedContent = options.referenceMapper.getTarget('content', contentId);
+                const mappedContent = options.referenceMapper.getMappingByKey(fieldValue, 'content', 'contentid');
                 if (!mappedContent && options.strictMode) {
                     result.errors.push(`Content ID ${contentId} not found in reference mapper for field ${fieldKey}`);
                     result.isValid = false;

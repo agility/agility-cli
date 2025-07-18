@@ -1,7 +1,7 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { fileOperations } from "./fileOperations";
-import { ReferenceMapper } from "../lib/shared/reference-mapper";
+import { ReferenceMapperV2 } from "../lib/refMapper/reference-mapper-v2";
 import { GuidDataLoader, GuidEntities } from "../lib/pushers/guid-data-loader";
 import { EntityComparer, generateLogHeader } from "../lib/shared";
 import { state } from "./state";
@@ -134,7 +134,7 @@ export class Sync {
     // Now set up console logging to capture all subsequent output
     this._setupConsoleLogging();
 
-    let referenceMapper: ReferenceMapper | null = null;
+    let referenceMapper: ReferenceMapperV2 | null = null;
     let sourceData: GuidEntities;
     let targetData: GuidEntities;
 
@@ -154,7 +154,7 @@ export class Sync {
       sourceData = await this.filterSourceDataByModels(sourceData);
 
       // Set up reference mapper - gets config from state internally
-      referenceMapper = new ReferenceMapper();
+      referenceMapper = new ReferenceMapperV2();
 
       // Execute sync operation and capture results
       const syncResults = await this.executePushersInOrder(
@@ -287,7 +287,7 @@ export class Sync {
   private async executePushersInOrder(
     sourceData: any,
     targetData: any,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     elements: string[]
   ): Promise<{
     totalSuccess: number;
@@ -311,7 +311,7 @@ export class Sync {
     const publishablePageIds: number[] = [];
 
     // Create wrapper function for content processing that chooses between individual vs batch pushers
-    const smartContentPusher = async (sourceData: any, targetData: any, referenceMapper: ReferenceMapper) => {
+    const smartContentPusher = async (sourceData: any, targetData: any, referenceMapper: ReferenceMapperV2) => {
       if (state.noBatch) {
         // Use individual pusher when --no-batch flag is enabled
         return await pushContent(sourceData, targetData, referenceMapper);
@@ -526,7 +526,7 @@ export class Sync {
     apiClient: mgmtApi.ApiClient,
     targetGuid: string,
     locale: string,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     targetData?: any,
     type?: "normal" | "linked"
   ): Promise<ContentFilterResult> {

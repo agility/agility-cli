@@ -2,13 +2,12 @@
 export * from "../generators";
 export * from "../content";
 export * from "../assets";
-export * from "../models";
 export * from "../loggers";
 export { ContentHashComparer } from "./content-hash-comparer";
 export * from './sync-delta-tracker';
 export * from "./instance-lister";
 export { LinkTypeDetector } from "./link-type-detector";
-export { ReferenceMapper } from "./reference-mapper";
+// export { ReferenceMapper } from "./reference-mapper";
 
 // // ReferenceMapperV2 exports
 // export * from './reference-mapper-v2';

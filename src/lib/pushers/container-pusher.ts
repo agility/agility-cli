@@ -5,7 +5,6 @@ import ansiColors from "ansi-colors";
 import { ApiClient } from '@agility/management-sdk';
 import { state, getApiClient } from '../../core/state';
 import { sleep } from "../shared/sleep";
-import { prepareModelPayload } from "lib/models";
 /**
  * Container pusher with enhanced version-based comparison
  * Uses lastModifiedDate for intelligent update decisions
