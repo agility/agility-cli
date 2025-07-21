@@ -34,7 +34,7 @@ require("dotenv").config({
 })
 
 /**
- * Map Sync SDK itemType to SyncDeltaTracker entity type
+ * Map Sync SDK itemType to SyncDelta entity type
  */
 function mapItemTypeToEntityType(itemType: string): string {
   const typeMap = {

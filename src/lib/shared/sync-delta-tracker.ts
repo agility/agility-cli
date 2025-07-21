@@ -1,91 +1,100 @@
-import * as fs from 'fs';
-import * as path from 'path';
+import * as fs from "fs";
+import * as path from "path";
+
+export type EntityType = "model" | "container" | "asset" | "gallery" | "template" | "page" | "content-item";
+export type EntityChangeAction = "created" | "updated";
+
+const ENTITY_TYPES: EntityType[] = ["model", "container", "asset", "gallery", "template", "page", "content-item"];
+const ENTITY_ACTIONS: EntityChangeAction[] = ["created", "updated"];
+
+export interface EntityPayload {
+  guid: string;
+  locale?: string;
+  channel?: string;
+  referenceName?: string;
+  id?: string | number;
+}
 
 /**
  * Entity change information
  */
 export interface EntityChange {
   id: string | number;
-  type: 'model' | 'container' | 'asset' | 'gallery' | 'template' | 'page' | 'content-item';
-  action: 'created' | 'updated' | 'unchanged' | 'error';
-  name?: string;
-  referenceName?: string;
+  type: EntityType;
+  action: EntityChangeAction;
+  timestamp?: string;
+  locale?: string;
+  channel?: string;
   hash?: {
     api: string;
     local: string;
     matches: boolean;
   };
-  timestamp: string;
+  name?: string;
+  referenceName?: string;
 }
+
+type EntityChangeStore = Record<EntityType, Record<EntityChangeAction, Record<string, EntityChange>>>;
 
 /**
  * Sync delta summary for writing to file
  */
-export interface SyncDelta {
+export interface SyncDeltaSummary {
   guid: string;
-  locale: string;
-  channel: string;
   timestamp: string;
   totalChanges: number;
-  changesByType: Record<string, number>;
-  changesByAction: Record<string, number>;
-  entities: EntityChange[];
+  entities: EntityChangeStore;
+}
+
+/**
+ * Generates an entity key for the map
+ */
+export function generateEntityKey(entityPayload: EntityPayload): string {
+  const { guid, locale, channel, referenceName, id } = entityPayload;
+  const parts: (string | number | undefined)[] = [guid, locale, channel, referenceName, id];
+
+  return parts.filter((part) => part !== undefined && part !== null && part !== "").join(":");
 }
 
 /**
  * Tracks all entity changes during a download/sync operation
  * and writes a comprehensive delta report to sync-delta.json
  */
-export class SyncDeltaTracker {
-  private changes: EntityChange[] = [];
-  private guid: string;
-  private locale: string;
-  private channel: string;
-  private startTime: string;
+export class SyncDelta {
+  private _changes: EntityChangeStore;
+  private _guid: string;
+  private _startTime: string;
 
-  constructor(guid: string, locale: string, channel: string) {
-    this.guid = guid;
-    this.locale = locale;
-    this.channel = channel;
-    this.startTime = new Date().toISOString();
+  constructor(guid: string) {
+    this._guid = guid;
+    this._startTime = new Date().toISOString();
+
+    // Create action maps
+    this._changes = {} as EntityChangeStore;
+
+    for (const type of ENTITY_TYPES) {
+      this._changes[type] = {} as Record<EntityChangeAction, Record<string, EntityChange>>;
+      for (const action of ENTITY_ACTIONS) {
+        this._changes[type][action] = {};
+      }
+    }
   }
 
   /**
    * Record an entity change
    */
   recordChange(change: EntityChange): void {
-    this.changes.push({
-      ...change,
-      timestamp: new Date().toISOString()
-    });
+    const { locale, channel, type, referenceName, id, action } = change;
+    const entityKey = generateEntityKey({ guid: this._guid, locale, channel, referenceName, id });
+    change.timestamp = new Date().toISOString();
+    this._changes[type][action][entityKey] = change;
   }
 
   /**
    * Record multiple entity changes
    */
   recordChanges(changes: EntityChange[]): void {
-    changes.forEach(change => this.recordChange(change));
-  }
-
-  /**
-   * Get all recorded changes
-   */
-  getChanges(): EntityChange[] {
-    return [...this.changes];
-  }
-
-  /**
-   * Get changes by entity type
-   */
-  getChangesByType(type: EntityChange['type']): EntityChange[] {
-    return this.changes.filter(change => change.type === type);
-  }
-
-  /**
-   * Get changes by action
-   */
-  getChangesByAction(action: EntityChange['action']): EntityChange[] {
-    return this.changes.filter(change => change.action === action);
+    changes.forEach((change) => this.recordChange(change));
   }
 
   /**
@@ -99,21 +108,39 @@ export class SyncDeltaTracker {
   } {
     const changesByType: Record<string, number> = {};
     const changesByAction: Record<string, number> = {};
+    
+    let totalChanges = 0;
+    let modifiedEntities = 0;
 
-    this.changes.forEach(change => {
-      changesByType[change.type] = (changesByType[change.type] || 0) + 1;
-      changesByAction[change.action] = (changesByAction[change.action] || 0) + 1;
-    });
-
-    const modifiedEntities = this.changes.filter(c => 
-      c.action === 'created' || c.action === 'updated'
-    ).length;
+    // Count directly from the nested structure (now type -> action -> key)
+    for (const type of ENTITY_TYPES) {
+      let typeCount = 0;
+      
+      for (const action of ENTITY_ACTIONS) {
+        const actionChanges = this._changes[type][action];
+        const actionCount = Object.keys(actionChanges).length;
+        
+        // Add to action totals
+        changesByAction[action] = (changesByAction[action] || 0) + actionCount;
+        
+        // Add to type totals
+        typeCount += actionCount;
+        
+        // Count by action type
+        if (action === 'created' || action === 'updated') {
+          modifiedEntities += actionCount;
+        }
+      }
+      
+      changesByType[type] = typeCount;
+      totalChanges += typeCount;
+    }
 
     return {
-      totalChanges: this.changes.length,
+      totalChanges,
       changesByType,
       changesByAction,
-      modifiedEntities
+      modifiedEntities,
     };
   }
 
@@ -121,38 +148,27 @@ export class SyncDeltaTracker {
    * Write sync delta to JSON file in agility-files directory
    */
   async writeSyncDelta(rootPath: string = process.cwd()): Promise<string> {
-    const summary = this.getSummary();
-    
-    // Filter out unchanged items - only include created, updated, and error items
-    const changedEntities = this.changes.filter(change => 
-      change.action === 'created' || change.action === 'updated' || change.action === 'error'
-    );
-    
-    // Recalculate stats for changed items only
-    const changesByType: Record<string, number> = {};
-    const changesByAction: Record<string, number> = {};
-    
-    changedEntities.forEach(change => {
-      changesByType[change.type] = (changesByType[change.type] || 0) + 1;
-      changesByAction[change.action] = (changesByAction[change.action] || 0) + 1;
-    });
-    
-    const syncDelta: SyncDelta = {
-      guid: this.guid,
-      locale: this.locale,
-      channel: this.channel,
-      timestamp: this.startTime,
-      totalChanges: changedEntities.length,
-      changesByType: changesByType,
-      changesByAction: changesByAction,
-      entities: changedEntities
+    const changedEntities = structuredClone(this._changes);
+
+    let totalChanges = 0;
+
+    ENTITY_TYPES.forEach(entityType => {
+      const createdCount = Object.keys(changedEntities[entityType]?.['created'] || {}).length;
+      const updatedCount = Object.keys(changedEntities[entityType]?.['updated'] || {}).length;
+
+      totalChanges = totalChanges + createdCount + updatedCount;
+    })
+
+    const syncDelta: SyncDeltaSummary = {
+      guid: this._guid,
+      timestamp: this._startTime,
+      totalChanges: totalChanges,
+      entities: changedEntities,
     };
 
     // Fix double path issue - check if rootPath already ends with agility-files
-    const agilityFilesDir = rootPath.endsWith('agility-files') 
-      ? rootPath 
-      : path.join(rootPath, 'agility-files');
-    const filePath = path.join(agilityFilesDir, 'sync-delta.json');
+    const agilityFilesDir = rootPath.endsWith("agility-files") ? rootPath : path.join(rootPath, "agility-files");
+    const filePath = path.join(agilityFilesDir, "sync-delta.json");
 
     // Ensure agility-files directory exists
     if (!fs.existsSync(agilityFilesDir)) {
@@ -160,7 +176,7 @@ export class SyncDeltaTracker {
     }
 
     fs.writeFileSync(filePath, JSON.stringify(syncDelta, null, 2));
-    
+
     return filePath;
   }
 
@@ -168,7 +184,12 @@ export class SyncDeltaTracker {
    * Clear all recorded changes
    */
   clear(): void {
-    this.changes = [];
+    // Reset the changes store to empty
+    for (const type of ENTITY_TYPES) {
+      for (const action of ENTITY_ACTIONS) {
+        this._changes[type][action] = {};
+      }
+    }
   }
 
   /**
@@ -176,106 +197,30 @@ export class SyncDeltaTracker {
    */
   getFormattedSummary(): string {
     const summary = this.getSummary();
-    
+
     const lines = [
-      '=== SYNC DELTA SUMMARY ===',
+      "=== SYNC DELTA SUMMARY ===",
       `Total Changes: ${summary.totalChanges}`,
       `Modified Entities: ${summary.modifiedEntities}`,
-      '',
-      'Changes by Type:'
+      "",
+      "Changes by Type:",
     ];
 
     Object.entries(summary.changesByType).forEach(([type, count]) => {
       lines.push(`  ${type}: ${count}`);
     });
 
-    lines.push('', 'Changes by Action:');
+    lines.push("", "Changes by Action:");
     Object.entries(summary.changesByAction).forEach(([action, count]) => {
       lines.push(`  ${action}: ${count}`);
     });
 
-    return lines.join('\n');
-  }
-} 
-
-/**
- * Static utility methods for reading sync delta data
- */
-export class SyncDeltaReader {
-  /**
-   * Load sync delta from file system
-   */
-  static loadSyncDelta(rootPath: string = process.cwd()): SyncDelta | null {
-    try {
-      const agilityFilesDir = rootPath.endsWith('agility-files') 
-        ? rootPath 
-        : path.join(rootPath, 'agility-files');
-      const filePath = path.join(agilityFilesDir, 'sync-delta.json');
-      
-      if (!fs.existsSync(filePath)) {
-        return null;
-      }
-      
-      const content = fs.readFileSync(filePath, 'utf8');
-      return JSON.parse(content) as SyncDelta;
-    } catch (error) {
-      console.warn('Warning: Could not load sync delta file:', error);
-      return null;
-    }
+    return lines.join("\n");
   }
 
-  /**
-   * Check if an entity is marked for update in sync delta
-   */
-  static isEntityInSyncDelta(
-    entityType: string,
-    entityId: string | number,
-    referenceName?: string,
-    rootPath: string = process.cwd()
-  ): boolean {
-    const syncDelta = this.loadSyncDelta(rootPath);
-    if (!syncDelta) {
-      return false;
-    }
 
-    return syncDelta.entities.some(entity => {
-      // Match by type first
-      if (entity.type !== entityType) {
-        return false;
-      }
-      
-      // Match by ID or referenceName
-      const idMatches = entity.id.toString() === entityId.toString();
-      const nameMatches = referenceName && entity.referenceName === referenceName;
-      
-      // Entity is in sync delta if it matches by ID or name AND has an action that requires updating
-      return (idMatches || nameMatches) && (entity.action === 'updated' || entity.action === 'created');
-    });
-  }
 
-  /**
-   * Get sync delta entity by type and identifier
-   */
-  static getSyncDeltaEntity(
-    entityType: string,
-    entityId: string | number,
-    referenceName?: string,
-    rootPath: string = process.cwd()
-  ): EntityChange | null {
-    const syncDelta = this.loadSyncDelta(rootPath);
-    if (!syncDelta) {
-      return null;
-    }
+}
 
-    return syncDelta.entities.find(entity => {
-      if (entity.type !== entityType) {
-        return false;
-      }
-      
-      const idMatches = entity.id.toString() === entityId.toString();
-      const nameMatches = referenceName && entity.referenceName === referenceName;
-      
-      return idMatches || nameMatches;
-    }) || null;
-  }
-} 
+
+

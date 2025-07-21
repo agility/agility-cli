@@ -1,7 +1,6 @@
 import * as mgmtApi from '@agility/management-sdk';
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { getState } from '../../core/state';
-import { SyncDeltaReader } from "../shared/sync-delta-tracker";
 import { FinderDecisionEngine, FinderDecision } from "../shared/target-safety-detector";
 
 /**
