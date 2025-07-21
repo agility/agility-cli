@@ -3,24 +3,22 @@ import * as fs from "fs";
 import { getState } from "./state";
 import ansiColors from "ansi-colors";
 import {
-  markPullStart,
+  markPushStart,
   clearTimestamps,
 } from "../lib/incremental";
 
-import { Downloader } from "../lib/downloaders/orchestrate-downloaders";
+import { Pushers, PushResults } from "../lib/pushers/orchestrate-pushers";
 
-export class Pull {
-  private downloader: Downloader;
+export class Push {
+  private pushers: Pushers;
 
   constructor() {
-    // Initialize download orchestrator (pure business logic)
-    this.downloader = new Downloader();
+    // Initialize pusher orchestrator (pure business logic)
+    this.pushers = new Pushers();
   }
 
-  async pullInstances(): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
+  async pushInstances(): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
     const state = getState();
-    
-
 
     // TODO: Add support for multiple GUIDs, multiple locales, multiple chanels
     // Currently only supports one GUID, one locale, one channel
@@ -28,20 +26,18 @@ export class Pull {
     const allGuids = [...state.sourceGuid, ...state.targetGuid];
     
     if (allGuids.length === 0) {
-      throw new Error('No GUIDs specified for pull operation');
+      throw new Error('No GUIDs specified for push operation');
     }
 
-    // Calculate total operations using per-GUID locale mapping
+    // CONSOLE.LOG - Calculate total operations using per-GUID locale mapping
     let totalOperations = 0;
     const operationDetails: string[] = [];
-    
     for (const guid of allGuids) {
       const guidLocales = state.guidLocaleMap.get(guid) || ['en-us'];
       totalOperations += guidLocales.length;
       operationDetails.push(`${guid}: ${guidLocales.join(', ')}`);
     }
- 
-    operationDetails.forEach(detail => console.log(`${detail}`));
+    // operationDetails.forEach(detail => console.log(`${detail}`));
     
     // Handle --reset flag: completely delete GUID folders and start fresh
     if (state.reset) {
@@ -51,12 +47,12 @@ export class Pull {
     }
 
     // Mark the start of this pull operation for incremental tracking
-    markPullStart();
+    markPushStart();
     const totalStartTime = Date.now();
 
     try {
-      // Execute concurrent downloads for all GUIDs, locales and channels (sitemaps)
-      const results = await this.downloader.instanceOrchestrator();
+      // Execute concurrent pushes for all GUIDs, locales and channels (sitemaps)
+      const results = await this.pushers.instanceOrchestrator();
       
       const totalElapsedTime = Date.now() - totalStartTime;
 
@@ -64,7 +60,7 @@ export class Pull {
       let totalSuccessful = 0;
       let totalFailed = 0;
       
-      results.forEach(result => {
+      results.forEach((result: PushResults) => {
         if (result.failed?.length > 0) {
           totalFailed++;
         } else {
@@ -87,6 +83,7 @@ export class Pull {
   }
 
   private async handleResetFlag(guid: string): Promise<void> {
+
     const state = getState();
     const guidFolderPath = path.join(process.cwd(), state.rootPath, guid);
 

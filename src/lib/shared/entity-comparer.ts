@@ -41,7 +41,7 @@ export class EntityComparer {
         console.log(ansiColors.cyan(`\n🔍 Loading current target instance data for comparison...`));
         
         // Load current target instance data
-        const currentTargetData = await this.targetLoader.loadGuidEntities();
+        const { guidEntities: currentTargetData, locales: currentTargetLocales } = await this.targetLoader.loadGuidEntitiesForAllLocales();
         
         const comparisons: EntityComparison[] = [];
 

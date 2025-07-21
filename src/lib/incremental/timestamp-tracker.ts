@@ -182,6 +182,14 @@ export function markPullStart(): string {
 }
 
 /**
+ * Mark the start of a push operation with current timestamp
+ * @returns Current ISO 8601 timestamp
+ */
+export function markPushStart(): string {
+  return new Date().toISOString();
+}
+
+/**
  * Clear all timestamps for an instance (used with --reset flag)
  * @param guid Instance GUID
  * @param rootPath Root path (e.g., "agility-files")

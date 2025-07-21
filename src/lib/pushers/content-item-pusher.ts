@@ -110,7 +110,7 @@ async function pushNormalContentItemsIndividual(
     
     const { GuidDataLoader } = await import('./guid-data-loader');
     const targetDataLoader = new GuidDataLoader(targetGuid);
-    const targetData = await targetDataLoader.loadGuidEntities();
+    const { guidEntities: targetData, locales: targetLocales } = await targetDataLoader.loadGuidEntitiesForAllLocales();
 
 
     console.log(ansiColors.bgCyan(`targetContent: ${JSON.stringify(targetData.content)}`))
@@ -896,6 +896,230 @@ export async function pushContent(
 
     // console.log(ansiColors.yellow(`Processed ${overallSuccessful}/${totalItemCount} content items (${overallFailed} failed, ${overallSkipped} skipped)`));
     return { status: overallStatus, successful: overallSuccessful, failed: overallFailed, skipped: overallSkipped, publishableIds };
+}
+
+/**
+ * Smart content pusher that chooses between individual vs batch processing
+ * Moved from orchestrate-pushers.ts for better separation of concerns
+ */
+export async function pushContentSmart(
+    sourceData: any, 
+    targetData: any, 
+    referenceMapper: ReferenceMapperV2
+): Promise<any> {
+    if (state.noBatch) {
+        // Use individual pusher when --no-batch flag is enabled
+        return await pushContent(sourceData, targetData, referenceMapper);
+    } else {
+        // Use batch pusher for better performance (default behavior)
+        const { ContentBatchProcessor } = await import('./content-item-batch-pusher');
+
+        const contentItems = sourceData.content || [];
+
+        if (contentItems.length === 0) {
+            return { status: "success" as const, successful: 0, failed: 0, skipped: 0, publishableIds: [] };
+        }
+
+        // Separate content items into normal and linked batches
+        const normalContentItems: any[] = [];
+        const linkedContentItems: any[] = [];
+
+        for (const contentItem of contentItems) {
+            // Find source model for this content item
+            let sourceModel = sourceData.models?.find(
+                (m: any) => m.referenceName === contentItem.properties.definitionName
+            );
+            if (!sourceModel && sourceData.models) {
+                sourceModel = sourceData.models.find(
+                    (m: any) => m.referenceName.toLowerCase() === contentItem.properties.definitionName.toLowerCase()
+                );
+            }
+
+            if (!sourceModel) {
+                // No model found - treat as linked content for dependency resolution
+                linkedContentItems.push(contentItem);
+                continue;
+            }
+
+            // Check if content has unresolved dependencies
+            if (areContentDependenciesResolved(contentItem, referenceMapper, [sourceModel])) {
+                normalContentItems.push(contentItem);
+            } else {
+                linkedContentItems.push(contentItem);
+            }
+        }
+
+        let totalSuccessful = 0;
+        let totalFailed = 0;
+        let totalSkipped = 0;
+        const allPublishableIds: number[] = [];
+
+        try {
+            // Import getApiClient for both batch configurations
+            const { getApiClient } = await import('../../core/state');
+
+            // Process normal content items first (no dependencies)
+            if (normalContentItems.length > 0) {
+                const normalBatchConfig = {
+                    apiClient: getApiClient(),
+                    targetGuid: state.targetGuid[0],
+                    locale: state.locale[0],
+                    referenceMapper,
+                    batchSize: 250,
+                    useContentFieldMapper: true,
+                    models: sourceData.models,
+                    defaultAssetUrl: "",
+                };
+
+                const filteredNormalContentItems = await filterContentItemsForProcessing(
+                    normalContentItems,
+                    getApiClient(),
+                    state.targetGuid[0],
+                    state.locale[0],
+                    referenceMapper,
+                    targetData,
+                    "normal"
+                );
+                const normalBatchProcessor = new ContentBatchProcessor(normalBatchConfig);
+                const normalResult = await normalBatchProcessor.processBatches(
+                    filteredNormalContentItems.itemsToCreate as any,
+                    undefined,
+                    "Normal Content"
+                );
+
+                totalSuccessful += normalResult.successCount;
+                totalFailed += normalResult.failureCount;
+                totalSkipped += filteredNormalContentItems.skippedCount;
+                totalSkipped += normalResult.skippedCount;
+                allPublishableIds.push(...normalResult.publishableIds);
+            }
+
+            // Process linked content items second (with dependencies)
+            if (linkedContentItems.length > 0) {
+                const linkedBatchConfig = {
+                    apiClient: getApiClient(),
+                    targetGuid: state.targetGuid[0],
+                    locale: state.locale[0],
+                    referenceMapper,
+                    batchSize: 100, // Smaller batches for linked content due to complexity
+                    useContentFieldMapper: true,
+                    models: sourceData.models,
+                    defaultAssetUrl: "",
+                };
+
+                const filteredLinkedContentItems = await filterContentItemsForProcessing(
+                    linkedContentItems,
+                    getApiClient(),
+                    state.targetGuid[0],
+                    state.locale[0],
+                    referenceMapper,
+                    targetData,
+                    "linked"
+                );
+                const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
+                const linkedResult = await linkedBatchProcessor.processBatches(
+                    filteredLinkedContentItems.itemsToCreate,
+                    undefined,
+                    "Linked Content"
+                );
+
+                totalSuccessful += linkedResult.successCount;
+                totalFailed += linkedResult.failureCount;
+                totalSkipped += filteredLinkedContentItems.skippedCount;
+                totalSkipped += linkedResult.skippedCount;
+                allPublishableIds.push(...linkedResult.publishableIds);
+            }
+
+            // Convert batch result to expected PusherResult format
+            return {
+                status: (totalFailed > 0 ? "error" : "success") as "success" | "error",
+                successful: totalSuccessful,
+                failed: totalFailed,
+                skipped: totalSkipped,
+                publishableIds: allPublishableIds,
+            };
+        } catch (batchError: any) {
+            console.error(ansiColors.red(`❌ Batch processing failed: ${batchError.message}`));
+            console.log(ansiColors.yellow(`🔄 Falling back to individual processing...`));
+            return await pushContent(sourceData, targetData, referenceMapper);
+        }
+    }
+}
+
+/**
+ * Filter content items for processing
+ * Moved from orchestrate-pushers.ts for better separation of concerns
+ */
+export interface ContentFilterResult {
+    itemsToCreate: any[];
+    itemsToUpdate: any[];
+    itemsToSkip: any[];
+    skippedCount: number;
+}
+
+export async function filterContentItemsForProcessing(
+    contentItems: any[],
+    apiClient: any,
+    targetGuid: string,
+    locale: string,
+    referenceMapper: ReferenceMapperV2,
+    targetData?: any,
+    type?: "normal" | "linked"
+): Promise<ContentFilterResult> {
+    const itemsToCreate: any[] = [];
+    const itemsToUpdate: any[] = [];
+    const itemsToSkip: any[] = [];
+
+    for (const contentItem of contentItems) {
+        const itemName = contentItem.properties.referenceName || "Unknown";
+
+        try {
+            const findResult = findContentInTargetInstance(
+                contentItem,
+                apiClient,
+                targetGuid,
+                locale,
+                targetData,
+                referenceMapper
+            );
+
+            const { content, shouldUpdate, shouldCreate, shouldSkip } = findResult;
+
+            if (shouldCreate) {
+                // Content doesn't exist - include it for creation
+                itemsToCreate.push(contentItem);
+            } else if (shouldUpdate) {
+                // Content exists but needs updating
+                itemsToUpdate.push(contentItem);
+                console.log(
+                    `✓ Content ${ansiColors.cyan.underline(itemName)} vID:${ansiColors.bold.yellow(
+                        "needs update"
+                    )} vID:${ansiColors.bold.green(content?.properties?.versionID.toString())} → ${ansiColors.bold.green(
+                        contentItem.properties?.versionID.toString()
+                    )} - ${ansiColors.green(targetGuid)}: ID:${content?.contentID}`
+                );
+            } else if (shouldSkip) {
+                // Content exists and is up to date - skip
+                console.log(
+                    `✓ Content ${ansiColors.cyan.underline(itemName)} ${ansiColors.bold.gray(
+                        "up to date, skipping"
+                    )}`
+                );
+                itemsToSkip.push(contentItem);
+            }
+        } catch (error: any) {
+            // If we can't check, err on the side of processing it
+            console.warn(`⚠️ Could not check if content ${itemName} exists: ${error.message} - will process`);
+            itemsToCreate.push(contentItem);
+        }
+    }
+
+    return {
+        itemsToCreate,
+        itemsToUpdate,
+        itemsToSkip,
+        skippedCount: itemsToSkip.length,
+    };
 }
 
 

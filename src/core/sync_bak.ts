@@ -99,8 +99,8 @@ export class Sync {
   private async loadExistingData(): Promise<{ sourceData: GuidEntities; targetData: GuidEntities }> {
     const sourceDataLoader = new GuidDataLoader(state.sourceGuid[0]);
     const targetDataLoader = new GuidDataLoader(state.targetGuid[0]);
-    const sourceData = await sourceDataLoader.loadGuidEntities();
-    const targetData = await targetDataLoader.loadGuidEntities();
+    const { guidEntities: sourceData, locales: sourceLocales } = await sourceDataLoader.loadGuidEntitiesForAllLocales();
+    const { guidEntities: targetData, locales: targetLocales } = await targetDataLoader.loadGuidEntitiesForAllLocales();
 
     return { sourceData, targetData };
   }
@@ -112,10 +112,24 @@ export class Sync {
     return this.loadExistingData();
   }
 
+
+  async syncInstances(){
+
+     const guids = state.guidLocaleMap.get(state.sourceGuid[0]);
+
+     for (const guid of guids) {
+      const syncResults = await this.syncInstance(guid);
+      console.log(ansiColors.bgCyan(`syncResults: ${JSON.stringify(syncResults)}`))
+     } 
+  }
+
+
+
+
   /**
    * Main sync execution method - simplified from massive topological implementation
    */
-  async syncInstance(): Promise<void> {
+  async syncInstance(guid: string): Promise<void> {
     // Log sync header first, before setting up console logging to ensure it's the very first thing in the log
     const headerInfo = generateLogHeader("Sync", {
       "Source GUID": state.sourceGuid,
@@ -363,7 +377,7 @@ export class Sync {
 
         try {
           // Import getApiClient for both batch configurations
-          const { getApiClient } = await import("../core/state");
+          const { getApiClient } = await import("./state");
 
           // Process normal content items first (no dependencies)
           if (normalContentItems.length > 0) {

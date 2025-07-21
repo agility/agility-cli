@@ -9,7 +9,7 @@ export { state, setState, resetState, primeFromEnv, getState, getUIMode, configu
 export { systemArgs, type SystemArgsType } from './system-args';
 
 // Main operation services
-export { Sync } from './sync';
+export { Sync } from './sync_bak';
 
 // Publishing service
 export { PublishService, createPublishService, type PublishResult, type PublishOptions } from './publish';
