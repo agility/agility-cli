@@ -1,11 +1,6 @@
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import * as mgmtApi from '@agility/management-sdk';
-import { 
-  findContentInTargetInstance, 
-  findContentInTargetInstanceLegacy,
-  findContainerInTargetInstance, 
-  findModelInTargetInstance 
-} from "../finders";
+// Removed finder imports - using mapper directly
 import ansiColors from "ansi-colors";
 import { 
   ContentClassifier, 
@@ -13,7 +8,7 @@ import {
   ContentFieldMapper
 } from '../shared';
 // Removed ContentBatchProcessor import - individual pusher only handles individual processing
-import { state } from '../../core/state';
+import { state, getState } from '../../core/state';
 
 
 /**
@@ -331,11 +326,11 @@ async function processLinkedContentIndividually(
                     continue;
                 }
 
-                // Find target model
-                const targetModel = await findModelInTargetInstance(sourceModel, apiClient, targetGuid, referenceMapper);
-                if (!targetModel) {
-                    skippedContentItems[contentItem.contentID] = `Target model not found: ${sourceModel.referenceName}`;
-                    console.log(ansiColors.red(`✗ Linked content ${itemName} failed - target model not found: ${sourceModel.referenceName}`));
+                // Find target model using reference mapper
+                const targetModelId = referenceMapper.getMappedId('model', sourceModel.id);
+                if (!targetModelId) {
+                    skippedContentItems[contentItem.contentID] = `Target model mapping not found: ${sourceModel.referenceName} (ID: ${sourceModel.id})`;
+                    console.log(ansiColors.red(`✗ Linked content ${itemName} failed - target model mapping not found: ${sourceModel.referenceName}`));
                     failedItems++;
                     continue;
                 }
@@ -491,6 +486,163 @@ async function processLinkedContentIndividually(
 /**
  * Check if all content dependencies are resolved for a content item
  */
+/**
+ * Simple change detection for content items
+ */
+interface ChangeDetection {
+    entity: any;
+    shouldUpdate: boolean;
+    shouldCreate: boolean;
+    shouldSkip: boolean;
+    reason: string;
+}
+
+function changeDetection(
+    sourceEntity: any,
+    targetFromMapping: any,
+    targetFromData: any
+): ChangeDetection {
+    // Simple decision logic for content items
+    if (!targetFromMapping && !targetFromData) {
+        return {
+            entity: null,
+            shouldUpdate: false,
+            shouldCreate: true,
+            shouldSkip: false,
+            reason: 'Entity does not exist in target'
+        };
+    }
+    
+    const targetEntity = targetFromData || targetFromMapping;
+    
+    // Check if update is needed based on version or modification date
+    const sourceVersion = sourceEntity.properties?.versionID;
+    const targetVersion = targetEntity.properties?.versionID;
+    
+    if (sourceVersion && targetVersion && sourceVersion > targetVersion) {
+        return {
+            entity: targetEntity,
+            shouldUpdate: true,
+            shouldCreate: false,
+            shouldSkip: false,
+            reason: 'Source version is newer'
+        };
+    }
+    
+    return {
+        entity: targetEntity,
+        shouldUpdate: false,
+        shouldCreate: false,
+        shouldSkip: true,
+        reason: 'Entity exists and is up to date'
+    };
+}
+
+/**
+ * Enhanced content item finder with proper target safety and conflict resolution
+ * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
+ */
+export function findContentInTargetInstance(
+    sourceContent: mgmtApi.ContentItem,
+    apiClient: mgmtApi.ApiClient,
+    targetGuid: string,
+    locale: string,
+    targetData: any,
+    referenceMapper: ReferenceMapperV2
+): { content: mgmtApi.ContentItem | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: ChangeDetection } {
+    const state = getState();
+
+    // STEP 1: Find existing mapping
+    const existingMapping = referenceMapper.getMapping<mgmtApi.ContentItem>("content", sourceContent.contentID);
+    let targetContentFromMapping: mgmtApi.ContentItem | null = existingMapping || null;
+    
+    // STEP 2: Find target instance data
+    const targetInstanceData = targetData.content?.find((c: any) => {
+        if(c.contentID === targetContentFromMapping?.contentID){
+            return c;
+        }
+        return null;
+    });
+
+    // STEP 3: Use change detection for conflict resolution
+    const decision = changeDetection(
+        sourceContent,
+        targetContentFromMapping,
+        targetInstanceData
+    );
+
+    return {
+        content: decision.entity || null,
+        shouldUpdate: decision.shouldUpdate,
+        shouldCreate: decision.shouldCreate,
+        shouldSkip: decision.shouldSkip,
+        decision: decision
+    };
+}
+
+/**
+ * Legacy function for backward compatibility
+ * @deprecated Use findContentInTargetInstance with targetData parameter instead
+ */
+export async function findContentInTargetInstanceLegacy(
+    contentItem: mgmtApi.ContentItem, 
+    apiClient: mgmtApi.ApiClient, 
+    guid: string, 
+    locale: string,
+    referenceMapper: ReferenceMapperV2
+): Promise<mgmtApi.ContentItem | null> {
+    try {
+        // First check the reference mapper for content item with the same content ID
+        const targetMapping = referenceMapper.getMapping('content', contentItem.contentID);
+
+        if (targetMapping) {
+            return targetMapping as mgmtApi.ContentItem;
+        }
+
+        // FIXED: Search by reference name in target instance, not source content ID
+        const referenceName = contentItem.properties?.referenceName;
+        if (!referenceName) {
+            // No reference name to search with
+            return null;
+        }
+
+        try {
+            // Get all containers and search through their content lists
+            const containers = await apiClient.containerMethods.getContainerList(guid);
+            
+            for (const container of containers) {
+                try {
+                    const contentList = await apiClient.contentMethods.getContentList(container.referenceName, guid, locale, null);
+                    if (contentList && contentList.items) {
+                        const existingContent = contentList.items.find(item => 
+                            item.properties?.referenceName === referenceName
+                        );
+                        
+                        if (existingContent) {
+                            console.log(`✅ Found existing content in target: ${referenceName} (ID: ${existingContent.contentID}) in container: ${container.referenceName}`);
+                            return existingContent;
+                        }
+                    }
+                } catch (containerError) {
+                    // Continue to next container if this one fails
+                    continue;
+                }
+            }
+            
+            return null; // Not found in any container
+        } catch (apiError) {
+            // If API call fails, assume content doesn't exist
+            return null;
+        }
+        
+    } catch (error) {
+        if (error.response && error.response.status === 404) {
+            return null;
+        }
+        throw error;
+    }
+}
+
 export function areContentDependenciesResolved(
     contentItem: mgmtApi.ContentItem,
     referenceMapper: ReferenceMapperV2,

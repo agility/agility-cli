@@ -2,7 +2,7 @@ import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { pollBatchUntilComplete, extractBatchResults } from "./batch-polling";
 import ansiColors from "ansi-colors";
-import { findContainerInTargetInstance } from "../../lib/finders";
+// Removed findContainerInTargetInstance import - using mapper directly
 
 /**
  * Configuration for content batch processing
@@ -307,9 +307,7 @@ export class ContentBatchProcessor {
     const payloads: any[] = [];
     let skippedCount = 0;
 
-    // Import required functions dynamically
-    const { findModelInTargetInstance } = await import("../finders/model-finder");
-    // const { findContentInTargetInstance } = await import("../finders/content-item-finder");
+        // No imports needed - using reference mapper directly
 
     for (const contentItem of contentBatch) {
       try {
@@ -342,28 +340,27 @@ export class ContentBatchProcessor {
           );
         }
 
-        // STEP 2: Find target model using finder (matching original logic)
-        const model = await findModelInTargetInstance(
-          sourceModel,
-          this.config.apiClient,
-          this.config.targetGuid,
-          this.config.referenceMapper
-        );
-        if (!model) {
-          throw new Error(`Target model not found for: ${sourceModel.referenceName}`);
+        // STEP 2: Find target model using reference mapper (simplified)
+        const targetModelId = this.config.referenceMapper.getMappedId('model', sourceModel.id);
+        if (!targetModelId) {
+          throw new Error(`Target model mapping not found for: ${sourceModel.referenceName} (ID: ${sourceModel.id})`);
         }
+        
+        // Create model object with target ID and fields from source
+        const model = { 
+          id: targetModelId, 
+          referenceName: sourceModel.referenceName,
+          fields: sourceModel.fields || []
+        };
 
-        // STEP 3: Find container using reference mapper first, then API lookup (matching original logic)
-        const container = await findContainerInTargetInstance(
-          contentItem.properties.referenceName,
-          this.config.apiClient,
-          this.config.targetGuid,
-          this.config.referenceMapper
-        );
-
-        if (!container) {
-          throw new Error(`Container not found: ${contentItem.properties.referenceName}`);
+        // STEP 3: Find container using reference mapper (simplified)
+        const containerMapping = this.config.referenceMapper.getMappingByKey<mgmtApi.Container>('container', 'referenceName', contentItem.properties.referenceName);
+        
+        if (!containerMapping?.target) {
+          throw new Error(`Container mapping not found: ${contentItem.properties.referenceName}`);
         }
+        
+        const container = containerMapping.target;
 
         // STEP 4: Check if content already exists using reference mapper (since filtering already happened)
         const existingMapping = this.config.referenceMapper.getMapping("content", contentItem.contentID);

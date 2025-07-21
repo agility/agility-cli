@@ -1,8 +1,88 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
-import { state } from '../../core/state';
-import { findTemplateInTargetInstanceEnhanced } from "../finders";
+import { state, getState } from '../../core/state';
+
+/**
+ * Simple change detection for templates
+ */
+interface ChangeDetection {
+  entity: any;
+  shouldUpdate: boolean;
+  shouldCreate: boolean;
+  shouldSkip: boolean;
+  reason: string;
+}
+
+function changeDetection(
+  sourceEntity: any,
+  targetFromMapping: any,
+  targetFromData: any
+): ChangeDetection {
+  if (!targetFromMapping && !targetFromData) {
+    return {
+      entity: null,
+      shouldUpdate: false,
+      shouldCreate: true,
+      shouldSkip: false,
+      reason: 'Template does not exist in target'
+    };
+  }
+  
+  const targetEntity = targetFromData || targetFromMapping;
+  
+  // For templates, simple existence check (templates rarely change)
+  return {
+    entity: targetEntity,
+    shouldUpdate: false,
+    shouldCreate: false,
+    shouldSkip: true,
+    reason: 'Template exists and is up to date'
+  };
+}
+
+/**
+ * Enhanced template finder with proper target safety and conflict resolution
+ * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
+ */
+export async function findTemplateInTargetInstanceEnhanced(
+    sourceTemplate: mgmtApi.PageModel,
+    apiClient: mgmtApi.ApiClient,
+    targetGuid: string,
+    targetData: any,
+    referenceMapper: ReferenceMapperV2
+): Promise<{ template: mgmtApi.PageModel | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: ChangeDetection }> {
+    const state = getState();
+
+    // STEP 1: Find existing mapping
+    const existingMapping = referenceMapper.getMappingByKey<mgmtApi.PageModel>("template", "pageTemplateName", sourceTemplate.pageTemplateName);
+    let targetTemplateFromMapping: mgmtApi.PageModel | null = existingMapping?.target || null;
+
+    // STEP 2: Find target instance data
+    const targetInstanceData = targetData.templates?.find((t: any) => {
+        if (targetTemplateFromMapping) {
+            return t.pageTemplateName === targetTemplateFromMapping.pageTemplateName ||
+                   t.pageTemplateID === targetTemplateFromMapping.pageTemplateID;
+        } else {
+            return t.pageTemplateName === sourceTemplate.pageTemplateName;
+        }
+    });
+
+    // STEP 3: Use change detection for conflict resolution
+    const decision = changeDetection(
+        sourceTemplate,
+        targetTemplateFromMapping,
+        targetInstanceData
+    );
+
+    return {
+        template: decision.entity,
+        shouldUpdate: decision.shouldUpdate,
+        shouldCreate: decision.shouldCreate,
+        shouldSkip: decision.shouldSkip,
+        decision: decision
+    };
+}
 
 export async function pushTemplates(
     sourceData: any,

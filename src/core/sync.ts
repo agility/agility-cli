@@ -530,7 +530,7 @@ export class Sync {
     targetData?: any,
     type?: "normal" | "linked"
   ): Promise<ContentFilterResult> {
-    const { findContentInTargetInstance } = await import("../lib/finders/content-item-finder");
+    const { findContentInTargetInstance } = await import("../lib/pushers/content-item-pusher");
 
     const itemsToCreate: mgmtApi.ContentItem[] = [];
     const itemsToUpdate: mgmtApi.ContentItem[] = [];
