@@ -8,6 +8,7 @@ import { state } from "./state";
 import { PusherResult, SourceData } from "../types/sourceData";
 import { ModelDependencyTree } from "../lib/models/model-dependency-tree-builder";
 import { PublishService } from "./publish";
+import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
 
 export interface ContentFilterResult {
   itemsToCreate: mgmtApi.ContentItem[];
@@ -299,6 +300,9 @@ export class Sync {
     // Import all pushers for embedded configuration
     const { pushModels, pushGalleries, pushAssets, pushContainers, pushContent, pushTemplates, pushPages } =
       await import("../lib/pushers");
+
+    // TODO: Instanstiate the sync delta worker here or at a higher level
+    const syncDeltaWorker = new SyncDeltaFileWorker()
 
     // Import batch processor for batch processing option
     const { ContentBatchProcessor } = await import("../lib/pushers/content-item-batch-pusher");
