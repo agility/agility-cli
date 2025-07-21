@@ -1,12 +1,113 @@
 import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
-import { findAssetInTargetInstance } from "../finders";
 import * as fs from "fs";
 import * as path from "path";
 import { getAssetFilePath } from "../shared";
-import { state } from "../../core/state";
+import { state, getState } from "../../core/state";
 const FormData = require("form-data");
+
+/**
+ * Simple change detection for assets
+ */
+interface ChangeDetection {
+  entity: any;
+  shouldUpdate: boolean;
+  shouldCreate: boolean;
+  shouldSkip: boolean;
+  reason: string;
+}
+
+function changeDetection(
+  sourceEntity: any,
+  targetFromMapping: any,
+  targetFromData: any
+): ChangeDetection {
+  if (!targetFromMapping && !targetFromData) {
+    return {
+      entity: null,
+      shouldUpdate: false,
+      shouldCreate: true,
+      shouldSkip: false,
+      reason: 'Asset does not exist in target'
+    };
+  }
+  
+  const targetEntity = targetFromData || targetFromMapping;
+  
+  // For assets, check file modification dates or sizes if available
+  const sourceModified = new Date(sourceEntity.dateModified || 0);
+  const targetModified = new Date(targetEntity.dateModified || 0);
+  
+  if (sourceModified > targetModified) {
+    return {
+      entity: targetEntity,
+      shouldUpdate: true,
+      shouldCreate: false,
+      shouldSkip: false,
+      reason: 'Source asset is newer'
+    };
+  }
+  
+  return {
+    entity: targetEntity,
+    shouldUpdate: false,
+    shouldCreate: false,
+    shouldSkip: true,
+    reason: 'Asset exists and is up to date'
+  };
+}
+
+/**
+ * Enhanced asset finder with proper target safety and conflict resolution
+ * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
+ */
+export async function findAssetInTargetInstance(
+  sourceAsset: mgmtApi.Media,
+  apiClient: mgmtApi.ApiClient,
+  targetGuid: string,
+  targetData: any,
+  referenceMapper: ReferenceMapperV2
+): Promise<{ asset: mgmtApi.Media | null; shouldUpdate: boolean; shouldCreate: boolean; decision?: ChangeDetection }> {
+  const state = getState();
+
+  // STEP 1: Find existing mapping
+  const existingMapping = referenceMapper.getMappingByKey<mgmtApi.Media>("asset", "mediaID", sourceAsset.mediaID);
+  let targetAssetFromMapping: mgmtApi.Media | null = existingMapping?.target || null;
+
+  // STEP 2: Find target instance data with enhanced URL matching
+  const targetInstanceData = targetData.assets?.find((a: any) => {
+    if (targetAssetFromMapping) {
+      return (
+        a.mediaID === targetAssetFromMapping.mediaID ||
+        a.fileName === targetAssetFromMapping.fileName ||
+        a.originUrl === targetAssetFromMapping.originUrl
+      );
+    } else {
+      // Enhanced URL matching for assets (critical for asset reference resolution)
+      return (
+        a.fileName === sourceAsset.fileName ||
+        a.originUrl === sourceAsset.originUrl ||
+        a.url === sourceAsset.originUrl ||
+        a.edgeUrl === sourceAsset.originUrl
+      );
+    }
+  });
+
+  // STEP 3: Use change detection for conflict resolution
+  const decision = changeDetection(
+    sourceAsset,
+    targetAssetFromMapping,
+    targetInstanceData
+  );
+
+  return {
+    asset: decision.entity,
+    shouldUpdate: decision.shouldUpdate,
+    shouldCreate: decision.shouldCreate,
+    decision: decision
+  };
+}
 
 export async function pushAssets(
   sourceData: any,
