@@ -8,6 +8,7 @@ import {
 } from "../lib/incremental";
 
 import { Pushers, PushResults } from "../lib/pushers/orchestrate-pushers";
+import { Pull } from "./pull";
 
 export class Push {
   private pushers: Pushers;
@@ -28,6 +29,15 @@ export class Push {
     if (allGuids.length === 0) {
       throw new Error('No GUIDs specified for push operation');
     }
+
+    console.log(ansiColors.bgCyan(`state.update: ${state.update}`))
+   // pull the instance data
+   if(state.update !== false){
+    const pull = new Pull();
+    await pull.pullInstances();
+   }
+
+
 
     // CONSOLE.LOG - Calculate total operations using per-GUID locale mapping
     let totalOperations = 0;

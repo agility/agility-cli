@@ -232,7 +232,7 @@ yargs.command({
   handler: async function (argv) {
 
     const invokedAs = Array.isArray(argv._) && argv._.length > 0 ? String(argv._[0]) : "";
-    const pushCommandUsed = invokedAs === "push"; 
+    const syncCommandUsed = invokedAs === "sync"; 
 
     
     resetState(); // Clear any previous command state
@@ -246,8 +246,8 @@ yargs.command({
     setState(argv);
     
     // if the user is "pushing" only, we need to turn off the updates on the downloaders
-    if (pushCommandUsed) {
-      state.update = false;
+    if (syncCommandUsed) {
+      state.update = true;
     }
 
     auth = new Auth();

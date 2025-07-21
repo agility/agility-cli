@@ -1,6 +1,9 @@
+import ansiColors from "ansi-colors";
 import * as fs from "fs";
 
 export async function handleSyncToken(syncTokenPath: string, update: boolean) {
+
+  console.log(ansiColors.bgCyan(`syncTokenPath: ${syncTokenPath}`))
   const syncTokenExists = fs.existsSync(syncTokenPath);
 
   if (!update) {

@@ -38,8 +38,12 @@ export async function downloadAllAssets(
 
   // Helper function to check if asset needs download based on dateModified
   function shouldDownloadAsset(apiAsset: any, localInfo: { dateModified?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
-    if (update) {
-      return { shouldDownload: true, reason: 'forced update' };
+    // if (update) {
+    //   return { shouldDownload: true, reason: 'forced update' };
+    // }
+
+    if(state.update === false){
+      return { shouldDownload: false, reason: '' };
     }
 
     if (!localInfo.exists) {

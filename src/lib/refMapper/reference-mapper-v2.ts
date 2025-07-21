@@ -112,7 +112,7 @@ export class ReferenceMapperV2 {
     // Update in-memory cache
     this.updateIdMappingCache(type, sourceRef.id, targetRef.id);
 
-    console.log(`[ReferenceMapperV2] Added mapping: ${type} ${sourceRef.id} → ${targetRef.id} (${syncDirection})`);
+    // console.log(`[ReferenceMapperV2] Added mapping: ${type} ${sourceRef.id} → ${targetRef.id} (${syncDirection})`);
   }
 
   /**
@@ -411,7 +411,7 @@ export class ReferenceMapperV2 {
     }
 
     // For other keys, we'd need to extend this logic
-    console.warn(`[ReferenceMapperV2] Custom key lookup not implemented for key: ${key}`);
+    // console.warn(`[ReferenceMapperV2] Custom key lookup not implemented for key: ${key}`);
     return null;
   }
 
