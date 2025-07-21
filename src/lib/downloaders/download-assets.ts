@@ -8,14 +8,12 @@ import { getAssetFilePath } from "../assets/asset-utils";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllAssets(
-  guid: string
+  guid: string,
+  syncDelta: SyncDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
-  
-  // Create SyncDeltaTracker internally
-  const syncDelta = new SyncDelta(guid);
 
   // Note: Using shared getAssetFilePath utility for consistent filename handling
   // This ensures URL decoding is consistent between download and processing phases
