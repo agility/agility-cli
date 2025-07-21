@@ -1,4 +1,4 @@
-import { ReferenceMapper } from "../shared/reference-mapper"; 
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2"; 
 import { AssetReferenceExtractor } from "../assets/asset-reference-extractor";
 import * as mgmtApi from '@agility/management-sdk';
 
@@ -7,7 +7,7 @@ export function createContentFieldMapper() {
 }
 
 export interface ContentFieldMappingContext {
-  referenceMapper: ReferenceMapper;
+  referenceMapper: ReferenceMapperV2;
   sourceAssets?: any[];
   targetAssets?: any[];
   apiClient?: mgmtApi.ApiClient;

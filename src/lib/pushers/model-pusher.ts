@@ -2,7 +2,7 @@ import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { getState, getApiClient } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { logModelDifferences } from "../loggers";
 import { findModelInTargetInstanceEnhanced, findModelInTargetInstance } from "../finders/model-finder";
 
@@ -11,10 +11,10 @@ import { findModelInTargetInstanceEnhanced, findModelInTargetInstance } from "..
  * Uses lastModifiedDate for intelligent update decisions instead of complex field comparison
  */
 export async function pushModels(
-  sourceData: SourceData,
-  targetData: any,
-  referenceMapper: ReferenceMapper,
-  onProgress?: PusherProgressCallback
+    sourceData: SourceData,
+    targetData: any,
+    referenceMapper: ReferenceMapperV2,
+    onProgress?: PusherProgressCallback
 ): Promise<PusherResult> {
   const models: mgmtApi.Model[] = sourceData.models || [];
 

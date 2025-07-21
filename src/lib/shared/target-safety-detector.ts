@@ -8,7 +8,7 @@
  * 4. Decision with --force override capability
  */
 
-import { SyncDeltaReader } from './sync-delta-tracker';
+import { SyncDelta } from './sync-delta-tracker';
 import { getState } from '../../core/state';
 import ansiColors from 'ansi-colors';
 
@@ -307,40 +307,42 @@ export class FinderDecisionEngine {
       targetInstanceData
     );
 
+    return null;
+
     
     // STEP 2: Check Sync Delta (SECOND)
-    const syncDelta: SyncDeltaResult = {
-      hasChanges: SyncDeltaReader.isEntityInSyncDelta(
-        entityType,
-        entityId,
-        entityName,
-        state.rootPath
-      ),
-      entityChange: SyncDeltaReader.getSyncDeltaEntity(
-        entityType,
-        entityId,
-        entityName,
-        state.rootPath
-      )
-    };
+    // const syncDelta: SyncDeltaResult = {
+    //   hasChanges: SyncDeltaReader.isEntityInSyncDelta(
+    //     entityType,
+    //     entityId,
+    //     entityName,
+    //     state.rootPath
+    //   ),
+    //   entityChange: SyncDeltaReader.getSyncDeltaEntity(
+    //     entityType,
+    //     entityId,
+    //     entityName,
+    //     state.rootPath
+    //   )
+    // };
     // STEP 3: Conflict Resolution (THIRD)
-    const resolution = ConflictResolver.resolveConflict(
-      entityType,
-      entityId,
-      entityName,
-      targetSafety,
-      syncDelta,
-      existsInTarget
-    );
-    return {
-      entity: finalTargetEntity,
-      shouldUpdate: resolution.shouldUpdate,
-      shouldCreate: resolution.shouldCreate,
-      shouldSkip: resolution.shouldSkip,
-      targetSafety,
-      syncDelta,
-      resolution,
-      sourceEntity
-    };
+    // const resolution = ConflictResolver.resolveConflict(
+    //   entityType,
+    //   entityId,
+    //   entityName,
+    //   targetSafety,
+    //   syncDelta,
+    //   existsInTarget
+    // );
+    // return {
+    //   entity: finalTargetEntity,
+    //   shouldUpdate: resolution.shouldUpdate,
+    //   shouldCreate: resolution.shouldCreate,
+    //   shouldSkip: resolution.shouldSkip,
+    //   targetSafety,
+    //   syncDelta,
+    //   resolution,
+    //   sourceEntity
+    // };
   }
 } 

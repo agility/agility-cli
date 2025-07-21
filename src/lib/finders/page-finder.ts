@@ -1,7 +1,6 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { getState } from '../../core/state';
-import { SyncDeltaReader } from "../shared/sync-delta-tracker";
 import { FinderDecisionEngine, FinderDecision } from "../shared/target-safety-detector";
 
 /**
@@ -65,7 +64,7 @@ export async function findPageInTargetInstance(
     apiClient: mgmtApi.ApiClient,
     targetGuid: string,
     locale: string,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     sitemapPath?: string
 ): Promise<mgmtApi.PageItem | null> {
     
@@ -170,7 +169,7 @@ export async function findPageInTargetInstanceEnhanced(
     targetGuid: string,
     locale: string,
     targetData: any,
-    referenceMapper: ReferenceMapper
+    referenceMapper: ReferenceMapperV2
 ): Promise<{ page: mgmtApi.PageItem | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: FinderDecision }> {
     const state = getState();
 

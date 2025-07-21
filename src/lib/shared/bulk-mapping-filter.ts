@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from "./reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 
 export interface BulkFilterResult {
     unmappedItems: mgmtApi.ContentItem[];
@@ -18,7 +18,7 @@ export interface BulkFilterResult {
  */
 export async function bulkFilterByExistingMappings(
     contentItems: mgmtApi.ContentItem[],
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     overwrite: boolean = false
 ): Promise<BulkFilterResult> {
     
@@ -77,7 +77,7 @@ export async function bulkFilterByExistingMappings(
  */
 export async function bulkFilterByExistingMappingsGeneric<T extends { [key: string]: any }>(
     items: T[],
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     entityType: 'model' | 'container' | 'content' | 'asset' | 'gallery' | 'template' | 'page',
     idField: keyof T,
     overwrite: boolean = false

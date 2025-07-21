@@ -1,6 +1,6 @@
 import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { findAssetInTargetInstance } from "../finders";
 import * as fs from "fs";
 import * as path from "path";
@@ -11,7 +11,7 @@ const FormData = require("form-data");
 export async function pushAssets(
   sourceData: any,
   targetData: any,
-  referenceMapper: ReferenceMapper,
+  referenceMapper: ReferenceMapperV2,
   onProgress?: (processed: number, total: number, status?: "success" | "error") => void
 ): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
   // Extract data from sourceData - unified parameter pattern
@@ -138,7 +138,7 @@ async function createAsset(
   folderPath: string,
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
-  referenceMapper: ReferenceMapper
+  referenceMapper: ReferenceMapperV2
 ): Promise<void> {
   // Handle gallery if present
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
@@ -178,7 +178,7 @@ async function updateAsset(
   folderPath: string,
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
-  referenceMapper: ReferenceMapper
+  referenceMapper: ReferenceMapperV2
 ): Promise<void> {
   // Handle gallery if present
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
@@ -215,7 +215,7 @@ async function resolveGalleryMapping(
   media: mgmtApi.Media,
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
-  referenceMapper: ReferenceMapper
+  referenceMapper: ReferenceMapperV2
 ): Promise<number> {
   let targetMediaGroupingID = -1;
 

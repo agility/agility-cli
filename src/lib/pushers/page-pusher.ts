@@ -1,6 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { state } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
 import { SitemapHierarchy } from "../shared/sitemap-hierarchy";
@@ -50,7 +50,7 @@ async function processPage(
   locale: string,
   isChildPage: boolean,
   apiClient: mgmtApi.ApiClient,
-  referenceMapper: ReferenceMapper,
+  referenceMapper: ReferenceMapperV2,
   overwrite: boolean = false,
   insertBeforePageId: number | null = null
 ): Promise<"success" | "skip" | "failure"> {
@@ -168,7 +168,7 @@ async function processPage(
             const sourceContentId = module.item.contentid || module.item.contentId;
 
             if (sourceContentId && sourceContentId > 0) {
-              const contentRef = referenceMapper.getMapping<mgmtApi.ContentItem>(
+              const contentRef = referenceMapper.getMappingByKey<mgmtApi.ContentItem>(
                 "content",
                 "contentID",
                 sourceContentId
@@ -225,7 +225,7 @@ async function processPage(
       let missingMappings = 0;
 
       contentIdsToValidate.forEach((sourceContentId) => {
-        const contentRef = referenceMapper.getContentMappingById(sourceContentId);
+        const contentRef = referenceMapper.getMappingByKey<mgmtApi.ContentItem>("content", "contentID", sourceContentId);
         if (contentRef?.target && (contentRef.target as any).contentID > 0) {
           mappingResults[sourceContentId] = {
             found: true,
@@ -401,7 +401,7 @@ async function processPage(
       // Page batch processing started (silent)
 
       // Poll batch until completion using consistent utility (pass payload for error matching)
-      const { pollBatchUntilComplete, extractBatchResults } = await import("../shared/batch-polling");
+      const { pollBatchUntilComplete, extractBatchResults } = await import("./batch-polling");
       const completedBatch = await pollBatchUntilComplete(
         apiClient,
         batchID,
@@ -484,7 +484,7 @@ async function processPage(
 export async function pushPages(
   sourceData: SourceData,
   targetData: any,
-  referenceMapper: ReferenceMapper,
+  referenceMapper: ReferenceMapperV2,
   onProgress?: PusherProgressCallback
 ): Promise<PusherResult> {
   // Extract data from sourceData - unified parameter pattern

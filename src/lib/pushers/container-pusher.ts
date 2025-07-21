@@ -1,11 +1,10 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { findContainerInTargetInstanceEnhanced, findModelInTargetInstance } from "../finders";
 import ansiColors from "ansi-colors";
 import { ApiClient } from '@agility/management-sdk';
 import { state, getApiClient } from '../../core/state';
 import { sleep } from "../shared/sleep";
-import { prepareModelPayload } from "lib/models";
 /**
  * Container pusher with enhanced version-based comparison
  * Uses lastModifiedDate for intelligent update decisions
@@ -13,7 +12,7 @@ import { prepareModelPayload } from "lib/models";
 export async function pushContainers(
     sourceData: any,
     targetData: any,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
     
@@ -60,7 +59,7 @@ export async function pushContainers(
                 await sleep(200) // help rate limiting
                 
                 // Check if target model mapping exists before attempting to create
-                const targetModelMapping = referenceMapper.getMapping<any>('model', 'id', sourceContainer.contentDefinitionID);
+                const targetModelMapping = referenceMapper.getMappingByKey<any>('model', 'id', sourceContainer.contentDefinitionID);
                 
                 if (!targetModelMapping?.target) {
                     console.log(`${ansiColors.yellow('⚠️ Container')} ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.yellow('skipped - target model mapping not found')} (Model ID: ${sourceContainer.contentDefinitionID})`);
@@ -90,7 +89,7 @@ export async function pushContainers(
                 // Container exists but needs updating
                 
                 // Check if target model mapping exists before attempting to update
-                const targetModelMapping = referenceMapper.getMapping<any>('model', 'id', sourceContainer.contentDefinitionID);
+                const targetModelMapping = referenceMapper.getMappingByKey<any>('model', 'id', sourceContainer.contentDefinitionID);
                 
                 if (!targetModelMapping?.target) {
                     console.log(`${ansiColors.yellow('⚠️ Container')} ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.yellow('skipped - target model mapping not found')} (Model ID: ${sourceContainer.contentDefinitionID})`);
@@ -151,10 +150,10 @@ async function updateExistingContainer(
     sourceData: any,
     apiClient: ApiClient,
     targetGuid: string,
-    referenceMapper: ReferenceMapper
+    referenceMapper: ReferenceMapperV2
 ): Promise<mgmtApi.Container> {
     // Find the target model ID based on source model mapping
-    const targetModelMapping = referenceMapper.getMapping<mgmtApi.Model>('model', 'id', sourceContainer.contentDefinitionID);
+    const targetModelMapping = referenceMapper.getMappingByKey<mgmtApi.Model>('model', 'id', sourceContainer.contentDefinitionID);
     const targetModelId = targetModelMapping!.target!.id; // We know it exists from upfront check
 
     // Prepare update payload
@@ -179,7 +178,7 @@ async function updateExistingContainerWithRetry(
     sourceData: any,
     apiClient: ApiClient,
     targetGuid: string,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     totalFailuresRef: { value: number }
 ): Promise<{ success: boolean; container?: mgmtApi.Container; error?: string; failureCount: number }> {
     let failureCount = 0;
@@ -213,10 +212,10 @@ async function createNewContainer(
     sourceData: any,
     apiClient: ApiClient,
     targetGuid: string,
-    referenceMapper: ReferenceMapper
+    referenceMapper: ReferenceMapperV2
 ): Promise<mgmtApi.Container> {
     // Find the target model ID based on source model mapping
-    const targetModelMapping = referenceMapper.getMapping<mgmtApi.Model>('model', 'id', sourceContainer.contentDefinitionID);
+    const targetModelMapping = referenceMapper.getMappingByKey<mgmtApi.Model>('model', 'id', sourceContainer.contentDefinitionID);
     const targetModelId = targetModelMapping!.target!.id; // We know it exists from upfront check
 
     // Prepare creation payload
@@ -246,7 +245,7 @@ async function createNewContainerWithRetry(
     sourceData: any,
     apiClient: ApiClient,
     targetGuid: string,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     totalFailuresRef: { value: number }
 ): Promise<{ success: boolean; container?: mgmtApi.Container; error?: string; failureCount: number }> {
     let failureCount = 0;

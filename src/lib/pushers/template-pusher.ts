@@ -1,13 +1,13 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { state } from '../../core/state';
 import { findTemplateInTargetInstanceEnhanced } from "../finders";
 
 export async function pushTemplates(
     sourceData: any,
     targetData: any,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
     
@@ -62,15 +62,15 @@ export async function pushTemplates(
                 mappedDef.contentViewID = isUpdate ? def.contentViewID : 0;
 
                 if (def.contentDefinitionID) {
-                    const modelMapping = referenceMapper.getMapping<mgmtApi.Model>('model', 'id', def.contentDefinitionID);
+                    const modelMapping = referenceMapper.getMappingByKey<mgmtApi.Model>('model', 'id', def.contentDefinitionID);
                     if (modelMapping?.target?.id) mappedDef.contentDefinitionID = modelMapping.target.id;
                 }
                 if (def.itemContainerID) {
-                    const containerMapping = referenceMapper.getMapping<mgmtApi.Container>('container', 'contentViewID', def.itemContainerID);
+                    const containerMapping = referenceMapper.getMappingByKey<mgmtApi.Container>('container', 'contentViewID', def.itemContainerID);
                     if (containerMapping?.target?.contentViewID) mappedDef.itemContainerID = containerMapping.target.contentViewID;
                 }
                 if (def.publishContentItemID) {
-                    const contentMapping = referenceMapper.getMapping<mgmtApi.ContentItem>('content', 'contentID', def.publishContentItemID);
+                    const contentMapping = referenceMapper.getMappingByKey<mgmtApi.ContentItem>('content', 'contentID', def.publishContentItemID);
                     if (contentMapping?.target?.contentID) mappedDef.publishContentItemID = contentMapping.target.contentID;
                 }
                 return mappedDef;

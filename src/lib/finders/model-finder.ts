@@ -1,5 +1,5 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import ansiColors from "ansi-colors";
 import { getState } from "../../core/state";
 import { FinderDecisionEngine, FinderDecision } from "../shared/target-safety-detector";
@@ -13,7 +13,7 @@ export async function findModelInTargetInstanceEnhanced(
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
   targetData: any,
-  referenceMapper: ReferenceMapper,
+  referenceMapper: ReferenceMapperV2,
   isStubPass: boolean = false
 ): Promise<{
   model: mgmtApi.Model | null;
@@ -108,7 +108,7 @@ export async function findModelInTargetInstance(
   model: mgmtApi.Model,
   apiClient: mgmtApi.ApiClient,
   guid: string,
-  referenceMapper: ReferenceMapper
+  referenceMapper: ReferenceMapperV2
 ): Promise<mgmtApi.Model | null> {
   try {
     // First check the local reference mapper for a model with the same reference name

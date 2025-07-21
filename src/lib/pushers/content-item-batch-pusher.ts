@@ -1,6 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapper } from "../shared/reference-mapper";
-import { pollBatchUntilComplete, extractBatchResults } from "../shared/batch-polling";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
+import { pollBatchUntilComplete, extractBatchResults } from "./batch-polling";
 import ansiColors from "ansi-colors";
 import { findContainerInTargetInstance } from "../../lib/finders";
 
@@ -11,7 +11,7 @@ export interface ContentBatchConfig {
   apiClient: mgmtApi.ApiClient;
   targetGuid: string;
   locale: string;
-  referenceMapper: ReferenceMapper;
+  referenceMapper: ReferenceMapperV2;
   batchSize?: number; // Default: 100, Max: 250
   useContentFieldMapper?: boolean; // Whether to use enhanced field mapping
   models?: any[]; // Models for enhanced payload preparation

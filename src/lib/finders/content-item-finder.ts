@@ -1,5 +1,5 @@
 import * as mgmtApi from '@agility/management-sdk';
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import ansiColors from "ansi-colors";
 import { getState } from "../../core/state";
 import { FinderDecisionEngine, FinderDecision } from "../shared/target-safety-detector";
@@ -14,7 +14,7 @@ export function findContentInTargetInstance(
     targetGuid: string,
     locale: string,
     targetData: any,
-    referenceMapper: ReferenceMapper
+    referenceMapper: ReferenceMapperV2
 ): { content: mgmtApi.ContentItem | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: FinderDecision } {
     const state = getState();
 
@@ -58,7 +58,7 @@ export async function findContentInTargetInstanceLegacy(
     apiClient: mgmtApi.ApiClient, 
     guid: string, 
     locale: string,
-    referenceMapper: ReferenceMapper
+    referenceMapper: ReferenceMapperV2
 ): Promise<mgmtApi.ContentItem | null> {
     try {
         // First check the reference mapper for content item with the same content ID

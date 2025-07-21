@@ -1,13 +1,13 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { ReferenceMapper } from "../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { findGalleryInTargetInstance } from "../finders";
 import { state } from '../../core/state';
 
 export async function pushGalleries(
     sourceData: any,
     targetData: any,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
     
@@ -83,7 +83,7 @@ async function createGallery(
     mediaGrouping: mgmtApi.assetMediaGrouping,
     apiClient: mgmtApi.ApiClient,
     targetGuid: string,
-    referenceMapper: ReferenceMapper
+    referenceMapper: ReferenceMapperV2
 ): Promise<void> {
     const payload = { ...mediaGrouping, mediaGroupingID: 0 };
     const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
@@ -99,7 +99,7 @@ async function updateGallery(
     existingGallery: mgmtApi.assetMediaGrouping,
     apiClient: mgmtApi.ApiClient,
     targetGuid: string,
-    referenceMapper: ReferenceMapper
+    referenceMapper: ReferenceMapperV2
 ): Promise<void> {
     const payload = { ...sourceGallery, mediaGroupingID: existingGallery.mediaGroupingID };
     const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);

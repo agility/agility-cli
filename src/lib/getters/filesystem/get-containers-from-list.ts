@@ -1,7 +1,7 @@
 import * as mgmtApi from '@agility/management-sdk';
 import * as fs from 'fs';
 import * as path from 'path';
-import { ReferenceMapper } from "../../shared/reference-mapper";
+import { ReferenceMapperV2 } from "../../refMapper/reference-mapper-v2";
 
 /**
  * Get containers from Content Sync SDK /list directory
@@ -12,7 +12,7 @@ export function getContainersFromFileSystem(
     guid: string,
     locale: string,
     isPreview: boolean,
-    referenceMapper: ReferenceMapper,
+    referenceMapper: ReferenceMapperV2,
     rootPath?: string,
     legacyFolders?: boolean
 ): mgmtApi.Container[] {
