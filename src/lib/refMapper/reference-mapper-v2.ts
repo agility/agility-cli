@@ -119,6 +119,12 @@ export class ReferenceMapperV2 {
    * Get mapped target ID for a source entity ID
    */
   getMappedId(type: EntityType, sourceId: number): number | null {
+
+    if (type === 'model' && sourceId === 1) {
+      //SPECIAL CASE FOR MODEL ID 1
+      return 1; // Model ID 1 is always mapped to itself
+    }
+
     const { sourceGuid, targetGuid, locale } = this.context;
 
     // Check in-memory cache first
