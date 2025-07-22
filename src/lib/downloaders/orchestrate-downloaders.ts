@@ -43,8 +43,12 @@ export class Downloader {
     try {
       console.log(`Processing ${guid}...`);
 
+
+      // create delta for the operations
+      const changeDelta = new ChangeDelta(guid);
+
       // Execute all data elements for this GUID
-      await this.downloadDataElements(guid, results);
+      await this.downloadDataElements(guid, results, changeDelta);
 
       // Calculate final duration
       results.totalDuration = Date.now() - startTime;
@@ -141,12 +145,11 @@ export class Downloader {
   private async downloadDataElements(
     guid: string, 
     results: DownloadResults,
+    changeDelta: ChangeDelta
   ): Promise<void> {
     // Get operations based on elements filter
     const operations = DownloadOperationsRegistry.getOperationsForElements();
 
-    // create delta for the operations
-    const changeDelta = new ChangeDelta(guid);
     console.log(`${guid}: Processing ${operations.length} data element(s)...`);
 
     // Execute each operation

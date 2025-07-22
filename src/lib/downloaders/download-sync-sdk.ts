@@ -20,7 +20,7 @@ export async function downloadAllSyncSDK(guid: string, changeDelta: ChangeDelta)
 
   channels.forEach(channel => {
     locales.forEach(locale => {
-      downloads.push(downloadSyncSDKByLocaleAndChannel(guid, channel.channel, locale));
+      downloads.push(downloadSyncSDKByLocaleAndChannel(guid, channel.channel, locale, changeDelta));
     });
   });
 
@@ -32,15 +32,14 @@ export async function downloadAllSyncSDK(guid: string, changeDelta: ChangeDelta)
 export async function downloadSyncSDKByLocaleAndChannel(
   guid: string, 
   channel: string,
-  locale: string
+  locale: string,
+  changeDelta: ChangeDelta
 ): Promise<void> {
 
   
   console.log(`\nDownloading GUID: ${guid} | Locale: ${locale}`);
   const fileOps = new fileOperations(guid, locale);
   
-  // Create ChangeDelta internally
-  const changeDelta = new ChangeDelta(guid);
   // Get API keys for this specific GUID
   const { previewKey:apiKey} = getApiKeysForGuid(guid);  
   const startTime = Date.now(); // Track start time for performance measurement
