@@ -21,7 +21,7 @@ export interface PushResults {
   totalSkipped: number;
   publishableContentIds: number[];
   publishablePageIds: number[];
-  
+
 }
 
 export interface PusherConfig {
@@ -49,7 +49,7 @@ export class Pushers {
    */
   async guidPusher(sourceGuid: string, targetGuid: string): Promise<PushResults> {
     const startTime = Date.now();
-    
+
     const results: PushResults = {
       successful: [],
       failed: [],
@@ -108,7 +108,7 @@ export class Pushers {
       results.failed.push({ operation: 'guid-orchestration', error: error.message });
       results.totalDuration = Date.now() - startTime;
       console.error(`${sourceGuid}→${targetGuid}: Failed - ${error.message}`);
-      
+
       // Try to finalize log file even on error
       try {
         const logFilePath = this.fileOps.finalizeLogFile("push");
@@ -116,7 +116,7 @@ export class Pushers {
       } catch (logError: any) {
         console.error(`${sourceGuid}→${targetGuid}: Could not finalize log file - ${logError.message}`);
       }
-      
+
       return results;
     }
   }
@@ -128,7 +128,7 @@ export class Pushers {
     const currentState = getState();
     const sourceGuids = currentState.sourceGuid;
     const targetGuids = currentState.targetGuid;
-    
+
     if (sourceGuids.length === 0 || targetGuids.length === 0) {
       throw new Error('No source or target GUIDs available for push operation');
     }
@@ -137,10 +137,10 @@ export class Pushers {
     // Future enhancement: handle multiple source/target combinations
     const sourceGuid = sourceGuids[0];
     const targetGuid = targetGuids[0];
-    
+
     console.log(`Starting push operations from ${sourceGuid} to ${targetGuid}`);
     console.log(`Elements: ${currentState.elements}`);
-    
+
     const results = await this.guidPusher(sourceGuid, targetGuid);
     return [results];
   }
@@ -188,6 +188,7 @@ export class Pushers {
 
         // Skip if no data for this element type or element not requested
         if (Array.isArray(elementData) && elementData.length === 0 || !elements.some(element => config.elements.includes(element))) {
+          console.log(ansiColors.gray(`Skipping ${config.description} - no data or not requested`));
           continue;
         }
 
@@ -213,12 +214,12 @@ export class Pushers {
         const successfulColor = pusherResult.successful > 0 ? ansiColors.green : ansiColors.gray;
         const failedColor = pusherResult.failed > 0 ? ansiColors.red : ansiColors.gray;
         const skippedColor = pusherResult.skipped > 0 ? ansiColors.yellow : ansiColors.gray;
-        
+
         console.log(
           ansiColors.gray(`\n${config.description}: `) +
-            successfulColor(`${pusherResult.successful} successful, `) +
-            skippedColor(`${pusherResult.skipped} skipped, `) +
-            failedColor(`${pusherResult.failed} failed\n`)
+          successfulColor(`${pusherResult.successful} successful, `) +
+          skippedColor(`${pusherResult.skipped} skipped, `) +
+          failedColor(`${pusherResult.failed} failed\n`)
         );
 
         this.config.onOperationComplete?.(config.name, state.sourceGuid[0], state.targetGuid[0], pusherResult.status === 'success');

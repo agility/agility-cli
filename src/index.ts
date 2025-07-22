@@ -13,7 +13,7 @@ import { homePrompt, instancesPrompt, localePrompt } from "./lib/ui/prompts";
 import { generateEnv } from "./lib/shared";
 import { instanceSelector } from "./lib/ui/prompts";
 import { Push } from "./core/push";
-  
+
 let auth: Auth;
 
 yargs.version("1.0.0-beta.7").demand(1).exitProcess(false);
@@ -28,13 +28,13 @@ yargs.command({
   },
   handler: async function (argv) {
     resetState(); // Clear any previous command state
-    
+
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
       console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
     }
-    
+
     setState(argv);
 
     auth = new Auth();
@@ -73,13 +73,13 @@ yargs.command({
   },
   handler: async function (argv) {
     resetState(); // Clear any previous command state
-    
+
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
       console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
     }
-    
+
     setState(argv);
     auth = new Auth();
     await auth.init();
@@ -95,13 +95,13 @@ yargs.command({
   },
   handler: async function (argv) {
     resetState(); // Clear any previous command state
-    
+
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
       console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
     }
-    
+
     setState(argv);
     auth = new Auth();
     await auth.logout();
@@ -118,13 +118,13 @@ yargs.command({
   },
   handler: async function (argv) {
     resetState(); // Clear any previous command state
-    
+
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
       console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
     }
-    
+
     setState(argv);
     auth = new Auth();
     const isAuthorized = await auth.init();
@@ -151,15 +151,16 @@ yargs.command({
   },
   handler: async function (argv) {
     resetState(); // Clear any previous command state
-    
+
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
       console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
     }
-    
+
+
     setState(argv);
-    
+    state.update = true; // Ensure updates are enabled for pull
     auth = new Auth();
     const isAuthorized = await auth.init();
     if (!isAuthorized) {
@@ -175,16 +176,16 @@ yargs.command({
     try {
       const pull = new Pull();
       const result = await pull.pullInstances();
-      
+
       // Simple completion summary
       const totalElapsedSeconds = Math.floor(result.elapsedTime / 1000);
       const minutes = Math.floor(totalElapsedSeconds / 60);
       const seconds = totalElapsedSeconds % 60;
       const timeDisplay = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-      
+
       let totalSuccessful = 0;
       let totalFailed = 0;
-      
+
       result.results.forEach(res => {
         if (res.failed?.length > 0) {
           totalFailed++;
@@ -192,12 +193,12 @@ yargs.command({
           totalSuccessful++;
         }
       });
-      
+
       console.log(colors.cyan('\nSummary:'));
       console.log(`Processed ${result.results.length} GUID/locale combinations`);
       console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
       console.log(`Total time: ${timeDisplay}`);
-      
+
       if (result.success) {
         console.log(colors.green(`✓ Pull completed successfully`));
         process.exit(0);
@@ -232,19 +233,19 @@ yargs.command({
   handler: async function (argv) {
 
     const invokedAs = Array.isArray(argv._) && argv._.length > 0 ? String(argv._[0]) : "";
-    const syncCommandUsed = invokedAs === "sync"; 
+    const syncCommandUsed = invokedAs === "sync";
 
-    
+
     resetState(); // Clear any previous command state
-    
+
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
       console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
     }
-    
+
     setState(argv);
-    
+
     // if the user is "pushing" only, we need to turn off the updates on the downloaders
     if (syncCommandUsed) {
       state.update = true;
@@ -255,7 +256,7 @@ yargs.command({
     if (!isAuthorized) {
       return;
     }
-    
+
     // Validate sync command requirements
     const isValidCommand = await auth.validateCommand('push');
     if (!isValidCommand) {
@@ -267,16 +268,16 @@ yargs.command({
     try {
       const push = new Push();
       const result = await push.pushInstances();
-      
+
       // Simple completion summary
       const totalElapsedSeconds = Math.floor(result.elapsedTime / 1000);
       const minutes = Math.floor(totalElapsedSeconds / 60);
       const seconds = totalElapsedSeconds % 60;
       const timeDisplay = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-      
+
       let totalSuccessful = 0;
       let totalFailed = 0;
-      
+
       result.results.forEach(res => {
         if (res.failed?.length > 0) {
           totalFailed++;
@@ -284,12 +285,12 @@ yargs.command({
           totalSuccessful++;
         }
       });
-      
+
       console.log(colors.cyan('\nSummary:'));
       console.log(`Processed ${result.results.length} GUID/locale combinations`);
       console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
       console.log(`Total time: ${timeDisplay}`);
-      
+
       if (result.success) {
         console.log(colors.green(`✓ Push completed successfully`));
         process.exit(0);
