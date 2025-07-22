@@ -4,6 +4,7 @@ import { getState, getApiClient } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { logModelDifferences } from "../loggers";
+import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
 
 /**
  * Simple change detection for models
@@ -194,8 +195,25 @@ export async function pushModels(
     sourceData: SourceData,
     targetData: any,
     referenceMapper: ReferenceMapperV2,
-    onProgress?: PusherProgressCallback
+    onProgress?: PusherProgressCallback,
+    syncDeltaWorker: SyncDeltaFileWorker
 ): Promise<PusherResult> {
+
+  // 
+  //
+  // First logic block - Retrieval of the target instance's data, using the model ID
+  //
+  // 1. Look for the target instance mapping - then get the corresponding id for the source data and use that 
+  // 2. If not found, we look for the target instance data on file 
+  // 
+  // 
+  //
+  // 3. 
+
+
+
+
+
   const models: mgmtApi.Model[] = sourceData.models || [];
 
   if (!models || models.length === 0) {

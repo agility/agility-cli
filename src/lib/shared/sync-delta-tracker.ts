@@ -1,5 +1,5 @@
-import * as fs from "fs";
 import * as path from "path";
+import { fileOperations } from "../../core/fileOperations";
 
 export type EntityType = "model" | "container" | "asset" | "gallery" | "template" | "page" | "content-item";
 export type EntityChangeAction = "created" | "updated";
@@ -147,7 +147,7 @@ export class SyncDelta {
   /**
    * Write sync delta to JSON file in agility-files directory
    */
-  async writeSyncDelta(rootPath: string = process.cwd()): Promise<string> {
+  async writeSyncDelta(guid: string): Promise<string> {
     const changedEntities = structuredClone(this._changes);
 
     let totalChanges = 0;
@@ -166,18 +166,19 @@ export class SyncDelta {
       entities: changedEntities,
     };
 
-    // Fix double path issue - check if rootPath already ends with agility-files
-    const agilityFilesDir = rootPath.endsWith("agility-files") ? rootPath : path.join(rootPath, "agility-files");
-    const filePath = path.join(agilityFilesDir, "sync-delta.json");
-
+    // Use file operations to write the files
+    const fileOps = new fileOperations(guid, ""); // Create fileOps instance for file operations
+    const syncDeltaPath = path.join(process.cwd(), "agility-files", "sync-delta.json");
+    
     // Ensure agility-files directory exists
-    if (!fs.existsSync(agilityFilesDir)) {
-      fs.mkdirSync(agilityFilesDir, { recursive: true });
+    const agilityFilesDir = path.dirname(syncDeltaPath);
+    if (!fileOps.checkFileExists(agilityFilesDir)) {
+      fileOps.createFolder(agilityFilesDir);
     }
 
-    fs.writeFileSync(filePath, JSON.stringify(syncDelta, null, 2));
+    fileOps.createFile(syncDeltaPath, JSON.stringify(syncDelta, null, 2));
 
-    return filePath;
+    return syncDeltaPath;
   }
 
   /**

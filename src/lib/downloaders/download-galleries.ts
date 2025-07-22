@@ -7,14 +7,12 @@ import { SyncDelta } from "../shared/sync-delta-tracker";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllGalleries(
-  guid: string
+  guid: string,
+  syncDelta: SyncDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
-  
-  // Create SyncDeltaTracker internally
-  const syncDelta = new SyncDelta(guid);
 
   // Helper function to get local gallery metadata
   function getLocalGalleryInfo(filePath: string): { modifiedOn?: string; exists: boolean } {

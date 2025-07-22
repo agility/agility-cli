@@ -7,14 +7,12 @@ import * as fs from "fs";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllModels(
-  guid: string
+  guid: string,
+  syncDelta: SyncDelta
 ): Promise<void> {
   // Get values from fileOps which is already configured for this specific GUID/locale
   const fileOps = new fileOperations(guid);
   const apiClient = getApiClient();
-  
-  // Create SyncDelta internally  
-  const syncDelta = new SyncDelta(guid);
 
   const modelsFolderPath = fileOps.getDataFolderPath('models');
   // Use fileOperations to create models folder
