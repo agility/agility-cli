@@ -65,7 +65,7 @@ function changeDetection(
  * Enhanced model finder with proper target safety and conflict resolution
  * Logic Flow: Target Safety FIRST → Change Delta SECOND → Conflict Resolution
  */
-export async function findModelInTargetInstanceEnhanced(
+export async function getModelAndChangeOperationsDecision(
   sourceModel: mgmtApi.Model,
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
@@ -111,38 +111,38 @@ export async function findModelInTargetInstanceEnhanced(
       };
     }
 
-    let targetChanged = false;
-    if (targetInstanceData && targetModelFromMapping) {
-      if (targetInstanceData.lastModifiedDate !== targetModelFromMapping.lastModifiedDate) {
-        targetChanged = true;
-      } else {
-        targetChanged = false;
-      }
-    }
+    // Simplified decision logic: 
+    // 1. If no target exists at all (no mapping, no instance data) -> CREATE
+    // 2. If target exists but source is newer -> UPDATE  
+    // 3. Otherwise -> SKIP
 
-    const sourceHasFields = Array.isArray(sourceModel.fields) && sourceModel.fields.length > 0;
-    const targetHasMapping = !!targetModelFromMapping;
- 
+    const targetExists = !!(targetModelFromMapping || targetInstanceData);
+    const targetEntity = targetInstanceData || targetModelFromMapping;
+    
     let shouldUpdate = false;
     let shouldCreate = false;
     let shouldSkip = false;
 
-    if (!targetHasMapping && !targetChanged) {
-      // Source has fields, no target mapping: update (create full model from nothing)
-      shouldUpdate = true;
-    } else if (!targetHasMapping && targetChanged) {
-      // Source has fields, no target mapping: update (create full model from nothing)
-      shouldSkip = true;
-    } else if (targetHasMapping && targetChanged) {
-      // All other cases: skip
-      shouldSkip = true;
+    if (!targetExists) {
+      // No target model found anywhere - create new
+      shouldCreate = true;
+      console.log(`Model ${sourceModel.referenceName}: No target found, will create`);
     } else {
-      // All other cases: skip
-      shouldSkip = true;
+      // Target exists - check if source is newer
+      const sourceModified = new Date(sourceModel.lastModifiedDate || 0);
+      const targetModified = new Date(targetEntity.lastModifiedDate || 0);
+      
+      if (sourceModified > targetModified) {
+        shouldUpdate = true;
+        // console.log(`Model ${sourceModel.referenceName}: Source newer (${sourceModified.toISOString()} > ${targetModified.toISOString()}), will update`);
+      } else {
+        shouldSkip = true;
+        // console.log(`Model ${sourceModel.referenceName}: Target up to date, will skip`);
+      }
     }
 
     return {
-      model: targetInstanceData || targetModelFromMapping,
+      model: targetEntity,
       shouldUpdate,
       shouldCreate,
       shouldSkip,
@@ -161,35 +161,40 @@ export async function findModelInTargetInstanceEnhanced(
   }
 }
 
-export async function findModelInTargetInstance(
-  model: mgmtApi.Model,
-  apiClient: mgmtApi.ApiClient,
-  guid: string,
-  referenceMapper: ReferenceMapperV2
-): Promise<mgmtApi.Model | null> {
-  try {
-    // First check the local reference mapper for a model with the same reference name
-    const mappingResult = referenceMapper.getMappingByKey("model", "referenceName", model.referenceName);
-    const targetMapping = mappingResult?.target;
+// export async function findModelInTargetInstance(
+//   model: mgmtApi.Model,
+//   targetData: any,
+//   apiClient: mgmtApi.ApiClient,
+//   guid: string,
+//   referenceMapper: ReferenceMapperV2
+// ): Promise<mgmtApi.Model | null> {
+//   try {
+//     // First check the local reference mapper for a model with the same reference name
+//     const mappingResult = referenceMapper.getMappingByKey("model", "referenceName", model.referenceName);
+//     const targetMapping = mappingResult?.target;
 
-    if (targetMapping) {
-      return targetMapping as mgmtApi.Model;
-    }
+//     if (targetMapping) {
+//       return targetMapping as mgmtApi.Model;
+//     }
 
-    // If not in mapper, try to find it in the target instance
-    const targetModel = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
+//     // If not in mapper, try to find it in the target instance
+//     // const targetModel = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
 
-    if (targetModel) {
-      // CRITICAL: Add the mapping so we don't lose track of it
-      referenceMapper.addMapping("model", model, targetModel);
-      return targetModel;
-    }
+//     const targetModel = targetData.models?.find((m: any) => {
+//       return m.referenceName === model.referenceName;
+//     });
 
-    return null;
-  } catch (error: any) {
-    return null;
-  }
-}
+//     if (targetModel) {
+//       // CRITICAL: Add the mapping so we don't lose track of it
+//       referenceMapper.addMapping("model", model, targetModel);
+//       return targetModel;
+//     }
+
+//     return null;
+//   } catch (error: any) {
+//     return null;
+//   }
+// }
 
 export async function pushModels(
     sourceData: SourceData,
@@ -243,7 +248,7 @@ export async function pushModels(
     const isStubPass = passName === "stub";
     try {
       // Use enhanced finder to determine what action to take
-      const findResult = await findModelInTargetInstanceEnhanced(
+      const findResult = await getModelAndChangeOperationsDecision(
         model,
         apiClient,
         targetGuid[0],
