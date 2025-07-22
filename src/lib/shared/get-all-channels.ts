@@ -1,8 +1,8 @@
 import { getApiClient } from "../../core/state";
 
-export async function getAllChannels(  
-  guid: string,
-  locale: string
+export async function getAllChannels(
+	guid: string,
+	locale: string
 ): Promise<{
 	channel: string,
 	digitalChannelId: number
@@ -15,7 +15,7 @@ export async function getAllChannels(
 	return sitemaps.map(sitemap => {
 		return {
 			channel: sitemap.name,
-			digitalChannelId: sitemap.digitalChannelID		
+			digitalChannelId: sitemap.digitalChannelID
 		}
 	});
 

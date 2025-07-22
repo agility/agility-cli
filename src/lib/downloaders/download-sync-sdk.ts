@@ -10,8 +10,7 @@ import { getAllChannels } from "../shared/get-all-channels";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
-export async function downloadAllSyncSDK(guid: string, changeDelta: ChangeDelta)
-{
+export async function downloadAllSyncSDK(guid: string, changeDelta: ChangeDelta) {
   const locales: string[] = state.guidLocaleMap.get(guid);
   const channels = await getAllChannels(guid, locales[0]);
   const downloads: Promise<any>[] = [];
@@ -20,7 +19,7 @@ export async function downloadAllSyncSDK(guid: string, changeDelta: ChangeDelta)
 
   channels.forEach(channel => {
     locales.forEach(locale => {
-      downloads.push(downloadSyncSDKByLocaleAndChannel(guid, channel.channel, locale, changeDelta));
+      downloads.push(downloadSyncSDKByLocaleAndChannel(guid, channel.channel.toLowerCase(), locale, changeDelta));
     });
   });
 
@@ -30,20 +29,20 @@ export async function downloadAllSyncSDK(guid: string, changeDelta: ChangeDelta)
 }
 
 export async function downloadSyncSDKByLocaleAndChannel(
-  guid: string, 
+  guid: string,
   channel: string,
   locale: string,
   changeDelta: ChangeDelta
 ): Promise<void> {
 
-  
+
   console.log(`\nDownloading GUID: ${guid} | Locale: ${locale}`);
   const fileOps = new fileOperations(guid, locale);
-  
+
   // Get API keys for this specific GUID
-  const { previewKey:apiKey} = getApiKeysForGuid(guid);  
+  const { previewKey: apiKey } = getApiKeysForGuid(guid);
   const startTime = Date.now(); // Track start time for performance measurement
-  
+
   // Build the path to the instance-specific folder
   const instanceSpecificPath = fileOps.getDataFolderPath();
   const syncTokenPath = fileOps.getDataFilePath('state', 'sync.json');
@@ -74,26 +73,26 @@ export async function downloadSyncSDKByLocaleAndChannel(
 
   // RE-ENABLED: Sync SDK with race condition fix applied
   // Create the sync client const agilitySync = await import("@agility/content-sync");using dynamic import with flexible export handling
-  
+
   const syncClient = agilitySync.getSyncClient(agilityConfig);
 
   // Content Sync SDK handles pages, containers, content, sitemaps, redirections
   await syncClient.runSync();
-  
+
   // Get enhanced sync stats (pass rootPath for instance isolation)
   if (storeInterfaceFileSystem.getAndClearSavedItemStats && typeof storeInterfaceFileSystem.getAndClearSavedItemStats === 'function') {
     const syncResults = storeInterfaceFileSystem.getAndClearSavedItemStats(instanceSpecificPath);
-    
+
     // Log summary by item type
     const typeBreakdown = Object.entries(syncResults.itemsByType)
       .map(([type, count]) => `${type}: ${count}`)
       .join(', ');
-    
+
     const summary = syncResults.summary;
     console.log(`Content Sync completed: ${summary.totalItems} items in ${(summary.elapsedTime / 1000).toFixed(1)}s`);
     console.log(`  Breakdown: ${typeBreakdown}`);
     console.log(`  Performance: ${summary.itemsPerSecond.toFixed(1)} items/sec`);
-    
+
     // Detailed logging for verbose mode
     if (state.useVerbose) {
       console.log("--- Detailed Sync Results ---");
@@ -113,8 +112,8 @@ export async function downloadSyncSDKByLocaleAndChannel(
       itemCount = files.filter(file => path.extname(file).toLowerCase() === '.json').length;
       itemsFoundMessage = `Verified ${itemCount} content item(s) on disk.`;
     }
-  } catch (countError: any) { 
-    itemsFoundMessage = `Error counting items: ${countError.message}`; 
+  } catch (countError: any) {
+    itemsFoundMessage = `Error counting items: ${countError.message}`;
   }
 
   // Summary of sync operation
@@ -122,4 +121,4 @@ export async function downloadSyncSDKByLocaleAndChannel(
   const elapsedSeconds = (elapsedTime / 1000).toFixed(2);
   console.log(ansiColors.yellow(`Content Sync SDK completed in ${elapsedSeconds}s`));
   console.log(itemsFoundMessage);
-} 
+}
