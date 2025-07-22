@@ -47,7 +47,8 @@ export async function downloadAllTemplates(
       // Intelligent content comparison - check if content has actually changed
       // update=false (default): Use hash comparison for smart skipping
       // update=true: Force download/overwrite regardless of content
-      if (!update) {
+
+      if (update) {
         const hashComparison = ContentHashComparer.getHashComparison(template, templateFilePath);
         
         if (hashComparison.status === 'unchanged') {
