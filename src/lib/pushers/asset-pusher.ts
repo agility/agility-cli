@@ -8,6 +8,7 @@ import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 const FormData = require("form-data");
 import { getApiClient } from "../../core/state";
 import { fileOperations } from "../../core/fileOperations";
+import path from "path";
 
 
 export async function pushAssets(
@@ -54,9 +55,13 @@ export async function pushAssets(
   for (const media of assets) {
     let currentStatus: "success" | "error" = "success";
     try {
-              const relativeFilePath = `assets/${getAssetFilePath(media.originUrl)}`; // Uses imported util with consistent decoding
-        const absoluteLocalFilePath = fileOps.getDataFilePath(relativeFilePath);
-        const folderPath = fileOps.getDataFolderPath(relativeFilePath);
+      const relativeFilePath = `assets/${getAssetFilePath(media.originUrl)}`; // Uses imported util with consistent decoding
+      const absoluteLocalFilePath = fileOps.getDataFilePath(relativeFilePath);
+      
+      // Extract container folder path from asset's originUrl (not local path)
+      const assetRelativePath = getAssetFilePath(media.originUrl); // e.g., "folder/file.jpg" or "file.jpg"
+      const containerFolderPath = path.dirname(assetRelativePath); // e.g., "folder" or "."
+      const folderPath = containerFolderPath === '.' ? '' : containerFolderPath; // Use empty string for root level
 
       const existingMedia = await getAssetAndChangeOperationDecision(
         media,
