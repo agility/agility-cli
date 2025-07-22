@@ -1,6 +1,6 @@
 /**
  * ReferenceMapperV2 - Canonical Storage Implementation
- * 
+ *
  * Features:
  * - Zero duplication: Each relationship stored once under lexicographically smaller GUID
  * - Multi-directional: Supports A→B, B→A, A→C, B→C, etc.
@@ -25,13 +25,13 @@ import {
 export class ReferenceMapperV2 {
   private fileOps: ReferenceMapperV2FileOperations;
   private context: MappingContext;
-  
+
   // In-memory caches for performance
   private idMappingCache: Map<string, Map<number, number>> = new Map();
 
   constructor(config: ReferenceMapperV2Config = {}) {
     const state = getState();
-    
+
     this.context = {
       sourceGuid: state.sourceGuid[0],
       targetGuid: state.targetGuid[0],
@@ -89,7 +89,7 @@ export class ReferenceMapperV2 {
     // Create or update mapping entry
     const existingEntry = mappingFile.mappings[relationshipGuid][compoundKey];
     const syncDirection = `${sourceGuid}→${targetGuid}`;
-    
+
     const newHistoryEntry: SyncHistoryEntry = {
       direction: syncDirection,
       timestamp: new Date().toISOString(),
@@ -119,6 +119,12 @@ export class ReferenceMapperV2 {
    * Get mapped target ID for a source entity ID
    */
   getMappedId(type: EntityType, sourceId: number): number | null {
+
+    if (type === 'model' && sourceId === 1) {
+      //SPECIAL CASE FOR MODEL ID 1
+      return 1; // Model ID 1 is always mapped to itself
+    }
+
     const { sourceGuid, targetGuid, locale } = this.context;
 
     // Check in-memory cache first
@@ -130,7 +136,7 @@ export class ReferenceMapperV2 {
 
     // Perform lookup
     const lookupResult = this.findMapping(type, sourceGuid, sourceId, targetGuid);
-    
+
     if (lookupResult) {
       // Cache the result
       this.updateIdMappingCache(type, sourceId, lookupResult.targetId);
@@ -173,7 +179,7 @@ export class ReferenceMapperV2 {
   getMappingByKey<T>(type: EntityType, key: string, value: any): CoreReferenceResult<T> | null {
     // Search through mappings for the key-value pair
     const result = this.findMappingByCustomKey(type, key, value);
-    
+
     if (result) {
       return {
         source: result.entry.entityA as unknown as T,
@@ -247,7 +253,7 @@ export class ReferenceMapperV2 {
     const { sourceGuid, targetGuid, locale } = this.context;
     const canonicalGuid = this.fileOps.getCanonicalGuid(sourceGuid, targetGuid);
     const mappingFile = this.fileOps.loadMappingFile(canonicalGuid, type, locale);
-    
+
     if (!mappingFile) {
       return [];
     }
@@ -337,17 +343,17 @@ export class ReferenceMapperV2 {
     const relationshipGuid = this.fileOps.getRelationshipGuid(canonicalGuid, sourceGuid, targetGuid);
 
     const mappingFile = this.fileOps.loadMappingFile(canonicalGuid, type, locale);
-    
+
     if (!mappingFile || !mappingFile.mappings[relationshipGuid]) {
       return null;
     }
 
     // Search through all mappings for one involving our source entity
     const relationships = mappingFile.mappings[relationshipGuid];
-    
+
     for (const [compoundKey, entry] of Object.entries(relationships)) {
       const { entityA, entityB } = entry;
-      
+
       // Check if this mapping involves our source entity
       if (entityA.guid === sourceGuid && entityA.id === sourceId) {
         return {
@@ -376,19 +382,19 @@ export class ReferenceMapperV2 {
     const relationshipGuid = this.fileOps.getRelationshipGuid(canonicalGuid, sourceGuid, targetGuid);
 
     const mappingFile = this.fileOps.loadMappingFile(canonicalGuid, type, locale);
-    
+
     if (!mappingFile || !mappingFile.mappings[relationshipGuid]) {
       return null;
     }
 
     const relationships = mappingFile.mappings[relationshipGuid];
-    
+
     for (const [compoundKey, entry] of Object.entries(relationships)) {
       const { entityA, entityB } = entry;
-      
+
       if ((entityA.referenceName === referenceName && entityA.guid === sourceGuid) ||
-          (entityB.referenceName === referenceName && entityB.guid === sourceGuid)) {
-        
+        (entityB.referenceName === referenceName && entityB.guid === sourceGuid)) {
+
         const targetId = entityA.guid === sourceGuid ? entityB.id : entityA.id;
         return {
           entry,
@@ -421,11 +427,11 @@ export class ReferenceMapperV2 {
   private updateIdMappingCache(type: EntityType, sourceId: number, targetId: number): void {
     const { sourceGuid, targetGuid } = this.context;
     const cacheKey = `${type}:${sourceGuid}→${targetGuid}`;
-    
+
     if (!this.idMappingCache.has(cacheKey)) {
       this.idMappingCache.set(cacheKey, new Map());
     }
-    
+
     this.idMappingCache.get(cacheKey)!.set(sourceId, targetId);
   }
 }
@@ -442,4 +448,4 @@ export function createReferenceMapperV2(config?: ReferenceMapperV2Config): Refer
  */
 export async function loadReferenceMapperV2(config?: ReferenceMapperV2Config): Promise<ReferenceMapperV2> {
   return new ReferenceMapperV2(config);
-} 
+}
