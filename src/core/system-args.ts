@@ -132,7 +132,7 @@ export const systemArgs = {
     default: false
   },
   force: {
-    describe: "Override target safety conflicts during sync operations. When target instance has changes AND sync delta has updates, --force will apply sync changes anyway. Default: false (safer behavior to prevent data loss).",
+    describe: "Override target safety conflicts during sync operations. When target instance has changes AND change delta has updates, --force will apply sync changes anyway. Default: false (safer behavior to prevent data loss).",
     type: "boolean" as const,
     alias: ["force", "Force", "FORCE"],
     default: false

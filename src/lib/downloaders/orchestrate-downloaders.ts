@@ -2,7 +2,7 @@ import { getState } from '../../core/state';
 import { fileOperations } from '../../core/fileOperations';
 import ansiColors from 'ansi-colors';
 import { DownloadOperationsRegistry } from './download-operations-config';
-import { SyncDelta } from 'lib/shared';
+import { ChangeDelta } from '../shared/change-delta-tracker';
 
 export interface DownloadResults {
   successful: string[];
@@ -146,7 +146,7 @@ export class Downloader {
     const operations = DownloadOperationsRegistry.getOperationsForElements();
 
     // create delta for the operations
-    const syncDelta = new SyncDelta(guid);
+    const changeDelta = new ChangeDelta(guid);
     console.log(`${guid}: Processing ${operations.length} data element(s)...`);
 
     // Execute each operation
@@ -154,7 +154,7 @@ export class Downloader {
       try {
         this.config.onOperationStart?.(operation.name, guid);
         
-        await operation.handler(guid, syncDelta);
+        await operation.handler(guid, changeDelta);
         
         results.successful.push(`${operation.name} (${guid})`);
         this.config.onOperationComplete?.(operation.name, guid, true);
@@ -169,7 +169,7 @@ export class Downloader {
       }
     }
 
-    syncDelta.writeSyncDelta(guid);
+    changeDelta.writeChangeDelta(guid);
   }
 
   /**

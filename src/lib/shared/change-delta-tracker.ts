@@ -37,9 +37,9 @@ export interface EntityChange {
 type EntityChangeStore = Record<EntityType, Record<EntityChangeAction, Record<string, EntityChange>>>;
 
 /**
- * Sync delta summary for writing to file
+ * Change delta summary for writing to file
  */
-export interface SyncDeltaSummary {
+export interface ChangeDeltaSummary {
   guid: string;
   timestamp: string;
   totalChanges: number;
@@ -58,9 +58,9 @@ export function generateEntityKey(entityPayload: EntityPayload): string {
 
 /**
  * Tracks all entity changes during a download/sync operation
- * and writes a comprehensive delta report to sync-delta.json
+ * and writes a comprehensive delta report to change-delta.json
  */
-export class SyncDelta {
+export class ChangeDelta {
   private _changes: EntityChangeStore;
   private _guid: string;
   private _startTime: string;
@@ -145,9 +145,9 @@ export class SyncDelta {
   }
 
   /**
-   * Write sync delta to JSON file in agility-files directory
+   * Write change delta to JSON file in agility-files directory
    */
-  async writeSyncDelta(guid: string): Promise<string> {
+  async writeChangeDelta(guid: string): Promise<string> {
     const changedEntities = structuredClone(this._changes);
 
     let totalChanges = 0;
@@ -159,7 +159,7 @@ export class SyncDelta {
       totalChanges = totalChanges + createdCount + updatedCount;
     })
 
-    const syncDelta: SyncDeltaSummary = {
+    const changeDelta: ChangeDeltaSummary = {
       guid: this._guid,
       timestamp: this._startTime,
       totalChanges: totalChanges,
@@ -168,17 +168,17 @@ export class SyncDelta {
 
     // Use file operations to write the files
     const fileOps = new fileOperations(guid, ""); // Create fileOps instance for file operations
-    const syncDeltaPath = path.join(process.cwd(), "agility-files", "sync-delta.json");
+    const changeDeltaPath = path.join(process.cwd(), "agility-files", "change-delta.json");
     
     // Ensure agility-files directory exists
-    const agilityFilesDir = path.dirname(syncDeltaPath);
+    const agilityFilesDir = path.dirname(changeDeltaPath);
     if (!fileOps.checkFileExists(agilityFilesDir)) {
       fileOps.createFolder(agilityFilesDir);
     }
 
-    fileOps.createFile(syncDeltaPath, JSON.stringify(syncDelta, null, 2));
+    fileOps.createFile(changeDeltaPath, JSON.stringify(changeDelta, null, 2));
 
-    return syncDeltaPath;
+    return changeDeltaPath;
   }
 
   /**
@@ -200,7 +200,7 @@ export class SyncDelta {
     const summary = this.getSummary();
 
     const lines = [
-      "=== SYNC DELTA SUMMARY ===",
+      "=== CHANGE DELTA SUMMARY ===",
       `Total Changes: ${summary.totalChanges}`,
       `Modified Entities: ${summary.modifiedEntities}`,
       "",

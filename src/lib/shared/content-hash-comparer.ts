@@ -1,6 +1,6 @@
 import * as fs from 'fs';
 import * as crypto from 'crypto';
-import { EntityChange } from './sync-delta-tracker';
+import { EntityChange } from './change-delta-tracker';
 
 /**
  * Content Hash Comparer utility for optimizing download decisions

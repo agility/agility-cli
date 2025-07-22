@@ -1,6 +1,6 @@
 import { fileOperations } from "../../core/fileOperations";
 import { getApiClient, getState, state } from "../../core/state";
-import { SyncDelta } from "../shared/sync-delta-tracker";
+import { ChangeDelta } from "../shared/change-delta-tracker";
 import * as fs from "fs";
 import * as path from "path";
 import ansiColors from "ansi-colors";
@@ -8,7 +8,7 @@ import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllSitemaps(  
   guid: string,
-  syncDelta: SyncDelta
+  changeDelta: ChangeDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const locales = state.guidLocaleMap.get(guid);
@@ -16,7 +16,7 @@ export async function downloadAllSitemaps(
   const apiClient = getApiClient();
   
 
-  // const syncDelta = new SyncDelta(guid);
+  // const changeDelta = new ChangeDelta(guid);
 
 
   // Use fileOperations to create sitemaps folder
@@ -48,9 +48,9 @@ export async function downloadAllSitemaps(
       // Write sitemap file
       fs.writeFileSync(sitemapFilePath, JSON.stringify(sitemap, null, 2));
       
-      // Track in sync delta if provided
-      if (syncDelta) {
-        syncDelta.recordChange({
+      // Track in change delta if provided
+      if (changeDelta) {
+        changeDelta.recordChange({
           id: `sitemap-${guid}-${locales[0]}`,
           type: 'page', // Sitemaps are page-related
           action: localSitemapInfo.exists ? 'updated' : 'created',

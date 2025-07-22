@@ -3,14 +3,14 @@ import { getApiClient, getState, state } from "../../core/state";
 import ansiColors from "ansi-colors";
 import fs from "fs";
 import path from "path";
-import { SyncDelta } from "../shared/sync-delta-tracker";
+import { ChangeDelta } from "../shared/change-delta-tracker";
 import { getAssetFilePath } from "../assets/asset-utils";
 import { getAllChannels } from "../shared/get-all-channels";
 
 
 export async function downloadAllAssets(
   guid: string,
-  syncDelta: SyncDelta
+  changeDelta: ChangeDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
@@ -176,9 +176,9 @@ export async function downloadAllAssets(
               const sizeDisplay = asset.size ? formatFileSize(asset.size) : '';
               console.log(`✓ Downloaded asset ${ansiColors.cyan(asset.fileName)} ${ansiColors.gray(`(${reason})`)} ${ansiColors.gray(sizeDisplay)}`);
               
-                             // Record successful download in sync delta
-              if (syncDelta) {
-                syncDelta.recordChange({
+              // Record successful download in change delta
+              if (changeDelta) {
+                changeDelta.recordChange({
                   id: asset.mediaID,
                   type: 'asset',
                   action: reason === 'new file' ? 'created' : 'updated',
@@ -196,8 +196,8 @@ export async function downloadAllAssets(
             console.log(`✓ Saved metadata for ${ansiColors.cyan(asset.fileName)} ${ansiColors.gray(`(${reason}, no file)`)}`);
             
             // Record metadata-only update
-            if (syncDelta) {
-              syncDelta.recordChange({
+            if (changeDelta) {
+              changeDelta.recordChange({
                 id: asset.mediaID,
                 type: 'asset',
                 action: reason === 'new file' ? 'created' : 'updated',

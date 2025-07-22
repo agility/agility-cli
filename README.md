@@ -179,7 +179,7 @@ All commands support the following unified system arguments:
 | `--overwrite` | boolean | `false` | **SYNC ONLY**: Force update existing items in target instance instead of creating new items with -1 IDs. Default: false (safer behavior to prevent overwriting existing content) |
 | `--publish` | boolean | `false` | **SYNC ONLY**: Automatically publish synced content and pages after successful sync operations. Uses batch publishing for optimal performance. Default: false |
 | `--reset` | boolean | `false` | **BOTH COMMANDS**: Nuclear option - completely delete instance GUID folder and start fresh. For pull: deletes local data. For sync: deletes source data + regenerates mappings. Default: false |
-| `--force` | boolean | `false` | **SYNC ONLY**: Override target safety conflicts during sync operations. When target instance has changes AND sync delta has updates, --force will apply sync changes anyway. Default: false (safer behavior to prevent data loss) |
+| `--force` | boolean | `false` | **SYNC ONLY**: Override target safety conflicts during sync operations. When target instance has changes AND change delta has updates, --force will apply sync changes anyway. Default: false (safer behavior to prevent data loss) |
 | `--noBatch` | boolean | `false` | **BOTH COMMANDS**: Disable batch processing and use individual item processing instead. Affects both content items and linked content - all items will be processed individually rather than in optimized batches. Default: false (batch processing enabled for better performance) |
 
 > **🎯 Intuitive Flag Design**: `--update` provides consistent fresh data behavior across both pull and sync commands, with safer defaults to prevent accidental overwrites.

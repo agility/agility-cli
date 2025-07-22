@@ -4,7 +4,7 @@ import { getState, getApiClient } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { logModelDifferences } from "../loggers";
-import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
+import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 
 /**
  * Simple change detection for models
@@ -63,7 +63,7 @@ function changeDetection(
  */
 /**
  * Enhanced model finder with proper target safety and conflict resolution
- * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
+ * Logic Flow: Target Safety FIRST → Change Delta SECOND → Conflict Resolution
  */
 export async function findModelInTargetInstanceEnhanced(
   sourceModel: mgmtApi.Model,
@@ -196,7 +196,7 @@ export async function pushModels(
     targetData: any,
     referenceMapper: ReferenceMapperV2,
     // onProgress?: PusherProgressCallback,
-    syncDeltaWorker: SyncDeltaFileWorker
+    changeDeltaWorker: ChangeDeltaFileWorker
 ): Promise<PusherResult> {
 
   // 

@@ -4,7 +4,7 @@ import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { state, getState } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
 import { SitemapHierarchy } from "../shared/sitemap-hierarchy";
-import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
+import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 
 /**
  * Simple change detection for pages
@@ -738,7 +738,7 @@ export async function pushPages(
   sourceData: SourceData,
   targetData: any,
   referenceMapper: ReferenceMapperV2,
-  syncDeltaWorker: SyncDeltaFileWorker,
+  changeDeltaWorker: ChangeDeltaFileWorker,
   // onProgress?: PusherProgressCallback
 ): Promise<PusherResult> {
   // Extract data from sourceData - unified parameter pattern

@@ -34,7 +34,7 @@ require("dotenv").config({
 })
 
 /**
- * Map Sync SDK itemType to SyncDelta entity type
+ * Map Sync SDK itemType to ChangeDelta entity type
  */
 function mapItemTypeToEntityType(itemType: string): string {
   const typeMap = {
@@ -237,12 +237,12 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
         // console.log(`✓ Downloaded ${ansiColors.cyan(itemType)} (ID: ${itemID})`);
         updateProgress(itemType, itemID, options.rootPath);
 
-		// NEW: Sync delta tracking (only for pages and content items)
-		if (options.syncDeltaTracker && options.isIncrementalSync && (itemType === 'page' || itemType === 'item')) {
+		// NEW: Change delta tracking (only for pages and content items)
+		if (options.changeDeltaTracker && options.isIncrementalSync && (itemType === 'page' || itemType === 'item')) {
 			const entityType = mapItemTypeToEntityType(itemType);
 			const entityName = extractEntityName(item, itemType);
 			
-			options.syncDeltaTracker.recordChange({
+			options.changeDeltaTracker.recordChange({
 				id: itemID,
 				type: entityType,
 				action: 'updated', // All items in incremental sync are updates

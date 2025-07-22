@@ -6,7 +6,7 @@ import { GuidDataLoader, GuidEntities } from './guid-data-loader';
 import { PusherResult, SourceData } from '../../types/sourceData';
 import { state } from '../../core/state';
 import { PUSH_OPERATIONS, PushOperationsRegistry, PushOperationConfig } from './push-operations-config';
-import { SyncDeltaFileWorker } from 'lib/shared/sync-delta-file-worker';
+import { ChangeDeltaFileWorker } from 'lib/shared/change-delta-file-worker';
 
 export interface PushResults {
   successful: string[];
@@ -76,11 +76,11 @@ export class Pushers {
       // Set up reference mapper
       const referenceMapper = new ReferenceMapperV2();
 
-      // create sync delta worker
-      const syncDeltaWorker = new SyncDeltaFileWorker(sourceGuid);
+      // create change delta worker
+      const changeDeltaWorker = new ChangeDeltaFileWorker(sourceGuid);
 
       // Execute all push operations for this GUID pair
-      const pushResults = await this.executePushersInOrder(sourceData, targetData, referenceMapper, syncDeltaWorker);
+      const pushResults = await this.executePushersInOrder(sourceData, targetData, referenceMapper, changeDeltaWorker);
 
       // Consolidate results
       results.totalSuccess = pushResults.totalSuccess;
@@ -152,7 +152,7 @@ export class Pushers {
     sourceData: GuidEntities,
     targetData: GuidEntities,
     referenceMapper: ReferenceMapperV2,
-    syncDeltaWorker: SyncDeltaFileWorker
+    changeDeltaWorker: ChangeDeltaFileWorker
   ): Promise<{
     totalSuccess: number;
     totalFailures: number;
@@ -193,7 +193,7 @@ export class Pushers {
 
         this.config.onOperationStart?.(config.name, state.sourceGuid[0], state.targetGuid[0]);
 
-        const pusherResult: PusherResult = await config.handler(sourceData, targetData, referenceMapper, syncDeltaWorker);
+        const pusherResult: PusherResult = await config.handler(sourceData, targetData, referenceMapper, changeDeltaWorker);
 
         // Accumulate results using standardized pattern
         totalSuccess += pusherResult.successful || 0;

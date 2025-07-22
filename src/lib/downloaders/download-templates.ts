@@ -3,13 +3,13 @@ import { getApiClient, getState, state } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
 import { ContentHashComparer } from "../shared/content-hash-comparer";
-// import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
+// import { ChangeDeltaTracker } from "../shared/change-delta-tracker";
 import { getAllChannels } from "../shared/get-all-channels";
-import { SyncDelta } from "lib/shared";
+import { ChangeDelta } from "../shared/change-delta-tracker";
 
 export async function downloadAllTemplates(
   guid: string,
-  syncDelta: SyncDelta
+  changeDelta: ChangeDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const locales = state.guidLocaleMap.get(guid); // Templates need locale for API call
@@ -17,7 +17,7 @@ export async function downloadAllTemplates(
   const apiClient = getApiClient();
   
   const channels = await getAllChannels(guid, locales[0]);
-  // const syncDeltaTracker = new SyncDeltaTracker(guid, locale || 'en-us', channel);
+  // const changeDeltaTracker = new ChangeDeltaTracker(guid, locale || 'en-us', channel);
   const templatesFolderPath = fileOps.getDataFolderPath('templates');
   // Individual template file existence checking is now handled below
 
@@ -63,7 +63,7 @@ export async function downloadAllTemplates(
           
           if (hashComparison.status === 'modified') {
             const hashDisplay = hashComparison.shortHashes 
-              ? `${ansiColors.red(`[${hashComparison.shortHashes.local}`)} → ${ansiColors.green(`${hashComparison.shortHashes.api}]`)}`
+              ? `${ansiColors.red(`[${hashComparison.shortHashes.local}]`)} → ${ansiColors.green(`${hashComparison.shortHashes.api}]`)}`
               : '';
             console.log(`✓ Updated template ${ansiColors.cyan(template.pageTemplateName)} ID: ${template.pageTemplateID} ${ansiColors.gray('(content changed)')} ${hashDisplay}`);
           } else if (hashComparison.status === 'not-exists') {
