@@ -80,7 +80,7 @@ export async function downloadAllGalleries(
   try {
     let initialRecords;
     try {
-      initialRecords = await apiClient.assetMethods.getGalleries(guid, null, 250, 0);
+      initialRecords = await apiClient.assetMethods.getGalleries(guid, "", 250, 0);
     } catch (error) {
       console.log("Error loading galleries:");
       console.error(error);
