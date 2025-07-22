@@ -10,7 +10,7 @@ import { getAllChannels } from "../shared/get-all-channels";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
-export async function downloadAllSyncSDK(guid: string)
+export async function downloadAllSyncSDK(guid: string, syncDelta: SyncDelta)
 {
   const locales: string[] = state.guidLocaleMap.get(guid);
   const channels = await getAllChannels(guid, locales[0]);

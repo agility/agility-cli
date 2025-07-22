@@ -145,7 +145,7 @@ export class ReferenceMapperV2FileOperations {
       // Update cache
       this.cacheFile(cacheKey, mappingFile);
 
-      console.log(`[ReferenceMapperV2] Saved mapping file: ${filePath}`);
+      // console.log(`[ReferenceMapperV2] Saved mapping file: ${filePath}`);
     } catch (error: any) {
       console.error(`[ReferenceMapperV2] Error saving mapping file ${filePath}:`, error.message);
       throw error;

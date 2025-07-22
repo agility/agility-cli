@@ -7,14 +7,12 @@ import * as fs from "fs";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllModels(
-  guid: string
+  guid: string,
+  syncDelta: SyncDelta
 ): Promise<void> {
   // Get values from fileOps which is already configured for this specific GUID/locale
   const fileOps = new fileOperations(guid);
   const apiClient = getApiClient();
-  
-  // Create SyncDelta internally
-  const syncDelta = new SyncDelta(guid);
 
   const modelsFolderPath = fileOps.getDataFolderPath('models');
   // Use fileOperations to create models folder
@@ -42,8 +40,8 @@ export async function downloadAllModels(
   // Helper function to check if model needs download based on lastModifiedDate
   function shouldDownloadModel(apiModel: any, localInfo: { lastModifiedDate?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
     
-    if (state.update) {
-      return { shouldDownload: true, reason: 'forced update' };
+    if (state.update === false){
+      return { shouldDownload: false, reason: '' };
     }
 
     if (!localInfo.exists) {
@@ -166,6 +164,7 @@ export async function downloadAllModels(
               action: reason === 'new file' ? 'created' : 'updated',
               name: modelDisplayName,
               referenceName: modelDetails.referenceName,
+              timestamp: new Date().toISOString(),
             });
           }
           

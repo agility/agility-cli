@@ -2,6 +2,7 @@ import { getState } from '../../core/state';
 import { fileOperations } from '../../core/fileOperations';
 import ansiColors from 'ansi-colors';
 import { DownloadOperationsRegistry } from './download-operations-config';
+import { SyncDelta } from 'lib/shared';
 
 export interface DownloadResults {
   successful: string[];
@@ -144,6 +145,8 @@ export class Downloader {
     // Get operations based on elements filter
     const operations = DownloadOperationsRegistry.getOperationsForElements();
 
+    // create delta for the operations
+    const syncDelta = new SyncDelta(guid);
     console.log(`${guid}: Processing ${operations.length} data element(s)...`);
 
     // Execute each operation
@@ -151,7 +154,7 @@ export class Downloader {
       try {
         this.config.onOperationStart?.(operation.name, guid);
         
-        await operation.handler(guid);
+        await operation.handler(guid, syncDelta);
         
         results.successful.push(`${operation.name} (${guid})`);
         this.config.onOperationComplete?.(operation.name, guid, true);
@@ -165,39 +168,8 @@ export class Downloader {
         console.error(`❌ ${guid}: ${operation.name} failed - ${errorMessage}`);
       }
     }
-  }
 
-  /**
-   * Execute downloads for a specific GUID (alias for guidDownloader for backward compatibility)
-   */
-  async executeDownloads(guid?: string): Promise<DownloadResults> {
-    const state = getState();
-    const targetGuid = guid || (state.sourceGuid.length > 0 ? state.sourceGuid[0] : '');
-    
-    if (!targetGuid) {
-      throw new Error('No GUID provided for download operation');
-    }
-
-    return await this.guidDownloader(targetGuid);
-  }
-
-  /**
-   * Get download summary
-   */
-  getDownloadSummary(): {
-    totalOperations: number;
-    successfulOperations: number;
-    failedOperations: number;
-    overallSuccess: boolean;
-    duration: number;
-  } {
-    return {
-      totalOperations: 0, // This would need to be tracked if needed
-      successfulOperations: 0,
-      failedOperations: 0,
-      overallSuccess: true,
-      duration: Date.now() - this.startTime.getTime()
-    };
+    syncDelta.writeSyncDelta(guid);
   }
 
   /**

@@ -7,14 +7,12 @@ import * as fs from "fs";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllContainers(
-  guid: string
+  guid: string,
+  syncDelta: SyncDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
-
-  // Create SyncDeltaTracker internally
-  const syncDelta = new SyncDelta(guid);
 
   const containersFolderPath = fileOps.getDataFolderPath('containers');
 
@@ -42,8 +40,8 @@ export async function downloadAllContainers(
 
   // Helper function to check if container needs download based on lastModifiedDate
   function shouldDownloadContainer(apiContainer: any, localInfo: { lastModifiedDate?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
-    if (update) {
-      return { shouldDownload: true, reason: 'forced update' };
+    if(state.update === false){
+      return { shouldDownload: false, reason: '' };
     }
 
     if (!localInfo.exists) {

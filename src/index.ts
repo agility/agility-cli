@@ -7,11 +7,12 @@ import inquirer from "inquirer";
 import searchList from "inquirer-search-list";
 inquirer.registerPrompt("search-list", searchList);
 
-import { Auth, Sync, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
+import { Auth, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
 import { Pull } from "./core/pull";
 import { homePrompt, instancesPrompt, localePrompt } from "./lib/ui/prompts";
 import { generateEnv } from "./lib/shared";
 import { instanceSelector } from "./lib/ui/prompts";
+import { Push } from "./core/push";
   
 let auth: Auth;
 
@@ -214,13 +215,13 @@ yargs.command({
 
 // New 2-Pass Sync Command using the enhanced dependency system
 yargs.command({
-  command: "sync",
-  aliases: ["push"],
-  describe: "Sync your instance using the new 2-pass dependency system.",
+  command: "push",
+  aliases: ["sync"],
+  describe: "Push your instance using the new 2-pass dependency system.",
   builder: {
-    // Override targetGuid to be required for sync
+    // Override targetGuid to be required for push
     targetGuid: {
-      describe: "Provide the target instance GUID to sync your instance to.",
+      describe: "Provide the target instance GUID to push your instance to.",
       demandOption: true,
       type: "string",
     },
@@ -231,7 +232,7 @@ yargs.command({
   handler: async function (argv) {
 
     const invokedAs = Array.isArray(argv._) && argv._.length > 0 ? String(argv._[0]) : "";
-    const pushCommandUsed = invokedAs === "push"; 
+    const syncCommandUsed = invokedAs === "sync"; 
 
     
     resetState(); // Clear any previous command state
@@ -245,8 +246,8 @@ yargs.command({
     setState(argv);
     
     // if the user is "pushing" only, we need to turn off the updates on the downloaders
-    if (pushCommandUsed) {
-      state.update = false;
+    if (syncCommandUsed) {
+      state.update = true;
     }
 
     auth = new Auth();
@@ -254,15 +255,52 @@ yargs.command({
     if (!isAuthorized) {
       return;
     }
-
+    
     // Validate sync command requirements
-    const isValidCommand = await auth.validateCommand('sync');
+    const isValidCommand = await auth.validateCommand('push');
     if (!isValidCommand) {
       return;
     }
 
-    const syncOperation = new Sync();
-    await syncOperation.syncInstance();
+    // const syncOperation = new Sync();
+    // await syncOperation.syncInstance();
+    try {
+      const push = new Push();
+      const result = await push.pushInstances();
+      
+      // Simple completion summary
+      const totalElapsedSeconds = Math.floor(result.elapsedTime / 1000);
+      const minutes = Math.floor(totalElapsedSeconds / 60);
+      const seconds = totalElapsedSeconds % 60;
+      const timeDisplay = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+      
+      let totalSuccessful = 0;
+      let totalFailed = 0;
+      
+      result.results.forEach(res => {
+        if (res.failed?.length > 0) {
+          totalFailed++;
+        } else {
+          totalSuccessful++;
+        }
+      });
+      
+      console.log(colors.cyan('\nSummary:'));
+      console.log(`Processed ${result.results.length} GUID/locale combinations`);
+      console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
+      console.log(`Total time: ${timeDisplay}`);
+      
+      if (result.success) {
+        console.log(colors.green(`✓ Push completed successfully`));
+        process.exit(0);
+      } else {
+        console.log(colors.red(`✗ Push completed with errors`));
+        process.exit(1);
+      }
+    } catch (error: any) {
+      console.error(colors.red("\n❌ Push command failed:"), error.message);
+      process.exit(1);
+    }
   }
 })
 

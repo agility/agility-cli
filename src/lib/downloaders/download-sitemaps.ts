@@ -7,7 +7,8 @@ import ansiColors from "ansi-colors";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllSitemaps(  
-  guid: string
+  guid: string,
+  syncDelta: SyncDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const locales = state.guidLocaleMap.get(guid);
@@ -15,7 +16,7 @@ export async function downloadAllSitemaps(
   const apiClient = getApiClient();
   
 
-  const syncDelta = new SyncDelta(guid);
+  // const syncDelta = new SyncDelta(guid);
 
 
   // Use fileOperations to create sitemaps folder
@@ -93,8 +94,8 @@ function shouldDownloadSitemap(
   localSitemapInfo: { lastModified?: string; exists: boolean },
   forceUpdate: boolean = false
 ): { shouldDownload: boolean; reason: string } {
-  if (forceUpdate) {
-    return { shouldDownload: true, reason: 'forced update' };
+  if (state.update === false){
+    return { shouldDownload: false, reason: '' };
   }
   
   if (!localSitemapInfo.exists) {

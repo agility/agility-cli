@@ -2,27 +2,25 @@ import { fileOperations } from "../../core/fileOperations";
 import { getApiClient, getState, state } from "../../core/state";
 import ansiColors from "ansi-colors";
 import { SyncDelta } from "../shared/sync-delta-tracker";
-import * as fs from "fs";
-import * as path from "path";
+// import * as fs from "fs";
+// import * as path from "path";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllGalleries(
-  guid: string
+  guid: string,
+  syncDelta: SyncDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
-  
-  // Create SyncDeltaTracker internally
-  const syncDelta = new SyncDelta(guid);
 
   // Helper function to get local gallery metadata
   function getLocalGalleryInfo(filePath: string): { modifiedOn?: string; exists: boolean } {
     try {
-      if (!fs.existsSync(filePath)) {
+      if (!fileOps.checkFileExists(filePath)) {
         return { exists: false };
       }
-      const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      const content = JSON.parse(fileOps.readFile(filePath));
       // Gallery files contain assetMediaGroupings arrays, find the most recent modifiedOn
       if (content.assetMediaGroupings && Array.isArray(content.assetMediaGroupings)) {
         const dates = content.assetMediaGroupings
@@ -42,8 +40,9 @@ export async function downloadAllGalleries(
 
   // Helper function to check if gallery needs download based on modifiedOn date
   function shouldDownloadGallery(apiGalleries: any[], localInfo: { modifiedOn?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
-    if (update) {
-      return { shouldDownload: true, reason: 'forced update' };
+
+    if(state.update === false){
+      return { shouldDownload: false, reason: '' };
     }
 
     if (!localInfo.exists) {
@@ -81,7 +80,7 @@ export async function downloadAllGalleries(
   try {
     let initialRecords;
     try {
-      initialRecords = await apiClient.assetMethods.getGalleries(guid, "", 250, 0);
+      initialRecords = await apiClient.assetMethods.getGalleries(guid, null, 250, 0);
     } catch (error) {
       console.log("Error loading galleries:");
       console.error(error);

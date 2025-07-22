@@ -12,6 +12,8 @@ import keytar from "keytar";
 import { exit } from "process";
 import ansiColors from "ansi-colors";
 
+import { getAllChannels } from "../lib/shared/get-all-channels";
+
 const SERVICE_NAME = "agility-cli";
 
 let lastLength = 0;
@@ -366,6 +368,9 @@ export class Auth {
           if (guid) {
             try {
               const localesArr = await state.cachedApiClient.instanceMethods.getLocales(guid);
+
+              // TODO: Get channels for each locale
+              // const channelsArr = await getAllChannels(guid, localesArr[0].localeCode);
               const localesForGuid = localesArr.map((locale: any) => locale.localeCode);
               
               // Handle user-specified locale filtering per GUID
@@ -727,7 +732,7 @@ export class Auth {
    * Validate command-specific requirements and set up instance access
    * This should be called by each command after auth.init()
    */
-  async validateCommand(commandType: 'pull' | 'sync' | 'clean' | 'interactive'): Promise<boolean> {
+  async validateCommand(commandType: 'pull' | 'sync' | 'clean' | 'interactive' | 'push'): Promise<boolean> {
     const missingFields: string[] = [];
 
     // Validate that --publish flag is only used with sync command

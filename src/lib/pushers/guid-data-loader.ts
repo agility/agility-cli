@@ -13,7 +13,7 @@
 import * as fs from 'fs';
 import ansiColors from 'ansi-colors';
 import { fileOperations } from '../../core/fileOperations';
-import { getState } from '../../core/state';
+import { getApiClient, getState } from '../../core/state';
 
 export interface GuidEntities {
     pages: any[];
@@ -27,27 +27,39 @@ export interface GuidEntities {
 }
 
 export class GuidDataLoader {
-    private fileOps: fileOperations;
+  
     private guid: string;
+    private locales: string[];
 
     constructor(guid: string) {
         const state = getState();
-        
+        this.locales = state.locale;
         this.guid = guid;
-        
-        // Use enhanced fileOperations with the specified GUID
-        this.fileOps = new fileOperations(
-            guid,
-            state.locale[0]
-        );
     }
 
+    async loadGuidEntitiesForAllLocales(): Promise<{locales: any[], guidEntities: GuidEntities}> {
+        const mgmtApi = getApiClient();
+        const locales = await mgmtApi.instanceMethods.getLocales(this.guid);
+
+        for(const locale of locales as any){
+            const guidEntities = await this.loadGuidEntities(locale.localeCode);
+            return {
+                locales,
+                guidEntities
+            }
+        }
+
+        
+    }
     /**
      * Load all entities for the specified GUID - guarantees arrays are always returned
      */
-    async loadGuidEntities(): Promise<GuidEntities> {
+    async loadGuidEntities(locale: string): Promise<GuidEntities> {
         const state = getState();
         const elements = state.elements.split(',');
+
+        const guidFileOps = new fileOperations(this.guid);
+        const localeFileOps = new fileOperations(this.guid, locale);
         
         // Initialize with empty arrays - no nulls/undefined ever
         const guidEntities: GuidEntities = {
@@ -64,46 +76,46 @@ export class GuidDataLoader {
         // Load different entity types using pure getters for consistent architecture
         if (elements.includes('Galleries')) {
             const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
-            const galleries = getGalleriesFromFileSystem(this.fileOps);
+            const galleries = getGalleriesFromFileSystem(guidFileOps);
             guidEntities.galleries = Array.isArray(galleries) ? galleries : [];
         }
 
         if (elements.includes('Assets')) {
             const { getAssetsFromFileSystem } = await import('../getters/filesystem/get-assets');
-            const assets = getAssetsFromFileSystem(this.fileOps);
+            const assets = getAssetsFromFileSystem(guidFileOps);
             guidEntities.assets = Array.isArray(assets) ? assets : [];
         }
 
         if (elements.includes('Models')) {
             const { getModelsFromFileSystem } = await import('../getters/filesystem/get-models');
-            const models = getModelsFromFileSystem(this.fileOps);
+            const models = getModelsFromFileSystem(guidFileOps);
             guidEntities.models = Array.isArray(models) ? models : [];
         }
 
         if (elements.includes('Containers')) {
             const { getListsFromFileSystem, getContainersFromFileSystem } = await import('../getters/filesystem/get-containers');
-            const containers = getContainersFromFileSystem(this.fileOps);
+            const containers = getContainersFromFileSystem(guidFileOps);
             guidEntities.containers = Array.isArray(containers) ? containers : [];
 
-            const lists = getListsFromFileSystem(this.fileOps);
+            const lists = getListsFromFileSystem(guidFileOps);
             guidEntities.lists = Array.isArray(lists) ? lists : [];
         }
 
         if (elements.includes('Content')) {
             const { getContentItemsFromFileSystem } = await import('../getters/filesystem/get-content-items');
-            const content = getContentItemsFromFileSystem(this.fileOps);
+            const content = getContentItemsFromFileSystem(localeFileOps);
             guidEntities.content = Array.isArray(content) ? content : [];
         }
 
         if (elements.includes('Templates')) {
             const { getTemplatesFromFileSystem } = await import('../getters/filesystem/get-templates');
-            const templates = getTemplatesFromFileSystem(this.fileOps);
+            const templates = getTemplatesFromFileSystem(guidFileOps);
             guidEntities.templates = Array.isArray(templates) ? templates : [];
         }
 
         if (elements.includes('Pages')) {
             const { getPagesFromFileSystem } = await import('../getters/filesystem/get-pages');
-            const pages = getPagesFromFileSystem(this.fileOps);
+            const pages = getPagesFromFileSystem(localeFileOps);
             guidEntities.pages = Array.isArray(pages) ? pages : [];
         }
 
@@ -139,7 +151,7 @@ export class GuidDataLoader {
     validateDataStructure(): boolean {
         const state = getState();
         // Use enhanced fileOperations instancePath property
-        const instancePath = this.fileOps.instancePath;
+        const instancePath = new fileOperations(this.guid).instancePath;
             
         if (!fs.existsSync(instancePath)) {
             console.error(ansiColors.red(`❌ Data directory not found for GUID ${this.guid}: ${instancePath}`));

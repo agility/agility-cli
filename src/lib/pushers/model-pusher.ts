@@ -4,18 +4,216 @@ import { getState, getApiClient } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { logModelDifferences } from "../loggers";
-import { findModelInTargetInstanceEnhanced, findModelInTargetInstance } from "../finders/model-finder";
+import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
+
+/**
+ * Simple change detection for models
+ */
+interface ChangeDetection {
+  entity: any;
+  shouldUpdate: boolean;
+  shouldCreate: boolean;
+  shouldSkip: boolean;
+  reason: string;
+}
+
+function changeDetection(
+  sourceEntity: any,
+  targetFromMapping: any,
+  targetFromData: any
+): ChangeDetection {
+  if (!targetFromMapping && !targetFromData) {
+    return {
+      entity: null,
+      shouldUpdate: false,
+      shouldCreate: true,
+      shouldSkip: false,
+      reason: 'Model does not exist in target'
+    };
+  }
+  
+  const targetEntity = targetFromData || targetFromMapping;
+  
+  // For models, check modification dates
+  const sourceModified = new Date(sourceEntity.lastModifiedDate || 0);
+  const targetModified = new Date(targetEntity.lastModifiedDate || 0);
+  
+  if (sourceModified > targetModified) {
+    return {
+      entity: targetEntity,
+      shouldUpdate: true,
+      shouldCreate: false,
+      shouldSkip: false,
+      reason: 'Source model is newer'
+    };
+  }
+  
+  return {
+    entity: targetEntity,
+    shouldUpdate: false,
+    shouldCreate: false,
+    shouldSkip: true,
+    reason: 'Model exists and is up to date'
+  };
+}
 
 /**
  * Model pusher with enhanced version-based comparison
  * Uses lastModifiedDate for intelligent update decisions instead of complex field comparison
  */
+/**
+ * Enhanced model finder with proper target safety and conflict resolution
+ * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
+ */
+export async function findModelInTargetInstanceEnhanced(
+  sourceModel: mgmtApi.Model,
+  apiClient: mgmtApi.ApiClient,
+  targetGuid: string,
+  targetData: any,
+  referenceMapper: ReferenceMapperV2,
+  isStubPass: boolean = false
+): Promise<{
+  model: mgmtApi.Model | null;
+  shouldUpdate: boolean;
+  shouldCreate: boolean;
+  shouldSkip: boolean;
+  decision?: ChangeDetection;
+  sourceEntity: any;
+}> {
+  try {
+    const state = getState();
+
+    // STEP 1: Find existing mapping
+    const existingMapping = referenceMapper.getMappingByKey<mgmtApi.Model>(
+      "model",
+      "referenceName",
+      sourceModel.referenceName
+    );
+    let targetModelFromMapping: mgmtApi.Model | null = existingMapping?.target || null;
+
+    // STEP 2: Find target instance data
+    const targetInstanceData = targetData.models?.find((m: any) => {
+      if (targetModelFromMapping) {
+        return m.id === targetModelFromMapping.id || m.referenceName === targetModelFromMapping.referenceName;
+      } else {
+        return m.referenceName === sourceModel.referenceName;
+      }
+    });
+
+    // STEP 3: Handle stub pass (simplified logic for dependencies)
+    if (isStubPass) {
+      return {
+        model: targetInstanceData || targetModelFromMapping,
+        shouldUpdate: false,
+        shouldCreate: !targetInstanceData && !targetModelFromMapping,
+        shouldSkip: !!(targetInstanceData || targetModelFromMapping),
+        sourceEntity: sourceModel,
+      };
+    }
+
+    let targetChanged = false;
+    if (targetInstanceData && targetModelFromMapping) {
+      if (targetInstanceData.lastModifiedDate !== targetModelFromMapping.lastModifiedDate) {
+        targetChanged = true;
+      } else {
+        targetChanged = false;
+      }
+    }
+
+    const sourceHasFields = Array.isArray(sourceModel.fields) && sourceModel.fields.length > 0;
+    const targetHasMapping = !!targetModelFromMapping;
+ 
+    let shouldUpdate = false;
+    let shouldCreate = false;
+    let shouldSkip = false;
+
+    if (!targetHasMapping && !targetChanged) {
+      // Source has fields, no target mapping: update (create full model from nothing)
+      shouldUpdate = true;
+    } else if (!targetHasMapping && targetChanged) {
+      // Source has fields, no target mapping: update (create full model from nothing)
+      shouldSkip = true;
+    } else if (targetHasMapping && targetChanged) {
+      // All other cases: skip
+      shouldSkip = true;
+    } else {
+      // All other cases: skip
+      shouldSkip = true;
+    }
+
+    return {
+      model: targetInstanceData || targetModelFromMapping,
+      shouldUpdate,
+      shouldCreate,
+      shouldSkip,
+      sourceEntity: sourceModel,
+    };
+  } catch (error: any) {
+    console.error(`[ModelFinder] Error in enhanced finder for model ${sourceModel.referenceName}:`, error);
+    // Fallback to safe defaults
+    return {
+      model: null,
+      shouldUpdate: false,
+      shouldCreate: true,
+      shouldSkip: false,
+      sourceEntity: sourceModel,
+    };
+  }
+}
+
+export async function findModelInTargetInstance(
+  model: mgmtApi.Model,
+  apiClient: mgmtApi.ApiClient,
+  guid: string,
+  referenceMapper: ReferenceMapperV2
+): Promise<mgmtApi.Model | null> {
+  try {
+    // First check the local reference mapper for a model with the same reference name
+    const mappingResult = referenceMapper.getMappingByKey("model", "referenceName", model.referenceName);
+    const targetMapping = mappingResult?.target;
+
+    if (targetMapping) {
+      return targetMapping as mgmtApi.Model;
+    }
+
+    // If not in mapper, try to find it in the target instance
+    const targetModel = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
+
+    if (targetModel) {
+      // CRITICAL: Add the mapping so we don't lose track of it
+      referenceMapper.addMapping("model", model, targetModel);
+      return targetModel;
+    }
+
+    return null;
+  } catch (error: any) {
+    return null;
+  }
+}
+
 export async function pushModels(
     sourceData: SourceData,
     targetData: any,
     referenceMapper: ReferenceMapperV2,
-    onProgress?: PusherProgressCallback
+    // onProgress?: PusherProgressCallback,
+    syncDeltaWorker: SyncDeltaFileWorker
 ): Promise<PusherResult> {
+
+  // 
+  //
+  // First logic block - Retrieval of the target instance's data, using the model ID
+  //
+  // 1. Look for the target instance mapping - then get the corresponding id for the source data and use that 
+  // 2. If not found, we look for the target instance data on file 
+  // 
+  // 
+  //
+  // 3. 
+
+
+
+
+
   const models: mgmtApi.Model[] = sourceData.models || [];
 
   if (!models || models.length === 0) {
@@ -137,9 +335,9 @@ export async function pushModels(
       // (failures in Pass 1 remain failures in Pass 2)
     }
 
-    if (onProgress) {
-      onProgress(successful + skipped + failed, totalModels, result === 'failed' ? 'error' : 'success');
-    }
+    // if (onProgress) {
+    //   onProgress(successful + skipped + failed, totalModels, result === 'failed' ? 'error' : 'success');
+    // }
   }
 
   const overallStatus = failed > 0 ? 'error' : 'success';

@@ -374,6 +374,26 @@ export class fileOperations{
     return this._basePath;
   }
 
+  getFolderPath(folderName?: string): string {
+    if(folderName){
+      return path.join(this._basePath, folderName);
+    }
+    return this._basePath;
+  }
+
+  getFilePath(folderName?: string, fileName?: string): string {
+    if(folderName && fileName){
+      return path.join(this._basePath, folderName, fileName);
+    }
+    else if(folderName){
+      return path.join(this._basePath, folderName);
+    }
+    else if(fileName){
+      return path.join(this._basePath, fileName);
+    }
+    return this._basePath;
+  }
+
   getDataFilePath(folderName?: string, fileName?: string): string {
     if(folderName && fileName){
       return path.join(this._basePath, folderName, fileName);

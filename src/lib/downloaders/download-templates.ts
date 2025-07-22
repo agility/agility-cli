@@ -5,9 +5,11 @@ import ansiColors from "ansi-colors";
 import { ContentHashComparer } from "../shared/content-hash-comparer";
 // import { SyncDeltaTracker } from "../shared/sync-delta-tracker";
 import { getAllChannels } from "../shared/get-all-channels";
+import { SyncDelta } from "lib/shared";
 
 export async function downloadAllTemplates(
-  guid: string
+  guid: string,
+  syncDelta: SyncDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const locales = state.guidLocaleMap.get(guid); // Templates need locale for API call

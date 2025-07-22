@@ -4,5 +4,7 @@ export * from './content-item-pusher';
 export * from './content-item-batch-pusher';
 export * from './gallery-pusher';
 export * from './model-pusher';
+export * from './orchestrate-pushers';
 export * from './page-pusher';
+export * from './push-operations-config';
 export * from './template-pusher'; 

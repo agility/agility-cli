@@ -1,14 +1,111 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
-import { findGalleryInTargetInstance } from "../finders";
-import { state } from '../../core/state';
+import { state, getState } from '../../core/state';
+import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
+
+/**
+ * Simple change detection for galleries
+ */
+interface ChangeDetection {
+  entity: any;
+  shouldUpdate: boolean;
+  shouldCreate: boolean;
+  shouldSkip: boolean;
+  reason: string;
+}
+
+function changeDetection(
+  sourceEntity: any,
+  targetFromMapping: any,
+  targetFromData: any
+): ChangeDetection {
+  if (!targetFromMapping && !targetFromData) {
+    return {
+      entity: null,
+      shouldUpdate: false,
+      shouldCreate: true,
+      shouldSkip: false,
+      reason: 'Gallery does not exist in target'
+    };
+  }
+  
+  const targetEntity = targetFromData || targetFromMapping;
+  
+  // For galleries, check modification dates
+  const sourceModified = new Date(sourceEntity.modifiedOn || 0);
+  const targetModified = new Date(targetEntity.modifiedOn || 0);
+  
+  if (sourceModified > targetModified) {
+    return {
+      entity: targetEntity,
+      shouldUpdate: true,
+      shouldCreate: false,
+      shouldSkip: false,
+      reason: 'Source gallery is newer'
+    };
+  }
+  
+  return {
+    entity: targetEntity,
+    shouldUpdate: false,
+    shouldCreate: false,
+    shouldSkip: true,
+    reason: 'Gallery exists and is up to date'
+  };
+}
+
+/**
+ * Enhanced gallery finder with proper target safety and conflict resolution
+ * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
+ */
+export async function findGalleryInTargetInstance(
+  sourceGallery: mgmtApi.assetMediaGrouping,
+  apiClient: mgmtApi.ApiClient,
+  targetGuid: string,
+  targetData: any,
+  referenceMapper: ReferenceMapperV2
+): Promise<{ gallery: mgmtApi.assetMediaGrouping | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: ChangeDetection }> {
+  const state = getState();
+
+  // STEP 1: Find existing mapping
+  const existingMapping = referenceMapper.getMappingByKey<mgmtApi.assetMediaGrouping>("gallery", "mediaGroupingID", sourceGallery.mediaGroupingID);
+  let targetGalleryFromMapping: mgmtApi.assetMediaGrouping | null = existingMapping?.target || null;
+
+  // STEP 2: Find target instance data
+  const targetInstanceData = targetData.galleries?.find((g: any) => {
+    if (targetGalleryFromMapping) {
+      return (
+        g.mediaGroupingID === targetGalleryFromMapping.mediaGroupingID ||
+        g.name === targetGalleryFromMapping.name
+      );
+    } else {
+      return g.name === sourceGallery.name;
+    }
+  });
+
+  // STEP 3: Use change detection for conflict resolution
+  const decision = changeDetection(
+    sourceGallery,
+    targetGalleryFromMapping,
+    targetInstanceData
+  );
+
+  return {
+    gallery: decision.entity,
+    shouldUpdate: decision.shouldUpdate,
+    shouldCreate: decision.shouldCreate,
+    shouldSkip: decision.shouldSkip,
+    decision: decision
+  };
+}
 
 export async function pushGalleries(
     sourceData: any,
     targetData: any,
     referenceMapper: ReferenceMapperV2,
-    onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
+    syncDeltaWorker: SyncDeltaFileWorker
+    // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
     
     // Extract data from sourceData - unified parameter pattern
@@ -66,9 +163,9 @@ export async function pushGalleries(
             overallStatus = 'error';
         } finally {
             processedCount++;
-            if (onProgress) {
-                onProgress(processedCount, totalGroupings, currentStatus);
-            }
+            // if (onProgress) {
+            //     onProgress(processedCount, totalGroupings, currentStatus);
+            // }
         }
     }
 

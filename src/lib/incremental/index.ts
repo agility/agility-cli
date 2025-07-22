@@ -30,6 +30,7 @@ export {
   getLastPullTimestamp,
   isEntityModifiedSinceLastPull,
   markPullStart,
+  markPushStart,
   clearTimestamps,
   getIncrementalPullDecision
 } from './timestamp-tracker'; 
