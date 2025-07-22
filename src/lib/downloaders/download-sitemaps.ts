@@ -93,8 +93,8 @@ function shouldDownloadSitemap(
   localSitemapInfo: { lastModified?: string; exists: boolean },
   forceUpdate: boolean = false
 ): { shouldDownload: boolean; reason: string } {
-  if (forceUpdate) {
-    return { shouldDownload: true, reason: 'forced update' };
+  if (state.update === false){
+    return { shouldDownload: false, reason: '' };
   }
   
   if (!localSitemapInfo.exists) {

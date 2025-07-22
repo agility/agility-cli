@@ -13,7 +13,7 @@ export async function downloadAllModels(
   const fileOps = new fileOperations(guid);
   const apiClient = getApiClient();
   
-  // Create SyncDelta internally
+  // Create SyncDelta internally  
   const syncDelta = new SyncDelta(guid);
 
   const modelsFolderPath = fileOps.getDataFolderPath('models');
@@ -42,8 +42,8 @@ export async function downloadAllModels(
   // Helper function to check if model needs download based on lastModifiedDate
   function shouldDownloadModel(apiModel: any, localInfo: { lastModifiedDate?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
     
-    if (state.update) {
-      return { shouldDownload: true, reason: 'forced update' };
+    if (state.update === false){
+      return { shouldDownload: false, reason: '' };
     }
 
     if (!localInfo.exists) {
@@ -166,6 +166,7 @@ export async function downloadAllModels(
               action: reason === 'new file' ? 'created' : 'updated',
               name: modelDisplayName,
               referenceName: modelDetails.referenceName,
+              timestamp: new Date().toISOString(),
             });
           }
           

@@ -7,6 +7,7 @@ import { SyncDelta } from "../shared/sync-delta-tracker";
 import { getAssetFilePath } from "../assets/asset-utils";
 import { getAllChannels } from "../shared/get-all-channels";
 
+
 export async function downloadAllAssets(
   guid: string
 ): Promise<void> {
@@ -38,9 +39,6 @@ export async function downloadAllAssets(
 
   // Helper function to check if asset needs download based on dateModified
   function shouldDownloadAsset(apiAsset: any, localInfo: { dateModified?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
-    // if (update) {
-    //   return { shouldDownload: true, reason: 'forced update' };
-    // }
 
     if(state.update === false){
       return { shouldDownload: false, reason: '' };

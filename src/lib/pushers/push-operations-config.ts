@@ -3,6 +3,7 @@ import { ReferenceMapperV2 } from '../refMapper/reference-mapper-v2';
 import { GuidEntities } from './guid-data-loader';
 import { PusherResult } from '../../types/sourceData';
 import { getState } from '../../core/state';
+import { fileOperations } from 'core/fileOperations';
 
 // Central configuration for all push operations
 export interface PushOperationConfig {

@@ -42,8 +42,8 @@ export async function downloadAllContainers(
 
   // Helper function to check if container needs download based on lastModifiedDate
   function shouldDownloadContainer(apiContainer: any, localInfo: { lastModifiedDate?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
-    if (update) {
-      return { shouldDownload: true, reason: 'forced update' };
+    if(state.update === false){
+      return { shouldDownload: false, reason: '' };
     }
 
     if (!localInfo.exists) {

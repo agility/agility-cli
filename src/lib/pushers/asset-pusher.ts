@@ -1,11 +1,11 @@
 import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
-import * as fs from "fs";
-import * as path from "path";
 import { getAssetFilePath } from "../shared";
 import { state, getState } from "../../core/state";
 const FormData = require("form-data");
+import { getApiClient } from "../../core/state";
+import { fileOperations } from "../../core/fileOperations";
 
 /**
  * Simple change detection for assets
@@ -117,6 +117,7 @@ export async function pushAssets(
 ): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
   // Extract data from sourceData - unified parameter pattern
   const assets: mgmtApi.Media[] = sourceData.assets || [];
+  
 
   if (!assets || assets.length === 0) {
     console.log("No assets found to process.");
@@ -125,7 +126,7 @@ export async function pushAssets(
 
   // Get state values instead of prop drilling
   const { sourceGuid, targetGuid, locale, preview: isPreview } = state;
-  const { getApiClient } = await import("../../core/state");
+ 
   const apiClient = getApiClient();
 
   let defaultContainer: mgmtApi.assetContainer | null = null;
@@ -143,21 +144,17 @@ export async function pushAssets(
   let processedAssetsCount = 0;
   let overallStatus: "success" | "error" = "success";
 
-  const basePath = path.join(
-    process.cwd(),
-    "agility-files",
-    sourceGuid[0],
-    locale[0],
-    isPreview ? "preview" : "live",
-    "assets"
-  );
+  const fileOps = new fileOperations(sourceGuid[0]);
+  const basePath = fileOps.getDataFolderPath();
+
+ 
 
   for (const media of assets) {
     let currentStatus: "success" | "error" = "success";
     try {
       const relativeFilePath = getAssetFilePath(media.originUrl).replace(/%20/g, " "); // Uses imported util
-      const absoluteLocalFilePath = path.join(basePath, relativeFilePath);
-      const folderPath = path.dirname(relativeFilePath) === "." ? "/" : path.dirname(relativeFilePath);
+      const absoluteLocalFilePath = fileOps.getDataFilePath(relativeFilePath);
+      const folderPath = fileOps.getDataFolderPath(relativeFilePath);
 
       const existingMedia = await findAssetInTargetInstance(
         media,
@@ -244,12 +241,13 @@ async function createAsset(
   // Handle gallery if present
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
 
+  const fileOps = new fileOperations(targetGuid[0]);
   // Upload the asset
   const form = new FormData();
-  if (!fs.existsSync(absoluteLocalFilePath)) {
+  if (!fileOps.checkFileExists(absoluteLocalFilePath)) {
     throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
   }
-  const fileBuffer = fs.readFileSync(absoluteLocalFilePath);
+  const fileBuffer = fileOps.readFile(absoluteLocalFilePath);
   form.append("files", fileBuffer, media.fileName);
 
   const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
@@ -283,13 +281,13 @@ async function updateAsset(
 ): Promise<void> {
   // Handle gallery if present
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
-
+  const fileOps = new fileOperations(targetGuid[0]);
   // Upload the asset (this will replace the existing one)
   const form = new FormData();
-  if (!fs.existsSync(absoluteLocalFilePath)) {
+  if (!fileOps.checkFileExists(absoluteLocalFilePath)) {
     throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
   }
-  const fileBuffer = fs.readFileSync(absoluteLocalFilePath);
+  const fileBuffer = fileOps.readFile(absoluteLocalFilePath);
   form.append("files", fileBuffer, media.fileName);
 
   const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
