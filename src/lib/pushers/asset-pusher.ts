@@ -54,10 +54,9 @@ export async function pushAssets(
   for (const media of assets) {
     let currentStatus: "success" | "error" = "success";
     try {
-      const relativeFilePath = `assets/${getAssetFilePath(media.originUrl).replace(/%20/g, " ")}`; // Uses imported util
-      const absoluteLocalFilePath = fileOps.getDataFilePath(relativeFilePath);
-      console.log(relativeFilePath, absoluteLocalFilePath)
-      const folderPath = fileOps.getDataFolderPath(relativeFilePath);
+              const relativeFilePath = `assets/${getAssetFilePath(media.originUrl)}`; // Uses imported util with consistent decoding
+        const absoluteLocalFilePath = fileOps.getDataFilePath(relativeFilePath);
+        const folderPath = fileOps.getDataFolderPath(relativeFilePath);
 
       const existingMedia = await getAssetAndChangeOperationDecision(
         media,
@@ -81,7 +80,7 @@ export async function pushAssets(
           targetGuid[0],
           referenceMapper,
         );
-        referenceMapper.addRecord("asset", media, createdAsset);
+        referenceMapper.addMapping("asset", media, createdAsset);
         successful++;
       } else if (shouldUpdate) {
         // Asset exists but needs updating
@@ -94,8 +93,7 @@ export async function pushAssets(
           targetGuid[0],
           referenceMapper,
         );
-        referenceMapper.addRecord("asset", media, updatedAsset);
-
+        referenceMapper.addMapping("asset", media, updatedAsset);
         successful++;
       } else {
         // Asset exists and is up to date - skip
@@ -109,11 +107,12 @@ export async function pushAssets(
 
         // Add mapping for existing asset
         if (asset) {
-          referenceMapper.addRecord("asset", media, asset);
+          referenceMapper.addMapping("asset", media, asset);
         }
         skipped++;
       }
     } catch (error: any) {
+      console.log(ansiColors.red('error'), JSON.stringify(error, null, 2))
       console.error(`✗ Error processing asset ${media.fileName || media.originUrl}:`, error.message);
       failed++;
       currentStatus = "error";
@@ -143,11 +142,11 @@ async function createAsset(
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
   referenceMapper: ReferenceMapperV2,
-): Promise<void> {
+): Promise<mgmtApi.Media> {
   // Handle gallery if present
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
 
-  const fileOps = new fileOperations(targetGuid[0]);
+  const fileOps = new fileOperations(targetGuid);
   // Upload the asset
   const form = new FormData();
   if (!fileOps.checkFileExists(absoluteLocalFilePath)) {
@@ -164,13 +163,13 @@ async function createAsset(
 
   const uploadedMedia = uploadedMediaArray[0];
 
-  // Add mapping for successful upload
-  referenceMapper.addRecord("asset", media, uploadedMedia);
   console.log(
     `✓ Asset ${ansiColors.underline.cyan(media.fileName)} uploaded to path ${folderPath} - ${ansiColors.green(
       state.sourceGuid[0],
     )}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`,
   );
+
+  return uploadedMedia;
 }
 
 /**
@@ -184,10 +183,10 @@ async function updateAsset(
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
   referenceMapper: ReferenceMapperV2,
-): Promise<void> {
+): Promise<mgmtApi.Media> {
   // Handle gallery if present
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
-  const fileOps = new fileOperations(targetGuid[0]);
+  const fileOps = new fileOperations(targetGuid);
   // Upload the asset (this will replace the existing one)
   const form = new FormData();
   if (!fileOps.checkFileExists(absoluteLocalFilePath)) {
@@ -203,13 +202,13 @@ async function updateAsset(
   }
   const uploadedMedia = uploadedMediaArray[0];
 
-  // Add mapping for successful update
-  referenceMapper.addRecord("asset", media, uploadedMedia);
   console.log(
     `✓ Asset ${ansiColors.underline.cyan(media.fileName)} updated in path ${folderPath} - ${ansiColors.green(
       state.sourceGuid[0],
     )}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`,
   );
+
+  return uploadedMedia;
 }
 
 /**
