@@ -2,13 +2,13 @@ import { fileOperations } from "../../core/fileOperations";
 import { getApiClient, getState, state } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
-import { SyncDelta } from "../shared/sync-delta-tracker";
+import { ChangeDelta } from "../shared/change-delta-tracker";
 import * as fs from "fs";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllContainers(
   guid: string,
-  syncDelta: SyncDelta
+  changeDelta: ChangeDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
@@ -139,13 +139,13 @@ export async function downloadAllContainers(
           // Fetch full container details
           const container = await apiClient.containerMethods.getContainerByID(containerID, guid);
 
-                     // Export container JSON
+          // Export container JSON
            fileOps.exportFiles(`containers`, containerID.toString(), container);
           console.log(`✓ Downloaded container ${ansiColors.cyan(container.referenceName)} ID: ${container.contentViewID} ${ansiColors.gray(`(${reason})`)}`);
           
-          // Record successful download in sync delta
-          if (syncDelta) {
-            syncDelta.recordChange({
+          // Record successful download in change delta
+          if (changeDelta) {
+            changeDelta.recordChange({
               id: container.contentViewID,
               type: 'container',
               action: reason === 'new file' ? 'created' : 'updated',

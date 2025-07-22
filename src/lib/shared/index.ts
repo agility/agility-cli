@@ -4,7 +4,7 @@ export * from "../content";
 export * from "../assets";
 export * from "../loggers";
 export { ContentHashComparer } from "./content-hash-comparer";
-export * from './sync-delta-tracker';
+export * from './change-delta-tracker';
 export * from "./instance-lister";
 export { LinkTypeDetector } from "./link-type-detector";
 // export { ReferenceMapper } from "./reference-mapper";

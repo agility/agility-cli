@@ -2,7 +2,7 @@ import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { state, getState } from '../../core/state';
-import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
+import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 
 /**
  * Simple change detection for galleries
@@ -57,7 +57,7 @@ function changeDetection(
 
 /**
  * Enhanced gallery finder with proper target safety and conflict resolution
- * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
+ * Logic Flow: Target Safety FIRST → Change Delta SECOND → Conflict Resolution
  */
 export async function findGalleryInTargetInstance(
   sourceGallery: mgmtApi.assetMediaGrouping,
@@ -104,7 +104,7 @@ export async function pushGalleries(
     sourceData: any,
     targetData: any,
     referenceMapper: ReferenceMapperV2,
-    syncDeltaWorker: SyncDeltaFileWorker
+    changeDeltaWorker: ChangeDeltaFileWorker
     // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
     

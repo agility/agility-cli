@@ -4,7 +4,7 @@ import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { getAssetFilePath } from "../shared";
 import { state } from "../../core/state";
 import { getAssetAndChangeOperationDecision } from "lib/changeDetector/asset-change-detection";
-import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
+import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 const FormData = require("form-data");
 import { getApiClient } from "../../core/state";
 import { fileOperations } from "../../core/fileOperations";
@@ -14,7 +14,7 @@ export async function pushAssets(
   sourceData: any,
   targetData: any,
   referenceMapper: ReferenceMapperV2,
-  syncDeltaWorker: SyncDeltaFileWorker,
+  changeDeltaWorker: ChangeDeltaFileWorker,
   onProgress?: (processed: number, total: number, status?: "success" | "error") => void,
 ): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
   // Extract data from sourceData - unified parameter pattern
@@ -62,7 +62,7 @@ export async function pushAssets(
         media,
         targetData,
         referenceMapper,
-        syncDeltaWorker
+        changeDeltaWorker
       );
 
       if(existingMedia === null){

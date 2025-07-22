@@ -7,13 +7,13 @@ import { downloadAllContainers } from './download-containers';
 import { downloadAllSyncSDK } from './download-sync-sdk';
 import { downloadAllSitemaps } from './download-sitemaps';
 import { getState } from '../../core/state';
-import { SyncDelta } from 'lib/shared';
+import { ChangeDelta } from '../shared/change-delta-tracker';
 
 // Central configuration for all download operations
 export interface OperationConfig {
   name: string;
   description: string;
-  handler: (guid: string, syncDelta: SyncDelta) => Promise<void>;
+  handler: (guid: string, changeDelta: ChangeDelta) => Promise<void>;
   elements: string[];
 }
 
@@ -21,58 +21,58 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
   syncSDK: {
     name: 'downloadAllSyncSDK',
     description: 'Download content items, pages, sitemaps via Content Sync SDK',
-    handler: async (guid, syncDelta) => {
+    handler: async (guid, changeDelta) => {
       // Sync SDK will handle locales internally via guidLocaleMap (user will update this)
       // For now, use default locale - this will be converted to use guidLocaleMap internally
-      await downloadAllSyncSDK(guid, syncDelta);
+      await downloadAllSyncSDK(guid, changeDelta);
     },
     elements: ['Content', 'Pages', 'Sitemaps']
   },
   galleries: {
     name: 'downloadAllGalleries',
     description: 'Download asset galleries and media groupings', 
-    handler: async (guid, syncDelta) => {
-      await downloadAllGalleries(guid, syncDelta);
+    handler: async (guid, changeDelta) => {
+      await downloadAllGalleries(guid, changeDelta);
     },
     elements: ['Galleries']
   },
   assets: {
     name: 'downloadAllAssets',
     description: 'Download media files and asset metadata',
-    handler: async (guid, syncDelta) => {
-      await downloadAllAssets(guid, syncDelta);
+    handler: async (guid, changeDelta) => {
+      await downloadAllAssets(guid, changeDelta);
     },
     elements: ['Assets']
   },
   models: {
     name: 'downloadAllModels', 
     description: 'Download content models and field definitions',
-    handler: async (guid, syncDelta) => {
-      await downloadAllModels(guid, syncDelta);
+    handler: async (guid, changeDelta) => {
+      await downloadAllModels(guid, changeDelta);
     },
     elements: ['Models']
   },
   templates: {
     name: 'downloadAllTemplates',
     description: 'Download page templates and layouts',
-    handler: async (guid, syncDelta) => {
-      await downloadAllTemplates(guid, syncDelta);
+    handler: async (guid, changeDelta) => {
+      await downloadAllTemplates(guid, changeDelta);
     },
     elements: ['Templates']
   },
   containers: {
     name: 'downloadAllContainers',
     description: 'Download content containers and views',
-    handler: async (guid, syncDelta) => {
-      await downloadAllContainers(guid, syncDelta);
+    handler: async (guid, changeDelta) => {
+      await downloadAllContainers(guid, changeDelta);
     },
     elements: ['Containers']
   },
   sitemaps: {
     name: 'downloadAllSitemaps',
     description: 'Download sitemaps',
-    handler: async (guid, syncDelta) => {
-      await downloadAllSitemaps(guid, syncDelta);
+    handler: async (guid, changeDelta) => {
+      await downloadAllSitemaps(guid, changeDelta);
     },
     elements: ['Sitemaps']
   }

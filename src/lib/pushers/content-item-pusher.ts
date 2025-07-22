@@ -9,7 +9,7 @@ import {
 } from '../shared';
 // Removed ContentBatchProcessor import - individual pusher only handles individual processing
 import { state, getState } from '../../core/state';
-import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
+import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 
 
 /**
@@ -541,7 +541,7 @@ function changeDetection(
 
 /**
  * Enhanced content item finder with proper target safety and conflict resolution
- * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
+ * Logic Flow: Target Safety FIRST → Change Delta SECOND → Conflict Resolution
  */
 export function findContentInTargetInstance(
     sourceContent: mgmtApi.ContentItem,
@@ -759,7 +759,7 @@ export async function pushContent(
     sourceData: any,
     targetData: any,
     referenceMapper: ReferenceMapperV2,
-    syncDeltaWorker: SyncDeltaFileWorker,
+    changeDeltaWorker: ChangeDeltaFileWorker,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number, publishableIds: number[] }> {
 
@@ -908,11 +908,11 @@ export async function pushContentSmart(
     sourceData: any, 
     targetData: any, 
     referenceMapper: ReferenceMapperV2,
-    syncDeltaWorker: SyncDeltaFileWorker
+    changeDeltaWorker: ChangeDeltaFileWorker
 ): Promise<any> {
     if (state.noBatch) {
         // Use individual pusher when --no-batch flag is enabled
-        return await pushContent(sourceData, targetData, referenceMapper, syncDeltaWorker);
+        return await pushContent(sourceData, targetData, referenceMapper, changeDeltaWorker);
     } else {
         // Use batch pusher for better performance (default behavior)
         const { ContentBatchProcessor } = await import('./content-item-batch-pusher');
@@ -1044,7 +1044,7 @@ export async function pushContentSmart(
         } catch (batchError: any) {
             console.error(ansiColors.red(`❌ Batch processing failed: ${batchError.message}`));
             console.log(ansiColors.yellow(`🔄 Falling back to individual processing...`));
-            return await pushContent(sourceData, targetData, referenceMapper, syncDeltaWorker);
+            return await pushContent(sourceData, targetData, referenceMapper, changeDeltaWorker);
         }
     }
 }

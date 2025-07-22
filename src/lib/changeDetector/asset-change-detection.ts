@@ -1,18 +1,18 @@
 import { Media } from "@agility/management-sdk";
 import { ReferenceMapperV2 } from "lib/refMapper";
-import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
+import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 import { ChangeDetection } from "./change-detection-models";
 import { getState } from "../../core/state";
 
 /**
  * Enhanced asset finder with proper target safety and conflict resolution
- * Logic Flow: Target Safety FIRST → Sync Delta SECOND → Conflict Resolution
+ * Logic Flow: Target Safety FIRST → Change Delta SECOND → Conflict Resolution
  */
 export async function getAssetAndChangeOperationDecision(
   sourceAsset: Media,
   targetData: any,
   referenceMapper: ReferenceMapperV2,
-  syncDeltaWorker: SyncDeltaFileWorker
+  changeDeltaWorker: ChangeDeltaFileWorker
 ): Promise<{ asset: Media | null; shouldUpdate: boolean; shouldCreate: boolean; decision?: ChangeDetection }> {
   const existingMapping = referenceMapper.getMappingByKey<Media>("asset", "mediaID", sourceAsset.mediaID);
   const isInitialSync = existingMapping === null;
@@ -41,7 +41,7 @@ export async function getAssetAndChangeOperationDecision(
     };
   } else {
     // If there is a mapping, implement the new logic flow
-    decision = secondRunChangeDetection(sourceAsset, existingMapping, targetInstanceData, syncDeltaWorker);
+    decision = secondRunChangeDetection(sourceAsset, existingMapping, targetInstanceData, changeDeltaWorker);
 
     return {
       asset: decision.entity,
@@ -53,7 +53,7 @@ export async function getAssetAndChangeOperationDecision(
 
 }
 
-function secondRunChangeDetection(sourceEntity: Media, targetFromMapping: any, targetFromData: any, syncDeltaWorker: SyncDeltaFileWorker): ChangeDetection {
+function secondRunChangeDetection(sourceEntity: Media, targetFromMapping: any, targetFromData: any, changeDeltaWorker: ChangeDeltaFileWorker): ChangeDetection {
   const state = getState();
   
   // Check if mapping versionID/changeData differs from downloaded data
@@ -71,7 +71,7 @@ function secondRunChangeDetection(sourceEntity: Media, targetFromMapping: any, t
     };
   }
 
-  // No conflict, check SyncDelta for updates
+  // No conflict, check ChangeDelta for updates
   try {
     // Use the first target GUID from the state
     const targetGuid = state.targetGuid[0];
@@ -90,7 +90,7 @@ function secondRunChangeDetection(sourceEntity: Media, targetFromMapping: any, t
       id: sourceEntity.mediaID
     };
 
-    const changeEntity = syncDeltaWorker.getSyncDeltaEntity('asset', entityPayload);
+    const changeEntity = changeDeltaWorker.getChangeDeltaEntity('asset', entityPayload);
 
 
     if (changeEntity === 'created' || changeEntity === 'updated') {
@@ -100,7 +100,7 @@ function secondRunChangeDetection(sourceEntity: Media, targetFromMapping: any, t
         shouldUpdate: true,
         shouldCreate: false,
         shouldSkip: false,
-        reason: `Asset has ${changeEntity} changes in sync delta`,
+        reason: `Asset has ${changeEntity} changes in change delta`,
       };
     } else {
       // Skip updating the asset
@@ -109,17 +109,17 @@ function secondRunChangeDetection(sourceEntity: Media, targetFromMapping: any, t
         shouldUpdate: false,
         shouldCreate: false,
         shouldSkip: true,
-        reason: "No changes detected in sync delta",
+        reason: "No changes detected in change delta",
       };
     }
   } catch (error) {
-    // Asset not found in sync delta, skip updating
+    // Asset not found in change delta, skip updating
     return {
       entity: targetFromData,
       shouldUpdate: false,
       shouldCreate: false,
       shouldSkip: true,
-      reason: "Asset not found in sync delta",
+      reason: "Asset not found in change delta",
     };
   }
 }

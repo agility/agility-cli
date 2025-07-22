@@ -2,7 +2,7 @@ import * as path from "path";
 import * as fs from "fs";
 import ansiColors from "ansi-colors";
 import * as agilitySync from "@agility/content-sync";
-import { SyncDelta } from "../shared/sync-delta-tracker";
+import { ChangeDelta } from "../shared/change-delta-tracker";
 import { state, getApiKeysForGuid } from "../../core/state";
 import { fileOperations } from "../../core/fileOperations";
 import { handleSyncToken } from "./sync-token-handler";
@@ -10,7 +10,7 @@ import { getAllChannels } from "../shared/get-all-channels";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
-export async function downloadAllSyncSDK(guid: string, syncDelta: SyncDelta)
+export async function downloadAllSyncSDK(guid: string, changeDelta: ChangeDelta)
 {
   const locales: string[] = state.guidLocaleMap.get(guid);
   const channels = await getAllChannels(guid, locales[0]);
@@ -39,8 +39,8 @@ export async function downloadSyncSDKByLocaleAndChannel(
   console.log(`\nDownloading GUID: ${guid} | Locale: ${locale}`);
   const fileOps = new fileOperations(guid, locale);
   
-  // Create SyncDelta internally
-  const syncDelta = new SyncDelta(guid);
+  // Create ChangeDelta internally
+  const changeDelta = new ChangeDelta(guid);
   // Get API keys for this specific GUID
   const { previewKey:apiKey} = getApiKeysForGuid(guid);  
   const startTime = Date.now(); // Track start time for performance measurement
@@ -61,8 +61,8 @@ export async function downloadSyncSDKByLocaleAndChannel(
       interface: storeInterfaceFileSystem,
       options: {
         rootPath: instanceSpecificPath,
-        // NEW: Pass sync delta tracker and mode
-        syncDeltaTracker: syncDelta,
+        // NEW: Pass change delta tracker and mode
+        changeDeltaTracker: changeDelta,
         isIncrementalSync: isIncrementalSync
       }
     }

@@ -1,14 +1,14 @@
 import { fileOperations } from "../../core/fileOperations";
 import { getApiClient, getState, state } from "../../core/state";
 import ansiColors from "ansi-colors";
-import { SyncDelta } from "../shared/sync-delta-tracker";
+import { ChangeDelta } from "../shared/change-delta-tracker";
 // import * as fs from "fs";
 // import * as path from "path";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllGalleries(
   guid: string,
-  syncDelta: SyncDelta
+  changeDelta: ChangeDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
@@ -99,9 +99,9 @@ export async function downloadAllGalleries(
       console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${downloadDecision.reason})`)}`);
       downloadedCount++;
       
-      // Record in sync delta
-      if (syncDelta) {
-        syncDelta.recordChange({
+      // Record in change delta
+      if (changeDelta) {
+        changeDelta.recordChange({
           id: index,
           type: 'gallery',
           action: downloadDecision.reason === 'new file' ? 'created' : 'updated',
@@ -134,9 +134,9 @@ export async function downloadAllGalleries(
         console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${galleryDownloadDecision.reason})`)}`);
         downloadedCount++;
         
-        // Record in sync delta
-        if (syncDelta) {
-          syncDelta.recordChange({
+        // Record in change delta
+        if (changeDelta) {
+          changeDelta.recordChange({
             id: index,
             type: 'gallery',
             action: galleryDownloadDecision.reason === 'new file' ? 'created' : 'updated',
