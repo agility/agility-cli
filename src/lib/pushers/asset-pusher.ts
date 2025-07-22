@@ -3,7 +3,7 @@ import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { getAssetFilePath } from "../shared";
 import { state } from "../../core/state";
-import { getAssetAndChangeOperationDecision } from "lib/changeDetector/asset-change-detection";
+import { getAssetAndChangeOperationDecision } from "../changeDetector/asset-change-detection";
 import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 const FormData = require("form-data");
 import { getApiClient } from "../../core/state";
@@ -11,8 +11,8 @@ import { fileOperations } from "../../core/fileOperations";
 
 
 export async function pushAssets(
-  sourceData: any,
-  targetData: any,
+  sourceData: any, // TODO: Type these
+  targetData: any, // TODO: Type these
   referenceMapper: ReferenceMapperV2,
   changeDeltaWorker: ChangeDeltaFileWorker,
   onProgress?: (processed: number, total: number, status?: "success" | "error") => void,
@@ -54,8 +54,9 @@ export async function pushAssets(
   for (const media of assets) {
     let currentStatus: "success" | "error" = "success";
     try {
-      const relativeFilePath = getAssetFilePath(media.originUrl).replace(/%20/g, " "); // Uses imported util
+      const relativeFilePath = `assets/${getAssetFilePath(media.originUrl).replace(/%20/g, " ")}`; // Uses imported util
       const absoluteLocalFilePath = fileOps.getDataFilePath(relativeFilePath);
+      console.log(relativeFilePath, absoluteLocalFilePath)
       const folderPath = fileOps.getDataFolderPath(relativeFilePath);
 
       const existingMedia = await getAssetAndChangeOperationDecision(
@@ -80,7 +81,7 @@ export async function pushAssets(
           targetGuid[0],
           referenceMapper,
         );
-        // referenceMapper.addRecord("asset", media, createdAsset);
+        referenceMapper.addRecord("asset", media, createdAsset);
         successful++;
       } else if (shouldUpdate) {
         // Asset exists but needs updating
@@ -93,7 +94,7 @@ export async function pushAssets(
           targetGuid[0],
           referenceMapper,
         );
-        // referenceMapper.addRecord("asset", media, updatedAsset);
+        referenceMapper.addRecord("asset", media, updatedAsset);
 
         successful++;
       } else {
@@ -107,9 +108,9 @@ export async function pushAssets(
         );
 
         // Add mapping for existing asset
-        // if (asset) {
-        //   referenceMapper.addRecord("asset", media, asset);
-        // }
+        if (asset) {
+          referenceMapper.addRecord("asset", media, asset);
+        }
         skipped++;
       }
     } catch (error: any) {
