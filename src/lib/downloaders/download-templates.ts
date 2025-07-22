@@ -3,7 +3,6 @@ import { getApiClient, getState, state } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
 import { ContentHashComparer } from "../shared/content-hash-comparer";
-// import { ChangeDeltaTracker } from "../shared/change-delta-tracker";
 import { getAllChannels } from "../shared/get-all-channels";
 import { ChangeDelta } from "../shared/change-delta-tracker";
 
@@ -61,6 +60,18 @@ export async function downloadAllTemplates(
           // Any case that results in downloading (modified, not-exists, error)
           fileOps.exportFiles(`templates`, template.pageTemplateID, template);
           
+          // Record successful download in change delta
+          if (changeDelta) {
+            const action = hashComparison.status === 'not-exists' ? 'created' : 'updated';
+            changeDelta.recordChange({
+              id: template.pageTemplateID,
+              type: 'template',
+              action: action,
+              name: template.pageTemplateName,
+              referenceName: template.pageTemplateName,
+            });
+          }
+          
           if (hashComparison.status === 'modified') {
             const hashDisplay = hashComparison.shortHashes 
               ? `${ansiColors.red(`[${hashComparison.shortHashes.local}]`)} → ${ansiColors.green(`${hashComparison.shortHashes.api}]`)}`
@@ -78,6 +89,18 @@ export async function downloadAllTemplates(
       } else {
         // Force update mode - always download
         fileOps.exportFiles(`templates`, template.pageTemplateID, template);
+        
+        // Record successful download in change delta
+        if (changeDelta) {
+          changeDelta.recordChange({
+            id: template.pageTemplateID,
+            type: 'template',
+            action: 'updated', // Force update mode always updates
+            name: template.pageTemplateName,
+            referenceName: template.pageTemplateName,
+          });
+        }
+        
         console.log(`✓ Downloaded template ${ansiColors.cyan(template.pageTemplateName)} ID: ${template.pageTemplateID} ${ansiColors.gray('(forced update)')}`);
       }
       

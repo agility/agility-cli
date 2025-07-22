@@ -6,7 +6,7 @@ import { GuidDataLoader, GuidEntities } from './guid-data-loader';
 import { PusherResult, SourceData } from '../../types/sourceData';
 import { state } from '../../core/state';
 import { PUSH_OPERATIONS, PushOperationsRegistry, PushOperationConfig } from './push-operations-config';
-import { ChangeDeltaFileWorker } from 'lib/shared/change-delta-file-worker';
+import { ChangeDeltaFileWorker } from '../shared/change-delta-file-worker';
 
 export interface PushResults {
   successful: string[];
