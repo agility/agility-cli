@@ -4,6 +4,7 @@ import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { state, getState } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
 import { SitemapHierarchy } from "../shared/sitemap-hierarchy";
+import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
 
 /**
  * Simple change detection for pages
@@ -737,7 +738,8 @@ export async function pushPages(
   sourceData: SourceData,
   targetData: any,
   referenceMapper: ReferenceMapperV2,
-  onProgress?: PusherProgressCallback
+  syncDeltaWorker: SyncDeltaFileWorker,
+  // onProgress?: PusherProgressCallback
 ): Promise<PusherResult> {
   // Extract data from sourceData - unified parameter pattern
   let pages: mgmtApi.PageItem[] = sourceData.pages || [];
@@ -930,9 +932,9 @@ export async function pushPages(
       status = "error";
     }
     processedPagesCount++;
-    if (onProgress && typeof onProgress === "function") {
-      onProgress(processedPagesCount, totalPages, result === "failure" ? "error" : "success");
-    }
+    // if (onProgress && typeof onProgress === "function") {
+    //   onProgress(processedPagesCount, totalPages, result === "failure" ? "error" : "success");
+    // }
   }
 
   return { status, successful, failed, skipped, publishableIds };

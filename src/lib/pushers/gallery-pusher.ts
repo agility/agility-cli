@@ -2,6 +2,7 @@ import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { state, getState } from '../../core/state';
+import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
 
 /**
  * Simple change detection for galleries
@@ -103,7 +104,8 @@ export async function pushGalleries(
     sourceData: any,
     targetData: any,
     referenceMapper: ReferenceMapperV2,
-    onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
+    syncDeltaWorker: SyncDeltaFileWorker
+    // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
     
     // Extract data from sourceData - unified parameter pattern
@@ -161,9 +163,9 @@ export async function pushGalleries(
             overallStatus = 'error';
         } finally {
             processedCount++;
-            if (onProgress) {
-                onProgress(processedCount, totalGroupings, currentStatus);
-            }
+            // if (onProgress) {
+            //     onProgress(processedCount, totalGroupings, currentStatus);
+            // }
         }
     }
 

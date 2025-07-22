@@ -9,6 +9,7 @@ import {
 } from '../shared';
 // Removed ContentBatchProcessor import - individual pusher only handles individual processing
 import { state, getState } from '../../core/state';
+import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
 
 
 /**
@@ -758,6 +759,7 @@ export async function pushContent(
     sourceData: any,
     targetData: any,
     referenceMapper: ReferenceMapperV2,
+    syncDeltaWorker: SyncDeltaFileWorker,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number, publishableIds: number[] }> {
 
@@ -905,11 +907,12 @@ export async function pushContent(
 export async function pushContentSmart(
     sourceData: any, 
     targetData: any, 
-    referenceMapper: ReferenceMapperV2
+    referenceMapper: ReferenceMapperV2,
+    syncDeltaWorker: SyncDeltaFileWorker
 ): Promise<any> {
     if (state.noBatch) {
         // Use individual pusher when --no-batch flag is enabled
-        return await pushContent(sourceData, targetData, referenceMapper);
+        return await pushContent(sourceData, targetData, referenceMapper, syncDeltaWorker);
     } else {
         // Use batch pusher for better performance (default behavior)
         const { ContentBatchProcessor } = await import('./content-item-batch-pusher');
@@ -1041,7 +1044,7 @@ export async function pushContentSmart(
         } catch (batchError: any) {
             console.error(ansiColors.red(`❌ Batch processing failed: ${batchError.message}`));
             console.log(ansiColors.yellow(`🔄 Falling back to individual processing...`));
-            return await pushContent(sourceData, targetData, referenceMapper);
+            return await pushContent(sourceData, targetData, referenceMapper, syncDeltaWorker);
         }
     }
 }

@@ -6,6 +6,7 @@ import { GuidDataLoader, GuidEntities } from './guid-data-loader';
 import { PusherResult, SourceData } from '../../types/sourceData';
 import { state } from '../../core/state';
 import { PUSH_OPERATIONS, PushOperationsRegistry, PushOperationConfig } from './push-operations-config';
+import { SyncDeltaFileWorker } from 'lib/shared/sync-delta-file-worker';
 
 export interface PushResults {
   successful: string[];
@@ -75,8 +76,11 @@ export class Pushers {
       // Set up reference mapper
       const referenceMapper = new ReferenceMapperV2();
 
+      // create sync delta worker
+      const syncDeltaWorker = new SyncDeltaFileWorker(sourceGuid);
+
       // Execute all push operations for this GUID pair
-      const pushResults = await this.executePushersInOrder(sourceData, targetData, referenceMapper);
+      const pushResults = await this.executePushersInOrder(sourceData, targetData, referenceMapper, syncDeltaWorker);
 
       // Consolidate results
       results.totalSuccess = pushResults.totalSuccess;
@@ -147,7 +151,8 @@ export class Pushers {
   private async executePushersInOrder(
     sourceData: GuidEntities,
     targetData: GuidEntities,
-    referenceMapper: ReferenceMapperV2
+    referenceMapper: ReferenceMapperV2,
+    syncDeltaWorker: SyncDeltaFileWorker
   ): Promise<{
     totalSuccess: number;
     totalFailures: number;
@@ -188,7 +193,7 @@ export class Pushers {
 
         this.config.onOperationStart?.(config.name, state.sourceGuid[0], state.targetGuid[0]);
 
-        const pusherResult: PusherResult = await config.handler(sourceData, targetData, referenceMapper);
+        const pusherResult: PusherResult = await config.handler(sourceData, targetData, referenceMapper, syncDeltaWorker);
 
         // Accumulate results using standardized pattern
         totalSuccess += pusherResult.successful || 0;

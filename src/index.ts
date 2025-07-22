@@ -7,8 +7,8 @@ import inquirer from "inquirer";
 import searchList from "inquirer-search-list";
 inquirer.registerPrompt("search-list", searchList);
 
-import { Auth, Sync, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
-import { Pull, } from "./core/pull";
+import { Auth, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
+import { Pull } from "./core/pull";
 import { homePrompt, instancesPrompt, localePrompt } from "./lib/ui/prompts";
 import { generateEnv } from "./lib/shared";
 import { instanceSelector } from "./lib/ui/prompts";

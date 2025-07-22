@@ -5,6 +5,7 @@ import ansiColors from "ansi-colors";
 import { ApiClient } from '@agility/management-sdk';
 import { state, getApiClient, getState } from '../../core/state';
 import { sleep } from "../shared/sleep";
+import { SyncDeltaFileWorker } from "lib/shared/sync-delta-file-worker";
 
 /**
  * Simple change detection for containers
@@ -151,7 +152,7 @@ export async function findContainerInTargetInstance(
   container: mgmtApi.Container,
   apiClient: mgmtApi.ApiClient,
   guid: string,
-  referenceMapper: ReferenceMapperV2
+  referenceMapper: ReferenceMapperV2,
 ): Promise<mgmtApi.Container | null>;
 
 export async function findContainerInTargetInstance(
@@ -208,7 +209,8 @@ export async function pushContainers(
     sourceData: any,
     targetData: any,
     referenceMapper: ReferenceMapperV2,
-    onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
+    syncDeltaWorker: SyncDeltaFileWorker,
+    // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
     
     // Extract data from sourceData - unified parameter pattern
@@ -327,9 +329,9 @@ export async function pushContainers(
             overallStatus = 'error';
         } finally {
             processedCount++;
-            if (onProgress) {
-                onProgress(processedCount, sourceContainers.length, currentStatus);
-            }
+            // if (onProgress) {
+            //     onProgress(processedCount, sourceContainers.length, currentStatus);
+            // }
         }
     }
 

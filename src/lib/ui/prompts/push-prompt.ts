@@ -6,7 +6,7 @@ import { localePrompt } from "./locale-prompt";
 import { isPreviewPrompt } from "./isPreview-prompt";
 import { AgilityInstance } from "../../../types/agilityInstance";
 import { elementsPrompt } from "./elements-prompt";
-import { Sync } from "../../../core/sync_bak";
+// import { Sync } from "../../../core/sync_bak";
 import rootPathPrompt from "./root-path-prompt";
 
 /**
@@ -29,7 +29,7 @@ export async function pushFiles(sourceInstance: AgilityInstance) {
     await configureStateFromSyncPrompts(sourceInstance, targetInstance);
 
     // Use standard Sync service (authentication already handled by calling command)
-    const syncOperation = new Sync();
+    // const syncOperation = new Sync();
     try {
         // await syncOperation.pushInstance(sourceInstance, targetInstance);
         return true;

@@ -169,8 +169,7 @@ export class Downloader {
       }
     }
 
-    // TODO: what is the root path?
-    syncDelta.writeSyncDelta()
+    syncDelta.writeSyncDelta(guid);
   }
 
   /**

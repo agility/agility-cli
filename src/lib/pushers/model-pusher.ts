@@ -195,7 +195,7 @@ export async function pushModels(
     sourceData: SourceData,
     targetData: any,
     referenceMapper: ReferenceMapperV2,
-    onProgress?: PusherProgressCallback,
+    // onProgress?: PusherProgressCallback,
     syncDeltaWorker: SyncDeltaFileWorker
 ): Promise<PusherResult> {
 
@@ -335,9 +335,9 @@ export async function pushModels(
       // (failures in Pass 1 remain failures in Pass 2)
     }
 
-    if (onProgress) {
-      onProgress(successful + skipped + failed, totalModels, result === 'failed' ? 'error' : 'success');
-    }
+    // if (onProgress) {
+    //   onProgress(successful + skipped + failed, totalModels, result === 'failed' ? 'error' : 'success');
+    // }
   }
 
   const overallStatus = failed > 0 ? 'error' : 'success';

@@ -1,5 +1,3 @@
-import * as fs from "fs";
-import * as path from "path";
 import { EntityType, EntityChangeAction, EntityChange, EntityPayload, SyncDeltaSummary, generateEntityKey } from "./sync-delta-tracker";
 import { fileOperations } from "../../core/fileOperations";
 
@@ -11,29 +9,26 @@ const ENTITY_TYPES: EntityType[] = ["model", "container", "asset", "gallery", "t
 export class SyncDeltaFileWorker
 {
   private _inMemorySyncDelta: SyncDeltaSummary | null = null;
-  private _rootPath: string = process.cwd();
+  private _fileOps: fileOperations;
 
-  SyncDeltaFileWorker(){
+  constructor(guid: string){
+    this._fileOps = new fileOperations(guid);
     this.loadSyncDelta()
   }
 
   /**
    * Load sync delta from file system into memory
    */
-  loadSyncDelta(rootPath: string = process.cwd()): SyncDeltaSummary | null {
+  loadSyncDelta(): SyncDeltaSummary | null {
     try {
-      this._rootPath = rootPath;
+      const syncDeltaPath = this._fileOps.getFilePath("sync-delta.json");
       
-      // Use file operations to read the sync delta file
-      const fileOps = new fileOperations("sync-delta", ""); // Create fileOps instance for reading
-      const syncDeltaPath = path.join(rootPath, "agility-files", "sync-delta.json");
-      
-      if (!fileOps.checkFileExists(syncDeltaPath)) {
+      if (!this._fileOps.checkFileExists(syncDeltaPath)) {
         this._inMemorySyncDelta = null;
         return null;
       }
 
-      const content = fileOps.readFile(syncDeltaPath);
+      const content = this._fileOps.readFile(syncDeltaPath);
       this._inMemorySyncDelta = JSON.parse(content) as SyncDeltaSummary;
       return this._inMemorySyncDelta;
     } catch (error) {
@@ -49,7 +44,6 @@ export class SyncDeltaFileWorker
   getSyncDeltaEntity(
     type: EntityType,
     entityPayload: EntityPayload,
-    rootPath: string = process.cwd(),
   ): EntityChangeAction {
     if (!this._inMemorySyncDelta) {
       console.error('sync delta does not exist');
@@ -121,16 +115,16 @@ export class SyncDeltaFileWorker
 
     try {
       // Use file operations to write the sync delta file
-      const fileOps = new fileOperations("sync-delta", ""); // Create fileOps instance for file operations
-      const syncDeltaPath = path.join(this._rootPath, "agility-files", "sync-delta.json");
+      // const fileOps = new fileOperations("sync-delta", ""); // Create fileOps instance for file operations
+      const syncDeltaPath = this._fileOps.getFilePath("sync-delta.json");
       
       // Ensure agility-files directory exists
-      const agilityFilesDir = path.dirname(syncDeltaPath);
-      if (!fileOps.checkFileExists(agilityFilesDir)) {
-        fileOps.createFolder(agilityFilesDir);
+      const agilityFilesDir = this._fileOps.getFolderPath("agility-files");
+      if (!this._fileOps.checkFileExists(agilityFilesDir)) {
+        this._fileOps.createFolder(agilityFilesDir);
       }
 
-      fileOps.createFile(syncDeltaPath, JSON.stringify(this._inMemorySyncDelta, null, 2));
+      this._fileOps.createFile(syncDeltaPath, JSON.stringify(this._inMemorySyncDelta, null, 2));
       
       console.log(`✅ Sync delta written to file: ${syncDeltaPath}`);
       return true;
@@ -158,14 +152,14 @@ export class SyncDeltaFileWorker
   /**
    * Clear the sync delta file from the file system
    */
-  clearSyncDeltaFile(rootPath: string = process.cwd()): boolean {
+  clearSyncDeltaFile(): boolean {
     try {
       // Use file operations to clear the sync delta file
-      const fileOps = new fileOperations("sync-delta", ""); // Create fileOps instance for file operations
-      const syncDeltaPath = path.join(rootPath, "agility-files", "sync-delta.json");
+      // const fileOps = new fileOperations("sync-delta", ""); // Create fileOps instance for file operations
+      const syncDeltaPath = this._fileOps.getFilePath("sync-delta.json");
       
-      if (fileOps.checkFileExists(syncDeltaPath)) {
-        fileOps.deleteFile(syncDeltaPath);
+      if (this._fileOps.checkFileExists(syncDeltaPath)) {
+        this._fileOps.deleteFile(syncDeltaPath);
         console.log(`✅ Sync delta file cleared: ${syncDeltaPath}`);
         return true;
       } else {
