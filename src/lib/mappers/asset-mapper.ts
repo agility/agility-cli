@@ -1,4 +1,4 @@
-import { fileOperations } from "core";
+import { fileOperations } from "../../core";
 import * as mgmtApi from "@agility/management-sdk";
 
 interface AssetMapping {
@@ -109,15 +109,26 @@ export class AssetMapper {
     }
 
     hasSourceChanged(sourceAsset: mgmtApi.Media) {
+        if (!sourceAsset) return false;
         const mapping = this.getAssetMapping(sourceAsset, 'source');
         if (!mapping) return false;
-        return sourceAsset.dateModified !== mapping.sourceDateModified;
+
+        const sourceDate = new Date(sourceAsset.dateModified);
+        const mappingDate = new Date(mapping.sourceDateModified);
+        return sourceDate > mappingDate;
+
     }
 
-    hasTargetChanged(targetAsset: mgmtApi.Media) {
+    hasTargetChanged(targetAsset?: mgmtApi.Media | null) {
+
+        if (!targetAsset) return false;
         const mapping = this.getAssetMapping(targetAsset, 'target');
         if (!mapping) return false;
-        return targetAsset.dateModified !== mapping.targetDateModified;
+
+        const targetDate = new Date(targetAsset.dateModified);
+        const mappingDate = new Date(mapping.targetDateModified);
+
+        return targetDate > mappingDate;
     }
 
 

@@ -1,5 +1,6 @@
-import { fileOperations } from "core";
-import  * as mgmtApi from "@agility/management-sdk";
+
+import * as mgmtApi from "@agility/management-sdk";
+import { fileOperations } from "../../core";
 interface GalleryMapping {
     sourceGuid: string;
     targetGuid: string;
@@ -28,18 +29,18 @@ export class GalleryMapper {
     }
 
     getGalleryMapping(gallery: mgmtApi.assetMediaGrouping, type: 'source' | 'target'): GalleryMapping | null {
-        const mapping = this.mappings.find((m: GalleryMapping) => 
+        const mapping = this.mappings.find((m: GalleryMapping) =>
             type === 'source' ? m.sourceMediaGroupingID === gallery.mediaGroupingID : m.targetMediaGroupingID === gallery.mediaGroupingID
         );
-        if(!mapping) return null;
-        return mapping;       
+        if (!mapping) return null;
+        return mapping;
     }
 
     getGalleryMappingByMediaGroupingID(mediaGroupingID: number, type: 'source' | 'target'): GalleryMapping | null {
-        const mapping = this.mappings.find((m: GalleryMapping) => 
+        const mapping = this.mappings.find((m: GalleryMapping) =>
             type === 'source' ? m.sourceMediaGroupingID === mediaGroupingID : m.targetMediaGroupingID === mediaGroupingID
         );
-        if(!mapping) return null;
+        if (!mapping) return null;
         return mapping;
     }
 
@@ -56,7 +57,7 @@ export class GalleryMapper {
     addMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping) {
         const mapping = this.getGalleryMapping(targetGallery, 'target');
 
-        if(mapping) {
+        if (mapping) {
             this.updateMapping(sourceGallery, targetGallery);
         } else {
 
@@ -78,7 +79,7 @@ export class GalleryMapper {
 
     updateMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping) {
         const mapping = this.getGalleryMapping(targetGallery, 'target');
-        if(mapping) {
+        if (mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
             mapping.sourceMediaGroupingID = sourceGallery.mediaGroupingID;
@@ -100,16 +101,16 @@ export class GalleryMapper {
 
     hasSourceChanged(sourceGallery: mgmtApi.assetMediaGrouping) {
         const mapping = this.getGalleryMapping(sourceGallery, 'source');
-        if(!mapping) return false;
+        if (!mapping) return false;
         return sourceGallery.modifiedOn !== mapping.sourceModifiedOn;
     }
-    
+
     hasTargetChanged(targetGallery: mgmtApi.assetMediaGrouping) {
         const mapping = this.getGalleryMapping(targetGallery, 'target');
-        if(!mapping) return false;
+        if (!mapping) return false;
         return targetGallery.modifiedOn !== mapping.targetModifiedOn;
     }
-    
-    
+
+
 
 }

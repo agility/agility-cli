@@ -7,7 +7,7 @@ const FormData = require("form-data");
 import { getApiClient } from "../../core/state";
 import { fileOperations } from "../../core/fileOperations";
 import path from "path";
-import { GalleryMapper } from "lib/mappers/gallery-mapper";
+import { GalleryMapper } from "../mappers/gallery-mapper";
 
 export async function pushAssets(
   sourceData: mgmtApi.Media[], // TODO: Type these
@@ -57,18 +57,23 @@ export async function pushAssets(
       // Extract container folder path from asset's originUrl (not local path)
       const assetRelativePath = getAssetFilePath(media.originUrl); // e.g., "folder/file.jpg" or "file.jpg"
       const containerFolderPath = path.dirname(assetRelativePath); // e.g., "folder" or "."
-      const folderPath = containerFolderPath === "." ? "" : containerFolderPath; // Use empty string for root level
+      const folderPath = containerFolderPath === "." ? "/" : containerFolderPath; // Use empty string for root level
 
       // Use simplified change detection pattern
       const existingMapping = referenceMapper.getAssetMapping(media, "source");
       const shouldCreate = existingMapping === null;
 
       // get the target asset, check if the source and targets need updates
-      const targetAsset: mgmtApi.Media = targetData.find(targetAsset => targetAsset.mediaID === existingMapping.targetMediaID) || null;
-      const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetAsset);
-      const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(media);
-      const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
-      const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
+      let targetAsset: mgmtApi.Media | undefined;
+      if (existingMapping) {
+        targetAsset = targetData.find(t => t && t.mediaID === existingMapping.targetMediaID);
+      }
+
+      const hasSourceChanged = referenceMapper.hasSourceChanged(media);
+      const hasTargetChanged = referenceMapper.hasTargetChanged(targetAsset);
+
+      const shouldUpdate = hasSourceChanged && !hasTargetChanged;
+      const shouldSkip = hasTargetChanged
 
 
       if (shouldCreate) {
@@ -150,6 +155,8 @@ async function createAsset(
   if (!fileOps.checkFileExists(absoluteLocalFilePath)) {
     throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
   }
+
+
   const fileBuffer = fileOps.createReadStream(absoluteLocalFilePath);
   form.append("files", fileBuffer, media.fileName);
 
