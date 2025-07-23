@@ -100,16 +100,25 @@ export class ModelMapper {
         this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
-    hasSourceChanged(sourceModel: mgmtApi.Model) {
+    hasSourceChanged(sourceModel: mgmtApi.Model | null | undefined) {
+        if (!sourceModel) return false;
         const mapping = this.getModelMapping(sourceModel, 'source');
         if (!mapping) return false;
-        return sourceModel.lastModifiedDate !== mapping.sourceLastModifiedDate;
+
+        const sourceDate = new Date(sourceModel.lastModifiedDate);
+        const mappedDate = new Date(mapping.sourceLastModifiedDate);
+
+        return sourceDate > mappedDate;
+
     }
 
-    hasTargetChanged(targetModel: mgmtApi.Model) {
+    hasTargetChanged(targetModel: mgmtApi.Model | null | undefined) {
+        if (!targetModel) return false;
         const mapping = this.getModelMapping(targetModel, 'target');
         if (!mapping) return false;
-        return targetModel.lastModifiedDate !== mapping.targetLastModifiedDate;
+        const targetDate = new Date(targetModel.lastModifiedDate);
+        const mappedDate = new Date(mapping.targetLastModifiedDate);
+        return targetDate > mappedDate;
     }
 
 }
