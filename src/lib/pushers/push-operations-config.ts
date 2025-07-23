@@ -61,8 +61,8 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     name: 'pushContent',
     description: 'Push content items',
     handler: async (sourceData, targetData) => {
-      const { pushContentSmart } = await import('./content-item-pusher');
-      return await pushContentSmart(sourceData['content'], targetData['content']);
+      const { pushContent } = await import('./content-pusher/content-pusher');
+      return await pushContent(sourceData['content'], targetData['content']);
     },
     elements: ['Content'],
     dataKey: 'content'
@@ -95,15 +95,15 @@ export class PushOperationsRegistry {
    */
   static getOperationsForElements(): PushOperationConfig[] {
     const { elements } = getState();
-    const elementList = elements ? elements.split(",") : 
+    const elementList = elements ? elements.split(",") :
       ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages'];
-    
+
     // Filter operations based on elements
     const relevantOperations = Object.values(PUSH_OPERATIONS).filter(operation => {
       // Check if any of the operation's elements are in the requested element list
       return operation.elements.some(element => elementList.includes(element));
     });
-    
+
     return relevantOperations;
   }
 
@@ -125,8 +125,8 @@ export class PushOperationsRegistry {
    * Get operations by element type
    */
   static getOperationsByElement(element: string): PushOperationConfig[] {
-    return Object.values(PUSH_OPERATIONS).filter(operation => 
+    return Object.values(PUSH_OPERATIONS).filter(operation =>
       operation.elements.includes(element)
     );
   }
-} 
+}
