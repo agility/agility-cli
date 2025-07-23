@@ -27,14 +27,16 @@ export class GalleryMapper {
 
     }
 
-    getGalleryMapping(gallery: mgmtApi.assetMediaGrouping) {
-        const mapping = this.mappings.find((m: GalleryMapping) => m.targetMediaGroupingID === gallery.mediaGroupingID);
+    getGalleryMapping(gallery: mgmtApi.assetMediaGrouping, type: 'source' | 'target'): GalleryMapping | null {
+        const mapping = this.mappings.find((m: GalleryMapping) => 
+            type === 'source' ? m.sourceMediaGroupingID === gallery.mediaGroupingID : m.targetMediaGroupingID === gallery.mediaGroupingID
+        );
         if(!mapping) return null;
         return mapping;       
     }
 
     addMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping) {
-        const mapping = this.getGalleryMapping(targetGallery);
+        const mapping = this.getGalleryMapping(targetGallery, 'target');
 
         if(mapping) {
             this.updateMapping(sourceGallery, targetGallery);
@@ -57,7 +59,7 @@ export class GalleryMapper {
     }
 
     updateMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping) {
-        const mapping = this.getGalleryMapping(targetGallery);
+        const mapping = this.getGalleryMapping(targetGallery, 'target');
         if(mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
@@ -79,13 +81,13 @@ export class GalleryMapper {
     }
 
     hasSourceChanged(sourceGallery: mgmtApi.assetMediaGrouping) {
-        const mapping = this.getGalleryMapping(sourceGallery);
+        const mapping = this.getGalleryMapping(sourceGallery, 'source');
         if(!mapping) return false;
         return sourceGallery.modifiedOn !== mapping.sourceModifiedOn;
     }
     
     hasTargetChanged(targetGallery: mgmtApi.assetMediaGrouping) {
-        const mapping = this.getGalleryMapping(targetGallery);
+        const mapping = this.getGalleryMapping(targetGallery, 'target');
         if(!mapping) return false;
         return targetGallery.modifiedOn !== mapping.targetModifiedOn;
     }

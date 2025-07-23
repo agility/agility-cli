@@ -30,14 +30,16 @@ export class ContainerMapper {
 
     }
 
-    getContainerMapping(container: mgmtApi.Container): ContainerMapping | null {
-        const mapping = this.mappings.find((m: ContainerMapping) => m.targetContentViewID === container.contentViewID);
+    getContainerMapping(container: mgmtApi.Container, type: 'source' | 'target'): ContainerMapping | null {
+        const mapping = this.mappings.find((m: ContainerMapping) => 
+            type === 'source' ? m.sourceContentViewID === container.contentViewID : m.targetContentViewID === container.contentViewID
+        );
         if(!mapping) return null;
         return mapping;       
     }
 
     addMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container) {
-        const mapping = this.getContainerMapping(targetContainer);
+        const mapping = this.getContainerMapping(targetContainer, 'target');
 
         if(mapping) {
             this.updateMapping(sourceContainer, targetContainer);
@@ -60,7 +62,7 @@ export class ContainerMapper {
     }
 
     updateMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container) {
-        const mapping = this.getContainerMapping(targetContainer);
+        const mapping = this.getContainerMapping(targetContainer, 'target');
         if(mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
@@ -83,13 +85,13 @@ export class ContainerMapper {
     }
 
     hasSourceChanged(sourceContainer: mgmtApi.Container) {
-        const mapping = this.getContainerMapping(sourceContainer);
+        const mapping = this.getContainerMapping(sourceContainer, 'source');
         if(!mapping) return false;
         return sourceContainer.lastModifiedDate !== mapping.sourceLastModifiedDate;
     }
     
     hasTargetChanged(targetContainer: mgmtApi.Container) {
-        const mapping = this.getContainerMapping(targetContainer);
+        const mapping = this.getContainerMapping(targetContainer, 'target');
         if(!mapping) return false;
         return targetContainer.lastModifiedDate !== mapping.targetLastModifiedDate;
     }

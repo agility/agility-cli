@@ -28,14 +28,16 @@ export class PageMapper {
 
     }
 
-    getPageMapping(page: mgmtApi.PageItem): PageMapping | null {
-        const mapping = this.mappings.find((m: PageMapping) => m.targetPageID === page.pageID);
+    getPageMapping(page: mgmtApi.PageItem, type: 'source' | 'target'): PageMapping | null {
+        const mapping = this.mappings.find((m: PageMapping) => 
+            type === 'source' ? m.sourcePageID === page.pageID : m.targetPageID === page.pageID
+        );
         if(!mapping) return null;
         return mapping;       
     }
 
     addMapping(sourcePage: mgmtApi.PageItem, targetPage: mgmtApi.PageItem) {
-        const mapping = this.getPageMapping(targetPage);
+        const mapping = this.getPageMapping(targetPage, 'target');
 
         if(mapping) {
             this.updateMapping(sourcePage, targetPage);
@@ -58,7 +60,7 @@ export class PageMapper {
     }
 
     updateMapping(sourcePage: mgmtApi.PageItem, targetPage: mgmtApi.PageItem) {
-        const mapping = this.getPageMapping(targetPage);
+        const mapping = this.getPageMapping(targetPage, 'target');
         if(mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
@@ -80,13 +82,13 @@ export class PageMapper {
     }
 
     hasSourceChanged(sourcePage: mgmtApi.PageItem) {
-        const mapping = this.getPageMapping(sourcePage);
+        const mapping = this.getPageMapping(sourcePage, 'source');
         if(!mapping) return false;
         return sourcePage.properties.versionID !== mapping.sourceVersionID;
     }
     
     hasTargetChanged(targetPage: mgmtApi.PageItem) {
-        const mapping = this.getPageMapping(targetPage);
+        const mapping = this.getPageMapping(targetPage, 'target');
         if(!mapping) return false;
         return targetPage.properties.versionID !== mapping.targetVersionID;
     }

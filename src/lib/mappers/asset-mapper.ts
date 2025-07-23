@@ -29,14 +29,14 @@ export class AssetMapper {
 
     }
 
-    getAssetMapping(asset: mgmtApi.Media): AssetMapping | null {
-        const mapping = this.mappings.find((m: AssetMapping) => m.targetMediaID === asset.mediaID);
+    getAssetMapping(asset: mgmtApi.Media, type: 'source' | 'target'): AssetMapping | null {
+        const mapping = this.mappings.find((m: AssetMapping) => type === 'source' ? m.sourceMediaID === asset.mediaID : m.targetMediaID === asset.mediaID);
         if(!mapping) return null;
         return mapping;       
     }
 
     addMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media) {
-        const mapping = this.getAssetMapping(targetAsset);
+        const mapping = this.getAssetMapping(targetAsset, 'target');
 
         if(mapping) {
             this.updateMapping(sourceAsset, targetAsset);
@@ -59,7 +59,7 @@ export class AssetMapper {
     }
 
     updateMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media) {
-        const mapping = this.getAssetMapping(targetAsset);
+        const mapping = this.getAssetMapping(targetAsset, 'target');
         if(mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
@@ -81,13 +81,13 @@ export class AssetMapper {
     }
 
     hasSourceChanged(sourceAsset: mgmtApi.Media) {
-        const mapping = this.getAssetMapping(sourceAsset);
+        const mapping = this.getAssetMapping(sourceAsset, 'source');
         if(!mapping) return false;
         return sourceAsset.dateModified !== mapping.sourceDateModified;
     }
 
     hasTargetChanged(targetAsset: mgmtApi.Media) {
-        const mapping = this.getAssetMapping(targetAsset);
+        const mapping = this.getAssetMapping(targetAsset, 'target');
         if(!mapping) return false;
         return targetAsset.dateModified !== mapping.targetDateModified;
     }

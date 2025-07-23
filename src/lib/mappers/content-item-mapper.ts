@@ -28,14 +28,16 @@ export class ContentItemMapper {
 
     }
 
-    getContentItemMapping(contentItem: mgmtApi.ContentItem): ContentItemMapping | null {
-        const mapping = this.mappings.find((m: ContentItemMapping) => m.targetContentID === contentItem.contentID);
+    getContentItemMapping(contentItem: mgmtApi.ContentItem, type: 'source' | 'target'): ContentItemMapping | null {
+        const mapping = this.mappings.find((m: ContentItemMapping) => 
+            type === 'source' ? m.sourceContentID === contentItem.contentID : m.targetContentID === contentItem.contentID
+        );
         if(!mapping) return null;
         return mapping;       
     }
 
     addMapping(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem) {
-        const mapping = this.getContentItemMapping(targetContentItem);
+        const mapping = this.getContentItemMapping(targetContentItem, 'target');
 
         if(mapping) {
             this.updateMapping(sourceContentItem, targetContentItem);
@@ -58,7 +60,7 @@ export class ContentItemMapper {
     }
 
     updateMapping(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem) {
-        const mapping = this.getContentItemMapping(targetContentItem);
+        const mapping = this.getContentItemMapping(targetContentItem, 'target');
         if(mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
@@ -80,13 +82,13 @@ export class ContentItemMapper {
     }
 
     hasSourceChanged(sourceContentItem: mgmtApi.ContentItem) {
-        const mapping = this.getContentItemMapping(sourceContentItem);
+        const mapping = this.getContentItemMapping(sourceContentItem, 'source');
         if(!mapping) return false;
         return sourceContentItem.properties.versionID !== mapping.sourceVersionID;
     }
 
     hasTargetChanged(targetContentItem: mgmtApi.ContentItem) {
-        const mapping = this.getContentItemMapping(targetContentItem);
+        const mapping = this.getContentItemMapping(targetContentItem, 'target');
         if(!mapping) return false;
         return targetContentItem.properties.versionID !== mapping.targetVersionID;
     }

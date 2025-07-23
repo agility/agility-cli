@@ -25,14 +25,16 @@ export class TemplateMapper {
 
     }
 
-    getTemplateMapping(template: mgmtApi.PageModel): TemplateMapping | null {
-        const mapping = this.mappings.find((m: TemplateMapping) => m.targetPageTemplateID === template.pageTemplateID);
+    getTemplateMapping(template: mgmtApi.PageModel, type: 'source' | 'target'): TemplateMapping | null {
+        const mapping = this.mappings.find((m: TemplateMapping) => 
+            type === 'source' ? m.sourcePageTemplateID === template.pageTemplateID : m.targetPageTemplateID === template.pageTemplateID
+        );
         if(!mapping) return null;
         return mapping;       
     }
 
     addMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
-        const mapping = this.getTemplateMapping(targetTemplate);
+        const mapping = this.getTemplateMapping(targetTemplate, 'target');
 
         if(mapping) {
             this.updateMapping(sourceTemplate, targetTemplate);
@@ -53,7 +55,7 @@ export class TemplateMapper {
     }
 
     updateMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
-        const mapping = this.getTemplateMapping(targetTemplate);
+        const mapping = this.getTemplateMapping(targetTemplate, 'target');
         if(mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;

@@ -28,14 +28,16 @@ export class ModelMapper {
 
     }
 
-    getModelMapping(model: mgmtApi.Model): ModelMapping | null {
-        const mapping = this.mappings.find((m: ModelMapping) => m.targetID === model.id);
+    getModelMapping(model: mgmtApi.Model, type: 'source' | 'target'): ModelMapping | null {
+        const mapping = this.mappings.find((m: ModelMapping) => 
+            type === 'source' ? m.sourceID === model.id : m.targetID === model.id
+        );
         if(!mapping) return null;
         return mapping;       
     }
 
     addMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model) {
-        const mapping = this.getModelMapping(targetModel);
+        const mapping = this.getModelMapping(targetModel, 'target');
 
         if(mapping) {
             this.updateMapping(sourceModel, targetModel);
@@ -58,7 +60,7 @@ export class ModelMapper {
     }
 
     updateMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model) {
-        const mapping = this.getModelMapping(targetModel);
+        const mapping = this.getModelMapping(targetModel, 'target');
         if(mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
@@ -80,13 +82,13 @@ export class ModelMapper {
     }
 
     hasSourceChanged(sourceModel: mgmtApi.Model) {
-        const mapping = this.getModelMapping(sourceModel);
+        const mapping = this.getModelMapping(sourceModel, 'source');
         if(!mapping) return false;
         return sourceModel.lastModifiedDate !== mapping.sourceLastModifiedDate;
     }
     
     hasTargetChanged(targetModel: mgmtApi.Model) {
-        const mapping = this.getModelMapping(targetModel);
+        const mapping = this.getModelMapping(targetModel, 'target');
         if(!mapping) return false;
         return targetModel.lastModifiedDate !== mapping.targetLastModifiedDate;
     }
