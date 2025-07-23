@@ -91,12 +91,12 @@ export class GalleryMapper {
     }
 
     loadMapping() {
-        const mapping = this.fileOps.getMappingFile(this.directory);
+        const mapping = this.fileOps.getMappingFile(this.directory, this.sourceGuid, this.targetGuid);
         return mapping;
     }
 
     saveMapping() {
-        this.fileOps.saveMappingFile(this.mappings, this.directory);
+        this.fileOps.saveMappingFile(this.mappings, this.directory, this.sourceGuid, this.targetGuid);
     }
 
     hasSourceChanged(sourceGallery: mgmtApi.assetMediaGrouping) {

@@ -283,15 +283,13 @@ export class fileOperations {
   }
 
   // Mapping file operations
-  getMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string, type?: string): string {
-    const localeToUse = locale || this._locale;
+  getMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string | null): string {
     // Store mappings centrally in /agility-files/mappings/ instead of per-instance
-    const centralMappingsPath = path.join(this._rootPath, 'mappings', type);
-    return path.join(centralMappingsPath, `mappings.json`);
+    return path.join(this._rootPath, 'mappings', `${sourceGuid}-${targetGuid}`, locale ?? '');
   }
 
-  getMappingFile(type?: string): any[] {
-    const centralMappingsPath = path.join(this._rootPath, 'mappings', type);
+  getMappingFile(type: string, sourceGuid: string, targetGuid: string, locale?: string | null): any[] {
+    const centralMappingsPath = path.join(this._rootPath, 'mappings',`${sourceGuid}-${targetGuid}`, locale ?? '', type);
     if (fs.existsSync(centralMappingsPath)) {
       const data = fs.readFileSync(path.join(centralMappingsPath, `mappings.json`), 'utf8');
       const jsonData = JSON.parse(data);
@@ -303,8 +301,11 @@ export class fileOperations {
   }
 
 
-  saveMappingFile(mappingData: any[], type?: string): void {
-    const centralMappingsPath = path.join(this._rootPath, 'mappings', type);
+  saveMappingFile(mappingData: any[], type?: string, sourceGuid?: string, targetGuid?: string, locale?: string | null): void {
+
+    const mappingRootPath = this.getMappingFilePath(sourceGuid, targetGuid, locale);
+    const centralMappingsPath = path.join(mappingRootPath, type);
+
     const mappingFilePath = path.join(centralMappingsPath, `mappings.json`);
 
     if (!fs.existsSync(centralMappingsPath)) {
