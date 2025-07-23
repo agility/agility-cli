@@ -57,12 +57,12 @@ export class GalleryMapper {
     updateMapping(sourceGallery: any, targetGallery: any) {
         const mapping = this.getGalleryMapping(targetGallery);
         if(mapping) {
-            mapping.sourceModifiedOn = sourceGallery.modifiedOn;
-            mapping.sourceMediaGroupingID = sourceGallery.mediaGroupingID;
-            mapping.targetModifiedOn = targetGallery.modifiedOn;
-            mapping.targetMediaGroupingID = targetGallery.mediaGroupingID;
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
+            mapping.sourceMediaGroupingID = sourceGallery.mediaGroupingID;
+            mapping.targetMediaGroupingID = targetGallery.mediaGroupingID;
+            mapping.sourceModifiedOn = sourceGallery.modifiedOn;
+            mapping.targetModifiedOn = targetGallery.modifiedOn;
         }
         this.saveMapping();
     }
