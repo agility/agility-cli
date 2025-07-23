@@ -49,6 +49,16 @@ export class AssetMapper {
         return mapping;
     }
 
+    getMappedEntity(mapping: AssetMapping, type: 'source' | 'target'): mgmtApi.Media | null {
+        const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
+        const mediaID = type === 'source' ? mapping.sourceMediaID : mapping.targetMediaID;
+        const fileOps = new fileOperations(guid);
+        const mediaFilePath = fileOps.getDataFilePath(`assets/${mediaID}.json`);
+        const mediaData = fileOps.readJsonFile(mediaFilePath);
+        if (!mediaData) return null;
+        return mediaData as mgmtApi.Media;
+    }
+
     addMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media) {
         const mapping = this.getAssetMapping(targetAsset, 'target');
 

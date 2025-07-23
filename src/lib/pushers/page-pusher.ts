@@ -1,9 +1,11 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { state, getState } from "../../core/state";
+import { state, getState, getApiClient } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
 import { SitemapHierarchy } from "../shared/sitemap-hierarchy";
 import { PageMapper } from "../mappers/page-mapper";
+import { ContentItemMapper } from "lib/mappers/content-item-mapper";
+import { TemplateMapper } from "lib/mappers/template-mapper";
 
 
 // CRITICAL FIX: Translate zone names to match template content section definitions
@@ -208,51 +210,51 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 //     };
 // }
 
-// function translateZoneNames(sourceZones: any, targetTemplate: mgmtApi.PageModel | null): any {
-//   if (!sourceZones || !targetTemplate?.contentSectionDefinitions) {
-//     return sourceZones || {}; // No template or sections, return as-is
-//   }
+function translateZoneNames(sourceZones: any, targetTemplate: mgmtApi.PageModel | null): any {
+  if (!sourceZones || !targetTemplate?.contentSectionDefinitions) {
+    return sourceZones || {}; // No template or sections, return as-is
+  }
 
-//   const translatedZones: any = {};
-//   const sectionNames = targetTemplate.contentSectionDefinitions
-//     .sort((a, b) => (a.itemOrder || 0) - (b.itemOrder || 0)) // Sort by item order
-//     .map((def) => def.pageItemTemplateReferenceName);
+  const translatedZones: any = {};
+  const sectionNames = targetTemplate.contentSectionDefinitions
+    .sort((a, b) => (a.itemOrder || 0) - (b.itemOrder || 0)) // Sort by item order
+    .map((def) => def.pageItemTemplateReferenceName);
 
-//   // Map source zones to template section names in order
-//   const sourceZoneEntries = Object.entries(sourceZones);
+  // Map source zones to template section names in order
+  const sourceZoneEntries = Object.entries(sourceZones);
 
-//   for (let i = 0; i < sourceZoneEntries.length && i < sectionNames.length; i++) {
-//     const [sourceZoneName, zoneContent] = sourceZoneEntries[i];
-//     const targetZoneName = sectionNames[i];
-//     translatedZones[targetZoneName] = zoneContent;
-//   }
+  for (let i = 0; i < sourceZoneEntries.length && i < sectionNames.length; i++) {
+    const [sourceZoneName, zoneContent] = sourceZoneEntries[i];
+    const targetZoneName = sectionNames[i];
+    translatedZones[targetZoneName] = zoneContent;
+  }
 
-//   // CRITICAL FIX: Instead of dropping extra zones, combine them into the main zone
-//   if (sourceZoneEntries.length > sectionNames.length && sectionNames.length > 0) {
-//     const mainZoneName = sectionNames[0]; // Use first (main) zone as target
-//     const mainZoneModules = Array.isArray(translatedZones[mainZoneName]) ? [...translatedZones[mainZoneName]] : [];
+  // CRITICAL FIX: Instead of dropping extra zones, combine them into the main zone
+  if (sourceZoneEntries.length > sectionNames.length && sectionNames.length > 0) {
+    const mainZoneName = sectionNames[0]; // Use first (main) zone as target
+    const mainZoneModules = Array.isArray(translatedZones[mainZoneName]) ? [...translatedZones[mainZoneName]] : [];
 
-//     for (let i = sectionNames.length; i < sourceZoneEntries.length; i++) {
-//       const [sourceZoneName, zoneContent] = sourceZoneEntries[i];
-//       if (Array.isArray(zoneContent) && zoneContent.length > 0) {
-//         mainZoneModules.push(...zoneContent);
-//       }
-//     }
+    for (let i = sectionNames.length; i < sourceZoneEntries.length; i++) {
+      const [sourceZoneName, zoneContent] = sourceZoneEntries[i];
+      if (Array.isArray(zoneContent) && zoneContent.length > 0) {
+        mainZoneModules.push(...zoneContent);
+      }
+    }
 
-//     translatedZones[mainZoneName] = mainZoneModules;
-//   }
+    translatedZones[mainZoneName] = mainZoneModules;
+  }
 
-//   return translatedZones;
-// }
+  return translatedZones;
+}
 
 // Internal helper function to process a single page
 async function processPage(
   page: mgmtApi.PageItem,
+  sourceGuid: string,
   targetGuid: string,
   locale: string,
   isChildPage: boolean,
   apiClient: mgmtApi.ApiClient,
-  referenceMapper: PageMapper,
   overwrite: boolean = false,
   insertBeforePageId: number | null = null
 ): Promise<"success" | "skip" | "failure"> {
@@ -262,40 +264,40 @@ async function processPage(
   let correctPageID = -1;
   let channelID = -1;
 
+  const referenceMapper = new PageMapper(sourceGuid, targetGuid, locale);
+  
+
+const templateMapper = new TemplateMapper(sourceGuid, targetGuid);
   try {
     let targetTemplate: mgmtApi.PageModel | null = null;
-
     // Only try to find template mapping for non-folder pages
     if (page.pageType !== "folder" && page.templateName) {
       // Find the template mapping
-      let templateRef = referenceMapper.getMappingByKey<mgmtApi.PageModel>(
-        "template",
-        "pageTemplateName",
-        page.templateName
-      );
-      if (!templateRef?.target) {
-        const allTemplateRecords = referenceMapper.getRecordsByType("template");
-        const availableTemplates =
-          allTemplateRecords.map((r) => r.source.pageTemplateName || "unnamed").join(", ") || "none";
-        console.error(
+      let templateRef = templateMapper.getTemplateMappingByPageTemplateName(page.templateName, 'source');
+      if (!templateRef) {
+          console.error(
           ansiColors.yellow(
             `✗ Page ${page.name} template ${ansiColors.underline(page.templateName)} missing in source data, skipping`
           )
         );
-        const templateMappings = allTemplateRecords.map(
-          (r) => `${r.source.pageTemplateName} -> ${r.target?.pageTemplateName || "null"}`
-        );
-        if (templateMappings.length > 0) {
-          console.error(`📋 Current template mappings: ${templateMappings.join(", ")}`);
-        }
         return "skip";
       }
-      targetTemplate = templateRef.target;
+      targetTemplate = templateMapper.getMappedEntity(templateRef, 'target') as mgmtApi.PageModel;
     }
 
     // Check if page already exists in target instance using proper matching
     // Use the internal findPageInTargetInstance function from this same file
-    existingPage = await findPageInTargetInstance(page, apiClient, targetGuid, locale, referenceMapper);
+
+    const pageMapping = referenceMapper.getPageMapping(page, 'source');
+    if (pageMapping) {
+      existingPage = referenceMapper.getMappedEntity(pageMapping, 'target');
+    } else {
+
+
+        // existingPage = await findPageInTargetInstance(page, apiClient, targetGuid, locale, referenceMapper);
+    }
+
+    // existingPage = await findPageInTargetInstance(page, apiClient, targetGuid, locale, referenceMapper);
 
     // CRITICAL FIX: Always get target instance channel ID to avoid FK constraint errors
     // Get channel ID from target instance sitemap (not from existing page which may be invalid)
@@ -310,7 +312,7 @@ async function processPage(
     if (existingPage && !overwrite) {
       correctPageID = existingPage.pageID;
       // Add to reference mapper for future lookups
-      referenceMapper.addRecord("page", page, existingPage);
+      referenceMapper.addMapping(page, existingPage);
 
       const pageTypeDisplay =
         {
@@ -356,6 +358,8 @@ async function processPage(
 
     // Content mapping validation (silent unless errors)
 
+    const contentMapper = new ContentItemMapper(sourceGuid, targetGuid, locale);
+
     for (const [zoneName, zoneModules] of Object.entries(mappedZones)) {
       const newZoneContent = [];
       if (Array.isArray(zoneModules)) {
@@ -370,14 +374,10 @@ async function processPage(
             const sourceContentId = module.item.contentid || module.item.contentId;
 
             if (sourceContentId && sourceContentId > 0) {
-              const contentRef = referenceMapper.getMappingByKey<mgmtApi.ContentItem>(
-                "content",
-                "contentID",
-                sourceContentId
-              );
-              if (contentRef?.target && (contentRef.target as any).contentID > 0) {
+              const { targetContentID } = contentMapper.getContentItemMappingByContentID(sourceContentId, 'source');
+              if (targetContentID) {
                 // CRITICAL FIX: Map to target content ID and remove duplicate fields
-                const targetContentId = (contentRef.target as any).contentID;
+                const targetContentId = targetContentID;
                 newModule.item = {
                   ...module.item,
                   contentid: targetContentId, // Use target content ID only
@@ -391,21 +391,21 @@ async function processPage(
                 console.error(
                   `❌ No content mapping found for ${module.module}: contentID ${sourceContentId} in page ${page.name}`
                 );
-                const contentMappings = referenceMapper.getRecordsByType("content");
+                // const contentMappings = contentMapper.getRecordsByType("content");
 
-                console.log("Page", JSON.stringify(page, null, 2));
-                console.error(`Total content mappings available: ${contentMappings.length}`);
-                const allContentRecords = referenceMapper.getRecordsByType("content");
-                const matchingRecord = allContentRecords.find((r) => r.source.contentID === sourceContentId);
-                if (matchingRecord) {
-                  console.error(`Found matching source record but issue with target:`, {
-                    sourceID: matchingRecord.source.contentID,
-                    targetID: matchingRecord.target?.contentID,
-                    hasTarget: !!matchingRecord.target,
-                  });
-                } else {
-                  console.error(`No record found with source contentID: ${sourceContentId}`);
-                }
+                // console.log("Page", JSON.stringify(page, null, 2));
+                // console.error(`Total content mappings available: ${contentMappings.length}`);
+                // const allContentRecords = referenceMapper.getRecordsByType("content");
+                // const matchingRecord = allContentRecords.find((r) => r.source.contentID === sourceContentId);
+                // if (matchingRecord) {
+                //   console.error(`Found matching source record but issue with target:`, {
+                //     sourceID: matchingRecord.source.contentID,
+                //     targetID: matchingRecord.target?.contentID,
+                //     hasTarget: !!matchingRecord.target,
+                //   });
+                // } else {
+                //   console.error(`No record found with source contentID: ${sourceContentId}`);
+                // }
               }
             } else {
               // Module without content reference - keep it
@@ -427,17 +427,17 @@ async function processPage(
       let missingMappings = 0;
 
       contentIdsToValidate.forEach((sourceContentId) => {
-        const contentRef = referenceMapper.getMappingByKey<mgmtApi.ContentItem>("content", "contentID", sourceContentId);
-        if (contentRef?.target && (contentRef.target as any).contentID > 0) {
+        const { targetContentID } = contentMapper.getContentItemMappingByContentID(sourceContentId, 'source');
+        if (targetContentID) {
           mappingResults[sourceContentId] = {
             found: true,
-            targetId: (contentRef.target as any).contentID,
+            targetId: targetContentID,
           };
           foundMappings++;
         } else {
           mappingResults[sourceContentId] = {
             found: false,
-            error: contentRef ? "Invalid target ID" : "No mapping found",
+            error: targetContentID ? "Invalid target ID" : "No mapping found",
           };
           missingMappings++;
         }
@@ -531,11 +531,11 @@ async function processPage(
     // CRITICAL FIX: Use parentID as the correct field name (SDK documentation confirms this)
     const sourceParentId = payload.parentPageID;
     if (sourceParentId && sourceParentId > 0) {
-      const parentPageRef = referenceMapper.getMappingByKey<mgmtApi.PageItem>("page", "pageID", sourceParentId);
-      if (parentPageRef?.target && parentPageRef.target.pageID > 0) {
-        parentIDArg = parentPageRef.target.pageID;
+      const { targetPageID } = referenceMapper.getPageMappingByPageID(sourceParentId, 'source');
+      if (targetPageID) {
+        parentIDArg = targetPageID;
         // CRITICAL FIX: Set parentID in payload (not parentPageID)
-        payload.parentPageID = parentPageRef.target.pageID;
+        payload.parentPageID = targetPageID;
       } else {
         parentIDArg = -1;
         payload.parentPageID = -1; // No parent
@@ -560,13 +560,9 @@ async function processPage(
       placeBeforeIDArg = insertBeforePageId;
     } else if (payload.placeBeforePageItemID && payload.placeBeforePageItemID > 0) {
       // Fallback to original placeBeforePageItemID if available
-      const placeBeforePageRef = referenceMapper.getMappingByKey<mgmtApi.PageItem>(
-        "page",
-        "pageID",
-        payload.placeBeforePageItemID
-      );
-      if (placeBeforePageRef?.target && placeBeforePageRef.target.pageID > 0) {
-        placeBeforeIDArg = placeBeforePageRef.target.pageID;
+      const { targetPageID } = referenceMapper.getPageMappingByPageID(payload.placeBeforePageItemID, 'source');
+      if (targetPageID) {
+        placeBeforeIDArg = targetPageID;
       } else {
         placeBeforeIDArg = -1;
       }
@@ -633,7 +629,7 @@ async function processPage(
           ...payload, // Use the payload data which has mapped zones
           pageID: actualPageID,
         } as mgmtApi.PageItem;
-        referenceMapper.addRecord("page", page, createdPageData); // Use original page for source key
+        referenceMapper.addMapping(page, createdPageData); // Use original page for source key
 
         const pageTypeDisplay =
           {
@@ -690,6 +686,9 @@ export async function pushPages(
 ): Promise<PusherResult> {
   // Extract data from sourceData - unified parameter pattern
   let pages: mgmtApi.PageItem[] = sourceData || [];
+
+  const { sourceGuid, targetGuid, locale } = state;
+  const pageMapper = new PageMapper(sourceGuid[0], targetGuid[0], locale[0]);
 
   if (!pages || pages.length === 0) {
     console.log("No pages found to process.");
@@ -794,32 +793,21 @@ export async function pushPages(
   let status: "success" | "error" = "success";
   const publishableIds: number[] = []; // Track target page IDs for auto-publishing
 
-  // Get state values instead of prop drilling
-  const { targetGuid, locale, overwrite } = state;
 
-  if (!targetGuid) {
-    console.error("Missing required configuration for page push operation");
-    return { status: "error", successful: 0, failed: 0, skipped: 0, publishableIds: [] };
-  }
 
   // Use centralized apiClient creation with lazy initialization
-  const { getApiClient } = await import("../../core/state");
+ 
   const apiClient = getApiClient();
 
   // Use simple legacy pattern - track processed pages directly
   const processedPages: { [oldPageId: number]: number } = {}; // oldPageId -> newPageId
   const processedContentIds: { [oldContentId: number]: number } = {}; // oldContentId -> newContentId
 
-  // Extract content mappings from ReferenceMapper to legacy format
-  const allContentMappings = referenceMapper.getRecordsByType("content");
-  allContentMappings.forEach((mapping) => {
-    if (mapping.source?.contentID && mapping.target?.contentID) {
-      processedContentIds[mapping.source.contentID] = mapping.target.contentID;
-    }
-  });
+
 
   let totalPages = pages.length;
   let processedPagesCount = 0;
+
 
   // Process all pages in the calculated order
   for (let i = 0; i < pages.length; i++) {
@@ -835,44 +823,43 @@ export async function pushPages(
       const sitemapHierarchy = new SitemapHierarchy();
       const sourceInsertBeforeId = sitemapHierarchy.getInsertBeforePageId(page.pageID, pageOrderingData.siblingOrder);
       
-             if (sourceInsertBeforeId !== null) {
+        if (sourceInsertBeforeId !== null) {
          // Map the source insertBefore ID to target insertBefore ID
-         const insertBeforePageRef = referenceMapper.getMappingByKey<mgmtApi.PageItem>(
-           "page",
-           "pageID",
-           sourceInsertBeforeId
-         );
-         if (insertBeforePageRef?.target?.pageID) {
-           insertBeforePageId = insertBeforePageRef.target.pageID;
+         const { targetPageID } = pageMapper.getPageMappingByPageID(sourceInsertBeforeId, 'source');
+         if (targetPageID) {
+           insertBeforePageId = targetPageID;
          }
        }
     }
-
+const { sourceGuid, targetGuid, locale, overwrite } = state;
     const result = await processPage(
       page,
+      sourceGuid[0],
       targetGuid[0],
       locale[0],
       isChildPage,
       apiClient,
-      referenceMapper,
       overwrite,
       insertBeforePageId
     );
+
+    const referenceMapper = new PageMapper(sourceGuid[0], targetGuid[0], locale[0]);
     if (result === "success") {
       successful++; // Page was processed successfully (created or updated)
 
+      
       // Collect target page ID for auto-publishing
-      const pageMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>("page", "pageID", page.pageID);
-      if (pageMapping?.target?.pageID) {
-        publishableIds.push(pageMapping.target.pageID);
+      const { targetPageID } = referenceMapper.getPageMappingByPageID(page.pageID, 'source');
+      if (targetPageID) {
+        publishableIds.push(targetPageID);
       }
     } else if (result === "skip") {
       skipped++; // Page already exists and was skipped
 
       // Still collect target page ID for auto-publishing (skipped pages still exist)
-      const pageMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>("page", "pageID", page.pageID);
-      if (pageMapping?.target?.pageID) {
-        publishableIds.push(pageMapping.target.pageID);
+      const { targetPageID } = referenceMapper.getPageMappingByPageID(page.pageID, 'source');
+      if (targetPageID) {
+        publishableIds.push(targetPageID);
       }
     } else {
       failed++;

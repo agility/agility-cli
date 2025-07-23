@@ -1,12 +1,10 @@
 import { getState } from '../../core/state';
 import { fileOperations } from '../../core/fileOperations';
 import ansiColors from 'ansi-colors';
-import { ReferenceMapperV2 } from '../refMapper/reference-mapper-v2';
 import { GuidDataLoader, GuidEntities } from './guid-data-loader';
 import { PusherResult, SourceData } from '../../types/sourceData';
 import { state } from '../../core/state';
 import { PUSH_OPERATIONS, PushOperationsRegistry, PushOperationConfig } from './push-operations-config';
-import { ChangeDeltaFileWorker } from '../shared/change-delta-file-worker';
 
 export interface PushResults {
   successful: string[];

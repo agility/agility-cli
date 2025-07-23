@@ -3,14 +3,11 @@ export * from "../generators";
 export * from "../content";
 export * from "../assets";
 export * from "../loggers";
-export { ContentHashComparer } from "./content-hash-comparer";
 export * from "./instance-lister";
-export { LinkTypeDetector } from "./link-type-detector";
 
 // // ReferenceMapperV2 exports
 export * from "../pushers/batch-polling";
 export * from "./sitemap-hierarchy";
-export * from "./bulk-mapping-filter";
 export { GuidDataLoader, GuidEntities, SourceEntities } from "../pushers/guid-data-loader";
 export { EntityComparer, EntityComparison, ComparisonResult } from "./entity-comparer";
 export function prettyException(error: any): string { return error.message || error.toString(); }
