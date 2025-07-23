@@ -108,7 +108,7 @@ export class AssetMapper {
         this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
-    hasSourceChanged(sourceAsset: mgmtApi.Media) {
+    hasSourceChanged(sourceAsset: mgmtApi.Media | null | undefined) {
         if (!sourceAsset) return false;
         const mapping = this.getAssetMapping(sourceAsset, 'source');
         if (!mapping) return false;
@@ -119,7 +119,7 @@ export class AssetMapper {
 
     }
 
-    hasTargetChanged(targetAsset?: mgmtApi.Media | null) {
+    hasTargetChanged(targetAsset?: mgmtApi.Media | null | undefined) {
 
         if (!targetAsset) return false;
         const mapping = this.getAssetMapping(targetAsset, 'target');
