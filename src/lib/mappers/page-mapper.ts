@@ -60,8 +60,7 @@ export class PageMapper {
         const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
         const pageID = type === 'source' ? mapping.sourcePageID : mapping.targetPageID;
         const fileOps = new fileOperations(guid, this.locale);
-        const pageFilePath = fileOps.getDataFilePath(`pages/${pageID}.json`);
-        const pageData = fileOps.readJsonFile(pageFilePath);
+        const pageData = fileOps.readJsonFile(`pages/${pageID}.json`);
         if (!pageData) return null;
         return pageData as mgmtApi.PageItem;
     }

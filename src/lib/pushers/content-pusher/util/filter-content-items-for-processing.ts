@@ -1,6 +1,7 @@
 import ansiColors from "ansi-colors";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { findContentInTargetInstance } from "./find-content-in-target-instance";
+import { ApiClient, ContentItem } from "@agility/management-sdk";
 
 /**
  * Filter content items for processing
@@ -13,15 +14,23 @@ export interface ContentFilterResult {
 	skippedCount: number;
 }
 
-export async function filterContentItemsForProcessing(
-	contentItems: any[],
-	apiClient: any,
-	targetGuid: string,
-	locale: string,
-	referenceMapper: ContentItemMapper,
-	targetData?: any,
-	type?: "normal" | "linked"
-): Promise<ContentFilterResult> {
+interface FilterProp {
+	contentItems: ContentItem[];
+	apiClient: ApiClient;
+	targetGuid: string;
+	locale: string;
+	referenceMapper: ContentItemMapper;
+	targetData: ContentItem[];
+}
+
+export async function filterContentItemsForProcessing({
+	contentItems,
+	apiClient,
+	targetGuid,
+	locale,
+	referenceMapper,
+	targetData = [],
+}: FilterProp): Promise<ContentFilterResult> {
 	const itemsToCreate: any[] = [];
 	const itemsToUpdate: any[] = [];
 	const itemsToSkip: any[] = [];
@@ -30,14 +39,11 @@ export async function filterContentItemsForProcessing(
 		const itemName = contentItem.properties.referenceName || "Unknown";
 
 		try {
-			const findResult = findContentInTargetInstance(
-				contentItem,
-				apiClient,
-				targetGuid,
-				locale,
-				targetData,
+			const findResult = findContentInTargetInstance({
+				sourceContent: contentItem,
 				referenceMapper
-			);
+			});
+
 
 			const { content, shouldUpdate, shouldCreate, shouldSkip } = findResult;
 

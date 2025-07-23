@@ -370,7 +370,7 @@ export class ContentBatchProcessor {
 				console.error(
 					ansiColors.yellow(
 						`✗ Orphaned content item ${contentItem.contentID}, skipping - ${error.message || 'payload preparation failed'}.`
-					)
+					), error
 				);
 
 				// Track skipped item and continue with the rest of the batch

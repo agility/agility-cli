@@ -55,8 +55,8 @@ export class TemplateMapper {
         const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
         const pageTemplateID = type === 'source' ? mapping.sourcePageTemplateID : mapping.targetPageTemplateID;
         const fileOps = new fileOperations(guid);
-        const templateFilePath = fileOps.getDataFilePath(`templates/${pageTemplateID}.json`);
-        const templateData = fileOps.readJsonFile(templateFilePath);
+
+        const templateData = fileOps.readJsonFile(`templates/${pageTemplateID}.json`);
         if (!templateData) return null;
         return templateData as mgmtApi.PageModel;
     }
