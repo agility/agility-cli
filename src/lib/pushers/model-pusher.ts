@@ -5,6 +5,7 @@ import { SourceData, PusherProgressCallback, PusherResult } from "../../types/so
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { logModelDifferences } from "../loggers";
 import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
+import { ModelMapper } from "lib/mappers/model-mapper";
 
 /**
  * Simple change detection for models
@@ -197,11 +198,8 @@ export async function getModelAndChangeOperationsDecision(
 // }
 
 export async function pushModels(
-    sourceData: SourceData,
-    targetData: any,
-    referenceMapper: ReferenceMapperV2,
-    // onProgress?: PusherProgressCallback,
-    changeDeltaWorker: ChangeDeltaFileWorker
+    sourceData: mgmtApi.Model[],
+    targetData: mgmtApi.Model[],
 ): Promise<PusherResult> {
 
   // 
@@ -219,7 +217,7 @@ export async function pushModels(
 
 
 
-  const models: mgmtApi.Model[] = sourceData.models || [];
+  const models: mgmtApi.Model[] = sourceData || [];
 
   if (!models || models.length === 0) {
     console.log("No models found to process.");
