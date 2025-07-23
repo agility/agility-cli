@@ -251,6 +251,8 @@ async function pushNormalContentItems(
  * Process linked content items using individual processing with dependency resolution
  * Handles individual content item processing with dependency resolution logic.
  */
+/*
+JOEL: I believe this function is no longer needed
 async function processLinkedContentIndividually(
     linkedContentItems: mgmtApi.ContentItem[],
     targetGuid: string,
@@ -358,7 +360,7 @@ async function processLinkedContentIndividually(
                 }
 
                 // Check if content already exists
-                const existingContentItem = referenceMapper.getMappedEntity(contentMapping, 'source');
+                const existingContentItem = referenceMapper.getMappedEntity(contentMapping, 'target');
 
                 if (existingContentItem && !state.overwrite) {
                     console.log(ansiColors.gray(`[Content Pusher] ↷ Skipping ${itemName}: already exists in target (use --overwrite to update)`));
@@ -474,7 +476,7 @@ async function processLinkedContentIndividually(
         publishableIds
     };
 }
-
+*/
 
 /**
  * Check if all content dependencies are resolved for a content item
@@ -799,6 +801,7 @@ function extractContentId(targetContentId: any): number {
  * Main content pusher function using legacy pattern
  */
 /*
+JOEL: I believe this function is no longer needed
 export async function pushContent(
     sourceData: any,
     targetData: any,
