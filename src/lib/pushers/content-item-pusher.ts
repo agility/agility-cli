@@ -16,6 +16,7 @@ import { ContentItemMapper, ContentItemMapping } from "lib/mappers/content-item-
 import { AssetMapper } from "lib/mappers/asset-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContainerMapper } from "lib/mappers/container-mapper";
+import { ContentItem } from "@agility/content-fetch";
 
 
 /**
@@ -292,6 +293,7 @@ async function processLinkedContentIndividually(
 
         for (let i = 0; i < remainingContentItems.length; i++) {
             const contentItem = remainingContentItems[i];
+            const contentMapping = referenceMapper.getContentItemMapping(contentItem, 'source');
             const itemName = contentItem.properties.referenceName || 'Unknown';
 
             // Skip if already marked as problematic
@@ -333,13 +335,14 @@ async function processLinkedContentIndividually(
                 }
 
                 // Find container
-
                 const containerMapping = containerMapper.getContainerMappingByReferenceName(contentItem.properties.referenceName, "source");
-                let container: mgmtApi.Container | undefined;
+                let container: mgmtApi.Container | null = null
+                if (containerMapper) {
+                    container = containerMapper.getMappedEntity(containerMapping, "source");
+                }
 
-                if (containerMapping?.target) {
-                    container = containerMapping.target;
-                } else {
+                if (!container) {
+                    //if container not found in mapping, try fetching it from API
                     try {
                         container = await apiClient.containerMethods.getContainerByReferenceName(contentItem.properties.referenceName, targetGuid);
                     } catch (error: any) {
@@ -355,7 +358,7 @@ async function processLinkedContentIndividually(
                 }
 
                 // Check if content already exists
-                const existingContentItem = await findContentInTargetInstanceLegacy(contentItem, apiClient, targetGuid, locale, referenceMapper);
+                const existingContentItem = referenceMapper.getMappedEntity(contentMapping, 'source');
 
                 if (existingContentItem && !state.overwrite) {
                     console.log(ansiColors.gray(`[Content Pusher] ↷ Skipping ${itemName}: already exists in target (use --overwrite to update)`));
@@ -393,7 +396,7 @@ async function processLinkedContentIndividually(
                     };
 
                     // Add mapping to reference mapper with full target object
-                    referenceMapper.addMapping('content', contentItem, targetContentItem);
+                    referenceMapper.addMapping(contentItem, targetContentItem);
 
                     successfulItems++;
                     totalProcessed++;
@@ -462,14 +465,6 @@ async function processLinkedContentIndividually(
 
     } while (remainingContentItems.length > 0);
 
-    // Save mappings after individual processing
-    console.log(ansiColors.gray(`💾 Saving mappings after individual linked content processing...`));
-    try {
-        await referenceMapper.saveAllMappings();
-        console.log(ansiColors.gray(`✅ Mappings saved successfully`));
-    } catch (saveError: any) {
-        console.warn(ansiColors.yellow(`⚠️ Failed to save mappings: ${saveError.message}`));
-    }
 
     console.log(ansiColors.green(`✅ Individual linked content processing complete: ${successfulItems} successful, ${failedItems} failed`));
 
@@ -803,10 +798,11 @@ function extractContentId(targetContentId: any): number {
 /**
  * Main content pusher function using legacy pattern
  */
+/*
 export async function pushContent(
     sourceData: any,
     targetData: any,
-    referenceMapper: ReferenceMapperV2,
+    referenceMapper: ContentItemMapper,
     changeDeltaWorker: ChangeDeltaFileWorker,
     onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number, publishableIds: number[] }> {
@@ -947,7 +943,7 @@ export async function pushContent(
     // console.log(ansiColors.yellow(`Processed ${overallSuccessful}/${totalItemCount} content items (${overallFailed} failed, ${overallSkipped} skipped)`));
     return { status: overallStatus, successful: overallSuccessful, failed: overallFailed, skipped: overallSkipped, publishableIds };
 }
-
+*/
 /**
  * Smart content pusher that chooses between individual vs batch processing
  * Moved from orchestrate-pushers.ts for better separation of concerns
@@ -966,7 +962,7 @@ export async function pushContentSmart(
 
         const { sourceGuid, targetGuid, locale } = state;
 
-        const referenceMapper = new ContentItemMapper(sourceGuid[0], targetGuid[0]);
+        const referenceMapper = new ContentItemMapper(sourceGuid[0], targetGuid[0], locale[0]);
         const contentItems = sourceData.content || [];
 
         if (contentItems.length === 0) {
@@ -1016,6 +1012,7 @@ export async function pushContentSmart(
                 const normalBatchConfig = {
                     apiClient: getApiClient(),
                     targetGuid: state.targetGuid[0],
+                    sourceGuid: state.sourceGuid[0],
                     locale: state.locale[0],
                     referenceMapper,
                     batchSize: 250,
@@ -1052,6 +1049,7 @@ export async function pushContentSmart(
                 const linkedBatchConfig = {
                     apiClient: getApiClient(),
                     targetGuid: state.targetGuid[0],
+                    sourceGuid: state.sourceGuid[0],
                     locale: state.locale[0],
                     referenceMapper,
                     batchSize: 100, // Smaller batches for linked content due to complexity
@@ -1093,8 +1091,6 @@ export async function pushContentSmart(
             };
         } catch (batchError: any) {
             console.error(ansiColors.red(`❌ Batch processing failed: ${batchError.message}`));
-            console.log(ansiColors.yellow(`🔄 Falling back to individual processing...`));
-            return await pushContent(sourceData, targetData, referenceMapper, changeDeltaWorker);
         }
     }
 }

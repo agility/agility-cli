@@ -17,13 +17,15 @@ export class ContentItemMapper {
     private targetGuid: string;
     private mappings: ContentItemMapping[];
     private directory: string;
+    private locale: string;
 
-    constructor(sourceGuid: string, targetGuid: string) {
+    constructor(sourceGuid: string, targetGuid: string, locale: string) {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
         this.directory = 'item';
-        // this will provide access to the /agility-files/{GUID} folder
-        this.fileOps = new fileOperations(targetGuid)
+        this.locale = locale;
+        // this will provide access to the /agility-files/{GUID}/{locale} folder
+        this.fileOps = new fileOperations(targetGuid, locale);
         this.mappings = this.loadMapping();
 
     }
@@ -42,6 +44,19 @@ export class ContentItemMapper {
         );
         if (!mapping) return null;
         return mapping;
+    }
+
+    getMappedEntity(mapping: ContentItemMapping, type: 'source' | 'target'): mgmtApi.ContentItem | null {
+        //fetch the content item from the file system based on source or target GUID
+        const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
+        const contentID = type === 'source' ? mapping.sourceContentID : mapping.targetContentID;
+
+        const fileOps = new fileOperations(guid, this.locale);
+        // Use the file operations to get the content item file path
+        const contentFilePath = fileOps.getDataFilePath(`item/${contentID}.json`);
+        const contentData = fileOps.readJsonFile(contentFilePath);
+        if (!contentData) return null;
+        return contentData as mgmtApi.ContentItem;
     }
 
     addMapping(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem) {
