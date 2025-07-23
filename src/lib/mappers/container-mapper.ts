@@ -1,6 +1,8 @@
 import { fileOperations } from "../../core";
 import * as mgmtApi from "@agility/management-sdk";
 
+//TODO: Change to use lastModifiedOn instead of lastModifiedDate when the fix to that is deployed!
+
 interface ContainerMapping {
     sourceGuid: string;
     targetGuid: string;
@@ -107,24 +109,31 @@ export class ContainerMapper {
     }
 
     loadMapping() {
-        const mapping = this.fileOps.getMappingFile(this.directory);
+        const mapping = this.fileOps.getMappingFile(this.directory, this.sourceGuid, this.targetGuid);
         return mapping;
     }
 
     saveMapping() {
-        this.fileOps.saveMappingFile(this.mappings, this.directory);
+        this.fileOps.saveMappingFile(this.mappings, this.directory, this.sourceGuid, this.targetGuid);
     }
 
-    hasSourceChanged(sourceContainer: mgmtApi.Container) {
+    hasSourceChanged(sourceContainer: mgmtApi.Container | null | undefined) {
+        if (!sourceContainer) return false;
         const mapping = this.getContainerMapping(sourceContainer, 'source');
         if (!mapping) return false;
-        return sourceContainer.lastModifiedDate !== mapping.sourceLastModifiedDate;
+        const sourceDate = new Date(sourceContainer.lastModifiedDate);
+        const mappedDate = new Date(mapping.sourceLastModifiedDate);
+
+        return sourceDate > mappedDate;
     }
 
-    hasTargetChanged(targetContainer: mgmtApi.Container) {
+    hasTargetChanged(targetContainer: mgmtApi.Container | null | undefined) {
+        if (!targetContainer) return false;
         const mapping = this.getContainerMapping(targetContainer, 'target');
         if (!mapping) return false;
-        return targetContainer.lastModifiedDate !== mapping.targetLastModifiedDate;
+        const targetDate = new Date(targetContainer.lastModifiedDate);
+        const mappedDate = new Date(mapping.targetLastModifiedDate);
+        return targetDate > mappedDate;
     }
 
 

@@ -1,8 +1,7 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { state, getState } from '../../core/state';
-import { GalleryMapper } from '../mappers/gallery-mapper';
-import { getApiClient } from "../../core/state";
+import { state, getState, getApiClient } from 'core/state';
+import { GalleryMapper } from 'lib/mappers/gallery-mapper';
 
 /**
  * Enhanced gallery finder with proper target safety and conflict resolution

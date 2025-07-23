@@ -12,11 +12,11 @@
 		"allowSyntheticDefaultImports": true,
 		"baseUrl": ".",
 		"paths": {
-			"*": ["src/*"]
+			"lib/*": ["src/lib/*"],
+			"core/*": ["src/core/*"],
+			"core": ["src/core"],
+			"types/*": ["src/types/*"]
 		}
 	},
 	"include": ["src/**/*"],
-	// "exclude": [
-	// 	"src/prompts/utilities/agility-models.ts"
-	// ]
 }

@@ -100,15 +100,15 @@ export class AssetMapper {
     }
 
     loadMapping() {
-        const mapping = this.fileOps.getMappingFile(this.directory);
+        const mapping = this.fileOps.getMappingFile(this.directory, this.sourceGuid, this.targetGuid);
         return mapping;
     }
 
     saveMapping() {
-        this.fileOps.saveMappingFile(this.mappings, this.directory);
+        this.fileOps.saveMappingFile(this.mappings, this.directory, this.sourceGuid, this.targetGuid);
     }
 
-    hasSourceChanged(sourceAsset: mgmtApi.Media) {
+    hasSourceChanged(sourceAsset: mgmtApi.Media | null | undefined) {
         if (!sourceAsset) return false;
         const mapping = this.getAssetMapping(sourceAsset, 'source');
         if (!mapping) return false;
@@ -119,7 +119,7 @@ export class AssetMapper {
 
     }
 
-    hasTargetChanged(targetAsset?: mgmtApi.Media | null) {
+    hasTargetChanged(targetAsset?: mgmtApi.Media | null | undefined) {
 
         if (!targetAsset) return false;
         const mapping = this.getAssetMapping(targetAsset, 'target');
