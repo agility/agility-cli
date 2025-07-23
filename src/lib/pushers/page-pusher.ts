@@ -735,14 +735,12 @@ async function processPage(
 }
 
 export async function pushPages(
-  sourceData: SourceData,
-  targetData: any,
-  referenceMapper: ReferenceMapperV2,
-  changeDeltaWorker: ChangeDeltaFileWorker,
+  sourceData: mgmtApi.PageItem[],
+  targetData: mgmtApi.PageItem[],
   // onProgress?: PusherProgressCallback
 ): Promise<PusherResult> {
   // Extract data from sourceData - unified parameter pattern
-  let pages: mgmtApi.PageItem[] = sourceData.pages || [];
+  let pages: mgmtApi.PageItem[] = sourceData || [];
 
   if (!pages || pages.length === 0) {
     console.log("No pages found to process.");

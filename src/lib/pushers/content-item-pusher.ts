@@ -12,6 +12,7 @@ import {
 import { state, getState } from '../../core/state';
 import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 import { MappingLookupResult } from "types/referenceMapperV2";
+import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 
 
 /**
@@ -26,7 +27,7 @@ import { MappingLookupResult } from "types/referenceMapperV2";
 // Enhanced content item mapping using sophisticated field mapper
 async function mapContentItem(
     contentItem: mgmtApi.ContentItem,
-    referenceMapper: ReferenceMapperV2,
+    referenceMapper: ContentItemMapper,
     apiClient: mgmtApi.ApiClient,
     targetGuid: string,
     defaultAssetUrl: string,
@@ -42,7 +43,7 @@ async function mapContentItem(
     const targetAssets: any[] = [];
 
     // Extract source and target assets from the reference mapper records
-    const assetMappings = referenceMapper.getRecordsByType('asset');
+    const assetMappings = referenceMapper.getAssetMapping(contentItem, 'source');
     assetMappings.forEach(mapping => {
         if (mapping.source) {
             sourceAssets.push(mapping.source);
@@ -100,7 +101,7 @@ async function pushNormalContentItemsIndividual(
     targetGuid: string,
     locale: string,
     apiClient: mgmtApi.ApiClient,
-    referenceMapper: ReferenceMapperV2,
+    referenceMapper: ContentItemMapper,
     models: mgmtApi.Model[],
     defaultAssetUrl: string,
     onProgress?: (processed: number, total: number, item: string, status: 'success' | 'error') => void
@@ -232,7 +233,7 @@ async function pushNormalContentItems(
     targetGuid: string,
     locale: string,
     apiClient: mgmtApi.ApiClient,
-    referenceMapper: ReferenceMapperV2,
+    referenceMapper: ContentItemMapper,
     models: mgmtApi.Model[],
     defaultAssetUrl: string,
     onProgress?: (processed: number, total: number, item: string, status: 'success' | 'error') => void
@@ -703,7 +704,7 @@ export async function findContentInTargetInstanceLegacy(
 
 export function areContentDependenciesResolved(
     contentItem: mgmtApi.ContentItem,
-    referenceMapper: ReferenceMapperV2,
+    referenceMapper: ContentItemMapper,
     models: mgmtApi.Model[]
 ): boolean {
     if (!contentItem.fields) {
@@ -723,7 +724,7 @@ export function areContentDependenciesResolved(
 /**
  * Recursively check for unresolved content references
  */
-function hasUnresolvedContentReferences(obj: any, referenceMapper: ReferenceMapperV2): boolean {
+function hasUnresolvedContentReferences(obj: any, referenceMapper: ContentItemMapper): boolean {
     if (typeof obj !== 'object' || obj === null) {
         return false;
     }
@@ -735,7 +736,7 @@ function hasUnresolvedContentReferences(obj: any, referenceMapper: ReferenceMapp
     for (const [key, value] of Object.entries(obj)) {
         // Check for content reference patterns
         if ((key === 'contentid' || key === 'contentID') && typeof value === 'number') {
-            const mappedId = referenceMapper.getMappedId('content', value);
+            const mappedId = referenceMapper.getContentItemMappingByContentID(value, 'source');
             if (!mappedId) {
                 return true; // Unresolved content reference
             }
@@ -747,7 +748,7 @@ function hasUnresolvedContentReferences(obj: any, referenceMapper: ReferenceMapp
             for (const contentIdStr of contentIds) {
                 const contentId = parseInt(contentIdStr.trim());
                 if (!isNaN(contentId)) {
-                    const mappedId = referenceMapper.getMappedId('content', contentId);
+                    const mappedId = referenceMapper.getContentItemMappingByContentID(contentId, 'source');
                     if (!mappedId) {
                         return true; // Unresolved content reference
                     }
@@ -964,16 +965,18 @@ export async function pushContent(
 export async function pushContentSmart(
     sourceData: any,
     targetData: any,
-    referenceMapper: ReferenceMapperV2,
-    changeDeltaWorker: ChangeDeltaFileWorker
 ): Promise<any> {
     if (state.noBatch) {
         // Use individual pusher when --no-batch flag is enabled
-        return await pushContent(sourceData, targetData, referenceMapper, changeDeltaWorker);
+        // return await pushContent(sourceData, targetData, referenceMapper, changeDeltaWorker);
     } else {
         // Use batch pusher for better performance (default behavior)
         const { ContentBatchProcessor } = await import('./content-item-batch-pusher');
 
+
+        const { sourceGuid, targetGuid, locale} = state;
+
+        const referenceMapper = new ContentItemMapper(sourceGuid[0], targetGuid[0]);
         const contentItems = sourceData.content || [];
 
         if (contentItems.length === 0) {
@@ -1122,7 +1125,7 @@ export async function filterContentItemsForProcessing(
     apiClient: any,
     targetGuid: string,
     locale: string,
-    referenceMapper: ReferenceMapperV2,
+    referenceMapper: ContentItemMapper,
     targetData?: any,
     type?: "normal" | "linked"
 ): Promise<ContentFilterResult> {

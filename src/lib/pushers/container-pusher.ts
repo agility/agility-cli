@@ -206,15 +206,13 @@ export async function findContainerInTargetInstance(
  * Uses lastModifiedDate for intelligent update decisions
  */
 export async function pushContainers(
-    sourceData: any,
-    targetData: any,
-    referenceMapper: ReferenceMapperV2,
-    changeDeltaWorker: ChangeDeltaFileWorker,
+    sourceData: mgmtApi.Container[],
+    targetData: mgmtApi.Container[],
     // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
     
     // Extract data from sourceData - unified parameter pattern
-    const sourceContainers: any[] = sourceData.containers || [];
+    const sourceContainers: mgmtApi.Container[] = sourceData || [];
 
     if (!sourceContainers || sourceContainers.length === 0) {
         console.log('No containers found to process.');

@@ -22,7 +22,7 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     description: 'Push asset galleries and media groupings',
     handler: async (sourceData, targetData) => {
       const { pushGalleries } = await import('./gallery-pusher');
-      return await pushGalleries(sourceData, targetData);
+      return await pushGalleries(sourceData['galleries'], targetData['galleries']);
     },
     elements: ['Galleries'],
     dataKey: 'galleries'
@@ -42,7 +42,7 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     description: 'Push content models and field definitions',
     handler: async (sourceData, targetData) => {
       const { pushModels } = await import('./model-pusher');
-      return await pushModels(sourceData, targetData);
+      return await pushModels(sourceData['models'], targetData['models']);
     },
     elements: ['Models'],
     dataKey: 'models'
@@ -52,7 +52,7 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     description: 'Push content containers and views',
     handler: async (sourceData, targetData) => {
       const { pushContainers } = await import('./container-pusher');
-      return await pushContainers(sourceData, targetData);
+      return await pushContainers(sourceData['containers'], targetData['containers']);
     },
     elements: ['Containers'],
     dataKey: 'containers'
@@ -62,7 +62,7 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     description: 'Push content items',
     handler: async (sourceData, targetData) => {
       const { pushContentSmart } = await import('./content-item-pusher');
-      return await pushContentSmart(sourceData, targetData);
+      return await pushContentSmart(sourceData['content'], targetData['content']);
     },
     elements: ['Content'],
     dataKey: 'content'
@@ -72,7 +72,7 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     description: 'Push page templates and layouts',
     handler: async (sourceData, targetData) => {
       const { pushTemplates } = await import('./template-pusher');
-      return await pushTemplates(sourceData, targetData);
+      return await pushTemplates(sourceData['templates'], targetData['templates']);
     },
     elements: ['Templates'],
     dataKey: 'templates'
@@ -82,7 +82,7 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     description: 'Push pages and page hierarchy',
     handler: async (sourceData, targetData) => {
       const { pushPages } = await import('./page-pusher');
-      return await pushPages(sourceData, targetData);
+      return await pushPages(sourceData['pages'], targetData['pages']);
     },
     elements: ['Pages'],
     dataKey: 'pages'

@@ -1,13 +1,14 @@
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2"; 
 import { AssetReferenceExtractor } from "../assets/asset-reference-extractor";
 import * as mgmtApi from '@agility/management-sdk';
+import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 
 export function createContentFieldMapper() { 
   return new ContentFieldMapper(); 
 }
 
 export interface ContentFieldMappingContext {
-  referenceMapper: ReferenceMapperV2;
+  referenceMapper: ContentItemMapper;
   sourceAssets?: any[];
   targetAssets?: any[];
   apiClient?: mgmtApi.ApiClient;
@@ -189,7 +190,7 @@ export class ContentFieldMapper {
     // Map contentid/contentID references
     if (fieldValue.contentid || fieldValue.contentID) {
       const sourceContentId = fieldValue.contentid || fieldValue.contentID;
-      const contentMapping = context.referenceMapper.getMapping('content', sourceContentId);
+      const contentMapping = context.referenceMapper.getContentItemMappingByContentID(sourceContentId, 'source');
       if (contentMapping && (contentMapping as any).contentID) {
         if (fieldValue.contentid !== undefined) {
           mappedValue.contentid = (contentMapping as any).contentID;
@@ -206,7 +207,7 @@ export class ContentFieldMapper {
     if (fieldValue.sortids) {
       const sourceIds = fieldValue.sortids.toString().split(',').map(id => parseInt(id.trim()));
       const mappedIds = sourceIds.map(sourceId => {
-        const mapping = context.referenceMapper.getMapping('content', sourceId);
+        const mapping = context.referenceMapper.getContentItemMappingByContentID(sourceId, 'source');
         return mapping ? (mapping as any).contentID : sourceId;
       });
       mappedValue.sortids = mappedIds.join(',');
@@ -234,7 +235,7 @@ export class ContentFieldMapper {
     }
 
     // Try to find the asset by URL in the reference mapper
-    const assetMapping = context.referenceMapper.getMapping('asset', sourceUrl);
+    const assetMapping = context.referenceMapper.getAssetMapping(sourceUrl, 'source');
     if (assetMapping) {
       const asset = assetMapping as any;
       return asset.originUrl || asset.url || asset.edgeUrl || sourceUrl;
@@ -250,7 +251,7 @@ export class ContentFieldMapper {
       
       if (sourceAsset) {
         // Try to find corresponding target asset
-        const targetAssetMapping = context.referenceMapper.getMapping('asset', sourceAsset.mediaID);
+        const targetAssetMapping = context.referenceMapper.getAssetMapping(sourceAsset.mediaID, 'target');
         if (targetAssetMapping) {
           const targetAsset = targetAssetMapping as any;
           return targetAsset.originUrl || targetAsset.url || targetAsset.edgeUrl || sourceUrl;

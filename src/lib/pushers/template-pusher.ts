@@ -88,8 +88,6 @@ export async function findTemplateInTargetInstanceEnhanced(
 export async function pushTemplates(
     sourceData: any,
     targetData: any,
-    referenceMapper: ReferenceMapperV2,
-    changeDeltaWorker: ChangeDeltaFileWorker,
     // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
     

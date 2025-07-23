@@ -65,11 +65,13 @@ export async function pushAssets(
       const existingMapping = referenceMapper.getAssetMapping(media, "target");
       const shouldCreate = existingMapping === null;
 
-      // should update? are there changes in the target? skip
-      const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(media);
+      // get the target asset, check if the source and targets need updates
+      const targetAsset: mgmtApi.Media = targetData.find(targetAsset => targetAsset.mediaID === media.mediaID) || null;      
+      const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetAsset);
       const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(media);
       const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
       const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
+
 
       if (shouldCreate) {
         // Asset needs to be created (doesn't exist in target)
