@@ -66,7 +66,7 @@ export async function pushAssets(
       const shouldCreate = existingMapping === null;
 
       // get the target asset, check if the source and targets need updates
-      const targetAsset: mgmtApi.Media = targetData.find(targetAsset => targetAsset.mediaID === existingMapping.targetMediaID) || null;      
+      const targetAsset: mgmtApi.Media = targetData.find(targetAsset => targetAsset.mediaID === existingMapping.targetMediaID) || null;
       const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetAsset);
       const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(media);
       const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
@@ -157,7 +157,7 @@ async function createAsset(
   if (!fileOps.checkFileExists(absoluteLocalFilePath)) {
     throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
   }
-  const fileBuffer = fileOps.readFile(absoluteLocalFilePath);
+  const fileBuffer = fileOps.createReadStream(absoluteLocalFilePath);
   form.append("files", fileBuffer, media.fileName);
 
   const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
@@ -198,7 +198,7 @@ async function updateAsset(
   if (!fileOps.checkFileExists(absoluteLocalFilePath)) {
     throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
   }
-  const fileBuffer = fileOps.readFile(absoluteLocalFilePath);
+  const fileBuffer = fileOps.createReadStream(absoluteLocalFilePath);
   form.append("files", fileBuffer, media.fileName);
 
   const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
