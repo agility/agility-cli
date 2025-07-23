@@ -1,5 +1,5 @@
 import { fileOperations } from "core";
-import  * as mgmtApi from "@agility/management-sdk";
+import * as mgmtApi from "@agility/management-sdk";
 
 interface ContainerMapping {
     sourceGuid: string;
@@ -15,41 +15,39 @@ export class ContainerMapper {
     private fileOps: fileOperations;
     private sourceGuid: string;
     private targetGuid: string;
-    private locale: string;
     private mappings: ContainerMapping[];
     private directory: string;
 
-    constructor(sourceGuid: string, targetGuid: string, locale: string) {
+    constructor(sourceGuid: string, targetGuid: string) {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
-        this.locale = locale;
         this.directory = 'containers';
-        // this will provide access to the /agility-files/{GUID}/{locale} folder
-        this.fileOps = new fileOperations(targetGuid, locale)
+        // this will provide access to the /agility-files/{GUID} folder
+        this.fileOps = new fileOperations(targetGuid);
         this.mappings = this.loadMapping();
 
     }
 
     getContainerMapping(container: mgmtApi.Container, type: 'source' | 'target'): ContainerMapping | null {
-        const mapping = this.mappings.find((m: ContainerMapping) => 
+        const mapping = this.mappings.find((m: ContainerMapping) =>
             type === 'source' ? m.sourceContentViewID === container.contentViewID : m.targetContentViewID === container.contentViewID
         );
-        if(!mapping) return null;
-        return mapping;       
+        if (!mapping) return null;
+        return mapping;
     }
 
     getContainerMappingByContentViewID(contentViewID: number, type: 'source' | 'target'): ContainerMapping | null {
-        const mapping = this.mappings.find((m: ContainerMapping) => 
+        const mapping = this.mappings.find((m: ContainerMapping) =>
             type === 'source' ? m.sourceContentViewID === contentViewID : m.targetContentViewID === contentViewID
         );
-        if(!mapping) return null;
+        if (!mapping) return null;
         return mapping;
     }
-    
+
     addMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container) {
         const mapping = this.getContainerMapping(targetContainer, 'target');
 
-        if(mapping) {
+        if (mapping) {
             this.updateMapping(sourceContainer, targetContainer);
         } else {
 
@@ -71,7 +69,7 @@ export class ContainerMapper {
 
     updateMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container) {
         const mapping = this.getContainerMapping(targetContainer, 'target');
-        if(mapping) {
+        if (mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
             mapping.sourceContentViewID = sourceContainer.contentViewID;
@@ -80,7 +78,7 @@ export class ContainerMapper {
             mapping.targetLastModifiedDate = targetContainer.lastModifiedDate;
             this.saveMapping();
         }
-        
+
     }
 
     loadMapping() {
@@ -94,16 +92,16 @@ export class ContainerMapper {
 
     hasSourceChanged(sourceContainer: mgmtApi.Container) {
         const mapping = this.getContainerMapping(sourceContainer, 'source');
-        if(!mapping) return false;
+        if (!mapping) return false;
         return sourceContainer.lastModifiedDate !== mapping.sourceLastModifiedDate;
     }
-    
+
     hasTargetChanged(targetContainer: mgmtApi.Container) {
         const mapping = this.getContainerMapping(targetContainer, 'target');
-        if(!mapping) return false;
+        if (!mapping) return false;
         return targetContainer.lastModifiedDate !== mapping.targetLastModifiedDate;
     }
-    
-    
+
+
 
 }

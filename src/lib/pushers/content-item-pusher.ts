@@ -12,7 +12,10 @@ import {
 import { state, getState } from '../../core/state';
 import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 import { MappingLookupResult } from "types/referenceMapperV2";
-import { ContentItemMapper } from "lib/mappers/content-item-mapper";
+import { ContentItemMapper, ContentItemMapping } from "lib/mappers/content-item-mapper";
+import { AssetMapper } from "lib/mappers/asset-mapper";
+import { ModelMapper } from "lib/mappers/model-mapper";
+import { ContainerMapper } from "lib/mappers/container-mapper";
 
 
 /**
@@ -42,22 +45,13 @@ async function mapContentItem(
     const sourceAssets: any[] = [];
     const targetAssets: any[] = [];
 
-    // Extract source and target assets from the reference mapper records
-    const assetMappings = referenceMapper.getAssetMapping(contentItem, 'source');
-    assetMappings.forEach(mapping => {
-        if (mapping.source) {
-            sourceAssets.push(mapping.source);
-        }
-        if (mapping.target) {
-            targetAssets.push(mapping.target);
-        }
-    });
+    // instantiate asset mapper with source and target GUIDs so it can be used in field mapping
+    const assetMapper = new AssetMapper(state.sourceGuid[0], state.targetGuid[0]);
 
     // Map the content item fields using enhanced reference transformation
     const mappingResult = fieldMapper.mapContentFields(contentItem.fields, {
         referenceMapper,
-        sourceAssets,
-        targetAssets,
+        assetMapper,
         apiClient,
         targetGuid
     });
@@ -176,7 +170,7 @@ async function pushNormalContentItemsIndividual(
                 };
 
                 // Add mapping to reference mapper with full target object
-                referenceMapper.addMapping('content', contentItem, targetContentItem);
+                referenceMapper.addMapping(contentItem, targetContentItem);
 
                 successfulItems++;
                 console.log(ansiColors.green(`[Content Pusher] ✓ ${itemName}: Source ID ${contentItem.contentID} → Target ID ${newContentId}`));
@@ -206,14 +200,7 @@ async function pushNormalContentItemsIndividual(
         }
     }
 
-    // Save mappings after individual processing
-    console.log(ansiColors.gray(`💾 Saving mappings after individual processing...`));
-    try {
-        await referenceMapper.saveAllMappings();
-        console.log(ansiColors.gray(`✅ Mappings saved successfully`));
-    } catch (saveError: any) {
-        console.warn(ansiColors.yellow(`⚠️ Failed to save mappings: ${saveError.message}`));
-    }
+
 
     console.log(ansiColors.green(`✅ Individual processing complete: ${successfulItems} successful, ${failedItems} failed`));
 
@@ -268,7 +255,7 @@ async function processLinkedContentIndividually(
     targetGuid: string,
     locale: string,
     apiClient: mgmtApi.ApiClient,
-    referenceMapper: ReferenceMapperV2,
+    referenceMapper: ContentItemMapper,
     models: mgmtApi.Model[],
     defaultAssetUrl: string,
     onProgress?: (processed: number, total: number, item: string, status: 'success' | 'error') => void
@@ -288,6 +275,10 @@ async function processLinkedContentIndividually(
     if (linkedContentItems.length > 0) {
         console.log(ansiColors.cyan(`[Content Pusher] Processing ${linkedContentItems.length} linked content items individually with dependency resolution`));
     }
+
+    //get the other mappers
+    const modelMapper = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    const containerMapper = new ContainerMapper(state.sourceGuid[0], state.targetGuid[0]);
 
     // Legacy do-while pattern: keep processing until no more progress
     do {
@@ -332,8 +323,8 @@ async function processLinkedContentIndividually(
                     continue;
                 }
 
-                // Find target model using reference mapper
-                const targetModelId = referenceMapper.getMappedId('model', sourceModel.id);
+                // Find target model using model mapper
+                const targetModelId = modelMapper.getModelMappingByID(sourceModel.id, "source");
                 if (!targetModelId) {
                     skippedContentItems[contentItem.contentID] = `Target model mapping not found: ${sourceModel.referenceName} (ID: ${sourceModel.id})`;
                     console.log(ansiColors.red(`✗ Linked content ${itemName} failed - target model mapping not found: ${sourceModel.referenceName}`));
@@ -507,7 +498,7 @@ interface ChangeDetection {
 function changeDetection(
     sourceEntity: mgmtApi.ContentItem,
     targetEntity: mgmtApi.ContentItem | null,
-    mapping: MappingLookupResult,
+    mapping: ContentItemMapping,
 ): ChangeDetection {
 
     if (!mapping && !targetEntity) {
@@ -526,8 +517,8 @@ function changeDetection(
     const sourceVersion = sourceEntity.properties?.versionID;
     const targetVersion = targetEntity.properties?.versionID;
 
-    const mappedSourceVersion = (mapping?.entry?.entityA?.modified || 0) as number;
-    const mappedTargetVersion = (mapping?.entry?.entityB?.modified || 0) as number;
+    const mappedSourceVersion = (mapping?.sourceVersionID || 0) as number;
+    const mappedTargetVersion = (mapping?.targetVersionID || 0) as number;
 
     if (sourceVersion && targetVersion)
         //both the source and the target exist
@@ -590,7 +581,7 @@ export function findContentInTargetInstance(
     targetGuid: string,
     locale: string,
     targetData: GuidEntities,
-    referenceMapper: ReferenceMapperV2
+    referenceMapper: ContentItemMapper
 ): {
     content: mgmtApi.ContentItem | null;
     shouldUpdate: boolean;
@@ -603,10 +594,8 @@ export function findContentInTargetInstance(
 
     // STEP 1: Find existing mapping
 
-    //GET FROM MAPPING
-    //Mapped Source ID, Mapped Version ID, Target Source ID and Target Version ID
-
-    const mappedEntity = referenceMapper.getMappingEntity("content", sourceContent.contentID);
+    //GET FROM SOURCE MAPPING
+    const mappedEntity = referenceMapper.getContentItemMappingByContentID(sourceContent.contentID, "source");
 
     let targetContent: mgmtApi.ContentItem | null = null;
 
@@ -615,7 +604,7 @@ export function findContentInTargetInstance(
         // STEP 2: Find target content item using mapping
         targetContent = targetData.content?.find((c: any) => {
             // Check if content ID matches mapped entity's target ID (entityB)
-            if (c.contentID === mappedEntity.entry.entityB.id) {
+            if (c.contentID === mappedEntity.targetContentID) {
                 return c;
             }
             return null;
@@ -974,7 +963,7 @@ export async function pushContentSmart(
         const { ContentBatchProcessor } = await import('./content-item-batch-pusher');
 
 
-        const { sourceGuid, targetGuid, locale} = state;
+        const { sourceGuid, targetGuid, locale } = state;
 
         const referenceMapper = new ContentItemMapper(sourceGuid[0], targetGuid[0]);
         const contentItems = sourceData.content || [];
