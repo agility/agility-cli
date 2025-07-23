@@ -283,12 +283,12 @@ export class fileOperations {
   }
 
   // Mapping file operations
-  getMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string | null | undefined): string {
+  getMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string | null): string {
     // Store mappings centrally in /agility-files/mappings/ instead of per-instance
     return path.join(this._rootPath, 'mappings', `${sourceGuid}-${targetGuid}`, locale ?? '');
   }
 
-  getMappingFile(type: string, sourceGuid: string, targetGuid: string, locale?: string | null | undefined): any[] {
+  getMappingFile(type: string, sourceGuid: string, targetGuid: string, locale?: string | null): any[] {
     const centralMappingsPath = path.join(this._rootPath, 'mappings',`${sourceGuid}-${targetGuid}`, locale ?? '', type);
     if (fs.existsSync(centralMappingsPath)) {
       const data = fs.readFileSync(path.join(centralMappingsPath, `mappings.json`), 'utf8');
@@ -301,7 +301,7 @@ export class fileOperations {
   }
 
 
-  saveMappingFile(mappingData: any[], type?: string, sourceGuid?: string, targetGuid?: string, locale?: string | null | undefined): void {
+  saveMappingFile(mappingData: any[], type?: string, sourceGuid?: string, targetGuid?: string, locale?: string | null): void {
 
     const mappingRootPath = this.getMappingFilePath(sourceGuid, targetGuid, locale);
     const centralMappingsPath = path.join(mappingRootPath, type);
