@@ -70,14 +70,7 @@ async function configureStateFromSyncPrompts(sourceInstance: AgilityInstance, ta
         }
     ]);
 
-    const batchChoice = await inquirer.prompt([
-        {
-            type: 'confirm',
-            name: 'useBatchProcessing',
-            message: 'Use batch processing for better performance? (Recommended: Yes)',
-            default: true // Default: batch processing enabled (--no-batch=false)
-        }
-    ]);
+
 
     // Configure state using setState() - same pattern as CLI commands
     setState({
@@ -93,7 +86,6 @@ async function configureStateFromSyncPrompts(sourceInstance: AgilityInstance, ta
         verbose: false,
         update: updateChoice.update,
         overwrite: overwriteChoice.overwrite,
-        noBatch: !batchChoice.useBatchProcessing, // Invert: true=batch, false=no-batch
         // Set other defaults
         reset: false,
         legacyFolders: false,

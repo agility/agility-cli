@@ -20,11 +20,11 @@ export const systemArgs = {
     default: false,
   },
   preprod: {
-    describe: "Enable preprod mode", 
+    describe: "Enable preprod mode",
     type: "boolean" as const,
     default: false,
   },
-  
+
   // UI/Output args
   headless: {
     describe: "Turn off the experimental Blessed UI for operations.",
@@ -36,7 +36,7 @@ export const systemArgs = {
     type: "boolean" as const,
     default: true,
   },
-  
+
   // File system args
   rootPath: {
     describe: "Specify the root path for the operation.",
@@ -50,7 +50,7 @@ export const systemArgs = {
     type: "boolean" as const,
     default: false,
   },
-  
+
   // Instance/Connection args
   locale: {
     describe: "Provide locale(s) for the operation. Comma-separated for multiple locales (e.g., 'en-us,en-ca,fr-fr'). If not provided, all available locales will be auto-detected and used.",
@@ -88,11 +88,11 @@ export const systemArgs = {
     describe: "(Optional) Specify a base URL for the Agility API, if different from default.",
     type: "string" as const
   },
-  
 
-  
 
-  
+
+
+
   // **NEW: Selective Model-Based Sync Parameter (Task 103)**
   models: {
     describe: "Comma-separated list of model reference names to sync. Automatically includes all dependent content, pages, assets, and galleries.",
@@ -101,7 +101,7 @@ export const systemArgs = {
     type: "string" as const,
     default: "",
   },
-  
+
   // Debug/Analysis args
   test: {
     describe: "Enable test mode: bypasses authentication checks for analysis-only operations. Shows detailed analysis and debugging information.",
@@ -109,22 +109,22 @@ export const systemArgs = {
     type: "boolean" as const,
     default: false,
   },
-  
+
   // Instance identification args
   sourceGuid: {
     describe: "Provide the source instance GUID(s). Comma-separated for multiple instances (e.g., 'guid1,guid2,guid3'). If not provided, will use AGILITY_GUID from .env file if available.",
-    alias: ["source-guid", "sourceguid", "source", "SourceGuid", "SourceGUID","SOURCE", "SOURCEGUID", "sourceGuids", "source-guids", "SourceGuids", "SOURCEGUIDS"],
+    alias: ["source-guid", "sourceguid", "source", "SourceGuid", "SourceGUID", "SOURCE", "SOURCEGUID", "sourceGuids", "source-guids", "SourceGuids", "SOURCEGUIDS"],
     demandOption: false,
     type: "string" as const,
   },
   targetGuid: {
     describe: "Provide the target instance GUID(s) for sync operations. Comma-separated for multiple instances (e.g., 'guid1,guid2,guid3').",
-    alias: ["target-guid", "targetguid", "target", "TargetGuid", "TargetGUID","TARGET", "TARGETGUID", "targetGuids", "target-guids", "TargetGuids", "TARGETGUIDS"],
+    alias: ["target-guid", "targetguid", "target", "TargetGuid", "TargetGUID", "TARGET", "TARGETGUID", "targetGuids", "target-guids", "TargetGuids", "TARGETGUIDS"],
     demandOption: false,
     type: "string" as const,
   },
 
-  // Force operation args  
+  // Force operation args
   overwrite: {
     describe: "For sync commands only: force update existing items in target instance instead of creating new items with -1 IDs. Default: false (safer behavior to prevent overwriting existing content).",
     type: "boolean" as const,
@@ -140,7 +140,7 @@ export const systemArgs = {
   update: {
     describe: "Controls file downloading behavior. --update=false (default): Skip existing files during download (normal efficient behavior). --update=true: Force download/overwrite existing files and clear sync tokens for complete refresh.",
     type: "boolean" as const,
-    alias: ["reset", "Reset", "RESET","forceUpdate", "ForceUpdate", "FORCEUPDATE"],
+    alias: ["reset", "Reset", "RESET", "forceUpdate", "ForceUpdate", "FORCEUPDATE"],
     default: false
   },
   reset: {
@@ -157,18 +157,12 @@ export const systemArgs = {
     default: false
   },
 
-  // Batch processing args
-  noBatch: {
-    describe: "Disable batch processing and use individual item processing instead. Affects both content items and linked content - all items will be processed individually rather than in optimized batches. Default: false (batch processing enabled for better performance).",
-    type: "boolean" as const,
-    default: false
-  }
 };
 
 /**
  * Type helper for command arguments that include system args
  */
-export type SystemArgsType = typeof systemArgs; 
+export type SystemArgsType = typeof systemArgs;
 
 export interface SystemArgs {
   help?: boolean;
@@ -193,4 +187,4 @@ export interface SystemArgs {
   channel?: string;
   preview?: boolean;
   rootPath?: string;
-} 
+}

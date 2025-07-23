@@ -12,54 +12,51 @@ export interface State {
   dev: boolean;
   local: boolean;
   preprod: boolean;
-  
+
   // UI modes
   headless: boolean;
   verbose: boolean;
-  
+
   // Instance/Connection
   sourceGuid: string[]; // Array of source GUIDs
-  targetGuid: string[]; // Array of target GUIDs  
+  targetGuid: string[]; // Array of target GUIDs
   locale: string[];     // Array of locales (for backward compatibility / user-specified)
   availableLocales: string[]; // Detected locales from getLocales() during auth
   guidLocaleMap: Map<string, string[]>; // Per-GUID locale mapping for matrix operations
   channel: string;
   preview: boolean;
   elements: string;
-  
+
   // File system
   rootPath: string;
   legacyFolders: boolean;
-  
+
   // Network/Security
   insecure: boolean;
   baseUrl?: string;
-  
+
   // Debug/Analysis
   test: boolean;
-  
+
   // Operation control
   overwrite: boolean;
   force: boolean; // New: Override target safety conflicts
   reset: boolean;
   update: boolean;
-  
-  // Publishing control  
+
+  // Publishing control
   publish: boolean;
-  
-  // Batch processing control
-  noBatch: boolean;
-  
+
   // Model-specific
   models: string;
-  
+
   // Content-specific
   contentItems?: string;
-  
+
   // Computed UI modes (set by auth.init())
   useHeadless?: boolean;
   useVerbose?: boolean;
-  
+
   // Auth/API objects (set by auth.init())
   mgmtApiOptions?: any;
   user?: any;
@@ -70,10 +67,10 @@ export interface State {
 
   // API Keys for download operations (simplified approach)
   apiKeys: Array<{ guid: string; previewKey: string; fetchKey: string }>;
-  
+
   // Cached API client instance (to prevent connection pool exhaustion)
   cachedApiClient?: mgmtApi.ApiClient;
-  
+
   // Legacy fields (for backward compatibility)
   token: string | null;
   localServer: string;
@@ -87,11 +84,11 @@ export const state: State = {
   dev: false,
   local: false,
   preprod: false,
-  
+
   // UI modes
   headless: false,
   verbose: false,
-  
+
   // Instance/Connection
   sourceGuid: [],
   targetGuid: [],
@@ -102,38 +99,35 @@ export const state: State = {
   channel: "website",
   preview: true,
   elements: "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps",
-  
+
   // File system
   rootPath: "agility-files",
   legacyFolders: false,
-  
+
   // Network/Security
   insecure: false,
-  
+
   // Debug/Analysis
   test: false,
-  
+
   // Operation control
   overwrite: false,
   force: false,
   reset: false,
   update: true,
-  
+
   // Publishing control
   publish: false,
-  
-  // Batch processing control
-  noBatch: false,
-  
+
   // Model-specific
   models: "",
-  
+
   // Cached API client instance (to prevent connection pool exhaustion)
   cachedApiClient: undefined,
-  
+
   // Content-specific
   contentItems: undefined,
-  
+
   // Legacy fields
   token: null,
   localServer: "",
@@ -149,11 +143,11 @@ export function setState(argv: any) {
   if (argv.dev !== undefined) state.dev = argv.dev;
   if (argv.local !== undefined) state.local = argv.local;
   if (argv.preprod !== undefined) state.preprod = argv.preprod;
-  
+
   // UI modes
   if (argv.headless !== undefined) state.headless = argv.headless;
   if (argv.verbose !== undefined) state.verbose = argv.verbose;
-  
+
   // Instance/Connection - Multi-GUID parsing logic
   if (argv.sourceGuid !== undefined) {
     if (argv.sourceGuid.includes(',')) {
@@ -166,7 +160,7 @@ export function setState(argv: any) {
       state.sourceGuid = [argv.sourceGuid];
     }
   }
-  
+
   if (argv.targetGuid !== undefined) {
     if (argv.targetGuid.includes(',')) {
       // Multi-GUID specification
@@ -178,7 +172,7 @@ export function setState(argv: any) {
       state.targetGuid = [argv.targetGuid];
     }
   }
-  
+
   // Multi-locale parsing logic
   if (argv.locale !== undefined) {
     if (argv.locale.trim() === "") {
@@ -194,37 +188,34 @@ export function setState(argv: any) {
       state.locale = [argv.locale];
     }
   }
-  
+
   if (argv.channel !== undefined) state.channel = argv.channel;
   if (argv.preview !== undefined) state.preview = argv.preview;
   if (argv.elements !== undefined) state.elements = argv.elements;
-  
+
   // File system
   if (argv.rootPath !== undefined) state.rootPath = argv.rootPath;
   if (argv.legacyFolders !== undefined) state.legacyFolders = argv.legacyFolders;
-  
+
   // Network/Security
   if (argv.insecure !== undefined) state.insecure = argv.insecure;
   if (argv.baseUrl !== undefined) state.baseUrl = argv.baseUrl;
-  
+
   // Debug/Analysis
   if (argv.test !== undefined) state.test = argv.test;
-  
+
   // Operation control
   if (argv.overwrite !== undefined) state.overwrite = argv.overwrite;
   if (argv.force !== undefined) state.force = argv.force;
   if (argv.reset !== undefined) state.reset = argv.reset;
   if (argv.update !== undefined) state.update = argv.update;
-  
+
   // Publishing control
   if (argv.publish !== undefined) state.publish = argv.publish;
-  
-  // Batch processing control
-  if (argv.noBatch !== undefined) state.noBatch = argv.noBatch;
-  
+
   // Model-specific
   if (argv.models !== undefined) state.models = argv.models;
-  
+
   // Content-specific
   if (argv.contentItems !== undefined) state.contentItems = argv.contentItems;
 }
@@ -246,12 +237,12 @@ export function configureSSL() {
 export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } {
   const envFiles = ['.env', '.env.local', '.env.development', '.env.production'];
   const primedValues: string[] = [];
-  
+
   for (const envFile of envFiles) {
     const envPath = path.join(process.cwd(), envFile);
     if (fs.existsSync(envPath)) {
       const envContent = fs.readFileSync(envPath, 'utf8');
-      
+
       // Parse all relevant environment variables
       const envVars = {
         AGILITY_GUID: envContent.match(/AGILITY_GUID=([^\n]+)/),
@@ -260,7 +251,7 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
         AGILITY_LOCALES: envContent.match(/AGILITY_LOCALES=([^\n]+)/),
         AGILITY_TEST: envContent.match(/AGILITY_TEST=([^\n]+)/),
         AGILITY_OVERWRITE: envContent.match(/AGILITY_OVERWRITE=([^\n]+)/),
-        
+
         AGILITY_PREVIEW: envContent.match(/AGILITY_PREVIEW=([^\n]+)/),
         AGILITY_VERBOSE: envContent.match(/AGILITY_VERBOSE=([^\n]+)/),
         AGILITY_HEADLESS: envContent.match(/AGILITY_HEADLESS=([^\n]+)/),
@@ -272,7 +263,7 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
         AGILITY_PREPROD: envContent.match(/AGILITY_PREPROD=([^\n]+)/),
         AGILITY_LEGACY_FOLDERS: envContent.match(/AGILITY_LEGACY_FOLDERS=([^\n]+)/),
         AGILITY_INSECURE: envContent.match(/AGILITY_INSECURE=([^\n]+)/),
-        
+
         AGILITY_MODELS: envContent.match(/AGILITY_MODELS=([^\n]+)/),
       };
 
@@ -281,53 +272,53 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
         state.sourceGuid = [envVars.AGILITY_GUID[1].trim()];
         primedValues.push('sourceGuid');
       }
-      
+
       if (envVars.AGILITY_WEBSITE && envVars.AGILITY_WEBSITE[1] && !state.channel) {
         state.channel = envVars.AGILITY_WEBSITE[1].trim();
         primedValues.push('channel');
       }
-      
+
       if (envVars.AGILITY_LOCALES && envVars.AGILITY_LOCALES[1] && state.locale.length === 0) {
         state.locale = envVars.AGILITY_LOCALES[1].trim().split(',');
         primedValues.push('locale');
       }
-      
+
       // Handle boolean flags - prefer command line args over .env
       if (envVars.AGILITY_TEST && envVars.AGILITY_TEST[1] && state.test === undefined) {
         state.test = envVars.AGILITY_TEST[1].trim().toLowerCase() === 'true';
         primedValues.push('test');
       }
-      
+
       if (envVars.AGILITY_OVERWRITE && envVars.AGILITY_OVERWRITE[1] && state.overwrite === undefined) {
         state.overwrite = envVars.AGILITY_OVERWRITE[1].trim().toLowerCase() === 'true';
         primedValues.push('overwrite');
       }
-      
+
       if (envVars.AGILITY_PREVIEW && envVars.AGILITY_PREVIEW[1] && state.preview === undefined) {
         state.preview = envVars.AGILITY_PREVIEW[1].trim().toLowerCase() === 'true';
         primedValues.push('preview');
       }
-      
+
       if (envVars.AGILITY_VERBOSE && envVars.AGILITY_VERBOSE[1] && state.verbose === undefined) {
         state.verbose = envVars.AGILITY_VERBOSE[1].trim().toLowerCase() === 'true';
         primedValues.push('verbose');
       }
-      
+
       if (envVars.AGILITY_HEADLESS && envVars.AGILITY_HEADLESS[1] && state.headless === undefined) {
         state.headless = envVars.AGILITY_HEADLESS[1].trim().toLowerCase() === 'true';
         primedValues.push('headless');
       }
-      
+
       if (envVars.AGILITY_ELEMENTS && envVars.AGILITY_ELEMENTS[1] && !state.elements) {
         state.elements = envVars.AGILITY_ELEMENTS[1].trim();
         primedValues.push('elements');
       }
-      
+
       if (envVars.AGILITY_ROOT_PATH && envVars.AGILITY_ROOT_PATH[1] && !state.rootPath) {
         state.rootPath = envVars.AGILITY_ROOT_PATH[1].trim();
         primedValues.push('rootPath');
       }
-      
+
       if (envVars.AGILITY_BASE_URL && envVars.AGILITY_BASE_URL[1] && !state.baseUrl) {
         state.baseUrl = envVars.AGILITY_BASE_URL[1].trim();
         primedValues.push('baseUrl');
@@ -387,11 +378,11 @@ export function resetState() {
   state.dev = false;
   state.local = false;
   state.preprod = false;
-  
+
   // UI modes
   state.headless = false;
   state.verbose = false;
-  
+
   // Instance/Connection
   state.sourceGuid = [];
   state.targetGuid = [];
@@ -402,40 +393,37 @@ export function resetState() {
   state.channel = "website";
   state.preview = true;
   state.elements = "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps";
-  
+
   // File system
   state.rootPath = "agility-files";
   state.legacyFolders = false;
-  
+
   // Network/Security
   state.insecure = false;
   state.baseUrl = undefined;
-  
+
   // Debug/Analysis
   state.test = false;
-  
+
   // Operation control
   state.overwrite = false;
   state.force = false;
   state.reset = false;
   state.update = true;
-  
+
   // Publishing control
   state.publish = false;
-  
-  // Batch processing control
-  state.noBatch = false;
-  
+
   // Model-specific
   state.models = "";
-  
+
   // Content-specific
   state.contentItems = undefined;
-  
+
   // Clear computed properties
   state.useHeadless = undefined;
   state.useVerbose = undefined;
-  
+
   // Clear auth/API objects
   state.mgmtApiOptions = undefined;
   state.user = undefined;
@@ -443,7 +431,7 @@ export function resetState() {
   state.previewKey = undefined;
   state.fetchKey = undefined;
   state.currentWebsite = undefined;
-  
+
   // Legacy fields
   state.token = null;
   state.localServer = "";
@@ -467,12 +455,12 @@ export function getApiClient(): mgmtApi.ApiClient {
   if (state.cachedApiClient) {
     return state.cachedApiClient;
   }
-  
+
   // Create new client using current auth state
   if (!state.mgmtApiOptions) {
     throw new Error('Management API options not initialized. Call auth.init() first.');
   }
-  
+
   // Create and cache the client
   state.cachedApiClient = new mgmtApi.ApiClient(state.mgmtApiOptions);
   return state.cachedApiClient;
@@ -498,7 +486,7 @@ export function clearApiClient(): void {
 export function getUIMode() {
   const useHeadless = state.headless;
   const useVerbose = !useHeadless && state.verbose;
-  
+
   return {
     useHeadless,
     useVerbose,
@@ -553,17 +541,17 @@ export function resolveLocales(): string[] {
     console.log(`Using specified locales: ${state.locale.join(', ')}`);
     return state.locale;
   }
-  
+
   // Use available locales detected during auth.init
   if (state.availableLocales && state.availableLocales.length > 0) {
     console.log(`Using auto-detected locales: ${state.availableLocales.join(', ')}`);
-    
+
     // Update state with detected locales for consistency
     state.locale = state.availableLocales;
-    
+
     return state.availableLocales;
   }
-  
+
   // Fallback if no locales available
   console.log('⚠️  No locales available, falling back to en-us');
   return ['en-us'];
@@ -598,7 +586,7 @@ export function validateLocaleFormat(locale: string): boolean {
 export function validateLocales(locales: string[]): { valid: string[], invalid: string[] } {
   const valid: string[] = [];
   const invalid: string[] = [];
-  
+
   for (const locale of locales) {
     if (validateLocaleFormat(locale)) {
       valid.push(locale);
@@ -606,6 +594,6 @@ export function validateLocales(locales: string[]): { valid: string[], invalid: 
       invalid.push(locale);
     }
   }
-  
+
   return { valid, invalid };
-} 
+}
