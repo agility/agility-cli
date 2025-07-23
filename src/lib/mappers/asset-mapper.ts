@@ -83,6 +83,8 @@ export class AssetMapper {
             mapping.targetDateModified = targetAsset.dateModified;
             mapping.sourceMediaID = sourceAsset.mediaID;
             mapping.targetMediaID = targetAsset.mediaID;
+            mapping.sourceUrl = sourceAsset.edgeUrl;
+            mapping.targetUrl = targetAsset.edgeUrl;
         }
         this.saveMapping();
     }

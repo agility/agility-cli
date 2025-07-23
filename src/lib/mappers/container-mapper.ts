@@ -6,6 +6,8 @@ interface ContainerMapping {
     targetGuid: string;
     sourceContentViewID: number;
     targetContentViewID: number;
+    sourceReferenceName?: string;
+    targetReferenceName?: string;
     sourceLastModifiedDate: string;
     targetLastModifiedDate: string;
 }
@@ -44,6 +46,14 @@ export class ContainerMapper {
         return mapping;
     }
 
+    getContainerMappingByReferenceName(referenceName: string, type: 'source' | 'target'): ContainerMapping | null {
+        const mapping = this.mappings.find((m: ContainerMapping) =>
+            type === 'source' ? m.sourceReferenceName === referenceName : m.targetReferenceName === referenceName
+        );
+        if (!mapping) return null;
+        return mapping;
+    }
+
     addMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container) {
         const mapping = this.getContainerMapping(targetContainer, 'target');
 
@@ -58,6 +68,8 @@ export class ContainerMapper {
                 targetContentViewID: targetContainer.contentViewID,
                 sourceLastModifiedDate: sourceContainer.lastModifiedDate,
                 targetLastModifiedDate: targetContainer.lastModifiedDate,
+                sourceReferenceName: sourceContainer.referenceName,
+                targetReferenceName: targetContainer.referenceName
 
             }
 
@@ -76,6 +88,8 @@ export class ContainerMapper {
             mapping.targetContentViewID = targetContainer.contentViewID;
             mapping.sourceLastModifiedDate = sourceContainer.lastModifiedDate;
             mapping.targetLastModifiedDate = targetContainer.lastModifiedDate;
+            mapping.sourceReferenceName = sourceContainer.referenceName;
+            mapping.targetReferenceName = targetContainer.referenceName;
             this.saveMapping();
         }
 
