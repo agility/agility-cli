@@ -8,6 +8,7 @@ export * from "./instance-lister";
 // // ReferenceMapperV2 exports
 export * from "../pushers/batch-polling";
 export * from "./sitemap-hierarchy";
+export * from "./link-type-detector";
 export { GuidDataLoader, GuidEntities, SourceEntities } from "../pushers/guid-data-loader";
 export { EntityComparer, EntityComparison, ComparisonResult } from "./entity-comparer";
 export function prettyException(error: any): string { return error.message || error.toString(); }
