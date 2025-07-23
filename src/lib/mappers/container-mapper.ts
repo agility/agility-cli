@@ -16,20 +16,23 @@ export class ContainerMapper {
     private sourceGuid: string;
     private targetGuid: string;
     private locale: string;
-    private mappings: any;
+    private mappings: ContainerMapping[];
+    private directory: string;
 
     constructor(sourceGuid: string, targetGuid: string, locale: string) {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
         this.locale = locale;
+        this.directory = 'containers';
         // this will provide access to the /agility-files/{GUID}/{locale} folder
         this.fileOps = new fileOperations(targetGuid, locale)
         this.mappings = this.loadMapping();
 
     }
 
-    getContainerMapping(container: any) {
+    getContainerMapping(container: mgmtApi.Container): ContainerMapping | null {
         const mapping = this.mappings.find((m: ContainerMapping) => m.targetContentViewID === container.contentViewID);
+        if(!mapping) return null;
         return mapping;       
     }
 
@@ -65,17 +68,18 @@ export class ContainerMapper {
             mapping.targetContentViewID = targetContainer.contentViewID;
             mapping.sourceLastModifiedDate = sourceContainer.lastModifiedDate;
             mapping.targetLastModifiedDate = targetContainer.lastModifiedDate;
+            this.saveMapping();
         }
-        this.saveMapping();
+        
     }
 
     loadMapping() {
-        const mapping = this.fileOps.getMappingFile('containers');
+        const mapping = this.fileOps.getMappingFile(this.directory);
         return mapping;
     }
 
     saveMapping() {
-        this.fileOps.saveMappingFile(this.mappings, 'containers');
+        this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
 }

@@ -15,19 +15,22 @@ export class PageMapper {
     private fileOps: fileOperations;
     private sourceGuid: string;
     private targetGuid: string;
-    private mappings: any;
-
+    private mappings: PageMapping[];
+    private directory: string;
+    
     constructor(sourceGuid: string, targetGuid: string, locale: string) {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
+        this.directory = 'page';
         // this will provide access to the /agility-files/{GUID}/{locale} folder
         this.fileOps = new fileOperations(targetGuid, locale)
         this.mappings = this.loadMapping();
 
     }
 
-    getPageMapping(page: any) {
+    getPageMapping(page: mgmtApi.PageItem): PageMapping | null {
         const mapping = this.mappings.find((m: PageMapping) => m.targetPageID === page.pageID);
+        if(!mapping) return null;
         return mapping;       
     }
 
@@ -68,12 +71,12 @@ export class PageMapper {
     }
 
     loadMapping() {
-        const mapping = this.fileOps.getMappingFile('assets');
+        const mapping = this.fileOps.getMappingFile(this.directory);
         return mapping;
     }
 
     saveMapping() {
-        this.fileOps.saveMappingFile(this.mappings, 'assets');
+        this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
 }

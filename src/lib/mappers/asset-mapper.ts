@@ -15,11 +15,13 @@ export class AssetMapper {
     private fileOps: fileOperations;
     private sourceGuid: string;
     private targetGuid: string;
-    private mappings: any;
+    private mappings: AssetMapping[];
+    private directory: string;
 
     constructor(sourceGuid: string, targetGuid: string) {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
+        this.directory = 'assets';
 
         // this will provide access to the /agility-files/{GUID} folder
         this.fileOps = new fileOperations(targetGuid)
@@ -27,8 +29,9 @@ export class AssetMapper {
 
     }
 
-    getAssetMapping(asset: any) {
+    getAssetMapping(asset: mgmtApi.Media): AssetMapping | null {
         const mapping = this.mappings.find((m: AssetMapping) => m.targetMediaID === asset.mediaID);
+        if(!mapping) return null;
         return mapping;       
     }
 
@@ -69,12 +72,12 @@ export class AssetMapper {
     }
 
     loadMapping() {
-        const mapping = this.fileOps.getMappingFile('assets');
+        const mapping = this.fileOps.getMappingFile(this.directory);
         return mapping;
     }
 
     saveMapping() {
-        this.fileOps.saveMappingFile(this.mappings, 'assets');
+        this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
 }

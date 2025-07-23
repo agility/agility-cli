@@ -15,20 +15,22 @@ export class ModelMapper {
     private fileOps: fileOperations;
     private sourceGuid: string;
     private targetGuid: string;
-    private mappings: any;
+    private mappings: ModelMapping[];
+    private directory: string;
 
     constructor(sourceGuid: string, targetGuid: string) {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
-
+        this.directory = 'models';
         // this will provide access to the /agility-files/{GUID} folder
         this.fileOps = new fileOperations(targetGuid)
         this.mappings = this.loadMapping();
 
     }
 
-    getModelMapping(model: any) {
+    getModelMapping(model: mgmtApi.Model): ModelMapping | null {
         const mapping = this.mappings.find((m: ModelMapping) => m.targetID === model.id);
+        if(!mapping) return null;
         return mapping;       
     }
 
@@ -69,12 +71,12 @@ export class ModelMapper {
     }
 
     loadMapping() {
-        const mapping = this.fileOps.getMappingFile('models');
+        const mapping = this.fileOps.getMappingFile(this.directory);
         return mapping;
     }
 
     saveMapping() {
-        this.fileOps.saveMappingFile(this.mappings, 'models');
+        this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
 }

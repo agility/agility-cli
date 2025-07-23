@@ -1,50 +1,48 @@
 import { fileOperations } from "core";
-
-interface AssetMapping {
+import  * as mgmtApi from "@agility/management-sdk";
+interface TemplateMapping {
     sourceGuid: string;
     targetGuid: string;
-    sourceDateModified: string;
-    targetDateModified: string;
-    sourceMediaID: number;
-    targetMediaID: number;
+    sourcePageTemplateID: number;
+    targetPageTemplateID: number;
 }
 
 
-export class AssetMapper {
+export class TemplateMapper {
     private fileOps: fileOperations;
     private sourceGuid: string;
     private targetGuid: string;
-    private mappings: any;
-
+    private mappings: TemplateMapping[];
+    private directory: string;
+    
     constructor(sourceGuid: string, targetGuid: string) {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
-
+        this.directory = 'templates';
         // this will provide access to the /agility-files/{GUID} folder
         this.fileOps = new fileOperations(targetGuid)
         this.mappings = this.loadMapping();
 
     }
 
-    getAssetMapping(asset: any) {
-        const mapping = this.mappings.find((m: AssetMapping) => m.targetMediaID === asset.mediaID);
+    getTemplateMapping(template: mgmtApi.PageModel): TemplateMapping | null {
+        const mapping = this.mappings.find((m: TemplateMapping) => m.targetPageTemplateID === template.pageTemplateID);
+        if(!mapping) return null;
         return mapping;       
     }
 
-    addMapping(sourceAsset: any, targetAsset: any) {
-        const mapping = this.getAssetMapping(targetAsset);
+    addMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
+        const mapping = this.getTemplateMapping(targetTemplate);
 
         if(mapping) {
-            this.updateMapping(sourceAsset, targetAsset);
+            this.updateMapping(sourceTemplate, targetTemplate);
         } else {
 
-            const newMapping: AssetMapping = {
+            const newMapping: TemplateMapping = {
                 sourceGuid: this.sourceGuid,
                 targetGuid: this.targetGuid,
-                sourceDateModified: sourceAsset.dateModified,
-                targetDateModified: targetAsset.dateModified,
-                sourceMediaID: sourceAsset.mediaID,
-                targetMediaID: targetAsset.mediaID,
+                sourcePageTemplateID: sourceTemplate.pageTemplateID,
+                targetPageTemplateID: targetTemplate.pageTemplateID,
 
             }
 
@@ -54,26 +52,24 @@ export class AssetMapper {
         this.saveMapping();
     }
 
-    updateMapping(sourceAsset: any, targetAsset: any) {
-        const mapping = this.getAssetMapping(targetAsset);
+    updateMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
+        const mapping = this.getTemplateMapping(targetTemplate);
         if(mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
-            mapping.sourceDateModified = sourceAsset.dateModified;
-            mapping.targetDateModified = targetAsset.dateModified;
-            mapping.sourceMediaID = sourceAsset.mediaID;
-            mapping.targetMediaID = targetAsset.mediaID;
+            mapping.sourcePageTemplateID = sourceTemplate.pageTemplateID;
+            mapping.targetPageTemplateID = targetTemplate.pageTemplateID;
         }
         this.saveMapping();
     }
 
     loadMapping() {
-        const mapping = this.fileOps.getMappingFile('assets');
+        const mapping = this.fileOps.getMappingFile(this.directory);
         return mapping;
     }
 
     saveMapping() {
-        this.fileOps.saveMappingFile(this.mappings, 'assets');
+        this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
 }

@@ -14,24 +14,26 @@ export class GalleryMapper {
     private fileOps: fileOperations;
     private sourceGuid: string;
     private targetGuid: string;
-    private mappings: any;
+    private mappings: GalleryMapping[];
+    private directory: string;
 
     constructor(sourceGuid: string, targetGuid: string) {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
-
+        this.directory = 'galleries';
         // this will provide access to the /agility-files/{GUID} folder
         this.fileOps = new fileOperations(targetGuid)
         this.mappings = this.loadMapping();
 
     }
 
-    getGalleryMapping(gallery: any) {
+    getGalleryMapping(gallery: mgmtApi.assetMediaGrouping) {
         const mapping = this.mappings.find((m: GalleryMapping) => m.targetMediaGroupingID === gallery.mediaGroupingID);
+        if(!mapping) return null;
         return mapping;       
     }
 
-    addMapping(sourceGallery: any, targetGallery: any) {
+    addMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping) {
         const mapping = this.getGalleryMapping(targetGallery);
 
         if(mapping) {
@@ -54,7 +56,7 @@ export class GalleryMapper {
         this.saveMapping();
     }
 
-    updateMapping(sourceGallery: any, targetGallery: any) {
+    updateMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping) {
         const mapping = this.getGalleryMapping(targetGallery);
         if(mapping) {
             mapping.sourceGuid = this.sourceGuid;
@@ -68,12 +70,12 @@ export class GalleryMapper {
     }
 
     loadMapping() {
-        const mapping = this.fileOps.getMappingFile('galleries');
+        const mapping = this.fileOps.getMappingFile(this.directory);
         return mapping;
     }
 
     saveMapping() {
-        this.fileOps.saveMappingFile(this.mappings, 'galleries');
+        this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
 }

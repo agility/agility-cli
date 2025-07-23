@@ -15,24 +15,26 @@ export class ContentItemMapper {
     private fileOps: fileOperations;
     private sourceGuid: string;
     private targetGuid: string;
-    private mappings: any;
+    private mappings: ContentItemMapping[];
+    private directory: string;
 
     constructor(sourceGuid: string, targetGuid: string) {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
-
+        this.directory = 'item';
         // this will provide access to the /agility-files/{GUID} folder
         this.fileOps = new fileOperations(targetGuid)
         this.mappings = this.loadMapping();
 
     }
 
-    getContentItemMapping(contentItem: any) {
+    getContentItemMapping(contentItem: mgmtApi.ContentItem): ContentItemMapping | null {
         const mapping = this.mappings.find((m: ContentItemMapping) => m.targetContentID === contentItem.contentID);
+        if(!mapping) return null;
         return mapping;       
     }
 
-    addMapping(sourceContentItem: any, targetContentItem: any) {
+    addMapping(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem) {
         const mapping = this.getContentItemMapping(targetContentItem);
 
         if(mapping) {
@@ -69,12 +71,12 @@ export class ContentItemMapper {
     }
 
     loadMapping() {
-        const mapping = this.fileOps.getMappingFile('assets');
+        const mapping = this.fileOps.getMappingFile(this.directory);
         return mapping;
     }
 
     saveMapping() {
-        this.fileOps.saveMappingFile(this.mappings, 'assets');
+        this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
 }
