@@ -1,5 +1,5 @@
 import { fileOperations } from "core";
-
+import  * as mgmtApi from "@agility/management-sdk";
 interface GalleryMapping {
     sourceGuid: string;
     targetGuid: string;

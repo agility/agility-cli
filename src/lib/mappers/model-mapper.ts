@@ -1,0 +1,80 @@
+import { fileOperations } from "core";
+import  * as mgmtApi from "@agility/management-sdk";
+
+interface ModelMapping {
+    sourceGuid: string;
+    targetGuid: string;
+    sourceID: number;
+    targetID: number;
+    sourceLastModifiedDate: string;
+    targetLastModifiedDate: string;
+}
+
+
+export class ModelMapper {
+    private fileOps: fileOperations;
+    private sourceGuid: string;
+    private targetGuid: string;
+    private mappings: any;
+
+    constructor(sourceGuid: string, targetGuid: string) {
+        this.sourceGuid = sourceGuid;
+        this.targetGuid = targetGuid;
+
+        // this will provide access to the /agility-files/{GUID} folder
+        this.fileOps = new fileOperations(targetGuid)
+        this.mappings = this.loadMapping();
+
+    }
+
+    getModelMapping(model: any) {
+        const mapping = this.mappings.find((m: ModelMapping) => m.targetID === model.id);
+        return mapping;       
+    }
+
+    addMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model) {
+        const mapping = this.getModelMapping(targetModel);
+
+        if(mapping) {
+            this.updateMapping(sourceModel, targetModel);
+        } else {
+
+            const newMapping: ModelMapping = {
+                sourceGuid: this.sourceGuid,
+                targetGuid: this.targetGuid,
+                sourceID: sourceModel.id,
+                targetID: targetModel.id,
+                sourceLastModifiedDate: sourceModel.lastModifiedDate,
+                targetLastModifiedDate: targetModel.lastModifiedDate,
+
+            }
+
+            this.mappings.push(newMapping);
+        }
+
+        this.saveMapping();
+    }
+
+    updateMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model) {
+        const mapping = this.getModelMapping(targetModel);
+        if(mapping) {
+            mapping.sourceGuid = this.sourceGuid;
+            mapping.targetGuid = this.targetGuid;
+            mapping.sourceID = sourceModel.id;
+            mapping.targetID = targetModel.id;
+            mapping.sourceLastModifiedDate = sourceModel.lastModifiedDate;
+            mapping.targetLastModifiedDate = targetModel.lastModifiedDate;
+        }
+        this.saveMapping();
+    }
+
+    loadMapping() {
+        const mapping = this.fileOps.getMappingFile('models');
+        return mapping;
+    }
+
+    saveMapping() {
+        this.fileOps.saveMappingFile(this.mappings, 'models');
+    }
+
+}

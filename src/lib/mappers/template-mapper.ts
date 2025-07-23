@@ -1,5 +1,4 @@
 import { fileOperations } from "core";
-import  * as mgmtApi from "@agility/management-sdk";
 
 interface AssetMapping {
     sourceGuid: string;
@@ -32,7 +31,7 @@ export class AssetMapper {
         return mapping;       
     }
 
-    addMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media) {
+    addMapping(sourceAsset: any, targetAsset: any) {
         const mapping = this.getAssetMapping(targetAsset);
 
         if(mapping) {
@@ -55,7 +54,7 @@ export class AssetMapper {
         this.saveMapping();
     }
 
-    updateMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media) {
+    updateMapping(sourceAsset: any, targetAsset: any) {
         const mapping = this.getAssetMapping(targetAsset);
         if(mapping) {
             mapping.sourceGuid = this.sourceGuid;
