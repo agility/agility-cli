@@ -79,4 +79,17 @@ export class PageMapper {
         this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
+    hasSourceChanged(sourcePage: mgmtApi.PageItem) {
+        const mapping = this.getPageMapping(sourcePage);
+        if(!mapping) return false;
+        return sourcePage.properties.versionID !== mapping.sourceVersionID;
+    }
+    
+    hasTargetChanged(targetPage: mgmtApi.PageItem) {
+        const mapping = this.getPageMapping(targetPage);
+        if(!mapping) return false;
+        return targetPage.properties.versionID !== mapping.targetVersionID;
+    }
+    
+
 }

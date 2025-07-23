@@ -78,4 +78,18 @@ export class GalleryMapper {
         this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
+    hasSourceChanged(sourceGallery: mgmtApi.assetMediaGrouping) {
+        const mapping = this.getGalleryMapping(sourceGallery);
+        if(!mapping) return false;
+        return sourceGallery.modifiedOn !== mapping.sourceModifiedOn;
+    }
+    
+    hasTargetChanged(targetGallery: mgmtApi.assetMediaGrouping) {
+        const mapping = this.getGalleryMapping(targetGallery);
+        if(!mapping) return false;
+        return targetGallery.modifiedOn !== mapping.targetModifiedOn;
+    }
+    
+    
+
 }

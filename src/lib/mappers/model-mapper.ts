@@ -79,4 +79,16 @@ export class ModelMapper {
         this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
+    hasSourceChanged(sourceModel: mgmtApi.Model) {
+        const mapping = this.getModelMapping(sourceModel);
+        if(!mapping) return false;
+        return sourceModel.lastModifiedDate !== mapping.sourceLastModifiedDate;
+    }
+    
+    hasTargetChanged(targetModel: mgmtApi.Model) {
+        const mapping = this.getModelMapping(targetModel);
+        if(!mapping) return false;
+        return targetModel.lastModifiedDate !== mapping.targetLastModifiedDate;
+    }
+    
 }

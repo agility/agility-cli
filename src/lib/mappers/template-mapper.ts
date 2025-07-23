@@ -72,4 +72,7 @@ export class TemplateMapper {
         this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
+   // we can't detect if the template has changed
+   // we just have to push it to the target and respect the --overwrite flag 
+    
 }

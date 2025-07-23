@@ -82,4 +82,18 @@ export class ContainerMapper {
         this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
+    hasSourceChanged(sourceContainer: mgmtApi.Container) {
+        const mapping = this.getContainerMapping(sourceContainer);
+        if(!mapping) return false;
+        return sourceContainer.lastModifiedDate !== mapping.sourceLastModifiedDate;
+    }
+    
+    hasTargetChanged(targetContainer: mgmtApi.Container) {
+        const mapping = this.getContainerMapping(targetContainer);
+        if(!mapping) return false;
+        return targetContainer.lastModifiedDate !== mapping.targetLastModifiedDate;
+    }
+    
+    
+
 }

@@ -79,4 +79,17 @@ export class ContentItemMapper {
         this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
+    hasSourceChanged(sourceContentItem: mgmtApi.ContentItem) {
+        const mapping = this.getContentItemMapping(sourceContentItem);
+        if(!mapping) return false;
+        return sourceContentItem.properties.versionID !== mapping.sourceVersionID;
+    }
+
+    hasTargetChanged(targetContentItem: mgmtApi.ContentItem) {
+        const mapping = this.getContentItemMapping(targetContentItem);
+        if(!mapping) return false;
+        return targetContentItem.properties.versionID !== mapping.targetVersionID;
+    }
+    
+
 }

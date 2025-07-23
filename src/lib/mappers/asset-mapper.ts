@@ -80,4 +80,16 @@ export class AssetMapper {
         this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
+    hasSourceChanged(sourceAsset: mgmtApi.Media) {
+        const mapping = this.getAssetMapping(sourceAsset);
+        if(!mapping) return false;
+        return sourceAsset.dateModified !== mapping.sourceDateModified;
+    }
+
+    hasTargetChanged(targetAsset: mgmtApi.Media) {
+        const mapping = this.getAssetMapping(targetAsset);
+        if(!mapping) return false;
+        return targetAsset.dateModified !== mapping.targetDateModified;
+    }
+
 }
