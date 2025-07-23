@@ -1,5 +1,5 @@
-import { fileOperations } from "core";
-import  * as mgmtApi from "@agility/management-sdk";
+import { fileOperations } from "../../core";
+import * as mgmtApi from "@agility/management-sdk";
 
 interface PageMapping {
     sourceGuid: string;
@@ -20,7 +20,7 @@ export class PageMapper {
     private mappings: PageMapping[];
     private directory: string;
     private locale: string;
-    
+
     constructor(sourceGuid: string, targetGuid: string, locale: string) {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
@@ -33,26 +33,26 @@ export class PageMapper {
     }
 
     getPageMapping(page: mgmtApi.PageItem, type: 'source' | 'target'): PageMapping | null {
-        const mapping = this.mappings.find((m: PageMapping) => 
+        const mapping = this.mappings.find((m: PageMapping) =>
             type === 'source' ? m.sourcePageID === page.pageID : m.targetPageID === page.pageID
         );
-        if(!mapping) return null;
-        return mapping;       
+        if (!mapping) return null;
+        return mapping;
     }
 
     getPageMappingByPageID(pageID: number, type: 'source' | 'target'): PageMapping | null {
-        const mapping = this.mappings.find((m: PageMapping) => 
+        const mapping = this.mappings.find((m: PageMapping) =>
             type === 'source' ? m.sourcePageID === pageID : m.targetPageID === pageID
         );
-        if(!mapping) return null;
+        if (!mapping) return null;
         return mapping;
     }
 
     getPageMappingByPageTemplateName(pageTemplateName: string, type: 'source' | 'target'): PageMapping | null {
-        const mapping = this.mappings.find((m: PageMapping) => 
+        const mapping = this.mappings.find((m: PageMapping) =>
             type === 'source' ? m.sourcePageTemplateName === pageTemplateName : m.targetPageTemplateName === pageTemplateName
         );
-        if(!mapping) return null;
+        if (!mapping) return null;
         return mapping;
     }
 
@@ -69,7 +69,7 @@ export class PageMapper {
     addMapping(sourcePage: mgmtApi.PageItem, targetPage: mgmtApi.PageItem) {
         const mapping = this.getPageMapping(targetPage, 'target');
 
-        if(mapping) {
+        if (mapping) {
             this.updateMapping(sourcePage, targetPage);
         } else {
 
@@ -92,7 +92,7 @@ export class PageMapper {
 
     updateMapping(sourcePage: mgmtApi.PageItem, targetPage: mgmtApi.PageItem) {
         const mapping = this.getPageMapping(targetPage, 'target');
-        if(mapping) {
+        if (mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
             mapping.sourcePageID = sourcePage.pageID;
@@ -116,15 +116,15 @@ export class PageMapper {
 
     hasSourceChanged(sourcePage: mgmtApi.PageItem) {
         const mapping = this.getPageMapping(sourcePage, 'source');
-        if(!mapping) return false;
+        if (!mapping) return false;
         return sourcePage.properties.versionID !== mapping.sourceVersionID;
     }
-    
+
     hasTargetChanged(targetPage: mgmtApi.PageItem) {
         const mapping = this.getPageMapping(targetPage, 'target');
-        if(!mapping) return false;
+        if (!mapping) return false;
         return targetPage.properties.versionID !== mapping.targetVersionID;
     }
-    
+
 
 }

@@ -1,4 +1,4 @@
-import { fileOperations } from "core";
+import { fileOperations } from "../../core";
 import * as mgmtApi from "@agility/management-sdk";
 
 export interface ContentItemMapping {

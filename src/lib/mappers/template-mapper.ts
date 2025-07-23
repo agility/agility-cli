@@ -1,5 +1,5 @@
-import { fileOperations } from "core";
-import  * as mgmtApi from "@agility/management-sdk";
+import { fileOperations } from "../../core";
+import * as mgmtApi from "@agility/management-sdk";
 interface TemplateMapping {
     sourceGuid: string;
     targetGuid: string;
@@ -16,7 +16,7 @@ export class TemplateMapper {
     private targetGuid: string;
     private mappings: TemplateMapping[];
     private directory: string;
-    
+
     constructor(sourceGuid: string, targetGuid: string) {
         this.sourceGuid = sourceGuid;
         this.targetGuid = targetGuid;
@@ -28,26 +28,26 @@ export class TemplateMapper {
     }
 
     getTemplateMapping(template: mgmtApi.PageModel, type: 'source' | 'target'): TemplateMapping | null {
-        const mapping = this.mappings.find((m: TemplateMapping) => 
+        const mapping = this.mappings.find((m: TemplateMapping) =>
             type === 'source' ? m.sourcePageTemplateID === template.pageTemplateID : m.targetPageTemplateID === template.pageTemplateID
         );
-        if(!mapping) return null;
-        return mapping;       
+        if (!mapping) return null;
+        return mapping;
     }
 
     getTemplateMappingByPageTemplateID(pageTemplateID: number, type: 'source' | 'target'): TemplateMapping | null {
-        const mapping = this.mappings.find((m: TemplateMapping) => 
+        const mapping = this.mappings.find((m: TemplateMapping) =>
             type === 'source' ? m.sourcePageTemplateID === pageTemplateID : m.targetPageTemplateID === pageTemplateID
         );
-        if(!mapping) return null;
+        if (!mapping) return null;
         return mapping;
     }
 
     getTemplateMappingByPageTemplateName(pageTemplateName: string, type: 'source' | 'target'): TemplateMapping | null {
-        const mapping = this.mappings.find((m: TemplateMapping) => 
+        const mapping = this.mappings.find((m: TemplateMapping) =>
             type === 'source' ? m.sourcePageTemplateName === pageTemplateName : m.targetPageTemplateName === pageTemplateName
         );
-        if(!mapping) return null;
+        if (!mapping) return null;
         return mapping;
     }
 
@@ -64,7 +64,7 @@ export class TemplateMapper {
     addMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
         const mapping = this.getTemplateMapping(targetTemplate, 'target');
 
-        if(mapping) {
+        if (mapping) {
             this.updateMapping(sourceTemplate, targetTemplate);
         } else {
 
@@ -85,7 +85,7 @@ export class TemplateMapper {
 
     updateMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
         const mapping = this.getTemplateMapping(targetTemplate, 'target');
-        if(mapping) {
+        if (mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
             mapping.sourcePageTemplateID = sourceTemplate.pageTemplateID;
@@ -107,18 +107,18 @@ export class TemplateMapper {
 
     hasTargetChanged(template: mgmtApi.PageModel): boolean {
         const mapping = this.getTemplateMapping(template, 'target');
-        if(!mapping) return false;
+        if (!mapping) return false;
         return mapping.targetPageTemplateID !== template.pageTemplateID;
     }
 
     hasSourceChanged(template: mgmtApi.PageModel): boolean {
         const mapping = this.getTemplateMapping(template, 'source');
-        if(!mapping) return false;
+        if (!mapping) return false;
         return mapping.sourcePageTemplateID !== template.pageTemplateID;
     }
-    
 
-   // we can't detect if the template has changed
-   // we just have to push it to the target and respect the --overwrite flag 
-    
+
+    // we can't detect if the template has changed
+    // we just have to push it to the target and respect the --overwrite flag
+
 }

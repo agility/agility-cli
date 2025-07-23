@@ -1,7 +1,7 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { state, getState } from '../../core/state';
-import { GalleryMapper } from "lib/mappers/gallery-mapper";
+import { GalleryMapper } from '../mappers/gallery-mapper';
 import { getApiClient } from "../../core/state";
 
 /**
@@ -14,11 +14,11 @@ export async function pushGalleries(
     targetData: mgmtApi.assetMediaGrouping[],
     // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
-    
+
     // Extract data from sourceData - unified parameter pattern
     const galleries: mgmtApi.assetMediaGrouping[] = sourceData || [];
 
-   
+
     if (!galleries || galleries.length === 0) {
         console.log('No galleries found to process.');
         return { status: 'success', successful: 0, failed: 0, skipped: 0 };
@@ -41,32 +41,32 @@ export async function pushGalleries(
     for (const sourceGallery of galleries) {
         let currentStatus: 'success' | 'error' = 'success';
         try {
-            
+
             const existingMapping = referenceMapper.getGalleryMapping(sourceGallery, "target");
             const shouldCreate = existingMapping === null;
-            
+
             const targetGallery: mgmtApi.assetMediaGrouping = targetData.find(targetGallery => targetGallery.mediaGroupingID === existingMapping?.targetMediaGroupingID) || null;
- 
+
             const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetGallery);
             const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(sourceGallery);
             const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
             const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
-            
+
 
             if (shouldCreate) {
                 // Gallery needs to be created (doesn't exist in target)
                 await createGallery(sourceGallery, apiClient, targetGuid[0], referenceMapper);
                 successful++;
-                
+
             } else if (shouldUpdate) {
                 // Gallery exists but needs updating
                 await updateGallery(sourceGallery, targetGallery, apiClient, targetGuid[0], referenceMapper);
                 successful++;
-                
+
             } else if (shouldSkip) {
                 // Gallery exists and is up to date - skip
                 console.log(`✓ Gallery ${ansiColors.underline(sourceGallery.name)} ${ansiColors.bold.gray('up to date, skipping')}`);
-                
+
                 // Add mapping for existing gallery
                 // if (existingMapping) {
                 //     referenceMapper.updateMapping(mediaGrouping, mediaGrouping);

@@ -7,7 +7,7 @@ const FormData = require("form-data");
 import { getApiClient } from "../../core/state";
 import { fileOperations } from "../../core/fileOperations";
 import path from "path";
-import { GalleryMapper } from "lib/mappers/gallery-mapper";
+import { GalleryMapper } from "../mappers/gallery-mapper";
 
 export async function pushAssets(
   sourceData: mgmtApi.Media[], // TODO: Type these

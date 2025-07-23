@@ -1,4 +1,4 @@
-import { state } from "core";
+import { state } from "../../../../core";
 import { ContentItemMapping } from "lib/mappers/content-item-mapper";
 import * as mgmtApi from '@agility/management-sdk';
 
