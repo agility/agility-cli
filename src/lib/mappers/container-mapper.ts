@@ -54,6 +54,17 @@ export class ContainerMapper {
         return mapping;
     }
 
+    getMappedEntity(mapping: ContainerMapping, type: 'source' | 'target'): mgmtApi.Container | null {
+        //fetch the container from the file system based on source or target GUID
+        const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
+        const containerID = type === 'source' ? mapping.sourceContentViewID : mapping.targetContentViewID;
+        const fileOps = new fileOperations(guid);
+        const containerFilePath = fileOps.getDataFilePath(`containers/${containerID}.json`);
+        const containerData = fileOps.readJsonFile(containerFilePath);
+        if (!containerData) return null;
+        return containerData as mgmtApi.Container;
+    }
+
     addMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container) {
         const mapping = this.getContainerMapping(targetContainer, 'target');
 

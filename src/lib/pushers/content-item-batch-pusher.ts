@@ -1,7 +1,10 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { pollBatchUntilComplete, extractBatchResults } from "./batch-polling";
 import ansiColors from "ansi-colors";
+import { ContentItemMapper } from "lib/mappers/content-item-mapper";
+import { ModelMapper } from "lib/mappers/model-mapper";
+import { ContainerMapper } from "lib/mappers/container-mapper";
+import { AssetMapper } from "lib/mappers/asset-mapper";
 // Removed findContainerInTargetInstance import - using mapper directly
 
 /**
@@ -10,8 +13,9 @@ import ansiColors from "ansi-colors";
 export interface ContentBatchConfig {
   apiClient: mgmtApi.ApiClient;
   targetGuid: string;
+  sourceGuid: string;
   locale: string;
-  referenceMapper: ReferenceMapperV2;
+  referenceMapper: ContentItemMapper;
   batchSize?: number; // Default: 100, Max: 250
   useContentFieldMapper?: boolean; // Whether to use enhanced field mapping
   models?: any[]; // Models for enhanced payload preparation
@@ -71,12 +75,12 @@ export type BatchProgressCallback = (
 
 /**
 
- * 
+ *
  * USAGE PATTERN:
  * 1. Filter content items BEFORE creating the batch processor using filterContentItemsForProcessing()
  * 2. Create the batch processor with pre-filtered items
  * 3. Call processBatches() with the filtered items
- * 
+ *
  * This ensures consistent use of the new versioning logic and eliminates duplicate filtering.
  */
 export class ContentBatchProcessor {
@@ -135,19 +139,20 @@ export class ContentBatchProcessor {
 
       try {
         // Prepare content payloads for bulk upload
-    
+
         const { payloads: contentPayloads, skippedCount: batchSkippedCount } = await this.prepareContentPayloads(
           contentBatch,
+          this.config.sourceGuid,
+          this.config.targetGuid,
           this.config.models,
-          this.config.defaultAssetUrl
         );
 
         // Track skipped items from this batch
         totalSkippedCount += batchSkippedCount;
 
-  
 
-      
+
+
 
         // Execute bulk upload using saveContentItems API with returnBatchID flag
         const batchIDResult = await this.config.apiClient.contentMethods.saveContentItems(
@@ -301,13 +306,18 @@ export class ContentBatchProcessor {
    */
   private async prepareContentPayloads(
     contentBatch: mgmtApi.ContentItem[],
-    models?: mgmtApi.Model[],
-    defaultAssetUrl?: string
+    sourceGuid: string,
+    targetGuid: string,
+    models?: mgmtApi.Model[]
+
   ): Promise<{ payloads: any[]; skippedCount: number }> {
     const payloads: any[] = [];
     let skippedCount = 0;
 
-        // No imports needed - using reference mapper directly
+    // No imports needed - using reference mapper directly
+    const modelMapper = new ModelMapper(sourceGuid, targetGuid);
+    const containerMapper = new ContainerMapper(sourceGuid, targetGuid);
+    const assetMapper = new AssetMapper(sourceGuid, targetGuid);
 
     for (const contentItem of contentBatch) {
       try {
@@ -341,30 +351,30 @@ export class ContentBatchProcessor {
         }
 
         // STEP 2: Find target model using reference mapper (simplified)
-        const targetModelId = this.config.referenceMapper.getMappedId('model', sourceModel.id);
-        if (!targetModelId) {
+        const targetModelMapping = modelMapper.getModelMapping(sourceModel, 'source');
+        if (!targetModelMapping) {
           throw new Error(`Target model mapping not found for: ${sourceModel.referenceName} (ID: ${sourceModel.id})`);
         }
-        
+
         // Create model object with target ID and fields from source
-        const model = { 
-          id: targetModelId, 
+        const model = {
+          id: targetModelMapping.targetID,
           referenceName: sourceModel.referenceName,
           fields: sourceModel.fields || []
         };
 
         // STEP 3: Find container using reference mapper (simplified)
-        const containerMapping = this.config.referenceMapper.getMappingByKey<mgmtApi.Container>('container', 'referenceName', contentItem.properties.referenceName);
-        
-        if (!containerMapping?.target) {
+        const containerMapping = containerMapper.getContainerMappingByReferenceName(contentItem.properties.referenceName, 'source');
+
+        if (!containerMapping) {
           throw new Error(`Container mapping not found: ${contentItem.properties.referenceName}`);
         }
-        
-        const container = containerMapping.target;
+
+        const targetContainer = containerMapper.getMappedEntity(containerMapping, 'target');
 
         // STEP 4: Check if content already exists using reference mapper (since filtering already happened)
-        const existingMapping = this.config.referenceMapper.getMapping("content", contentItem.contentID);
-        const existingContentItem = existingMapping ? (existingMapping as mgmtApi.ContentItem) : null;
+        const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(contentItem.contentID, 'source');
+        const existingTargetContentItem = this.config.referenceMapper.getMappedEntity(existingMapping, 'target');
 
         // STEP 5: Use proper ContentFieldMapper for field mapping and validation
         const { ContentFieldMapper } = await import("../content/content-field-mapper");
@@ -372,6 +382,7 @@ export class ContentBatchProcessor {
 
         const mappingResult = fieldMapper.mapContentFields(contentItem.fields || {}, {
           referenceMapper: this.config.referenceMapper,
+          assetMapper,
           apiClient: this.config.apiClient,
           targetGuid: this.config.targetGuid,
         });
@@ -417,13 +428,13 @@ export class ContentBatchProcessor {
         // STEP 8: Create payload using EXACT original logic
         const payload = {
           ...contentItem, // Start with original content item
-          contentID: existingContentItem ? existingContentItem.contentID : -1,
+          contentID: existingTargetContentItem ? existingTargetContentItem.contentID : -1,
           fields: validatedFields, // Use validated fields with defaults for required fields
           properties: {
             ...contentItem.properties,
-            referenceName: container.referenceName, // Use TARGET container reference name
-            itemOrder: existingContentItem
-              ? existingContentItem.properties.itemOrder
+            referenceName: targetContainer.referenceName, // Use TARGET container reference name
+            itemOrder: existingTargetContentItem
+              ? existingTargetContentItem.properties.itemOrder
               : contentItem.properties.itemOrder,
           },
           seo: contentItem.seo ?? defaultSeo,
@@ -459,11 +470,11 @@ export class ContentBatchProcessor {
         ...sourceContentItem,
         contentID: targetContentItem.itemID,
         properties: {
-            versionID: targetContentItem.processedItemVersionID
+          versionID: targetContentItem.processedItemVersionID
         }
-      }
+      } as mgmtApi.ContentItem;
 
-      this.config.referenceMapper.addMapping("content", sourceContentItem, targetContentItemWithId);
+      this.config.referenceMapper.addMapping(sourceContentItem, targetContentItemWithId);
     });
   }
 }
