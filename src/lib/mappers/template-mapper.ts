@@ -82,6 +82,19 @@ export class TemplateMapper {
         this.fileOps.saveMappingFile(this.mappings, this.directory);
     }
 
+    hasTargetChanged(template: mgmtApi.PageModel): boolean {
+        const mapping = this.getTemplateMapping(template, 'target');
+        if(!mapping) return false;
+        return mapping.targetPageTemplateID !== template.pageTemplateID;
+    }
+
+    hasSourceChanged(template: mgmtApi.PageModel): boolean {
+        const mapping = this.getTemplateMapping(template, 'source');
+        if(!mapping) return false;
+        return mapping.sourcePageTemplateID !== template.pageTemplateID;
+    }
+    
+
    // we can't detect if the template has changed
    // we just have to push it to the target and respect the --overwrite flag 
     
