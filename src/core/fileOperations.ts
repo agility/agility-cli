@@ -5,7 +5,7 @@ const os = require('os');
 import { state } from './state';
 os.tmpDir = os.tmpdir;
 
-export class fileOperations{
+export class fileOperations {
 
   private _rootPath: string;
   private _guid: string;
@@ -24,11 +24,11 @@ export class fileOperations{
     this._isGuidLevel = locale === undefined || locale === null || locale === ""
     this._locale = locale ?? "";
     this._legacyFolders = state.legacyFolders;
-    
+
     // Keep paths relative instead of resolving to absolute paths
     // This prevents files from being written to /Users/ directories
     this._resolvedRootPath = state.rootPath;
-    
+
     // Calculate paths based on legacy mode
     if (state.legacyFolders) {
       // Legacy mode: flat structure
@@ -36,12 +36,12 @@ export class fileOperations{
       this._mappingsPath = path.join(this._resolvedRootPath, 'mappings');
       this._instanceLogDir = path.join(this._resolvedRootPath, 'logs');
     } else {
-      // Normal mode: nested structure  
+      // Normal mode: nested structure
       this._basePath = this._isGuidLevel ? path.join(this._resolvedRootPath, this._guid) : path.join(this._resolvedRootPath, this._guid, this._locale);
       this._mappingsPath = path.join(this._resolvedRootPath, this._guid, 'mappings');
       this._instanceLogDir = path.join(this._basePath, 'logs');
     }
-    
+
     this._currentLogFilePath = path.join(this._instanceLogDir, 'instancelog.txt');
   }
 
@@ -79,13 +79,13 @@ export class fileOperations{
   private stripAnsiCodes(text: string): string {
     // eslint-disable-next-line no-control-regex
     let cleaned = text.replace(/\x1b\[[0-9;]*m/g, '');
-    
+
     // Clean up JSON formatting: replace \n with actual newlines for better readability
     cleaned = cleaned.replace(/\\n/g, '\n');
-    
+
     // Remove unnecessary escaped quotes in JSON context
     cleaned = cleaned.replace(/\\"/g, '"');
-    
+
     return cleaned;
   }
 
@@ -106,44 +106,44 @@ export class fileOperations{
         effectiveBase = this._basePath;
       }
     }
-    
+
     // Create the full directory path using path.join for OS-independent path construction
     const directoryForFile = path.join(effectiveBase, folder);
-    
+
     // Ensure the directory structure exists
     if (!fs.existsSync(directoryForFile)) {
       fs.mkdirSync(directoryForFile, { recursive: true });
     }
-    
+
     const fileName = path.join(directoryForFile, `${fileIdentifier}.json`);
     fs.writeFileSync(fileName, JSON.stringify(extractedObject));
   }
 
-  appendFiles(folder: string, fileIdentifier: any, extractedObject: any){
+  appendFiles(folder: string, fileIdentifier: any, extractedObject: any) {
     const folderPath = path.join(this._basePath, folder);
-    if(!fs.existsSync(folderPath)){
+    if (!fs.existsSync(folderPath)) {
       fs.mkdirSync(folderPath, { recursive: true });
     }
 
     let fileName = path.join(folderPath, `${fileIdentifier}.json`);
-    fs.appendFileSync(fileName,JSON.stringify(extractedObject));
+    fs.appendFileSync(fileName, JSON.stringify(extractedObject));
   }
 
-  createLogFile(folder: string, fileIdentifier: any, baseFolder?: string){
-    if(baseFolder === undefined || baseFolder === ''){
+  createLogFile(folder: string, fileIdentifier: any, baseFolder?: string) {
+    if (baseFolder === undefined || baseFolder === '') {
       baseFolder = this._basePath;
     }
-    if(!fs.existsSync(`${baseFolder}`)){
+    if (!fs.existsSync(`${baseFolder}`)) {
       fs.mkdirSync(`${baseFolder}`);
     }
-    if(!fs.existsSync(`${baseFolder}/${folder}`)){
+    if (!fs.existsSync(`${baseFolder}/${folder}`)) {
       fs.mkdirSync(`${baseFolder}/${folder}`);
     }
-    let fileName =  `${baseFolder}/${folder}/${fileIdentifier}.txt`;
+    let fileName = `${baseFolder}/${folder}/${fileIdentifier}.txt`;
     fs.closeSync(fs.openSync(fileName, 'w'))
   }
 
-  appendLogFile(data: string){
+  appendLogFile(data: string) {
     if (!fs.existsSync(this._instanceLogDir)) {
       fs.mkdirSync(this._instanceLogDir, { recursive: true });
     }
@@ -151,7 +151,7 @@ export class fileOperations{
     const cleanData = this.stripAnsiCodes(data);
     fs.appendFileSync(this._currentLogFilePath, cleanData);
   }
-  
+
   createFolder(folder: string): boolean {
     try {
       let fullPath: string;
@@ -162,19 +162,19 @@ export class fileOperations{
         // This ensures folders are created in the correct nested structure
         fullPath = path.join(this._basePath, folder);
       }
-      
+
       // Normalize the path and split into segments
       const normalizedPath = path.normalize(fullPath);
       const segments = normalizedPath.split(path.sep);
-      
+
       // Start from the root and create each directory
       let currentPath = '';
       for (const segment of segments) {
         currentPath = path.join(currentPath, segment);
-        
+
         // Skip empty segments
         if (!segment) continue;
-        
+
         try {
           if (!fs.existsSync(currentPath)) {
             fs.mkdirSync(currentPath);
@@ -184,7 +184,7 @@ export class fileOperations{
           return false;
         }
       }
-      
+
       // Verify the final directory exists
       if (fs.existsSync(normalizedPath)) {
         return true;
@@ -197,44 +197,44 @@ export class fileOperations{
     }
   }
 
-  createBaseFolder(folder?: string){
-    if(folder === undefined || folder === ''){
+  createBaseFolder(folder?: string) {
+    if (folder === undefined || folder === '') {
       folder = this._basePath;
     }
-    if(!fs.existsSync(folder)){
+    if (!fs.existsSync(folder)) {
       fs.mkdirSync(folder);
     }
   }
 
-  checkBaseFolderExists(folder: string){
-    if(!fs.existsSync(folder)){
+  checkBaseFolderExists(folder: string) {
+    if (!fs.existsSync(folder)) {
       return false;
     }
     return true;
   }
 
-  async downloadFile(url: string, targetFile: string) {  
+  async downloadFile(url: string, targetFile: string) {
     return await new Promise((resolve, reject) => {
       // Ensure the target directory exists
       const targetDir = path.dirname(targetFile);
-      
+
       if (!fs.existsSync(targetDir)) {
         fs.mkdirSync(targetDir, { recursive: true });
       }
 
       Https.get(url, response => {
         const code = response.statusCode ?? 0;
-  
+
         if (code >= 400) {
           return reject(new Error(response.statusMessage));
         }
-  
+
         if (code > 300 && code < 400 && !!response.headers.location) {
           return resolve(
             this.downloadFile(response.headers.location, targetFile)
           );
         }
-  
+
         const fileWriter = fs
           .createWriteStream(targetFile)
           .on('finish', () => {
@@ -243,7 +243,7 @@ export class fileOperations{
           .on('error', (err) => {
             reject(err);
           });
-  
+
         response.pipe(fileWriter);
       }).on('error', error => {
         console.error(`Error downloading from ${url}:`, error);
@@ -252,17 +252,21 @@ export class fileOperations{
     });
   }
 
-  createFile(filename:string, content: string) {
+  createFile(filename: string, content: string) {
     fs.writeFileSync(filename, content);
   }
 
-  saveFile(filename:string, content: string) {
+  saveFile(filename: string, content: string) {
     fs.writeFileSync(filename, content);
   }
 
-  readFile(fileName: string){
+  readFile(fileName: string) {
     const file = fs.readFileSync(fileName, "utf-8");
     return file;
+  }
+
+  createReadStream(fileName: string) {
+    return fs.createReadStream(fileName);
   }
 
   checkFileExists(filePath: string): boolean {
@@ -282,23 +286,23 @@ export class fileOperations{
   getMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string, type?: string): string {
     const localeToUse = locale || this._locale;
     // Store mappings centrally in /agility-files/mappings/ instead of per-instance
-    const centralMappingsPath = path.join(this._rootPath,'mappings', type);
+    const centralMappingsPath = path.join(this._rootPath, 'mappings', type);
     return path.join(centralMappingsPath, `mappings.json`);
   }
 
   getMappingFile(type?: string): any[] {
-    const centralMappingsPath = path.join(this._rootPath,'mappings', type);
-    if(fs.existsSync(centralMappingsPath)){
+    const centralMappingsPath = path.join(this._rootPath, 'mappings', type);
+    if (fs.existsSync(centralMappingsPath)) {
       const data = fs.readFileSync(path.join(centralMappingsPath, `mappings.json`), 'utf8');
       const jsonData = JSON.parse(data);
       return jsonData;
     }
-    else{
+    else {
       return [];
     }
   }
 
- 
+
   saveMappingFile(mappingData: any[], type?: string): void {
     const centralMappingsPath = path.join(this._rootPath, 'mappings', type);
     const mappingFilePath = path.join(centralMappingsPath, `mappings.json`);
@@ -324,39 +328,39 @@ export class fileOperations{
 
   // saveMappingFile(sourceGuid: string, targetGuid: string, mappingData: any, locale?: string): void {
   //   const localeToUse = locale || this._locale;
-    
+
   //   // Ensure centralized mappings directory exists
   //   const centralMappingsPath = path.join(this._rootPath, 'mappings');
   //   if (!fs.existsSync(centralMappingsPath)) {
   //     fs.mkdirSync(centralMappingsPath, { recursive: true });
   //   }
-    
+
   //   // Add locale to mapping data for consistency
   //   const mappingDataWithLocale = {
   //     ...mappingData,
   //     locale: localeToUse
   //   };
-    
+
   //   const mappingFilePath = this.getMappingFilePath(sourceGuid, targetGuid, localeToUse);
   //   this.createFile(mappingFilePath, JSON.stringify(mappingDataWithLocale, null, 2));
-    
+
   //   // TODO: PERSISTENCE INTEGRATION POINT
   //   // This is where we would integrate with external persistence services
   //   // for scenarios where mappings need to survive beyond ephemeral agents:
-  //   // 
+  //   //
   //   // Examples:
   //   // - Upload to cloud storage (AWS S3, Azure Blob, etc.)
   //   // - Save to database (MongoDB, PostgreSQL, etc.)
   //   // - Sync to external API/service
   //   // - Store in shared network drive
-  //   // 
+  //   //
   //   // Implementation example:
   //   // await this.persistMappingExternally(sourceGuid, targetGuid, mappingDataWithLocale, localeToUse);
   // }
 
   loadMappingFile(sourceGuid: string, targetGuid: string, locale?: string): any | null {
     const localeToUse = locale || this._locale;
-    
+
     // First try to load direct mapping file (A→B)
     const mappingFilePath = this.getMappingFilePath(sourceGuid, targetGuid, localeToUse);
     if (this.checkFileExists(mappingFilePath)) {
@@ -369,7 +373,7 @@ export class fileOperations{
         console.error(`Error loading mapping file ${mappingFilePath}:`, error);
       }
     }
-    
+
     // Try to load reverse mapping file (B→A) for fallback
     const reverseMappingFilePath = this.getReverseMappingFilePath(sourceGuid, targetGuid, localeToUse);
     if (this.checkFileExists(reverseMappingFilePath)) {
@@ -382,13 +386,13 @@ export class fileOperations{
         console.error(`Error loading reverse mapping file ${reverseMappingFilePath}:`, error);
       }
     }
-    
+
     return null;
   }
 
   clearMappingFile(sourceGuid: string, targetGuid: string, locale?: string): void {
     const localeToUse = locale || this._locale;
-    
+
     // Clear direct mapping file
     const mappingFilePath = this.getMappingFilePath(sourceGuid, targetGuid, localeToUse);
     if (this.checkFileExists(mappingFilePath)) {
@@ -398,40 +402,40 @@ export class fileOperations{
 
   // Data folder path utilities
   getDataFolderPath(folderName?: string): string {
-    if(folderName){
+    if (folderName) {
       return path.join(this._basePath, folderName);
     }
     return this._basePath;
   }
 
   getFolderPath(folderName?: string): string {
-    if(folderName){
+    if (folderName) {
       return path.join(this._basePath, folderName);
     }
     return this._basePath;
   }
 
   getFilePath(folderName?: string, fileName?: string): string {
-    if(folderName && fileName){
+    if (folderName && fileName) {
       return path.join(this._basePath, folderName, fileName);
     }
-    else if(folderName){
+    else if (folderName) {
       return path.join(this._basePath, folderName);
     }
-    else if(fileName){
+    else if (fileName) {
       return path.join(this._basePath, fileName);
     }
     return this._basePath;
   }
 
   getDataFilePath(folderName?: string, fileName?: string): string {
-    if(folderName && fileName){
+    if (folderName && fileName) {
       return path.join(this._basePath, folderName, fileName);
     }
-    else if(folderName){
+    else if (folderName) {
       return path.join(this._basePath, folderName);
     }
-    else if(fileName){
+    else if (fileName) {
       return path.join(this._basePath, fileName);
     }
     return this._basePath;
@@ -466,7 +470,7 @@ export class fileOperations{
 
   readJsonFileAbsolute(absolutePath: string): any | null {
     try {
-    const content = fs.readFileSync(absolutePath, 'utf8');
+      const content = fs.readFileSync(absolutePath, 'utf8');
       return JSON.parse(content);
     } catch (error: any) {
       console.warn(`[FileOps] Error reading JSON file ${absolutePath}: ${error.message}`);
@@ -479,10 +483,10 @@ export class fileOperations{
       if (!fs.existsSync(folderPath)) {
         return [];
       }
-      
+
       const files = fs.readdirSync(folderPath).filter(file => file.endsWith(fileExtension));
       const results: any[] = [];
-      
+
       for (const file of files) {
         try {
           const content = fs.readFileSync(path.join(folderPath, file), 'utf8');
@@ -492,7 +496,7 @@ export class fileOperations{
           console.warn(`[FileOps] Error parsing JSON file ${file}: ${error.message}`);
         }
       }
-      
+
       return results;
     } catch (error: any) {
       console.warn(`[FileOps] Error reading folder ${folderName}: ${error.message}`);
@@ -506,12 +510,12 @@ export class fileOperations{
       if (!fs.existsSync(folderPath)) {
         return [];
       }
-      
+
       let files = fs.readdirSync(folderPath);
       if (fileExtension) {
         files = files.filter(file => file.endsWith(fileExtension));
       }
-      
+
       return files;
     } catch (error: any) {
       console.warn(`[FileOps] Error listing files in ${folderName}: ${error.message}`);
@@ -519,7 +523,7 @@ export class fileOperations{
     }
   }
 
-  readTempFile(fileName: string){
+  readTempFile(fileName: string) {
     let appName = 'mgmt-cli-code';
     let tmpFolder = os.tmpDir();
     let tmpDir = `${tmpFolder}/${appName}`;
@@ -527,85 +531,85 @@ export class fileOperations{
     return fileData;
   }
 
-  createTempFile(fileName: string, content: string){
+  createTempFile(fileName: string, content: string) {
     let appName = 'mgmt-cli-code';
     let tmpFolder = os.tmpDir();
     let tmpDir = `${tmpFolder}/${appName}`;
     fs.access(tmpDir, (error) => {
-      if(error){
+      if (error) {
         fs.mkdirSync(tmpDir);
         this.createFile(`${tmpDir}/${fileName}`, content);
       }
-      else{
+      else {
         this.createFile(`${tmpDir}/${fileName}`, content);
       }
     });
     return tmpDir;
   }
 
-  renameFile(oldFile: string, newFile: string){
+  renameFile(oldFile: string, newFile: string) {
     fs.renameSync(oldFile, newFile);
   }
 
-  readDirectory(folderName: string, baseFolder?: string){
-    if(baseFolder === undefined || baseFolder === ''){
+  readDirectory(folderName: string, baseFolder?: string) {
+    if (baseFolder === undefined || baseFolder === '') {
       baseFolder = this._basePath;
     }
     let directory = `${baseFolder}/${folderName}`;
 
-    let files : string[] = [];
+    let files: string[] = [];
     fs.readdirSync(directory).forEach(file => {
       let readFile = this.readFile(`${directory}/${file}`);
       files.push(readFile);
     })
-    
+
     return files;
   }
 
-  folderExists(folderName: string, baseFolder?: string){
-    if(baseFolder === undefined || baseFolder === ''){
+  folderExists(folderName: string, baseFolder?: string) {
+    if (baseFolder === undefined || baseFolder === '') {
       baseFolder = this._basePath;
     }
     let directory = `${baseFolder}/${folderName}`;
-    if(fs.existsSync(directory)){
+    if (fs.existsSync(directory)) {
       return true;
     }
-    else{
+    else {
       return false;
     }
   }
 
-  codeFileExists(){
+  codeFileExists() {
     let appName = 'mgmt-cli-code';
     let tmpFolder = os.tmpDir();
     let tmpDir = `${tmpFolder}/${appName}/code.json`;
-    if(fs.existsSync(tmpDir)){
+    if (fs.existsSync(tmpDir)) {
       return true;
-    } 
-    else{
+    }
+    else {
       return false;
     }
   }
 
-  deleteCodeFile(){
+  deleteCodeFile() {
     let appName = 'mgmt-cli-code';
     let tmpFolder = os.tmpDir();
     let tmpDir = `${tmpFolder}/${appName}/code.json`;
-   
-    if(fs.existsSync(tmpDir)){
-   
+
+    if (fs.existsSync(tmpDir)) {
+
       fs.rmSync(tmpDir);
 
       console.log('Logged out successfully');
       return true;
-    } 
-    else{
+    }
+    else {
       return false;
     }
   }
 
-  fileExists(path: string){
-    if(fs.existsSync(path)){
+  fileExists(path: string) {
+    if (fs.existsSync(path)) {
       return true;
     }
     return false;
@@ -625,23 +629,23 @@ export class fileOperations{
     }
   }
 
-  cliFolderExists(){
-    if(fs.existsSync(this._basePath)){
+  cliFolderExists() {
+    if (fs.existsSync(this._basePath)) {
       return true;
-    } else{
+    } else {
       return false;
     }
   }
 
   public finalizeLogFile(operationType: 'pull' | 'push' | 'sync'): string {
     const now = new Date();
-    
+
     // Create semantic filename like "2025-may-12-at-10-15-32-am.txt"
     const months = [
       'january', 'february', 'march', 'april', 'may', 'june',
       'july', 'august', 'september', 'october', 'november', 'december'
     ];
-    
+
     const year = now.getFullYear();
     const month = months[now.getMonth()];
     const day = now.getDate();
@@ -650,7 +654,7 @@ export class fileOperations{
     const second = now.getSeconds();
     const ampm = hour >= 12 ? 'pm' : 'am';
     const hour12 = hour % 12 || 12;
-    
+
     const pad = (num: number) => String(num).padStart(2, '0');
     const semanticTimestamp = `${year}-${month}-${pad(day)}-at-${pad(hour12)}-${pad(minute)}-${pad(second)}-${ampm}`;
 
