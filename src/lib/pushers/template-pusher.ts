@@ -1,89 +1,16 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
-import { state, getState } from '../../core/state';
-import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
+import { state, getState, getApiClient } from '../../core/state';
+import { TemplateMapper } from "lib/mappers/template-mapper";
+import { ModelMapper } from "lib/mappers/model-mapper";
+import { ContainerMapper } from "lib/mappers/container-mapper";
+import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 
-/**
- * Simple change detection for templates
- */
-interface ChangeDetection {
-  entity: any;
-  shouldUpdate: boolean;
-  shouldCreate: boolean;
-  shouldSkip: boolean;
-  reason: string;
-}
-
-function changeDetection(
-  sourceEntity: any,
-  targetFromMapping: any,
-  targetFromData: any
-): ChangeDetection {
-  if (!targetFromMapping && !targetFromData) {
-    return {
-      entity: null,
-      shouldUpdate: false,
-      shouldCreate: true,
-      shouldSkip: false,
-      reason: 'Template does not exist in target'
-    };
-  }
-  
-  const targetEntity = targetFromData || targetFromMapping;
-  
-  // For templates, simple existence check (templates rarely change)
-  return {
-    entity: targetEntity,
-    shouldUpdate: false,
-    shouldCreate: false,
-    shouldSkip: true,
-    reason: 'Template exists and is up to date'
-  };
-}
 
 /**
  * Enhanced template finder with proper target safety and conflict resolution
  * Logic Flow: Target Safety FIRST → Change Delta SECOND → Conflict Resolution
  */
-export async function findTemplateInTargetInstanceEnhanced(
-    sourceTemplate: mgmtApi.PageModel,
-    apiClient: mgmtApi.ApiClient,
-    targetGuid: string,
-    targetData: any,
-    referenceMapper: ReferenceMapperV2
-): Promise<{ template: mgmtApi.PageModel | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: ChangeDetection }> {
-    const state = getState();
-
-    // STEP 1: Find existing mapping
-    const existingMapping = referenceMapper.getMappingByKey<mgmtApi.PageModel>("template", "pageTemplateName", sourceTemplate.pageTemplateName);
-    let targetTemplateFromMapping: mgmtApi.PageModel | null = existingMapping?.target || null;
-
-    // STEP 2: Find target instance data
-    const targetInstanceData = targetData.templates?.find((t: any) => {
-        if (targetTemplateFromMapping) {
-            return t.pageTemplateName === targetTemplateFromMapping.pageTemplateName ||
-                   t.pageTemplateID === targetTemplateFromMapping.pageTemplateID;
-        } else {
-            return t.pageTemplateName === sourceTemplate.pageTemplateName;
-        }
-    });
-
-    // STEP 3: Use change detection for conflict resolution
-    const decision = changeDetection(
-        sourceTemplate,
-        targetTemplateFromMapping,
-        targetInstanceData
-    );
-
-    return {
-        template: decision.entity,
-        shouldUpdate: decision.shouldUpdate,
-        shouldCreate: decision.shouldCreate,
-        shouldSkip: decision.shouldSkip,
-        decision: decision
-    };
-}
 
 export async function pushTemplates(
     sourceData: any,
@@ -103,7 +30,6 @@ export async function pushTemplates(
 
     // Get state values instead of prop drilling
     const { targetGuid, locale } = state;
-    const { getApiClient } = await import('../../core/state');
     const apiClient = getApiClient();
 
     // Log template names for debugging
@@ -123,16 +49,27 @@ export async function pushTemplates(
         let templateProcessed = false;
         let payload: mgmtApi.PageModel | null = null;
 
-        const findResult = await findTemplateInTargetInstanceEnhanced(template, apiClient, targetGuid[0], targetData, referenceMapper);
-        const { template: existingTemplate, shouldUpdate, shouldCreate, shouldSkip } = findResult;
+
+        const { sourceGuid, targetGuid } = state;
+        const referenceMapper = new TemplateMapper(sourceGuid[0], targetGuid[0]);
+        const targetTemplate = targetData.find(targetTemplate => targetTemplate.pageTemplateID === existingMapping?.targetPageTemplateID) || null;
+        const existingMapping = referenceMapper.getTemplateMapping(template, "source");
+        const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetTemplate);
+        const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(template);
+        const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
+        const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
+
+
+        // const findResult = await findTemplateInTargetInstanceEnhanced(template, apiClient, targetGuid[0], targetData, referenceMapper);
+        // const { template: existingTemplate, shouldUpdate, shouldCreate, shouldSkip } = findResult;
 
         if (shouldSkip) {
-            referenceMapper.addRecord('template', template, existingTemplate);
+            referenceMapper.addMapping(template, targetTemplate);
             console.log(`✓ Template ${ansiColors.underline.cyan(template.pageTemplateName)} ${ansiColors.bold.gray('up to date, skipping')}`);
             skipped++;
         } else {
             let isUpdate = shouldUpdate;
-            let targetId = isUpdate ? existingTemplate.pageTemplateID : -1;
+            let targetId = isUpdate ? targetTemplate.pageTemplateID : -1;
 
             // Prepare payload
             const mappedSections = template.contentSectionDefinitions.map(def => {
@@ -142,17 +79,20 @@ export async function pushTemplates(
                 mappedDef.contentViewID = isUpdate ? def.contentViewID : 0;
 
                 if (def.contentDefinitionID) {
-                    const modelMapping = referenceMapper.getMappingByKey<mgmtApi.Model>('model', 'id', def.contentDefinitionID);
-                    if (modelMapping?.target?.id) mappedDef.contentDefinitionID = modelMapping.target.id;
+                    const modelMappers = new ModelMapper(sourceGuid[0], targetGuid[0]);
+                    const modelMapping = modelMappers.getModelMappingByID(def.contentDefinitionID, 'target');
+                    if (modelMapping?.targetID) mappedDef.contentDefinitionID = modelMapping.targetID;
                 }
                 if (def.itemContainerID) {
-                    const containerMapping = referenceMapper.getMappingByKey<mgmtApi.Container>('container', 'contentViewID', def.itemContainerID);
-                    if (containerMapping?.target?.contentViewID) mappedDef.itemContainerID = containerMapping.target.contentViewID;
+                    const containerMappers = new ContainerMapper(sourceGuid[0], targetGuid[0]);
+                    const containerMapping = containerMappers.getContainerMappingByContentViewID(def.itemContainerID, 'target');
+                    if (containerMapping?.targetContentViewID) mappedDef.itemContainerID = containerMapping.targetContentViewID;
                 }
-                if (def.publishContentItemID) {
-                    const contentMapping = referenceMapper.getMappingByKey<mgmtApi.ContentItem>('content', 'contentID', def.publishContentItemID);
-                    if (contentMapping?.target?.contentID) mappedDef.publishContentItemID = contentMapping.target.contentID;
-                }
+                // if (def.publishContentItemID) {
+                //     const contentMappers = new ContentItemMapper(sourceGuid[0], targetGuid[0]);
+                //     const contentMapping = contentMappers.getContentItemMappingByContentID(def.publishContentItemID, 'target');
+                //     if (contentMapping?.targetID) mappedDef.publishContentItemID = contentMapping.targetID;
+                // }
                 return mappedDef;
             });
 
@@ -164,7 +104,7 @@ export async function pushTemplates(
 
             try {
                 const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid[0], locale[0], payload);
-                referenceMapper.addRecord('template', template, savedTemplate);
+                referenceMapper.addMapping(template, savedTemplate);
                 const action = isUpdate ? 'updated' : 'created';
                 console.log(`✓ Template ${ansiColors.underline.cyan(template.pageTemplateName)} ${ansiColors.green(action)} - Source: ${originalID} Target: ${savedTemplate.pageTemplateID}`);
                 successful++;
