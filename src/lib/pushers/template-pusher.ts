@@ -2,6 +2,9 @@ import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { state, getState, getApiClient } from '../../core/state';
 import { TemplateMapper } from "lib/mappers/template-mapper";
+import { ModelMapper } from "lib/mappers/model-mapper";
+import { ContainerMapper } from "lib/mappers/container-mapper";
+import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 
 
 /**
@@ -49,9 +52,7 @@ export async function pushTemplates(
 
         const { sourceGuid, targetGuid } = state;
         const referenceMapper = new TemplateMapper(sourceGuid[0], targetGuid[0]);
-
-
-        const targetTemplate = targetData.find(targetTemplate => targetTemplate.pageTemplateID === template.pageTemplateID) || null;
+        const targetTemplate = targetData.find(targetTemplate => targetTemplate.pageTemplateID === existingMapping?.targetPageTemplateID) || null;
         const existingMapping = referenceMapper.getTemplateMapping(template, "source");
         const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetTemplate);
         const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(template);
@@ -78,17 +79,20 @@ export async function pushTemplates(
                 mappedDef.contentViewID = isUpdate ? def.contentViewID : 0;
 
                 if (def.contentDefinitionID) {
-                    const modelMapping = referenceMapper.getModelMapping(def.contentDefinitionID, 'target');
-                    if (modelMapping?.target?.id) mappedDef.contentDefinitionID = modelMapping.target.id;
+                    const modelMappers = new ModelMapper(sourceGuid[0], targetGuid[0]);
+                    const modelMapping = modelMappers.getModelMappingByID(def.contentDefinitionID, 'target');
+                    if (modelMapping?.targetID) mappedDef.contentDefinitionID = modelMapping.targetID;
                 }
                 if (def.itemContainerID) {
-                    const containerMapping = referenceMapper.getContainerMapping(def.itemContainerID, 'target');
-                    if (containerMapping?.target?.contentViewID) mappedDef.itemContainerID = containerMapping.target.contentViewID;
+                    const containerMappers = new ContainerMapper(sourceGuid[0], targetGuid[0]);
+                    const containerMapping = containerMappers.getContainerMappingByContentViewID(def.itemContainerID, 'target');
+                    if (containerMapping?.targetContentViewID) mappedDef.itemContainerID = containerMapping.targetContentViewID;
                 }
-                if (def.publishContentItemID) {
-                    const contentMapping = referenceMapper.getContentItemMappingByContentID(def.publishContentItemID, 'target');
-                    if (contentMapping?.target?.contentID) mappedDef.publishContentItemID = contentMapping.target.contentID;
-                }
+                // if (def.publishContentItemID) {
+                //     const contentMappers = new ContentItemMapper(sourceGuid[0], targetGuid[0]);
+                //     const contentMapping = contentMappers.getContentItemMappingByContentID(def.publishContentItemID, 'target');
+                //     if (contentMapping?.targetID) mappedDef.publishContentItemID = contentMapping.targetID;
+                // }
                 return mappedDef;
             });
 

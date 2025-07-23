@@ -47,7 +47,7 @@ export async function pushGalleries(
             const existingMapping = referenceMapper.getGalleryMapping(sourceGallery, "target");
             const shouldCreate = existingMapping === null;
             
-            const targetGallery: mgmtApi.assetMediaGrouping = targetData.find(targetGallery => targetGallery.mediaGroupingID === sourceGallery.mediaGroupingID) || null;
+            const targetGallery: mgmtApi.assetMediaGrouping = targetData.find(targetGallery => targetGallery.mediaGroupingID === existingMapping?.targetMediaGroupingID) || null;
  
             const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetGallery);
             const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(sourceGallery);
