@@ -1,6 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { getState, getApiClient } from "../../core/state";
+import { getState, getApiClient, state } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { logModelDifferences } from "../loggers";
@@ -10,213 +10,15 @@ import { ModelMapper } from "lib/mappers/model-mapper";
 /**
  * Simple change detection for models
  */
-interface ChangeDetection {
-  entity: any;
-  shouldUpdate: boolean;
-  shouldCreate: boolean;
-  shouldSkip: boolean;
-  reason: string;
-}
 
-function changeDetection(
-  sourceEntity: any,
-  targetFromMapping: any,
-  targetFromData: any
-): ChangeDetection {
-  if (!targetFromMapping && !targetFromData) {
-    return {
-      entity: null,
-      shouldUpdate: false,
-      shouldCreate: true,
-      shouldSkip: false,
-      reason: 'Model does not exist in target'
-    };
-  }
-  
-  const targetEntity = targetFromData || targetFromMapping;
-  
-  // For models, check modification dates
-  const sourceModified = new Date(sourceEntity.lastModifiedDate || 0);
-  const targetModified = new Date(targetEntity.lastModifiedDate || 0);
-  
-  if (sourceModified > targetModified) {
-    return {
-      entity: targetEntity,
-      shouldUpdate: true,
-      shouldCreate: false,
-      shouldSkip: false,
-      reason: 'Source model is newer'
-    };
-  }
-  
-  return {
-    entity: targetEntity,
-    shouldUpdate: false,
-    shouldCreate: false,
-    shouldSkip: true,
-    reason: 'Model exists and is up to date'
-  };
-}
-
-/**
- * Model pusher with enhanced version-based comparison
- * Uses lastModifiedDate for intelligent update decisions instead of complex field comparison
- */
-/**
- * Enhanced model finder with proper target safety and conflict resolution
- * Logic Flow: Target Safety FIRST → Change Delta SECOND → Conflict Resolution
- */
-export async function getModelAndChangeOperationsDecision(
-  sourceModel: mgmtApi.Model,
-  apiClient: mgmtApi.ApiClient,
-  targetGuid: string,
-  targetData: any,
-  referenceMapper: ReferenceMapperV2,
-  isStubPass: boolean = false
-): Promise<{
-  model: mgmtApi.Model | null;
-  shouldUpdate: boolean;
-  shouldCreate: boolean;
-  shouldSkip: boolean;
-  decision?: ChangeDetection;
-  sourceEntity: any;
-}> {
-  try {
-    const state = getState();
-
-    // STEP 1: Find existing mapping
-    const existingMapping = referenceMapper.getMappingByKey<mgmtApi.Model>(
-      "model",
-      "referenceName",
-      sourceModel.referenceName
-    );
-    let targetModelFromMapping: mgmtApi.Model | null = existingMapping?.target || null;
-
-    // STEP 2: Find target instance data
-    const targetInstanceData = targetData.models?.find((m: any) => {
-      if (targetModelFromMapping) {
-        return m.id === targetModelFromMapping.id || m.referenceName === targetModelFromMapping.referenceName;
-      } else {
-        return m.referenceName === sourceModel.referenceName;
-      }
-    });
-
-    // STEP 3: Handle stub pass (simplified logic for dependencies)
-    if (isStubPass) {
-      return {
-        model: targetInstanceData || targetModelFromMapping,
-        shouldUpdate: false,
-        shouldCreate: !targetInstanceData && !targetModelFromMapping,
-        shouldSkip: !!(targetInstanceData || targetModelFromMapping),
-        sourceEntity: sourceModel,
-      };
-    }
-
-    // Simplified decision logic: 
-    // 1. If no target exists at all (no mapping, no instance data) -> CREATE
-    // 2. If target exists but source is newer -> UPDATE  
-    // 3. Otherwise -> SKIP
-
-    const targetExists = !!(targetModelFromMapping || targetInstanceData);
-    const targetEntity = targetInstanceData || targetModelFromMapping;
-    
-    let shouldUpdate = false;
-    let shouldCreate = false;
-    let shouldSkip = false;
-
-    if (!targetExists) {
-      // No target model found anywhere - create new
-      shouldCreate = true;
-      console.log(`Model ${sourceModel.referenceName}: No target found, will create`);
-    } else {
-      // Target exists - check if source is newer
-      const sourceModified = new Date(sourceModel.lastModifiedDate || 0);
-      const targetModified = new Date(targetEntity.lastModifiedDate || 0);
-      
-      if (sourceModified > targetModified) {
-        shouldUpdate = true;
-        // console.log(`Model ${sourceModel.referenceName}: Source newer (${sourceModified.toISOString()} > ${targetModified.toISOString()}), will update`);
-      } else {
-        shouldSkip = true;
-        // console.log(`Model ${sourceModel.referenceName}: Target up to date, will skip`);
-      }
-    }
-
-    return {
-      model: targetEntity,
-      shouldUpdate,
-      shouldCreate,
-      shouldSkip,
-      sourceEntity: sourceModel,
-    };
-  } catch (error: any) {
-    console.error(`[ModelFinder] Error in enhanced finder for model ${sourceModel.referenceName}:`, error);
-    // Fallback to safe defaults
-    return {
-      model: null,
-      shouldUpdate: false,
-      shouldCreate: true,
-      shouldSkip: false,
-      sourceEntity: sourceModel,
-    };
-  }
-}
-
-// export async function findModelInTargetInstance(
-//   model: mgmtApi.Model,
-//   targetData: any,
-//   apiClient: mgmtApi.ApiClient,
-//   guid: string,
-//   referenceMapper: ReferenceMapperV2
-// ): Promise<mgmtApi.Model | null> {
-//   try {
-//     // First check the local reference mapper for a model with the same reference name
-//     const mappingResult = referenceMapper.getMappingByKey("model", "referenceName", model.referenceName);
-//     const targetMapping = mappingResult?.target;
-
-//     if (targetMapping) {
-//       return targetMapping as mgmtApi.Model;
-//     }
-
-//     // If not in mapper, try to find it in the target instance
-//     // const targetModel = await apiClient.modelMethods.getModelByReferenceName(model.referenceName, guid);
-
-//     const targetModel = targetData.models?.find((m: any) => {
-//       return m.referenceName === model.referenceName;
-//     });
-
-//     if (targetModel) {
-//       // CRITICAL: Add the mapping so we don't lose track of it
-//       referenceMapper.addMapping("model", model, targetModel);
-//       return targetModel;
-//     }
-
-//     return null;
-//   } catch (error: any) {
-//     return null;
-//   }
-// }
 
 export async function pushModels(
     sourceData: mgmtApi.Model[],
     targetData: mgmtApi.Model[],
 ): Promise<PusherResult> {
 
-  // 
-  //
-  // First logic block - Retrieval of the target instance's data, using the model ID
-  //
-  // 1. Look for the target instance mapping - then get the corresponding id for the source data and use that 
-  // 2. If not found, we look for the target instance data on file 
-  // 
-  // 
-  //
-  // 3. 
 
-
-
-
-
+  
   const models: mgmtApi.Model[] = sourceData || [];
 
   if (!models || models.length === 0) {
@@ -224,8 +26,9 @@ export async function pushModels(
     return { status: "success", successful: 0, failed: 0, skipped: 0 };
   }
 
-  const state = getState();
-  const { targetGuid, overwrite, test } = state;
+  const { sourceGuid, targetGuid } = state;
+  const referenceMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
+
   const apiClient = getApiClient();
   const totalModels = models.length;
 
@@ -246,16 +49,14 @@ export async function pushModels(
     const isStubPass = passName === "stub";
     try {
       // Use enhanced finder to determine what action to take
-      const findResult = await getModelAndChangeOperationsDecision(
-        model,
-        apiClient,
-        targetGuid[0],
-        targetData,
-        referenceMapper,
-        isStubPass
-      );
+      const existingMapping = referenceMapper.getModelMapping(model, "source");
+      const targetModel = targetData.find(targetModel => targetModel.id === existingMapping?.targetID) || null;
+      const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(model);
+      const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(model);
+      const shouldCreate = existingMapping === null;
+      const shouldUpdate = !isStubPass && existingMapping !== null && isTargetSafe && hasSourceChanges;
+      const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
 
-      const { model: targetModel, shouldUpdate, shouldCreate, shouldSkip, sourceEntity } = findResult;
       if (shouldCreate) {
         // Model doesn't exist - create new one
         try {
@@ -263,7 +64,7 @@ export async function pushModels(
           console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${passName} ${ansiColors.bold.green("created")}`);
           
           // Store mapping for both stub and full passes so Pass 2 can find stubs created in Pass 1
-          referenceMapper.addMapping("model", model, newModel);
+          referenceMapper.addMapping(model, newModel);
           return 'created';
         } catch (error: any) {
           console.log(model)
@@ -280,7 +81,7 @@ export async function pushModels(
           console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${updateType} ${ansiColors.bold.green("updated")}`);
           
           // Always store mapping for updates (both stub and full passes)
-          referenceMapper.addMapping("model", model, updatedModel);
+          referenceMapper.addMapping(model, updatedModel);
           return 'updated';
         } catch (error: any) {
           console.error(`✗ Error updating model ${modelName}:`, error.message);
@@ -297,7 +98,7 @@ export async function pushModels(
         
         // Ensure mapping exists for existing models
         if (targetModel) {
-          referenceMapper.addMapping("model", model, targetModel);
+          referenceMapper.addMapping(model, targetModel);
         }
         return 'skipped';
       }

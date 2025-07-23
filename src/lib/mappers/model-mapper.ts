@@ -1,5 +1,5 @@
 import { fileOperations } from "core";
-import  * as mgmtApi from "@agility/management-sdk";
+import * as mgmtApi from "@agility/management-sdk";
 
 interface ModelMapping {
     sourceGuid: string;
@@ -29,25 +29,36 @@ export class ModelMapper {
     }
 
     getModelMapping(model: mgmtApi.Model, type: 'source' | 'target'): ModelMapping | null {
-        const mapping = this.mappings.find((m: ModelMapping) => 
+        const mapping = this.mappings.find((m: ModelMapping) =>
             type === 'source' ? m.sourceID === model.id : m.targetID === model.id
         );
-        if(!mapping) return null;
-        return mapping;       
+        if (!mapping) return null;
+        return mapping;
     }
 
     getModelMappingByID(id: number, type: 'source' | 'target'): ModelMapping | null {
-        const mapping = this.mappings.find((m: ModelMapping) => 
+        const mapping = this.mappings.find((m: ModelMapping) =>
             type === 'source' ? m.sourceID === id : m.targetID === id
         );
-        if(!mapping) return null;
+        if (!mapping) return null;
         return mapping;
+    }
+
+    getMappedEntity(mapping: ModelMapping, type: 'source' | 'target'): mgmtApi.Model | null {
+        //fetch the model from the file system based on source or target GUID
+        const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
+        const modelID = type === 'source' ? mapping.sourceID : mapping.targetID;
+        const fileOps = new fileOperations(guid);
+        const modelFilePath = fileOps.getDataFilePath(`models/${modelID}.json`);
+        const modelData = fileOps.readJsonFile(modelFilePath);
+        if (!modelData) return null;
+        return modelData as mgmtApi.Model;
     }
 
     addMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model) {
         const mapping = this.getModelMapping(targetModel, 'target');
 
-        if(mapping) {
+        if (mapping) {
             this.updateMapping(sourceModel, targetModel);
         } else {
 
@@ -69,7 +80,7 @@ export class ModelMapper {
 
     updateMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model) {
         const mapping = this.getModelMapping(targetModel, 'target');
-        if(mapping) {
+        if (mapping) {
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
             mapping.sourceID = sourceModel.id;
@@ -91,14 +102,14 @@ export class ModelMapper {
 
     hasSourceChanged(sourceModel: mgmtApi.Model) {
         const mapping = this.getModelMapping(sourceModel, 'source');
-        if(!mapping) return false;
+        if (!mapping) return false;
         return sourceModel.lastModifiedDate !== mapping.sourceLastModifiedDate;
     }
-    
+
     hasTargetChanged(targetModel: mgmtApi.Model) {
         const mapping = this.getModelMapping(targetModel, 'target');
-        if(!mapping) return false;
+        if (!mapping) return false;
         return targetModel.lastModifiedDate !== mapping.targetLastModifiedDate;
     }
-    
+
 }

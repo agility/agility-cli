@@ -6,56 +6,6 @@ import { SourceData, PusherProgressCallback, PusherResult } from "../../types/so
 import { SitemapHierarchy } from "../shared/sitemap-hierarchy";
 import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 
-/**
- * Simple change detection for pages
- */
-interface ChangeDetection {
-  entity: any;
-  shouldUpdate: boolean;
-  shouldCreate: boolean;
-  shouldSkip: boolean;
-  reason: string;
-}
-
-function changeDetection(
-  sourceEntity: any,
-  targetFromMapping: any,
-  targetFromData: any
-): ChangeDetection {
-  if (!targetFromMapping && !targetFromData) {
-    return {
-      entity: null,
-      shouldUpdate: false,
-      shouldCreate: true,
-      shouldSkip: false,
-      reason: 'Page does not exist in target'
-    };
-  }
-  
-  const targetEntity = targetFromData || targetFromMapping;
-  
-  // For pages, check version IDs
-  const sourceVersion = sourceEntity.pageVersionID || 0;
-  const targetVersion = targetEntity.pageVersionID || 0;
-  
-  if (sourceVersion > targetVersion) {
-    return {
-      entity: targetEntity,
-      shouldUpdate: true,
-      shouldCreate: false,
-      shouldSkip: false,
-      reason: 'Source page version is newer'
-    };
-  }
-  
-  return {
-    entity: targetEntity,
-    shouldUpdate: false,
-    shouldCreate: false,
-    shouldSkip: true,
-    reason: 'Page exists and is up to date'
-  };
-}
 
 // CRITICAL FIX: Translate zone names to match template content section definitions
 /**
@@ -114,187 +64,187 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 /**
  * Find if a page already exists in the target instance using sitemap data
  */
-export async function findPageInTargetInstance(
-    sourcePage: mgmtApi.PageItem,
-    apiClient: mgmtApi.ApiClient,
-    targetGuid: string,
-    locale: string,
-    referenceMapper: ReferenceMapperV2,
-    sitemapPath?: string
-): Promise<mgmtApi.PageItem | null> {
+// export async function findPageInTargetInstance(
+//     sourcePage: mgmtApi.PageItem,
+//     apiClient: mgmtApi.ApiClient,
+//     targetGuid: string,
+//     locale: string,
+//     referenceMapper: ReferenceMapperV2,
+//     sitemapPath?: string
+// ): Promise<mgmtApi.PageItem | null> {
     
-    try {
-        // Check reference mappings first (fastest)
-        const existingMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourcePage.pageID);
-        if (existingMapping?.target) {
-            // Found in mappings (silent)
-            return existingMapping.target;
-        }
+//     try {
+//         // Check reference mappings first (fastest)
+//         const existingMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourcePage.pageID);
+//         if (existingMapping?.target) {
+//             // Found in mappings (silent)
+//             return existingMapping.target;
+//         }
 
-        // Get target sitemap and flatten nested pages
-        const sitemap = await getTargetSitemap(apiClient, targetGuid, locale);
-        const websiteChannel = sitemap?.find(channel => channel.digitalChannelTypeName === 'Website');
+//         // Get target sitemap and flatten nested pages
+//         const sitemap = await getTargetSitemap(apiClient, targetGuid, locale);
+//         const websiteChannel = sitemap?.find(channel => channel.digitalChannelTypeName === 'Website');
         
-        if (!websiteChannel || !(websiteChannel as any).flatPages) {
-            return null;
-        }
+//         if (!websiteChannel || !(websiteChannel as any).flatPages) {
+//             return null;
+//         }
 
-        const targetPages = (websiteChannel as any).flatPages;
+//         const targetPages = (websiteChannel as any).flatPages;
 
-        // Find pages with matching names - try multiple name variations
-        const nameMatches = targetPages.filter((targetPage: any) => {
-            const targetPageName = targetPage.pageName || targetPage.name || targetPage.title;
-            const targetMenuText = targetPage.menuText;
+//         // Find pages with matching names - try multiple name variations
+//         const nameMatches = targetPages.filter((targetPage: any) => {
+//             const targetPageName = targetPage.pageName || targetPage.name || targetPage.title;
+//             const targetMenuText = targetPage.menuText;
             
-            // Try exact name match first
-            if (targetPageName === sourcePage.name) return true;
+//             // Try exact name match first
+//             if (targetPageName === sourcePage.name) return true;
             
-            // Try matching against menu text
-            if (targetMenuText && targetMenuText === sourcePage.name) return true;
+//             // Try matching against menu text
+//             if (targetMenuText && targetMenuText === sourcePage.name) return true;
             
-            // Try matching against source page's title and menuText
-            if (targetPageName === sourcePage.title || targetPageName === sourcePage.menuText) return true;
+//             // Try matching against source page's title and menuText
+//             if (targetPageName === sourcePage.title || targetPageName === sourcePage.menuText) return true;
             
-            return false;
-        });
+//             return false;
+//         });
 
-        if (nameMatches.length === 0) {
-            return null;
-        }
+//         if (nameMatches.length === 0) {
+//             return null;
+//         }
 
-        if (nameMatches.length === 1) {
-            // Single match - return it
-            const match = nameMatches[0];
-            const fullPage = await apiClient.pageMethods.getPage(match.pageID, targetGuid, locale);
-            return fullPage;
-        }
+//         if (nameMatches.length === 1) {
+//             // Single match - return it
+//             const match = nameMatches[0];
+//             const fullPage = await apiClient.pageMethods.getPage(match.pageID, targetGuid, locale);
+//             return fullPage;
+//         }
 
-        // Multiple matches - use parent hierarchy to disambiguate
-        const sourceParentId = sourcePage.parentPageID || (sourcePage as any).parentID || -1;
-        let targetParentId = -1;
+//         // Multiple matches - use parent hierarchy to disambiguate
+//         const sourceParentId = sourcePage.parentPageID || (sourcePage as any).parentID || -1;
+//         let targetParentId = -1;
         
-        if (sourceParentId > 0) {
-            const parentMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourceParentId);
-            if (parentMapping?.target) {
-                targetParentId = parentMapping.target.pageID;
-            }
-        }
+//         if (sourceParentId > 0) {
+//             const parentMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourceParentId);
+//             if (parentMapping?.target) {
+//                 targetParentId = parentMapping.target.pageID;
+//             }
+//         }
 
-        // Find best match based on hierarchy
-        const hierarchyMatch = nameMatches.find((targetPage: any) => {
-            const targetPageParentId = targetPage.parentPageID || targetPage.parentID || -1;
-            return (targetParentId === -1 && targetPageParentId <= 0) || 
-                   (targetParentId === targetPageParentId);
-        });
+//         // Find best match based on hierarchy
+//         const hierarchyMatch = nameMatches.find((targetPage: any) => {
+//             const targetPageParentId = targetPage.parentPageID || targetPage.parentID || -1;
+//             return (targetParentId === -1 && targetPageParentId <= 0) || 
+//                    (targetParentId === targetPageParentId);
+//         });
         
-        if (hierarchyMatch) {
-            const fullPage = await apiClient.pageMethods.getPage(hierarchyMatch.pageID, targetGuid, locale);
-            return fullPage;
-        }
+//         if (hierarchyMatch) {
+//             const fullPage = await apiClient.pageMethods.getPage(hierarchyMatch.pageID, targetGuid, locale);
+//             return fullPage;
+//         }
 
-        // If no hierarchy match, check for exact path match
-        const pathMatch = nameMatches.find((targetPage: any) => {
-            const targetPath = targetPage.path || '';
-            const sourcePath = sourcePage.path || '';
-            return targetPath === sourcePath;
-        });
+//         // If no hierarchy match, check for exact path match
+//         const pathMatch = nameMatches.find((targetPage: any) => {
+//             const targetPath = targetPage.path || '';
+//             const sourcePath = sourcePage.path || '';
+//             return targetPath === sourcePath;
+//         });
         
-        if (pathMatch) {
-            const fullPage = await apiClient.pageMethods.getPage(pathMatch.pageID, targetGuid, locale);
-            return fullPage;
-        }
+//         if (pathMatch) {
+//             const fullPage = await apiClient.pageMethods.getPage(pathMatch.pageID, targetGuid, locale);
+//             return fullPage;
+//         }
 
-        // If still multiple matches, return the first one but log a warning
-        if (nameMatches.length > 1) {
-            console.warn(`⚠️ Multiple pages found with name "${sourcePage.name}" in target instance. Using first match (ID: ${nameMatches[0].pageID})`);
-        }
+//         // If still multiple matches, return the first one but log a warning
+//         if (nameMatches.length > 1) {
+//             console.warn(`⚠️ Multiple pages found with name "${sourcePage.name}" in target instance. Using first match (ID: ${nameMatches[0].pageID})`);
+//         }
         
-        const firstMatch = nameMatches[0];
-        const fullPage = await apiClient.pageMethods.getPage(firstMatch.pageID, targetGuid, locale);
-        return fullPage;
+//         const firstMatch = nameMatches[0];
+//         const fullPage = await apiClient.pageMethods.getPage(firstMatch.pageID, targetGuid, locale);
+//         return fullPage;
 
-    } catch (error: any) {
-        return null;
-    }
-} 
+//     } catch (error: any) {
+//         return null;
+//     }
+// } 
 
-export async function findPageInTargetInstanceEnhanced(
-    sourcePage: mgmtApi.PageItem,
-    apiClient: mgmtApi.ApiClient,
-    targetGuid: string,
-    locale: string,
-    targetData: any,
-    referenceMapper: ReferenceMapperV2
-): Promise<{ page: mgmtApi.PageItem | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: ChangeDetection }> {
-    const state = getState();
+// export async function findPageInTargetInstanceEnhanced(
+//     sourcePage: mgmtApi.PageItem,
+//     apiClient: mgmtApi.ApiClient,
+//     targetGuid: string,
+//     locale: string,
+//     targetData: any,
+//     referenceMapper: ReferenceMapperV2
+// ): Promise<{ page: mgmtApi.PageItem | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: ChangeDetection }> {
+//     const state = getState();
 
-    // STEP 1: Find existing mapping
-    const existingMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourcePage.pageID);
-    let targetPageFromMapping: mgmtApi.PageItem | null = existingMapping?.target || null;
+//     // STEP 1: Find existing mapping
+//     const existingMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourcePage.pageID);
+//     let targetPageFromMapping: mgmtApi.PageItem | null = existingMapping?.target || null;
 
-    // STEP 2: Find target instance data
-    const targetInstanceData = targetData.pages?.find((p: any) => 
-        p.pageID === targetPageFromMapping?.pageID || p.name === sourcePage.name || p.path === sourcePage.path
-    );
+//     // STEP 2: Find target instance data
+//     const targetInstanceData = targetData.pages?.find((p: any) => 
+//         p.pageID === targetPageFromMapping?.pageID || p.name === sourcePage.name || p.path === sourcePage.path
+//     );
 
-    // STEP 3: Fallback to API search if not found in data
-    let finalTargetPage: mgmtApi.PageItem | null = targetInstanceData || targetPageFromMapping;
-    if (!finalTargetPage) {
-        finalTargetPage = await findPageInTargetInstance(sourcePage, apiClient, targetGuid, locale, referenceMapper);
-    }
+//     // STEP 3: Fallback to API search if not found in data
+//     let finalTargetPage: mgmtApi.PageItem | null = targetInstanceData || targetPageFromMapping;
+//     if (!finalTargetPage) {
+//         finalTargetPage = await findPageInTargetInstance(sourcePage, apiClient, targetGuid, locale, referenceMapper);
+//     }
 
-    // STEP 4: Use change detection for conflict resolution
-    const decision = changeDetection(
-        sourcePage,
-        targetPageFromMapping,
-        targetInstanceData
-    );
+//     // STEP 4: Use change detection for conflict resolution
+//     const decision = changeDetection(
+//         sourcePage,
+//         targetPageFromMapping,
+//         targetInstanceData
+//     );
 
-    return { 
-        page: finalTargetPage, 
-        shouldUpdate: decision.shouldUpdate, 
-        shouldCreate: decision.shouldCreate, 
-        shouldSkip: decision.shouldSkip,
-        decision: decision
-    };
-}
+//     return { 
+//         page: finalTargetPage, 
+//         shouldUpdate: decision.shouldUpdate, 
+//         shouldCreate: decision.shouldCreate, 
+//         shouldSkip: decision.shouldSkip,
+//         decision: decision
+//     };
+// }
 
-function translateZoneNames(sourceZones: any, targetTemplate: mgmtApi.PageModel | null): any {
-  if (!sourceZones || !targetTemplate?.contentSectionDefinitions) {
-    return sourceZones || {}; // No template or sections, return as-is
-  }
+// function translateZoneNames(sourceZones: any, targetTemplate: mgmtApi.PageModel | null): any {
+//   if (!sourceZones || !targetTemplate?.contentSectionDefinitions) {
+//     return sourceZones || {}; // No template or sections, return as-is
+//   }
 
-  const translatedZones: any = {};
-  const sectionNames = targetTemplate.contentSectionDefinitions
-    .sort((a, b) => (a.itemOrder || 0) - (b.itemOrder || 0)) // Sort by item order
-    .map((def) => def.pageItemTemplateReferenceName);
+//   const translatedZones: any = {};
+//   const sectionNames = targetTemplate.contentSectionDefinitions
+//     .sort((a, b) => (a.itemOrder || 0) - (b.itemOrder || 0)) // Sort by item order
+//     .map((def) => def.pageItemTemplateReferenceName);
 
-  // Map source zones to template section names in order
-  const sourceZoneEntries = Object.entries(sourceZones);
+//   // Map source zones to template section names in order
+//   const sourceZoneEntries = Object.entries(sourceZones);
 
-  for (let i = 0; i < sourceZoneEntries.length && i < sectionNames.length; i++) {
-    const [sourceZoneName, zoneContent] = sourceZoneEntries[i];
-    const targetZoneName = sectionNames[i];
-    translatedZones[targetZoneName] = zoneContent;
-  }
+//   for (let i = 0; i < sourceZoneEntries.length && i < sectionNames.length; i++) {
+//     const [sourceZoneName, zoneContent] = sourceZoneEntries[i];
+//     const targetZoneName = sectionNames[i];
+//     translatedZones[targetZoneName] = zoneContent;
+//   }
 
-  // CRITICAL FIX: Instead of dropping extra zones, combine them into the main zone
-  if (sourceZoneEntries.length > sectionNames.length && sectionNames.length > 0) {
-    const mainZoneName = sectionNames[0]; // Use first (main) zone as target
-    const mainZoneModules = Array.isArray(translatedZones[mainZoneName]) ? [...translatedZones[mainZoneName]] : [];
+//   // CRITICAL FIX: Instead of dropping extra zones, combine them into the main zone
+//   if (sourceZoneEntries.length > sectionNames.length && sectionNames.length > 0) {
+//     const mainZoneName = sectionNames[0]; // Use first (main) zone as target
+//     const mainZoneModules = Array.isArray(translatedZones[mainZoneName]) ? [...translatedZones[mainZoneName]] : [];
 
-    for (let i = sectionNames.length; i < sourceZoneEntries.length; i++) {
-      const [sourceZoneName, zoneContent] = sourceZoneEntries[i];
-      if (Array.isArray(zoneContent) && zoneContent.length > 0) {
-        mainZoneModules.push(...zoneContent);
-      }
-    }
+//     for (let i = sectionNames.length; i < sourceZoneEntries.length; i++) {
+//       const [sourceZoneName, zoneContent] = sourceZoneEntries[i];
+//       if (Array.isArray(zoneContent) && zoneContent.length > 0) {
+//         mainZoneModules.push(...zoneContent);
+//       }
+//     }
 
-    translatedZones[mainZoneName] = mainZoneModules;
-  }
+//     translatedZones[mainZoneName] = mainZoneModules;
+//   }
 
-  return translatedZones;
-}
+//   return translatedZones;
+// }
 
 // Internal helper function to process a single page
 async function processPage(

@@ -60,11 +60,11 @@ export async function pushAssets(
       const folderPath = containerFolderPath === "." ? "" : containerFolderPath; // Use empty string for root level
 
       // Use simplified change detection pattern
-      const existingMapping = referenceMapper.getAssetMapping(media, "target");
+      const existingMapping = referenceMapper.getAssetMapping(media, "source");
       const shouldCreate = existingMapping === null;
 
       // get the target asset, check if the source and targets need updates
-      const targetAsset: mgmtApi.Media = targetData.find(targetAsset => targetAsset.mediaID === media.mediaID) || null;      
+      const targetAsset: mgmtApi.Media = targetData.find(targetAsset => targetAsset.mediaID === existingMapping.targetMediaID) || null;      
       const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetAsset);
       const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(media);
       const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
