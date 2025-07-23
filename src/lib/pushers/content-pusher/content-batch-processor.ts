@@ -73,8 +73,7 @@ export class ContentBatchProcessor {
 				const { payloads: contentPayloads, skippedCount: batchSkippedCount } = await this.prepareContentPayloads(
 					contentBatch,
 					this.config.sourceGuid,
-					this.config.targetGuid,
-					this.config.models,
+					this.config.targetGuid
 				);
 
 				// Track skipped items from this batch
@@ -237,8 +236,7 @@ export class ContentBatchProcessor {
 	private async prepareContentPayloads(
 		contentBatch: mgmtApi.ContentItem[],
 		sourceGuid: string,
-		targetGuid: string,
-		models?: mgmtApi.Model[]
+		targetGuid: string
 
 	): Promise<{ payloads: any[]; skippedCount: number }> {
 		const payloads: any[] = [];
@@ -250,29 +248,25 @@ export class ContentBatchProcessor {
 		const assetMapper = new AssetMapper(sourceGuid, targetGuid);
 
 		for (const contentItem of contentBatch) {
+			const modelMapping = modelMapper.getModelMappingByReferenceName(contentItem.properties.definitionName, 'source');
+
 			try {
 				// STEP 1: Find source model by content item's definitionName (matching original logic)
-				let sourceModel = models?.find((m) => m.referenceName === contentItem.properties.definitionName);
 
-				// Case-insensitive fallback (matching original logic)
-				if (!sourceModel && models) {
-					sourceModel = models.find(
-						(m) => m.referenceName.toLowerCase() === contentItem.properties.definitionName.toLowerCase()
-					);
-				}
+
+				let sourceModel: mgmtApi.Model | null = null;
+				if (modelMapping) sourceModel = modelMapper.getMappedEntity(modelMapping, 'source');
+
 
 				if (!sourceModel) {
 					// Enhanced error reporting for missing content definitions
-					const availableModels = models?.map((m) => m.referenceName).join(", ") || "No models available";
+
 					const errorDetails = [
 						`📋 Content Definition Not Found: "${contentItem.properties.definitionName}"`,
 						`🔍 Content Item: ${contentItem.properties.referenceName}`,
-						`📊 Available Models: ${availableModels}`,
 						`💡 Common causes:`,
 						`   • Model was deleted from source instance`,
-						`   • Case sensitivity mismatch in model names`,
-						`   • Model not included in sync elements`,
-						`   • Content references model that hasn't synced yet`,
+						`   • Model(s) not included in sync elements`
 					].join("\n   ");
 
 					throw new Error(
@@ -281,14 +275,14 @@ export class ContentBatchProcessor {
 				}
 
 				// STEP 2: Find target model using reference mapper (simplified)
-				const targetModelMapping = modelMapper.getModelMapping(sourceModel, 'source');
-				if (!targetModelMapping) {
+
+				if (!modelMapping) {
 					throw new Error(`Target model mapping not found for: ${sourceModel.referenceName} (ID: ${sourceModel.id})`);
 				}
 
 				// Create model object with target ID and fields from source
 				const model = {
-					id: targetModelMapping.targetID,
+					id: modelMapping.targetID,
 					referenceName: sourceModel.referenceName,
 					fields: sourceModel.fields || []
 				};
