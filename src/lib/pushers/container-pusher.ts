@@ -3,8 +3,8 @@ import ansiColors from "ansi-colors";
 import { ApiClient } from "@agility/management-sdk";
 import { state } from "../../core/state";
 import { sleep } from "../shared/sleep";
-import { ContainerMapper } from "lib/mappers/container-mapper";
-import { ModelMapper } from "lib/mappers/model-mapper";
+import { ContainerMapper } from "../mappers/container-mapper";
+import { ModelMapper } from "../mappers/model-mapper";
 
 /**
  * Container pusher with enhanced version-based comparison
