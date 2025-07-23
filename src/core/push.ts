@@ -29,10 +29,10 @@ export class Push {
 
     console.log(ansiColors.bgCyan(`state.update: ${state.update}`));
     // pull the instance data
-    if (state.update !== false) {
-      const pull = new Pull();
-      await pull.pullInstances();
-    }
+   
+    const pull = new Pull();
+    await pull.pullInstances(true);
+  
 
     // CONSOLE.LOG - Calculate total operations using per-GUID locale mapping
     let totalOperations = 0;
