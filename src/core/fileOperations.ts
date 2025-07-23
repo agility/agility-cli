@@ -256,6 +256,10 @@ export class fileOperations{
     fs.writeFileSync(filename, content);
   }
 
+  saveFile(filename:string, content: string) {
+    fs.writeFileSync(filename, content);
+  }
+
   readFile(fileName: string){
     const file = fs.readFileSync(fileName, "utf-8");
     return file;
@@ -275,12 +279,38 @@ export class fileOperations{
   }
 
   // Mapping file operations
-  getMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string): string {
+  getMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string, type?: string): string {
     const localeToUse = locale || this._locale;
     // Store mappings centrally in /agility-files/mappings/ instead of per-instance
-    const centralMappingsPath = path.join(this._rootPath, 'mappings');
-    return path.join(centralMappingsPath, `${sourceGuid}-to-${targetGuid}-${localeToUse}.json`);
+    const centralMappingsPath = path.join(this._rootPath,'mappings', type);
+    return path.join(centralMappingsPath, `mappings.json`);
   }
+
+  getMappingFile(type?: string): any[] {
+    const centralMappingsPath = path.join(this._rootPath,'mappings', type);
+    if(fs.existsSync(centralMappingsPath)){
+      const data = fs.readFileSync(path.join(centralMappingsPath, `mappings.json`), 'utf8');
+      const jsonData = JSON.parse(data);
+      return jsonData;
+    }
+    else{
+      return [];
+    }
+  }
+
+ 
+  saveMappingFile(mappingData: any[], type?: string): void {
+    const centralMappingsPath = path.join(this._rootPath, 'mappings', type);
+    const mappingFilePath = path.join(centralMappingsPath, `mappings.json`);
+
+    if (!fs.existsSync(centralMappingsPath)) {
+      fs.mkdirSync(centralMappingsPath, { recursive: true });
+    }
+
+    // This will overwrite the existing mappings.json file.
+    fs.writeFileSync(mappingFilePath, JSON.stringify(mappingData, null, 2));
+  }
+
 
   /**
    * Get reverse mapping file path for fallback lookups
@@ -292,37 +322,37 @@ export class fileOperations{
     return path.join(centralMappingsPath, `${targetGuid}-to-${sourceGuid}-${localeToUse}.json`);
   }
 
-  saveMappingFile(sourceGuid: string, targetGuid: string, mappingData: any, locale?: string): void {
-    const localeToUse = locale || this._locale;
+  // saveMappingFile(sourceGuid: string, targetGuid: string, mappingData: any, locale?: string): void {
+  //   const localeToUse = locale || this._locale;
     
-    // Ensure centralized mappings directory exists
-    const centralMappingsPath = path.join(this._rootPath, 'mappings');
-    if (!fs.existsSync(centralMappingsPath)) {
-      fs.mkdirSync(centralMappingsPath, { recursive: true });
-    }
+  //   // Ensure centralized mappings directory exists
+  //   const centralMappingsPath = path.join(this._rootPath, 'mappings');
+  //   if (!fs.existsSync(centralMappingsPath)) {
+  //     fs.mkdirSync(centralMappingsPath, { recursive: true });
+  //   }
     
-    // Add locale to mapping data for consistency
-    const mappingDataWithLocale = {
-      ...mappingData,
-      locale: localeToUse
-    };
+  //   // Add locale to mapping data for consistency
+  //   const mappingDataWithLocale = {
+  //     ...mappingData,
+  //     locale: localeToUse
+  //   };
     
-    const mappingFilePath = this.getMappingFilePath(sourceGuid, targetGuid, localeToUse);
-    this.createFile(mappingFilePath, JSON.stringify(mappingDataWithLocale, null, 2));
+  //   const mappingFilePath = this.getMappingFilePath(sourceGuid, targetGuid, localeToUse);
+  //   this.createFile(mappingFilePath, JSON.stringify(mappingDataWithLocale, null, 2));
     
-    // TODO: PERSISTENCE INTEGRATION POINT
-    // This is where we would integrate with external persistence services
-    // for scenarios where mappings need to survive beyond ephemeral agents:
-    // 
-    // Examples:
-    // - Upload to cloud storage (AWS S3, Azure Blob, etc.)
-    // - Save to database (MongoDB, PostgreSQL, etc.)
-    // - Sync to external API/service
-    // - Store in shared network drive
-    // 
-    // Implementation example:
-    // await this.persistMappingExternally(sourceGuid, targetGuid, mappingDataWithLocale, localeToUse);
-  }
+  //   // TODO: PERSISTENCE INTEGRATION POINT
+  //   // This is where we would integrate with external persistence services
+  //   // for scenarios where mappings need to survive beyond ephemeral agents:
+  //   // 
+  //   // Examples:
+  //   // - Upload to cloud storage (AWS S3, Azure Blob, etc.)
+  //   // - Save to database (MongoDB, PostgreSQL, etc.)
+  //   // - Sync to external API/service
+  //   // - Store in shared network drive
+  //   // 
+  //   // Implementation example:
+  //   // await this.persistMappingExternally(sourceGuid, targetGuid, mappingDataWithLocale, localeToUse);
+  // }
 
   loadMappingFile(sourceGuid: string, targetGuid: string, locale?: string): any | null {
     const localeToUse = locale || this._locale;
@@ -431,6 +461,15 @@ export class fileOperations{
     } catch (error: any) {
       console.warn(`[FileOps] Error reading JSON file ${relativePath}: ${error.message}`);
       return null;
+    }
+  }
+
+  readJsonFileAbsolute(absolutePath: string): any | null {
+    try {
+    const content = fs.readFileSync(absolutePath, 'utf8');
+      return JSON.parse(content);
+    } catch (error: any) {
+      console.warn(`[FileOps] Error reading JSON file ${absolutePath}: ${error.message}`);
     }
   }
 
