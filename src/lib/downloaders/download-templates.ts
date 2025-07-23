@@ -2,13 +2,10 @@ import { fileOperations } from "../../core/fileOperations";
 import { getApiClient, getState, state } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
-import { ContentHashComparer } from "../shared/content-hash-comparer";
 import { getAllChannels } from "../shared/get-all-channels";
-import { ChangeDelta } from "../shared/change-delta-tracker";
 
 export async function downloadAllTemplates(
-  guid: string,
-  changeDelta: ChangeDelta
+  guid: string
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const locales = state.guidLocaleMap.get(guid); // Templates need locale for API call
@@ -16,7 +13,6 @@ export async function downloadAllTemplates(
   const apiClient = getApiClient();
   
   const channels = await getAllChannels(guid, locales[0]);
-  // const changeDeltaTracker = new ChangeDeltaTracker(guid, locale || 'en-us', channel);
   const templatesFolderPath = fileOps.getDataFolderPath('templates');
   // Individual template file existence checking is now handled below
 
@@ -48,65 +44,16 @@ export async function downloadAllTemplates(
       // update=false (default): Use hash comparison for smart skipping
       // update=true: Force download/overwrite regardless of content
 
-      if (update) {
-        const hashComparison = ContentHashComparer.getHashComparison(template, templateFilePath);
-        
-        if (hashComparison.status === 'unchanged') {
-          const hashDisplay = hashComparison.shortHashes 
-            ? `${ansiColors.green(`[${hashComparison.shortHashes.api}]`)}`
-            : '';
-          console.log(ansiColors.grey.italic('Found'), ansiColors.gray(`${template.pageTemplateName}`),ansiColors.grey.italic('content unchanged, skipping'), hashDisplay);
-          skippedCount++;
-        } else {
-          // Any case that results in downloading (modified, not-exists, error)
-          fileOps.exportFiles(`templates`, template.pageTemplateID, template);
-          
-          // Record successful download in change delta
-          if (changeDelta) {
-            const action = hashComparison.status === 'not-exists' ? 'created' : 'updated';
-            changeDelta.recordChange({
-              id: template.pageTemplateID,
-              type: 'template',
-              action: action,
-              name: template.pageTemplateName,
-              referenceName: template.pageTemplateName,
-            });
-          }
-          
-          if (hashComparison.status === 'modified') {
-            const hashDisplay = hashComparison.shortHashes 
-              ? `${ansiColors.red(`[${hashComparison.shortHashes.local}]`)} → ${ansiColors.green(`${hashComparison.shortHashes.api}]`)}`
-              : '';
-            console.log(`✓ Updated template ${ansiColors.cyan(template.pageTemplateName)} ID: ${template.pageTemplateID} ${ansiColors.gray('(content changed)')} ${hashDisplay}`);
-          } else if (hashComparison.status === 'not-exists') {
-            const hashDisplay = hashComparison.apiHash 
-              ? `${ansiColors.green(`[${hashComparison.apiHash.substring(0, 6)}]`)}`
-              : '';
-            console.log(`✓ Downloaded template ${ansiColors.cyan(template.pageTemplateName)} ID: ${template.pageTemplateID} ${ansiColors.gray('(new file)')} ${hashDisplay}`);
-          } else {
-            console.log(`✓ Downloaded template ${ansiColors.cyan(template.pageTemplateName)} ID: ${template.pageTemplateID} ${ansiColors.gray('(error reading local file)')}`);
-          }
-        }
-      } else {
+     
+      
         // Force update mode - always download
         fileOps.exportFiles(`templates`, template.pageTemplateID, template);
-        
-        // Record successful download in change delta
-        if (changeDelta) {
-          changeDelta.recordChange({
-            id: template.pageTemplateID,
-            type: 'template',
-            action: 'updated', // Force update mode always updates
-            name: template.pageTemplateName,
-            referenceName: template.pageTemplateName,
-          });
-        }
-        
+        processedCount++;
         console.log(`✓ Downloaded template ${ansiColors.cyan(template.pageTemplateName)} ID: ${template.pageTemplateID} ${ansiColors.gray('(forced update)')}`);
       }
       
-      processedCount++;
-    }
+     
+    
     
     // Summary of downloaded templates
     const downloadedCount = processedCount - skippedCount;

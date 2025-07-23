@@ -236,22 +236,6 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 		// REMOVE direct log, PUSH to stats array
         // console.log(`✓ Downloaded ${ansiColors.cyan(itemType)} (ID: ${itemID})`);
         updateProgress(itemType, itemID, options.rootPath);
-
-		// NEW: Change delta tracking (only for pages and content items)
-		if (options.changeDeltaTracker && options.isIncrementalSync && (itemType === 'page' || itemType === 'item')) {
-			const entityType = mapItemTypeToEntityType(itemType);
-			const entityName = extractEntityName(item, itemType);
-			
-			options.changeDeltaTracker.recordChange({
-				id: itemID,
-				type: entityType,
-				action: 'updated', // All items in incremental sync are updates
-				name: entityName,
-				referenceName: extractReferenceName(item, itemType),
-				timestamp: '' // Auto-added by tracker
-			});
-		}
-       
 		
 	} catch (error) {
 		console.error('Error in saveItem:', error);

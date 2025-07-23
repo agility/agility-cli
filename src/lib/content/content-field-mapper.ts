@@ -1,4 +1,3 @@
-import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { AssetReferenceExtractor } from "../assets/asset-reference-extractor";
 import * as mgmtApi from '@agility/management-sdk';
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";

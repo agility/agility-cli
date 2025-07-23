@@ -8,8 +8,7 @@
  * - Field type compliance with Agility CMS expectations
  */
 
-import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
-import { LinkTypeDetector } from '../shared/link-type-detector';
+import { LinkTypeDetector } from '../shared';
 
 export interface FieldValidationResult {
     isValid: boolean;
@@ -20,7 +19,6 @@ export interface FieldValidationResult {
 }
 
 export interface ContentValidationOptions {
-    referenceMapper?: ReferenceMapperV2;
     sourceAssets?: any[];
     sourceContainers?: any[];
     modelDefinitions?: any[];
@@ -131,20 +129,10 @@ export class ContentFieldValidator {
         // Validate contentid/contentID references
         if ('contentid' in fieldValue || 'contentID' in fieldValue) {
             const contentId = fieldValue.contentid || fieldValue.contentID;
-            
             if (typeof contentId !== 'number' || contentId <= 0) {
                 result.errors.push(`Invalid content ID: ${contentId} in field ${fieldKey}`);
                 result.isValid = false;
-            } else if (options.referenceMapper) {
-                // Check if content ID exists in reference mapper
-                const mappedContent = options.referenceMapper.getMappingByKey(fieldValue, 'content', 'contentid');
-                if (!mappedContent && options.strictMode) {
-                    result.errors.push(`Content ID ${contentId} not found in reference mapper for field ${fieldKey}`);
-                    result.isValid = false;
-                } else if (!mappedContent) {
-                    result.warnings.push(`Content ID ${contentId} not yet mapped for field ${fieldKey}`);
-                }
-            }
+            } 
         }
 
         // Validate LinkedContentDropdown pattern

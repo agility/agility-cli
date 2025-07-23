@@ -1,8 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { state, getState } from '../../core/state';
-import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 import { GalleryMapper } from "lib/mappers/gallery-mapper";
 import { getApiClient } from "../../core/state";
 

@@ -5,6 +5,8 @@ interface TemplateMapping {
     targetGuid: string;
     sourcePageTemplateID: number;
     targetPageTemplateID: number;
+    sourcePageTemplateName: string;
+    targetPageTemplateName: string;
 }
 
 
@@ -41,6 +43,24 @@ export class TemplateMapper {
         return mapping;
     }
 
+    getTemplateMappingByPageTemplateName(pageTemplateName: string, type: 'source' | 'target'): TemplateMapping | null {
+        const mapping = this.mappings.find((m: TemplateMapping) => 
+            type === 'source' ? m.sourcePageTemplateName === pageTemplateName : m.targetPageTemplateName === pageTemplateName
+        );
+        if(!mapping) return null;
+        return mapping;
+    }
+
+    getMappedEntity(mapping: TemplateMapping, type: 'source' | 'target'): mgmtApi.PageModel | null {
+        const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
+        const pageTemplateID = type === 'source' ? mapping.sourcePageTemplateID : mapping.targetPageTemplateID;
+        const fileOps = new fileOperations(guid);
+        const templateFilePath = fileOps.getDataFilePath(`templates/${pageTemplateID}.json`);
+        const templateData = fileOps.readJsonFile(templateFilePath);
+        if (!templateData) return null;
+        return templateData as mgmtApi.PageModel;
+    }
+
     addMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
         const mapping = this.getTemplateMapping(targetTemplate, 'target');
 
@@ -53,7 +73,8 @@ export class TemplateMapper {
                 targetGuid: this.targetGuid,
                 sourcePageTemplateID: sourceTemplate.pageTemplateID,
                 targetPageTemplateID: targetTemplate.pageTemplateID,
-
+                sourcePageTemplateName: sourceTemplate.pageTemplateName,
+                targetPageTemplateName: targetTemplate.pageTemplateName,
             }
 
             this.mappings.push(newMapping);
@@ -69,6 +90,8 @@ export class TemplateMapper {
             mapping.targetGuid = this.targetGuid;
             mapping.sourcePageTemplateID = sourceTemplate.pageTemplateID;
             mapping.targetPageTemplateID = targetTemplate.pageTemplateID;
+            mapping.sourcePageTemplateName = sourceTemplate.pageTemplateName;
+            mapping.targetPageTemplateName = targetTemplate.pageTemplateName;
         }
         this.saveMapping();
     }
