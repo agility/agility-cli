@@ -1,16 +1,16 @@
-import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2"; 
+import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { AssetReferenceExtractor } from "../assets/asset-reference-extractor";
 import * as mgmtApi from '@agility/management-sdk';
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
+import { AssetMapper } from "lib/mappers/asset-mapper";
 
-export function createContentFieldMapper() { 
-  return new ContentFieldMapper(); 
+export function createContentFieldMapper() {
+  return new ContentFieldMapper();
 }
 
 export interface ContentFieldMappingContext {
   referenceMapper: ContentItemMapper;
-  sourceAssets?: any[];
-  targetAssets?: any[];
+  assetMapper: AssetMapper;
   apiClient?: mgmtApi.ApiClient;
   targetGuid?: string;
 }
@@ -122,7 +122,7 @@ export class ContentFieldMapper {
 
   private isAssetAttachmentField(fieldValue: any): boolean {
     if (!fieldValue || typeof fieldValue !== 'object') return false;
-    
+
     // Check for asset attachment patterns
     if (Array.isArray(fieldValue)) {
       return fieldValue.some(item => item && typeof item === 'object' && 'url' in item);
@@ -133,7 +133,7 @@ export class ContentFieldMapper {
 
   private isContentReferenceField(fieldValue: any): boolean {
     if (!fieldValue || typeof fieldValue !== 'object') return false;
-    
+
     // Check for content reference patterns
     return 'contentid' in fieldValue || 'contentID' in fieldValue || 'sortids' in fieldValue;
   }
@@ -230,34 +230,14 @@ export class ContentFieldMapper {
   }
 
   private mapAssetUrl(sourceUrl: string, context?: ContentFieldMappingContext): string {
-    if (!context?.referenceMapper) {
-      return sourceUrl;
-    }
 
-    // Try to find the asset by URL in the reference mapper
-    const assetMapping = context.referenceMapper.getAssetMapping(sourceUrl, 'source');
+    // Try to find the asset by URL in the asset mapper
+    const assetMapping = context.assetMapper.getAssetMappingByMediaUrl(sourceUrl, "source");
     if (assetMapping) {
       const asset = assetMapping as any;
       return asset.originUrl || asset.url || asset.edgeUrl || sourceUrl;
     }
 
-    // Fallback: check if we have source assets to match against
-    if (context.sourceAssets) {
-      const sourceAsset = context.sourceAssets.find(asset => 
-        asset.originUrl === sourceUrl || 
-        asset.url === sourceUrl || 
-        asset.edgeUrl === sourceUrl
-      );
-      
-      if (sourceAsset) {
-        // Try to find corresponding target asset
-        const targetAssetMapping = context.referenceMapper.getAssetMapping(sourceAsset.mediaID, 'target');
-        if (targetAssetMapping) {
-          const targetAsset = targetAssetMapping as any;
-          return targetAsset.originUrl || targetAsset.url || targetAsset.edgeUrl || sourceUrl;
-        }
-      }
-    }
 
     // Return original URL if no mapping found
     return sourceUrl;
