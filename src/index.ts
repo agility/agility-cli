@@ -1,5 +1,17 @@
 #!/usr/bin/env node
 
+// Enable TypeScript path mapping at runtime
+const { register } = require('tsconfig-paths');
+register({
+  baseUrl: __dirname,
+  paths: {
+    'lib/*': ['lib/*'],
+    'core/*': ['core/*'],
+    'core': ['core'],
+    'types/*': ['types/*']
+  }
+});
+
 import * as yargs from "yargs";
 
 import colors from "ansi-colors";
