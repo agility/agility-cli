@@ -48,13 +48,13 @@ export class ContentItemMapper {
 
     getMappedEntity(mapping: ContentItemMapping, type: 'source' | 'target'): mgmtApi.ContentItem | null {
         //fetch the content item from the file system based on source or target GUID
+        if (!mapping) return null;
         const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
         const contentID = type === 'source' ? mapping.sourceContentID : mapping.targetContentID;
 
         const fileOps = new fileOperations(guid, this.locale);
         // Use the file operations to get the content item file path
-        const contentFilePath = fileOps.getDataFilePath(`item/${contentID}.json`);
-        const contentData = fileOps.readJsonFile(contentFilePath);
+        const contentData = fileOps.readJsonFile(`item/${contentID}.json`);
         if (!contentData) return null;
         return contentData as mgmtApi.ContentItem;
     }

@@ -49,20 +49,23 @@ export class ContainerMapper {
     }
 
     getContainerMappingByReferenceName(referenceName: string, type: 'source' | 'target'): ContainerMapping | null {
+        const refNameLower = referenceName.toLowerCase();
         const mapping = this.mappings.find((m: ContainerMapping) =>
-            type === 'source' ? m.sourceReferenceName === referenceName : m.targetReferenceName === referenceName
+            type === 'source' ?
+                m.sourceReferenceName.toLowerCase() === refNameLower :
+                m.targetReferenceName.toLowerCase() === refNameLower
         );
         if (!mapping) return null;
         return mapping;
     }
 
     getMappedEntity(mapping: ContainerMapping, type: 'source' | 'target'): mgmtApi.Container | null {
+        if (!mapping) return null;
         //fetch the container from the file system based on source or target GUID
         const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
         const containerID = type === 'source' ? mapping.sourceContentViewID : mapping.targetContentViewID;
         const fileOps = new fileOperations(guid);
-        const containerFilePath = fileOps.getDataFilePath(`containers/${containerID}.json`);
-        const containerData = fileOps.readJsonFile(containerFilePath);
+        const containerData = fileOps.readJsonFile(`containers/${containerID}.json`);
         if (!containerData) return null;
         return containerData as mgmtApi.Container;
     }
