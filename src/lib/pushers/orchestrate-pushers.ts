@@ -74,13 +74,11 @@ export class Pushers {
       const { guidEntities: targetData, locales: targetLocales } = await targetDataLoader.loadGuidEntitiesForAllLocales();
 
       // Set up reference mapper
-      const referenceMapper = new ReferenceMapperV2();
+      // const referenceMapper = new ReferenceMapperV2();
 
-      // create change delta worker
-      const changeDeltaWorker = new ChangeDeltaFileWorker(sourceGuid);
 
       // Execute all push operations for this GUID pair
-      const pushResults = await this.executePushersInOrder(sourceData, targetData, referenceMapper, changeDeltaWorker);
+        const pushResults = await this.executePushersInOrder(sourceData, targetData);
 
       // Consolidate results
       results.totalSuccess = pushResults.totalSuccess;
@@ -150,9 +148,7 @@ export class Pushers {
    */
   private async executePushersInOrder(
     sourceData: GuidEntities,
-    targetData: GuidEntities,
-    referenceMapper: ReferenceMapperV2,
-    changeDeltaWorker: ChangeDeltaFileWorker
+    targetData: GuidEntities
   ): Promise<{
     totalSuccess: number;
     totalFailures: number;
@@ -194,7 +190,7 @@ export class Pushers {
 
         this.config.onOperationStart?.(config.name, state.sourceGuid[0], state.targetGuid[0]);
 
-        const pusherResult: PusherResult = await config.handler(sourceData, targetData, referenceMapper, changeDeltaWorker);
+        const pusherResult: PusherResult = await config.handler(sourceData, targetData);
 
         // Accumulate results using standardized pattern
         totalSuccess += pusherResult.successful || 0;
@@ -225,7 +221,8 @@ export class Pushers {
         this.config.onOperationComplete?.(config.name, state.sourceGuid[0], state.targetGuid[0], pusherResult.status === 'success');
 
         // Save mappings after each pusher
-        await referenceMapper.saveAllMappings();
+        // await referenceMapper.saveAllMappings();
+
       }
 
       return {

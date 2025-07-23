@@ -3,24 +3,20 @@ import * as mgmtApi from "@agility/management-sdk";
 import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { getAssetFilePath } from "../shared";
 import { state } from "../../core/state";
-import { getAssetAndChangeOperationDecision } from "../changeDetector/asset-change-detection";
-import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
+import { AssetMapper } from "../mappers/asset-mapper";
 const FormData = require("form-data");
 import { getApiClient } from "../../core/state";
 import { fileOperations } from "../../core/fileOperations";
 import path from "path";
-
+import { GalleryMapper } from "lib/mappers/gallery-mapper";
 
 export async function pushAssets(
-  sourceData: any, // TODO: Type these
-  targetData: any, // TODO: Type these
-  referenceMapper: ReferenceMapperV2,
-  changeDeltaWorker: ChangeDeltaFileWorker,
-  onProgress?: (processed: number, total: number, status?: "success" | "error") => void,
+  sourceData: mgmtApi.Media[], // TODO: Type these
+  targetData: mgmtApi.Media[], // TODO: Type these
+  onProgress?: (processed: number, total: number, status?: "success" | "error") => void
 ): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
   // Extract data from sourceData - unified parameter pattern
-  const assets: mgmtApi.Media[] = sourceData.assets || [];
-  
+  const assets: mgmtApi.Media[] = sourceData || [];
 
   if (!assets || assets.length === 0) {
     console.log("No assets found to process.");
@@ -29,8 +25,12 @@ export async function pushAssets(
 
   // Get state values instead of prop drilling
   const { sourceGuid, targetGuid, locale, preview: isPreview } = state;
- 
+
   const apiClient = getApiClient();
+
+  // Initialize reference mapper and asset mapper
+  // const referenceMapper = new ReferenceMapperV2();
+  const referenceMapper = new AssetMapper(sourceGuid[0], targetGuid[0]);
 
   let defaultContainer: mgmtApi.assetContainer | null = null;
   try {
@@ -50,30 +50,26 @@ export async function pushAssets(
   const fileOps = new fileOperations(sourceGuid[0]);
   const basePath = fileOps.getDataFolderPath();
 
- 
-
   for (const media of assets) {
     let currentStatus: "success" | "error" = "success";
     try {
       const relativeFilePath = `assets/${getAssetFilePath(media.originUrl)}`; // Uses imported util with consistent decoding
       const absoluteLocalFilePath = fileOps.getDataFilePath(relativeFilePath);
-      
+
       // Extract container folder path from asset's originUrl (not local path)
       const assetRelativePath = getAssetFilePath(media.originUrl); // e.g., "folder/file.jpg" or "file.jpg"
       const containerFolderPath = path.dirname(assetRelativePath); // e.g., "folder" or "."
-      const folderPath = containerFolderPath === '.' ? '' : containerFolderPath; // Use empty string for root level
+      const folderPath = containerFolderPath === "." ? "" : containerFolderPath; // Use empty string for root level
 
-      const existingMedia = await getAssetAndChangeOperationDecision(
-        media,
-        targetData,
-        referenceMapper,
-        changeDeltaWorker
-      );
+      // Use simplified change detection pattern
+      const existingMapping = referenceMapper.getAssetMapping(media, "target");
+      const shouldCreate = existingMapping === null;
 
-      if(existingMedia === null){
-        console.error(`Unable to get change operation for asset: ${media.mediaID}`);
-      }
-      const { asset, shouldUpdate, shouldCreate } = existingMedia;
+      // should update? are there changes in the target? skip
+      const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(media);
+      const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(media);
+      const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
+      const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
 
       if (shouldCreate) {
         // Asset needs to be created (doesn't exist in target)
@@ -82,42 +78,43 @@ export async function pushAssets(
           absoluteLocalFilePath,
           folderPath,
           apiClient,
+          sourceGuid[0],
           targetGuid[0],
-          referenceMapper,
+          referenceMapper
         );
-        referenceMapper.addMapping("asset", media, createdAsset);
+        referenceMapper.addMapping(media, createdAsset);
         successful++;
       } else if (shouldUpdate) {
         // Asset exists but needs updating
         const updatedAsset = await updateAsset(
           media,
-          asset,
           absoluteLocalFilePath,
           folderPath,
           apiClient,
+          sourceGuid[0],
           targetGuid[0],
-          referenceMapper,
+          referenceMapper
         );
-        referenceMapper.addMapping("asset", media, updatedAsset);
+        referenceMapper.addMapping(media, updatedAsset);
         successful++;
-      } else {
+      } else if (shouldSkip) {
         // Asset exists and is up to date - skip
         const sourceFileName = media.originUrl.split("/").pop()?.split("?")[0];
-        const targetFileName = asset?.originUrl?.split("/").pop()?.split("?")[0];
+        // const targetFileName = media?.originUrl?.split("/").pop()?.split("?")[0];
         console.log(
           `✓ Asset ${ansiColors.underline(sourceFileName || "unknown")} ${ansiColors.bold.grey(
-            "exists, skipping",
-          )} - ${ansiColors.green(targetGuid[0])}: mediaID:${asset?.mediaID} (${targetFileName})`,
+            "exists, skipping"
+          )} - ${ansiColors.green(targetGuid[0])}: mediaID:${existingMapping?.targetMediaID}`
         );
 
         // Add mapping for existing asset
-        if (asset) {
-          referenceMapper.addMapping("asset", media, asset);
-        }
+        // if (existingMapping) {
+        //   referenceMapper.updateMapping(media, media);
+        // }
         skipped++;
       }
     } catch (error: any) {
-      console.log(ansiColors.red('error'), JSON.stringify(error, null, 2))
+      console.log(ansiColors.red("error"), JSON.stringify(error, null, 2));
       console.error(`✗ Error processing asset ${media.fileName || media.originUrl}:`, error.message);
       failed++;
       currentStatus = "error";
@@ -132,7 +129,7 @@ export async function pushAssets(
   }
 
   console.log(
-    ansiColors.yellow(`Processed ${successful}/${totalAssets} assets (${failed} failed, ${skipped} skipped)`),
+    ansiColors.yellow(`Processed ${successful}/${totalAssets} assets (${failed} failed, ${skipped} skipped)`)
   );
   return { status: overallStatus, successful, failed, skipped };
 }
@@ -145,11 +142,12 @@ async function createAsset(
   absoluteLocalFilePath: string,
   folderPath: string,
   apiClient: mgmtApi.ApiClient,
+  sourceGuid: string,
   targetGuid: string,
-  referenceMapper: ReferenceMapperV2,
+  referenceMapper: AssetMapper
 ): Promise<mgmtApi.Media> {
   // Handle gallery if present
-  let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
+  let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, sourceGuid, targetGuid);
 
   const fileOps = new fileOperations(targetGuid);
   // Upload the asset
@@ -170,8 +168,8 @@ async function createAsset(
 
   console.log(
     `✓ Asset ${ansiColors.underline.cyan(media.fileName)} uploaded to path ${folderPath} - ${ansiColors.green(
-      state.sourceGuid[0],
-    )}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`,
+      state.sourceGuid[0]
+    )}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`
   );
 
   return uploadedMedia;
@@ -182,15 +180,16 @@ async function createAsset(
  */
 async function updateAsset(
   media: mgmtApi.Media,
-  existingAsset: mgmtApi.Media,
   absoluteLocalFilePath: string,
   folderPath: string,
   apiClient: mgmtApi.ApiClient,
+  sourceGuid: string,
   targetGuid: string,
-  referenceMapper: ReferenceMapperV2,
+  referenceMapper: AssetMapper
 ): Promise<mgmtApi.Media> {
   // Handle gallery if present
-  let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, targetGuid, referenceMapper);
+
+  let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, sourceGuid, targetGuid);
   const fileOps = new fileOperations(targetGuid);
   // Upload the asset (this will replace the existing one)
   const form = new FormData();
@@ -209,8 +208,8 @@ async function updateAsset(
 
   console.log(
     `✓ Asset ${ansiColors.underline.cyan(media.fileName)} updated in path ${folderPath} - ${ansiColors.green(
-      state.sourceGuid[0],
-    )}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`,
+      state.sourceGuid[0]
+    )}: ${media.mediaID} ${ansiColors.green(targetGuid)}: ${uploadedMedia.mediaID}`
   );
 
   return uploadedMedia;
@@ -223,23 +222,27 @@ async function updateAsset(
 async function resolveGalleryMapping(
   media: mgmtApi.Media,
   apiClient: mgmtApi.ApiClient,
-  targetGuid: string,
-  referenceMapper: ReferenceMapperV2,
+
+  sourceGuid: string,
+  targetGuid: string
+  // referenceMapper: AssetMapper,
 ): Promise<number> {
   let targetMediaGroupingID = -1;
+
+  // we need to get the gallery from the media
+  const galleryName = media.mediaGroupingName;
+
+  const referenceMapper = new GalleryMapper(sourceGuid, targetGuid);
 
   if (media.mediaGroupingID > 0 && media.mediaGroupingName) {
     try {
       // Check mapper first for existing gallery mapping
-      const galleryMapping = referenceMapper.getMappingByKey<mgmtApi.assetMediaGrouping>(
-        "gallery",
-        "name",
-        media.mediaGroupingName,
-      );
-      if (galleryMapping && galleryMapping.target) {
-        targetMediaGroupingID = galleryMapping.target.mediaGroupingID;
+      const galleryMapping = referenceMapper.getGalleryMappingByMediaGroupingID(media.mediaGroupingID, "source");
+      if (galleryMapping) {
+        targetMediaGroupingID = galleryMapping.targetMediaGroupingID;
       } else {
         // Fallback: Check API directly if not in mapper
+        // TODO: use local target instance files to get the gallery
         const gallery = await apiClient.assetMethods.getGalleryByName(targetGuid, media.mediaGroupingName);
         if (gallery) {
           targetMediaGroupingID = gallery.mediaGroupingID;
@@ -248,7 +251,7 @@ async function resolveGalleryMapping(
     } catch (error: any) {
       // Gallery doesn't exist - this is normal, asset will upload without gallery
       console.log(
-        `[Asset] Gallery ${media.mediaGroupingName} not found - asset will upload without gallery association`,
+        `[Asset] Gallery ${media.mediaGroupingName} not found - asset will upload without gallery association`
       );
     }
   }

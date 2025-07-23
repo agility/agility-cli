@@ -11,7 +11,7 @@ import { ChangeDeltaFileWorker } from 'lib/shared/change-delta-file-worker';
 export interface PushOperationConfig {
   name: string;
   description: string;
-  handler: (sourceData: GuidEntities, targetData: GuidEntities, referenceMapper: ReferenceMapperV2, changeDeltaWorker: ChangeDeltaFileWorker) => Promise<PusherResult>;
+  handler: (sourceData: GuidEntities, targetData: GuidEntities) => Promise<PusherResult>;
   elements: string[];
   dataKey: string;
 }
@@ -20,9 +20,9 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
   galleries: {
     name: 'pushGalleries',
     description: 'Push asset galleries and media groupings',
-    handler: async (sourceData, targetData, referenceMapper, changeDeltaWorker) => {
+    handler: async (sourceData, targetData) => {
       const { pushGalleries } = await import('./gallery-pusher');
-      return await pushGalleries(sourceData, targetData, referenceMapper, changeDeltaWorker);
+      return await pushGalleries(sourceData, targetData);
     },
     elements: ['Galleries'],
     dataKey: 'galleries'
@@ -30,9 +30,9 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
   assets: {
     name: 'pushAssets',
     description: 'Push media files and asset metadata',
-    handler: async (sourceData, targetData, referenceMapper, changeDeltaWorker) => {
+    handler: async (sourceData, targetData) => {
       const { pushAssets } = await import('./asset-pusher');
-      return await pushAssets(sourceData, targetData, referenceMapper, changeDeltaWorker);
+      return await pushAssets(sourceData['assets'], targetData['assets']);
     },
     elements: ['Assets'],
     dataKey: 'assets'
@@ -40,9 +40,9 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
   models: {
     name: 'pushModels',
     description: 'Push content models and field definitions',
-    handler: async (sourceData, targetData, referenceMapper, changeDeltaWorker) => {
+    handler: async (sourceData, targetData) => {
       const { pushModels } = await import('./model-pusher');
-      return await pushModels(sourceData, targetData, referenceMapper, changeDeltaWorker);
+      return await pushModels(sourceData, targetData);
     },
     elements: ['Models'],
     dataKey: 'models'
@@ -50,9 +50,9 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
   containers: {
     name: 'pushContainers',
     description: 'Push content containers and views',
-    handler: async (sourceData, targetData, referenceMapper, changeDeltaWorker) => {
+    handler: async (sourceData, targetData) => {
       const { pushContainers } = await import('./container-pusher');
-      return await pushContainers(sourceData, targetData, referenceMapper, changeDeltaWorker);
+      return await pushContainers(sourceData, targetData);
     },
     elements: ['Containers'],
     dataKey: 'containers'
@@ -60,9 +60,9 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
   content: {
     name: 'pushContent',
     description: 'Push content items',
-    handler: async (sourceData, targetData, referenceMapper, changeDeltaWorker) => {
+    handler: async (sourceData, targetData) => {
       const { pushContentSmart } = await import('./content-item-pusher');
-      return await pushContentSmart(sourceData, targetData, referenceMapper, changeDeltaWorker);
+      return await pushContentSmart(sourceData, targetData);
     },
     elements: ['Content'],
     dataKey: 'content'
@@ -70,9 +70,9 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
   templates: {
     name: 'pushTemplates',
     description: 'Push page templates and layouts',
-    handler: async (sourceData, targetData, referenceMapper, changeDeltaWorker) => {
+    handler: async (sourceData, targetData) => {
       const { pushTemplates } = await import('./template-pusher');
-      return await pushTemplates(sourceData, targetData, referenceMapper, changeDeltaWorker);
+      return await pushTemplates(sourceData, targetData);
     },
     elements: ['Templates'],
     dataKey: 'templates'
@@ -80,9 +80,9 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
   pages: {
     name: 'pushPages',
     description: 'Push pages and page hierarchy',
-    handler: async (sourceData, targetData, referenceMapper, changeDeltaWorker) => {
+    handler: async (sourceData, targetData) => {
       const { pushPages } = await import('./page-pusher');
-      return await pushPages(sourceData, targetData, referenceMapper, changeDeltaWorker);
+      return await pushPages(sourceData, targetData);
     },
     elements: ['Pages'],
     dataKey: 'pages'
