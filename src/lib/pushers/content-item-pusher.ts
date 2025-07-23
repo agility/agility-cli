@@ -333,7 +333,8 @@ async function processLinkedContentIndividually(
                 }
 
                 // Find container
-                const containerMapping = referenceMapper.getMappingByKey<mgmtApi.Container>('container', 'referenceName', contentItem.properties.referenceName);
+
+                const containerMapping = containerMapper.getContainerMappingByReferenceName(contentItem.properties.referenceName, "source");
                 let container: mgmtApi.Container | undefined;
 
                 if (containerMapping?.target) {
