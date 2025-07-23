@@ -248,134 +248,144 @@ export class ContentBatchProcessor {
 		const assetMapper = new AssetMapper(sourceGuid, targetGuid);
 
 		for (const contentItem of contentBatch) {
-			const modelMapping = modelMapper.getModelMappingByReferenceName(contentItem.properties.definitionName, 'source');
 
-			try {
-				// STEP 1: Find source model by content item's definitionName (matching original logic)
+			const containerMapping = containerMapper.getContainerMappingByReferenceName(contentItem.properties.referenceName, 'source');
+			const container = containerMapper.getMappedEntity(containerMapping, 'target');
+
+			if (container && container.contentDefinitionID === 1) {
+				//if this is ModelID 1, we can just upload directly :)
+				payloads.push(contentItem);
+			} else {
+				//map the content item to the target instance
+				const modelMapping = modelMapper.getModelMappingByReferenceName(contentItem.properties.definitionName, 'source');
+
+				try {
+					// STEP 1: Find source model by content item's definitionName (matching original logic)
 
 
-				let sourceModel: mgmtApi.Model | null = null;
-				if (modelMapping) sourceModel = modelMapper.getMappedEntity(modelMapping, 'source');
+					let sourceModel: mgmtApi.Model | null = null;
+					if (modelMapping) sourceModel = modelMapper.getMappedEntity(modelMapping, 'source');
 
 
-				if (!sourceModel) {
-					// Enhanced error reporting for missing content definitions
+					if (!sourceModel) {
+						// Enhanced error reporting for missing content definitions
 
-					const errorDetails = [
-						`📋 Content Definition Not Found: "${contentItem.properties.definitionName}"`,
-						`🔍 Content Item: ${contentItem.properties.referenceName}`,
-						`💡 Common causes:`,
-						`   • Model was deleted from source instance`,
-						`   • Model(s) not included in sync elements`
-					].join("\n   ");
+						const errorDetails = [
+							`📋 Content Definition Not Found: "${contentItem.properties.definitionName}"`,
+							`🔍 Content Item: ${contentItem.properties.referenceName}`,
+							`💡 Common causes:`,
+							`   • Model was deleted from source instance`,
+							`   • Model(s) not included in sync elements`
+						].join("\n   ");
 
-					throw new Error(
-						`Source model not found for content definition: ${contentItem.properties.definitionName}\n   ${errorDetails}`
-					);
-				}
+						throw new Error(
+							`Source model not found for content definition: ${contentItem.properties.definitionName}\n   ${errorDetails}`
+						);
+					}
 
-				// STEP 2: Find target model using reference mapper (simplified)
+					// STEP 2: Find target model using reference mapper (simplified)
 
-				if (!modelMapping) {
-					throw new Error(`Target model mapping not found for: ${sourceModel.referenceName} (ID: ${sourceModel.id})`);
-				}
+					if (!modelMapping) {
+						throw new Error(`Target model mapping not found for: ${sourceModel.referenceName} (ID: ${sourceModel.id})`);
+					}
 
-				// Create model object with target ID and fields from source
-				const model = {
-					id: modelMapping.targetID,
-					referenceName: sourceModel.referenceName,
-					fields: sourceModel.fields || []
-				};
+					// Create model object with target ID and fields from source
+					const model = {
+						id: modelMapping.targetID,
+						referenceName: sourceModel.referenceName,
+						fields: sourceModel.fields || []
+					};
 
-				// STEP 3: Find container using reference mapper (simplified)
-				const containerMapping = containerMapper.getContainerMappingByReferenceName(contentItem.properties.referenceName, 'source');
+					// STEP 3: Find container using reference mapper (simplified)
+					const containerMapping = containerMapper.getContainerMappingByReferenceName(contentItem.properties.referenceName, 'source');
 
-				if (!containerMapping) {
-					throw new Error(`Container mapping not found: ${contentItem.properties.referenceName}`);
-				}
+					if (!containerMapping) {
+						throw new Error(`Container mapping not found: ${contentItem.properties.referenceName}`);
+					}
 
-				const targetContainer = containerMapper.getMappedEntity(containerMapping, 'target');
+					const targetContainer = containerMapper.getMappedEntity(containerMapping, 'target');
 
-				// STEP 4: Check if content already exists using reference mapper (since filtering already happened)
-				const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(contentItem.contentID, 'source');
-				const existingTargetContentItem = this.config.referenceMapper.getMappedEntity(existingMapping, 'target');
+					// STEP 4: Check if content already exists using reference mapper (since filtering already happened)
+					const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(contentItem.contentID, 'source');
+					const existingTargetContentItem = this.config.referenceMapper.getMappedEntity(existingMapping, 'target');
 
-				// STEP 5: Use proper ContentFieldMapper for field mapping and validation
-				const { ContentFieldMapper } = await import("../../content/content-field-mapper");
-				const fieldMapper = new ContentFieldMapper();
+					// STEP 5: Use proper ContentFieldMapper for field mapping and validation
+					const { ContentFieldMapper } = await import("../../content/content-field-mapper");
+					const fieldMapper = new ContentFieldMapper();
 
-				const mappingResult = fieldMapper.mapContentFields(contentItem.fields || {}, {
-					referenceMapper: this.config.referenceMapper,
-					assetMapper,
-					apiClient: this.config.apiClient,
-					targetGuid: this.config.targetGuid,
-				});
-
-				// Only log field mapper issues if there are actual errors (not warnings)
-				if (mappingResult.validationErrors > 0) {
-					console.warn(
-						`⚠️ Field mapping errors for ${contentItem.properties.referenceName}: ${mappingResult.validationErrors} errors`
-					);
-				}
-
-				// STEP 6: Normalize field names and add defaults ONLY for truly missing required fields
-				let validatedFields = { ...mappingResult.mappedFields };
-
-				// Create field name mapping: source field names (camelCase) to model field names (as-defined)
-				const fieldNameMap = new Map<string, string>();
-				const camelize = (str: string): string => {
-					return str
-						.replace(/(?:^\w|[A-Z]|\b\w)/g, function (word, index) {
-							return index === 0 ? word.toLowerCase() : word.toUpperCase();
-						})
-						.replace(/\s+/g, "");
-				};
-
-				if (model && model.fields) {
-					model.fields.forEach((fieldDef) => {
-						const camelCaseFieldName = camelize(fieldDef.name);
-						fieldNameMap.set(camelCaseFieldName, fieldDef.name);
-						fieldNameMap.set(fieldDef.name.toLowerCase(), fieldDef.name);
+					const mappingResult = fieldMapper.mapContentFields(contentItem.fields || {}, {
+						referenceMapper: this.config.referenceMapper,
+						assetMapper,
+						apiClient: this.config.apiClient,
+						targetGuid: this.config.targetGuid,
 					});
+
+					// Only log field mapper issues if there are actual errors (not warnings)
+					if (mappingResult.validationErrors > 0) {
+						console.warn(
+							`⚠️ Field mapping errors for ${contentItem.properties.referenceName}: ${mappingResult.validationErrors} errors`
+						);
+					}
+
+					// STEP 6: Normalize field names and add defaults ONLY for truly missing required fields
+					let validatedFields = { ...mappingResult.mappedFields };
+
+					// Create field name mapping: source field names (camelCase) to model field names (as-defined)
+					const fieldNameMap = new Map<string, string>();
+					const camelize = (str: string): string => {
+						return str
+							.replace(/(?:^\w|[A-Z]|\b\w)/g, function (word, index) {
+								return index === 0 ? word.toLowerCase() : word.toUpperCase();
+							})
+							.replace(/\s+/g, "");
+					};
+
+					if (model && model.fields) {
+						model.fields.forEach((fieldDef) => {
+							const camelCaseFieldName = camelize(fieldDef.name);
+							fieldNameMap.set(camelCaseFieldName, fieldDef.name);
+							fieldNameMap.set(fieldDef.name.toLowerCase(), fieldDef.name);
+						});
+					}
+
+					// STEP 7: Define default SEO and Scripts (matching original logic)
+					const defaultSeo = {
+						metaDescription: null,
+						metaKeywords: null,
+						metaHTML: null,
+						menuVisible: null,
+						sitemapVisible: null,
+					};
+					const defaultScripts = { top: null, bottom: null };
+
+					// STEP 8: Create payload using EXACT original logic
+					const payload = {
+						...contentItem, // Start with original content item
+						contentID: existingTargetContentItem ? existingTargetContentItem.contentID : -1,
+						fields: validatedFields, // Use validated fields with defaults for required fields
+						properties: {
+							...contentItem.properties,
+							referenceName: targetContainer.referenceName, // Use TARGET container reference name
+							itemOrder: existingTargetContentItem
+								? existingTargetContentItem.properties.itemOrder
+								: contentItem.properties.itemOrder,
+						},
+						seo: contentItem.seo ?? defaultSeo,
+						scripts: contentItem.scripts ?? defaultScripts,
+					};
+
+					payloads.push(payload);
+				} catch (error: any) {
+					console.error(
+						ansiColors.yellow(
+							`✗ Orphaned content item ${contentItem.contentID}, skipping - ${error.message || 'payload preparation failed'}.`
+						), error
+					);
+
+					// Track skipped item and continue with the rest of the batch
+					skippedCount++;
+					continue;
 				}
-
-				// STEP 7: Define default SEO and Scripts (matching original logic)
-				const defaultSeo = {
-					metaDescription: null,
-					metaKeywords: null,
-					metaHTML: null,
-					menuVisible: null,
-					sitemapVisible: null,
-				};
-				const defaultScripts = { top: null, bottom: null };
-
-				// STEP 8: Create payload using EXACT original logic
-				const payload = {
-					...contentItem, // Start with original content item
-					contentID: existingTargetContentItem ? existingTargetContentItem.contentID : -1,
-					fields: validatedFields, // Use validated fields with defaults for required fields
-					properties: {
-						...contentItem.properties,
-						referenceName: targetContainer.referenceName, // Use TARGET container reference name
-						itemOrder: existingTargetContentItem
-							? existingTargetContentItem.properties.itemOrder
-							: contentItem.properties.itemOrder,
-					},
-					seo: contentItem.seo ?? defaultSeo,
-					scripts: contentItem.scripts ?? defaultScripts,
-				};
-
-				payloads.push(payload);
-			} catch (error: any) {
-				console.error(
-					ansiColors.yellow(
-						`✗ Orphaned content item ${contentItem.contentID}, skipping - ${error.message || 'payload preparation failed'}.`
-					), error
-				);
-
-				// Track skipped item and continue with the rest of the batch
-				skippedCount++;
-				continue;
 			}
 		}
 

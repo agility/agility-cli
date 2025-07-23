@@ -60,6 +60,7 @@ export class ContainerMapper {
     }
 
     getMappedEntity(mapping: ContainerMapping, type: 'source' | 'target'): mgmtApi.Container | null {
+        if (!mapping) return null;
         //fetch the container from the file system based on source or target GUID
         const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
         const containerID = type === 'source' ? mapping.sourceContentViewID : mapping.targetContentViewID;
