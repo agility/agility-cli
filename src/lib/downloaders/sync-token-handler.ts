@@ -1,30 +1,29 @@
 import ansiColors from "ansi-colors";
 import * as fs from "fs";
 
-export async function handleSyncToken(syncTokenPath: string, update: boolean) {
+export async function handleSyncToken(syncTokenPath: string, reset: boolean) {
 
-  console.log(ansiColors.bgCyan(`syncTokenPath: ${syncTokenPath}`))
   const syncTokenExists = fs.existsSync(syncTokenPath);
 
-  if (!update) {
+  if (!reset) {
     if (syncTokenExists) {
-      console.log("--update=false (default): Existing content sync token found. Performing incremental content sync.");
+      console.log("--reset=false (default): Existing content sync token found. Performing incremental content sync.");
     } else {
-      console.log("--update=false (default): No existing content sync token. Performing full content sync by default.");
+      console.log("--reset=false (default): No existing content sync token. Performing full content sync by default.");
     }
   } else {
     if (syncTokenExists) {
       try {
         fs.rmSync(syncTokenPath, { force: true });
-        console.log("--update=true: Cleared existing sync token. Performing full content sync.");
+        console.log("--reset=true: Cleared existing sync token. Performing full content sync.");
       } catch (error: any) {
-        console.log(`--update=true: Error clearing sync token: ${error.message}. Proceeding with full sync.`);
+        console.log(`--reset=true: Error clearing sync token: ${error.message}. Proceeding with full sync.`);
       }
     } else {
-      console.log("--update=true: No existing sync token. Performing full content sync.");
+      console.log("No existing sync token. Performing full content sync.");
     }
   }
 
   // Return true if incremental sync is needed, false otherwise
-  return !update && syncTokenExists;
+  return !reset && syncTokenExists;
 }
