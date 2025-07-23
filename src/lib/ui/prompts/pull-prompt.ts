@@ -18,7 +18,7 @@ export async function pullFiles(selectedInstance: AgilityInstance) {
     const pull = new Pull();
     try {
         const result = await pull.pullInstances();
-        
+
         // Simple completion message
         console.log(colors.green(`✓ Pull completed successfully in ${Math.floor(result.elapsedTime / 1000)}s`));
         return true;
@@ -33,7 +33,7 @@ export async function pullFiles(selectedInstance: AgilityInstance) {
  */
 async function configureStateFromPrompts(selectedInstance: AgilityInstance) {
     const { guid } = selectedInstance;
-    
+
     // Gather configuration through prompts
     const locale = await localePrompt(selectedInstance);
     const channel = await channelPrompt();
@@ -53,7 +53,7 @@ async function configureStateFromPrompts(selectedInstance: AgilityInstance) {
 
     const resetChoice = await inquirer.prompt([
         {
-            type: 'confirm', 
+            type: 'confirm',
             name: 'reset',
             message: 'Nuclear option: completely delete instance folder and start fresh?',
             default: false // Default: --reset=false
@@ -75,7 +75,6 @@ async function configureStateFromPrompts(selectedInstance: AgilityInstance) {
         verbose: false,
         update: updateChoice.update,
         reset: resetChoice.reset,
-        noBatch: false, // Pull operations don't use batch processing
         // Set other defaults
         legacyFolders: false,
         test: false,

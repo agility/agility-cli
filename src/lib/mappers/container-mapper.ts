@@ -1,6 +1,8 @@
 import { fileOperations } from "../../core";
 import * as mgmtApi from "@agility/management-sdk";
 
+//TODO: Change to use lastModifiedOn instead of lastModifiedDate when the fix to that is deployed!
+
 interface ContainerMapping {
     sourceGuid: string;
     targetGuid: string;
