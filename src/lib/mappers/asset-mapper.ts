@@ -57,12 +57,12 @@ export class AssetMapper {
     updateMapping(sourceAsset: any, targetAsset: any) {
         const mapping = this.getAssetMapping(targetAsset);
         if(mapping) {
-            mapping.sourceDateModified = sourceAsset.dateModified;
-            mapping.sourceMediaID = sourceAsset.mediaID;
-            mapping.targetDateModified = targetAsset.dateModified;
-            mapping.targetMediaID = targetAsset.mediaID;
             mapping.sourceGuid = this.sourceGuid;
             mapping.targetGuid = this.targetGuid;
+            mapping.sourceDateModified = sourceAsset.dateModified;
+            mapping.targetDateModified = targetAsset.dateModified;
+            mapping.sourceMediaID = sourceAsset.mediaID;
+            mapping.targetMediaID = targetAsset.mediaID;
         }
         this.saveMapping();
     }
