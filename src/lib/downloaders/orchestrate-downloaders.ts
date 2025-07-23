@@ -2,7 +2,6 @@ import { getState } from '../../core/state';
 import { fileOperations } from '../../core/fileOperations';
 import ansiColors from 'ansi-colors';
 import { DownloadOperationsRegistry } from './download-operations-config';
-import { ChangeDelta } from '../shared/change-delta-tracker';
 
 export interface DownloadResults {
   successful: string[];
@@ -44,11 +43,8 @@ export class Downloader {
       console.log(`Processing ${guid}...`);
 
 
-      // create delta for the operations
-      const changeDelta = new ChangeDelta(guid);
-
       // Execute all data elements for this GUID
-      await this.downloadDataElements(guid, results, changeDelta);
+      await this.downloadDataElements(guid, results);
 
       // Calculate final duration
       results.totalDuration = Date.now() - startTime;
@@ -144,8 +140,7 @@ export class Downloader {
    */
   private async downloadDataElements(
     guid: string, 
-    results: DownloadResults,
-    changeDelta: ChangeDelta
+    results: DownloadResults
   ): Promise<void> {
     // Get operations based on elements filter
     const operations = DownloadOperationsRegistry.getOperationsForElements();
@@ -157,7 +152,7 @@ export class Downloader {
       try {
         this.config.onOperationStart?.(operation.name, guid);
         
-        await operation.handler(guid, changeDelta);
+        await operation.handler(guid);
         
         results.successful.push(`${operation.name} (${guid})`);
         this.config.onOperationComplete?.(operation.name, guid, true);
@@ -171,8 +166,6 @@ export class Downloader {
         console.error(`❌ ${guid}: ${operation.name} failed - ${errorMessage}`);
       }
     }
-
-    changeDelta.writeChangeDelta(guid);
   }
 
   /**

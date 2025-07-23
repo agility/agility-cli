@@ -1,14 +1,10 @@
 import { fileOperations } from "../../core/fileOperations";
 import { getApiClient, getState, state } from "../../core/state";
 import ansiColors from "ansi-colors";
-import { ChangeDelta } from "../shared/change-delta-tracker";
-// import * as fs from "fs";
-// import * as path from "path";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllGalleries(
   guid: string,
-  changeDelta: ChangeDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
@@ -99,16 +95,6 @@ export async function downloadAllGalleries(
       console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${downloadDecision.reason})`)}`);
       downloadedCount++;
       
-      // Record in change delta
-      if (changeDelta) {
-        changeDelta.recordChange({
-          id: index,
-          type: 'gallery',
-          action: downloadDecision.reason === 'new file' ? 'created' : 'updated',
-          name: `galleries-${index}.json`,
-          referenceName: `galleries-${index}`,
-        });
-      }
     } else {
       console.log(`✓ Gallery file galleries-${index}.json up to date, skipping`);
       skippedCount++;
@@ -134,16 +120,6 @@ export async function downloadAllGalleries(
         console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${galleryDownloadDecision.reason})`)}`);
         downloadedCount++;
         
-        // Record in change delta
-        if (changeDelta) {
-          changeDelta.recordChange({
-            id: index,
-            type: 'gallery',
-            action: galleryDownloadDecision.reason === 'new file' ? 'created' : 'updated',
-            name: `galleries-${index}.json`,
-            referenceName: `galleries-${index}`,
-          });
-        }
       } else {
         console.log(ansiColors.yellow(`✓ Gallery file galleries-${index}.json up to date, skipping`));
         skippedCount++;

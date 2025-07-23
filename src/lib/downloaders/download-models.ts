@@ -1,14 +1,12 @@
 import { fileOperations } from "../../core/fileOperations";
 import { getApiClient, getState, state } from "../../core/state";
 import ansiColors from "ansi-colors";
-import { ChangeDelta } from "../shared/change-delta-tracker";
 import * as path from "path";
 import * as fs from "fs";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllModels(
   guid: string,
-  changeDelta: ChangeDelta
 ): Promise<void> {
   // Get values from fileOps which is already configured for this specific GUID/locale
   const fileOps = new fileOperations(guid);
@@ -156,17 +154,6 @@ export async function downloadAllModels(
           fileOps.exportFiles(`models`, fileName, modelDetails);
           console.log(`✓ Downloaded ${modelType} model ${ansiColors.cyan(modelDisplayName)} ${ansiColors.gray(`(${reason})`)}`);
           
-          // Record successful download in change delta
-          if (changeDelta) {
-            changeDelta.recordChange({
-              id: modelDetails.id,
-              type: 'model',
-              action: reason === 'new file' ? 'created' : 'updated',
-              name: modelDisplayName,
-              referenceName: modelDetails.referenceName,
-              timestamp: new Date().toISOString(),
-            });
-          }
           
           return { success: true, modelDetails };
         } catch (error: any) {

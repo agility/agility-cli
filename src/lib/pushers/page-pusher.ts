@@ -1,10 +1,9 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { state, getState } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
 import { SitemapHierarchy } from "../shared/sitemap-hierarchy";
-import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
+import { PageMapper } from "../mappers/page-mapper";
 
 
 // CRITICAL FIX: Translate zone names to match template content section definitions
@@ -253,7 +252,7 @@ async function processPage(
   locale: string,
   isChildPage: boolean,
   apiClient: mgmtApi.ApiClient,
-  referenceMapper: ReferenceMapperV2,
+  referenceMapper: PageMapper,
   overwrite: boolean = false,
   insertBeforePageId: number | null = null
 ): Promise<"success" | "skip" | "failure"> {

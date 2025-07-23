@@ -1,6 +1,5 @@
 import { fileOperations } from "../../core/fileOperations";
 import { getApiClient, getState, state } from "../../core/state";
-import { ChangeDelta } from "../shared/change-delta-tracker";
 import * as fs from "fs";
 import * as path from "path";
 import ansiColors from "ansi-colors";
@@ -8,7 +7,6 @@ import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllSitemaps(  
   guid: string,
-  changeDelta: ChangeDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const locales = state.guidLocaleMap.get(guid);
@@ -47,18 +45,6 @@ export async function downloadAllSitemaps(
     if (sitemapDownloadDecision.shouldDownload) {
       // Write sitemap file
       fs.writeFileSync(sitemapFilePath, JSON.stringify(sitemap, null, 2));
-      
-      // Track in change delta if provided
-      if (changeDelta) {
-        changeDelta.recordChange({
-          id: `sitemap-${guid}-${locales[0]}`,
-          type: 'page', // Sitemaps are page-related
-          action: localSitemapInfo.exists ? 'updated' : 'created',
-          name: `Sitemap ${guid} (${locales[0]})`,
-          referenceName: sitemapFileName,
-        });
-      }
-
       console.log(`✓ Downloaded ${ansiColors.underline.cyan(sitemapFileName)} ${ansiColors.gray(`(${sitemapDownloadDecision.reason})`)}`);
     } else {
       console.log(ansiColors.yellow(`⚠ Skipped ${sitemapFileName} ${ansiColors.gray(`(${sitemapDownloadDecision.reason})`)}`));

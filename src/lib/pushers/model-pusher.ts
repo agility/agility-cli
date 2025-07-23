@@ -2,9 +2,6 @@ import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { getState, getApiClient, state } from "../../core/state";
 import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
-import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
-import { logModelDifferences } from "../loggers";
-import { ChangeDeltaFileWorker } from "lib/shared/change-delta-file-worker";
 import { ModelMapper } from "lib/mappers/model-mapper";
 
 /**

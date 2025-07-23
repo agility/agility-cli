@@ -2,7 +2,6 @@ import * as path from "path";
 import * as fs from "fs";
 import ansiColors from "ansi-colors";
 import * as agilitySync from "@agility/content-sync";
-import { ChangeDelta } from "../shared/change-delta-tracker";
 import { state, getApiKeysForGuid } from "../../core/state";
 import { fileOperations } from "../../core/fileOperations";
 import { handleSyncToken } from "./sync-token-handler";
@@ -10,7 +9,7 @@ import { getAllChannels } from "../shared/get-all-channels";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
-export async function downloadAllSyncSDK(guid: string, changeDelta: ChangeDelta) {
+export async function downloadAllSyncSDK(guid: string) {
   const locales: string[] = state.guidLocaleMap.get(guid);
   const channels = await getAllChannels(guid, locales[0]);
   const downloads: Promise<any>[] = [];
@@ -19,7 +18,7 @@ export async function downloadAllSyncSDK(guid: string, changeDelta: ChangeDelta)
 
   channels.forEach(channel => {
     locales.forEach(locale => {
-      downloads.push(downloadSyncSDKByLocaleAndChannel(guid, channel.channel.toLowerCase(), locale, changeDelta));
+      downloads.push(downloadSyncSDKByLocaleAndChannel(guid, channel.channel.toLowerCase(), locale));
     });
   });
 
@@ -31,8 +30,7 @@ export async function downloadAllSyncSDK(guid: string, changeDelta: ChangeDelta)
 export async function downloadSyncSDKByLocaleAndChannel(
   guid: string,
   channel: string,
-  locale: string,
-  changeDelta: ChangeDelta
+  locale: string
 ): Promise<void> {
 
 
@@ -60,7 +58,6 @@ export async function downloadSyncSDKByLocaleAndChannel(
       options: {
         rootPath: instanceSpecificPath,
         // NEW: Pass change delta tracker and mode
-        changeDeltaTracker: changeDelta,
         isIncrementalSync: isIncrementalSync
       }
     }

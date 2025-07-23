@@ -4,11 +4,9 @@ import * as path from "path";
 import ansiColors from "ansi-colors";
 import { ContentHashComparer } from "../shared/content-hash-comparer";
 import { getAllChannels } from "../shared/get-all-channels";
-import { ChangeDelta } from "../shared/change-delta-tracker";
 
 export async function downloadAllTemplates(
-  guid: string,
-  changeDelta: ChangeDelta
+  guid: string
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const locales = state.guidLocaleMap.get(guid); // Templates need locale for API call
@@ -16,7 +14,6 @@ export async function downloadAllTemplates(
   const apiClient = getApiClient();
   
   const channels = await getAllChannels(guid, locales[0]);
-  // const changeDeltaTracker = new ChangeDeltaTracker(guid, locale || 'en-us', channel);
   const templatesFolderPath = fileOps.getDataFolderPath('templates');
   // Individual template file existence checking is now handled below
 
@@ -61,17 +58,6 @@ export async function downloadAllTemplates(
           // Any case that results in downloading (modified, not-exists, error)
           fileOps.exportFiles(`templates`, template.pageTemplateID, template);
           
-          // Record successful download in change delta
-          if (changeDelta) {
-            const action = hashComparison.status === 'not-exists' ? 'created' : 'updated';
-            changeDelta.recordChange({
-              id: template.pageTemplateID,
-              type: 'template',
-              action: action,
-              name: template.pageTemplateName,
-              referenceName: template.pageTemplateName,
-            });
-          }
           
           if (hashComparison.status === 'modified') {
             const hashDisplay = hashComparison.shortHashes 
@@ -90,17 +76,6 @@ export async function downloadAllTemplates(
       } else {
         // Force update mode - always download
         fileOps.exportFiles(`templates`, template.pageTemplateID, template);
-        
-        // Record successful download in change delta
-        if (changeDelta) {
-          changeDelta.recordChange({
-            id: template.pageTemplateID,
-            type: 'template',
-            action: 'updated', // Force update mode always updates
-            name: template.pageTemplateName,
-            referenceName: template.pageTemplateName,
-          });
-        }
         
         console.log(`✓ Downloaded template ${ansiColors.cyan(template.pageTemplateName)} ID: ${template.pageTemplateID} ${ansiColors.gray('(forced update)')}`);
       }
