@@ -17,7 +17,7 @@ export class Pull {
     this.downloader = new Downloader();
   }
 
-  async pullInstances(): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
+  async pullInstances(fromPush: boolean = false): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
     const state = getState();
     
 
@@ -25,7 +25,16 @@ export class Pull {
     // TODO: Add support for multiple GUIDs, multiple locales, multiple chanels
     // Currently only supports one GUID, one locale, one channel
     // Get all GUIDs to process (both source and target)
-    const allGuids = [...state.sourceGuid, ...state.targetGuid];
+    const { update } = state;
+
+    let allGuids = [];
+    if(update === false && fromPush === true){
+      allGuids = [...state.targetGuid];
+    } else if(update === true && fromPush === true){
+      allGuids = [...state.sourceGuid, ...state.targetGuid];
+    } else if(update === true && fromPush === false){
+      allGuids = [...state.sourceGuid];
+    }
     
     if (allGuids.length === 0) {
       throw new Error('No GUIDs specified for pull operation');
