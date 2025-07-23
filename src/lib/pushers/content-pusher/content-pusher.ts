@@ -6,26 +6,27 @@ import { state } from '../../../core/state';
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { filterContentItemsForProcessing } from './util/filter-content-items-for-processing';
 import { areContentDependenciesResolved } from "./util/are-content-dependencies-resolved";
+import { ModelMapper } from "lib/mappers/model-mapper";
+import { Model } from "@agility/management-sdk";
 
 
 /**
  * Push content to the target instance
  */
 export async function pushContent(
-    sourceData: any,
-    targetData: any,
+    sourceData: any[],
+    targetData: any[],
 ): Promise<any> {
-
-
 
     // Use batch pusher for better performance (default behavior)
     const { ContentBatchProcessor } = await import('./content-batch-processor');
 
+    const modelMapper = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
 
     const { sourceGuid, targetGuid, locale } = state;
 
     const referenceMapper = new ContentItemMapper(sourceGuid[0], targetGuid[0], locale[0]);
-    const contentItems = sourceData.content || [];
+    const contentItems = sourceData || [];
 
     if (contentItems.length === 0) {
         return { status: "success" as const, successful: 0, failed: 0, skipped: 0, publishableIds: [] };
@@ -37,21 +38,20 @@ export async function pushContent(
 
     for (const contentItem of contentItems) {
         // Find source model for this content item
-        let sourceModel = sourceData.models?.find(
-            (m: any) => m.referenceName === contentItem.properties.definitionName
-        );
-        if (!sourceModel && sourceData.models) {
-            sourceModel = sourceData.models.find(
-                (m: any) => m.referenceName.toLowerCase() === contentItem.properties.definitionName.toLowerCase()
-            );
-        }
+        const mappedModel = modelMapper.getModelMapping(contentItem.properties.definitionName, "source");
+
+        let sourceModel: Model | null = null
+        if (mappedModel) sourceModel = modelMapper.getMappedEntity(mappedModel, "source");
+
 
         if (!sourceModel) {
             // No model found - treat as linked content for dependency resolution
+            console.log("XXX ITEM", contentItem.contentID, "NO MODEL FOUND - treating as linked content");
+
             linkedContentItems.push(contentItem);
             continue;
         }
-
+        console.log("XXX ITEM", contentItem.contentID, "MODEL", sourceModel.referenceName);
         // Check if content has unresolved dependencies
         if (areContentDependenciesResolved(contentItem, referenceMapper, [sourceModel])) {
             normalContentItems.push(contentItem);
@@ -79,7 +79,6 @@ export async function pushContent(
                 referenceMapper,
                 batchSize: 250,
                 useContentFieldMapper: true,
-                models: sourceData.models,
                 defaultAssetUrl: "",
             };
 
@@ -116,7 +115,6 @@ export async function pushContent(
                 referenceMapper,
                 batchSize: 100, // Smaller batches for linked content due to complexity
                 useContentFieldMapper: true,
-                models: sourceData.models,
                 defaultAssetUrl: "",
             };
 

@@ -38,6 +38,18 @@ export async function pushContainers(
   const modelMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
 
   for (const sourceContainer of sourceContainers) {
+
+    //SPECIAL CASE for fixed Agility containers
+    if (sourceContainer.referenceName === "AgilityCSSFiles"
+      || sourceContainer.referenceName === "AgilityJavascriptFiles"
+      || sourceContainer.referenceName === "AgilityGlobalCodeTemplates"
+      || sourceContainer.referenceName === "AgilityModuleCodeTemplates"
+      || sourceContainer.referenceName === "AgilityPageCodeTemplates"
+    ) {
+      //ignore these containers
+      continue;
+    }
+
     const sourceRefName = sourceContainer.referenceName;
     let currentStatus: "success" | "error" = "success";
 
@@ -62,12 +74,22 @@ export async function pushContainers(
       const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
       const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
 
-      if (shouldCreate) {
-        await sleep(200); // help rate limiting
-        // Check if target container mapping exists before attempting to create
-        const { targetID: targetModelId } = modelMapper.getModelMappingByID(sourceContainer.contentDefinitionID, 'source')
+      const modelMapping = modelMapper.getModelMappingByID(sourceContainer.contentDefinitionID, 'source')
+      let targetModelID = -1
 
-        if (!targetModelId) {
+      // Check if target container mapping exists before attempting to create
+      if (sourceContainer.contentDefinitionID === 1) {
+        //special case for RichTextArea component models - id is ALWAYS 1
+        targetModelID = 1; // use the default RichTextArea model
+      } else {
+        if (modelMapping) {
+          targetModelID = modelMapping.targetID;
+        }
+      }
+
+      if (shouldCreate) {
+        // Container doesn't exist - create new one
+        if (targetModelID < 1) {
           console.log(
             `${ansiColors.yellow("⚠️ Container")} ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.yellow("skipped - target model mapping not found")} (Model ID: ${sourceContainer.contentDefinitionID})`,
           );
@@ -78,7 +100,7 @@ export async function pushContainers(
             sourceContainer,
             apiClient,
             targetGuid[0],
-            targetModelId,
+            targetModelID,
             totalFailures,
           );
 
@@ -102,10 +124,7 @@ export async function pushContainers(
       } else if (shouldUpdate) {
         // Container exists but needs updating
 
-        // Check if target model mapping exists before attempting to update
-        const { targetID: targetModelId } = modelMapper.getModelMappingByID(sourceContainer.contentDefinitionID, 'source')
-
-        if (!targetModelId) {
+        if (targetModelID < 1) {
           console.log(
             `${ansiColors.yellow("⚠️ Container")} ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.yellow("skipped - target model mapping not found")} (Model ID: ${sourceContainer.contentDefinitionID})`,
           );
@@ -116,7 +135,7 @@ export async function pushContainers(
             targetContainer,
             apiClient,
             targetGuid[0],
-            targetModelId,
+            targetModelID,
             totalFailures,
           );
 

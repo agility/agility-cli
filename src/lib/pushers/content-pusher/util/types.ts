@@ -12,7 +12,6 @@ export interface ContentBatchConfig {
 	referenceMapper: ContentItemMapper;
 	batchSize?: number; // Default: 100, Max: 250
 	useContentFieldMapper?: boolean; // Whether to use enhanced field mapping
-	models?: any[]; // Models for enhanced payload preparation
 	defaultAssetUrl?: string; // Default asset URL for content mapping
 	targetData?: any; // Target instance data for checking existing content
 	onBatchComplete?: (batchResult: BatchProcessingResult, batchNumber: number) => Promise<void>; // Callback after each batch completes

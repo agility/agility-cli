@@ -6,6 +6,8 @@ interface ModelMapping {
     targetGuid: string;
     sourceID: number;
     targetID: number;
+    sourceReferenceName?: string;
+    targetReferenceName?: string;
     sourceLastModifiedDate: string;
     targetLastModifiedDate: string;
 }
@@ -44,6 +46,19 @@ export class ModelMapper {
         return mapping;
     }
 
+    getModelMappingByReferenceName(referenceName: string, type: 'source' | 'target'): ModelMapping | null {
+        //do a case-insensitive search for the referenceName
+        const refNameLower = referenceName.toLowerCase();
+
+        const mapping = this.mappings.find((m: ModelMapping) =>
+            type === 'source'
+                ? m.sourceReferenceName.toLowerCase() === refNameLower
+                : m.targetReferenceName.toLowerCase() === refNameLower
+        );
+        if (!mapping) return null;
+        return mapping;
+    }
+
     getMappedEntity(mapping: ModelMapping, type: 'source' | 'target'): mgmtApi.Model | null {
         //fetch the model from the file system based on source or target GUID
         const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
@@ -67,6 +82,8 @@ export class ModelMapper {
                 targetGuid: this.targetGuid,
                 sourceID: sourceModel.id,
                 targetID: targetModel.id,
+                sourceReferenceName: sourceModel.referenceName,
+                targetReferenceName: targetModel.referenceName,
                 sourceLastModifiedDate: sourceModel.lastModifiedDate,
                 targetLastModifiedDate: targetModel.lastModifiedDate,
 
@@ -85,6 +102,8 @@ export class ModelMapper {
             mapping.targetGuid = this.targetGuid;
             mapping.sourceID = sourceModel.id;
             mapping.targetID = targetModel.id;
+            mapping.sourceReferenceName = sourceModel.referenceName;
+            mapping.targetReferenceName = targetModel.referenceName;
             mapping.sourceLastModifiedDate = sourceModel.lastModifiedDate;
             mapping.targetLastModifiedDate = targetModel.lastModifiedDate;
         }
