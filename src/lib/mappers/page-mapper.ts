@@ -106,12 +106,12 @@ export class PageMapper {
     }
 
     loadMapping() {
-        const mapping = this.fileOps.getMappingFile(this.directory);
+        const mapping = this.fileOps.getMappingFile(this.directory, this.sourceGuid, this.targetGuid, this.locale);
         return mapping;
     }
 
     saveMapping() {
-        this.fileOps.saveMappingFile(this.mappings, this.directory);
+        this.fileOps.saveMappingFile(this.mappings, this.directory, this.sourceGuid, this.targetGuid, this.locale);
     }
 
     hasSourceChanged(sourcePage: mgmtApi.PageItem) {
