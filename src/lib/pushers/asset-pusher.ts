@@ -1,6 +1,5 @@
 import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
-import { ReferenceMapperV2 } from "../refMapper/reference-mapper-v2";
 import { getAssetFilePath } from "../shared";
 import { state } from "../../core/state";
 import { AssetMapper } from "../mappers/asset-mapper";
@@ -29,7 +28,6 @@ export async function pushAssets(
   const apiClient = getApiClient();
 
   // Initialize reference mapper and asset mapper
-  // const referenceMapper = new ReferenceMapperV2();
   const referenceMapper = new AssetMapper(sourceGuid[0], targetGuid[0]);
 
   let defaultContainer: mgmtApi.assetContainer | null = null;
@@ -108,11 +106,6 @@ export async function pushAssets(
             "exists, skipping"
           )} - ${ansiColors.green(targetGuid[0])}: mediaID:${existingMapping?.targetMediaID}`
         );
-
-        // Add mapping for existing asset
-        // if (existingMapping) {
-        //   referenceMapper.updateMapping(media, media);
-        // }
         skipped++;
       }
     } catch (error: any) {
