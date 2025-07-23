@@ -44,7 +44,8 @@ export async function downloadSyncSDKByLocaleAndChannel(
   // Build the path to the instance-specific folder
   const instanceSpecificPath = fileOps.getDataFolderPath();
   const syncTokenPath = fileOps.getDataFilePath('state', 'sync.json');
-  const isIncrementalSync = await handleSyncToken(syncTokenPath, state.update);
+
+  const isIncrementalSync = await handleSyncToken(syncTokenPath, state.reset);
 
   // Configure the Agility Sync client
   const agilityConfig = {
