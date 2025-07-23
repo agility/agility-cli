@@ -18,6 +18,7 @@ export { PublishService, createPublishService, type PublishResult, type PublishO
 export { content } from './content';
 export { assets } from './assets';
 export { fileOperations } from './fileOperations';
+export { getApiClient } from './state';
 
 // File system integration
 // Note: store-interface-filesystem uses module.exports, import directly if needed 
