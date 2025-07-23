@@ -36,6 +36,14 @@ export class PageMapper {
         return mapping;       
     }
 
+    getPageMappingByPageID(pageID: number, type: 'source' | 'target'): PageMapping | null {
+        const mapping = this.mappings.find((m: PageMapping) => 
+            type === 'source' ? m.sourcePageID === pageID : m.targetPageID === pageID
+        );
+        if(!mapping) return null;
+        return mapping;
+    }
+
     addMapping(sourcePage: mgmtApi.PageItem, targetPage: mgmtApi.PageItem) {
         const mapping = this.getPageMapping(targetPage, 'target');
 

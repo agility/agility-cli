@@ -36,6 +36,14 @@ export class ModelMapper {
         return mapping;       
     }
 
+    getModelMappingByID(id: number, type: 'source' | 'target'): ModelMapping | null {
+        const mapping = this.mappings.find((m: ModelMapping) => 
+            type === 'source' ? m.sourceID === id : m.targetID === id
+        );
+        if(!mapping) return null;
+        return mapping;
+    }
+
     addMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model) {
         const mapping = this.getModelMapping(targetModel, 'target');
 

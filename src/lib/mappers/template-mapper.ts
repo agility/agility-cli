@@ -33,6 +33,14 @@ export class TemplateMapper {
         return mapping;       
     }
 
+    getTemplateMappingByPageTemplateID(pageTemplateID: number, type: 'source' | 'target'): TemplateMapping | null {
+        const mapping = this.mappings.find((m: TemplateMapping) => 
+            type === 'source' ? m.sourcePageTemplateID === pageTemplateID : m.targetPageTemplateID === pageTemplateID
+        );
+        if(!mapping) return null;
+        return mapping;
+    }
+
     addMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
         const mapping = this.getTemplateMapping(targetTemplate, 'target');
 

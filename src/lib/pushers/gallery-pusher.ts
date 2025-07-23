@@ -64,10 +64,10 @@ export async function findGalleryInTargetInstance(
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
   targetData: any,
-  referenceMapper: ReferenceMapperV2
 ): Promise<{ gallery: mgmtApi.assetMediaGrouping | null; shouldUpdate: boolean; shouldCreate: boolean; shouldSkip: boolean; decision?: ChangeDetection }> {
   const state = getState();
 
+  
   // STEP 1: Find existing mapping
   const existingMapping = referenceMapper.getMappingByKey<mgmtApi.assetMediaGrouping>("gallery", "mediaGroupingID", sourceGallery.mediaGroupingID);
   let targetGalleryFromMapping: mgmtApi.assetMediaGrouping | null = existingMapping?.target || null;
@@ -103,8 +103,6 @@ export async function findGalleryInTargetInstance(
 export async function pushGalleries(
     sourceData: any,
     targetData: any,
-    referenceMapper: ReferenceMapperV2,
-    changeDeltaWorker: ChangeDeltaFileWorker
     // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
     

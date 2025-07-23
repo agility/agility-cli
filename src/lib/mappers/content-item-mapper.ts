@@ -36,6 +36,14 @@ export class ContentItemMapper {
         return mapping;       
     }
 
+    getContentItemMappingByContentID(contentID: number, type: 'source' | 'target'): ContentItemMapping | null {
+        const mapping = this.mappings.find((m: ContentItemMapping) => 
+            type === 'source' ? m.sourceContentID === contentID : m.targetContentID === contentID
+        );
+        if(!mapping) return null;
+        return mapping;
+    }
+    
     addMapping(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem) {
         const mapping = this.getContentItemMapping(targetContentItem, 'target');
 

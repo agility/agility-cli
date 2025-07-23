@@ -35,6 +35,14 @@ export class GalleryMapper {
         return mapping;       
     }
 
+    getGalleryMappingByMediaGroupingID(mediaGroupingID: number, type: 'source' | 'target'): GalleryMapping | null {
+        const mapping = this.mappings.find((m: GalleryMapping) => 
+            type === 'source' ? m.sourceMediaGroupingID === mediaGroupingID : m.targetMediaGroupingID === mediaGroupingID
+        );
+        if(!mapping) return null;
+        return mapping;
+    }
+
     addMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping) {
         const mapping = this.getGalleryMapping(targetGallery, 'target');
 

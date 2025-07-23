@@ -38,6 +38,14 @@ export class ContainerMapper {
         return mapping;       
     }
 
+    getContainerMappingByContentViewID(contentViewID: number, type: 'source' | 'target'): ContainerMapping | null {
+        const mapping = this.mappings.find((m: ContainerMapping) => 
+            type === 'source' ? m.sourceContentViewID === contentViewID : m.targetContentViewID === contentViewID
+        );
+        if(!mapping) return null;
+        return mapping;
+    }
+    
     addMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container) {
         const mapping = this.getContainerMapping(targetContainer, 'target');
 

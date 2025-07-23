@@ -35,6 +35,12 @@ export class AssetMapper {
         return mapping;       
     }
 
+    getAssetMappingByMediaID(mediaID: number, type: 'source' | 'target'): AssetMapping | null {
+        const mapping = this.mappings.find((m: AssetMapping) => type === 'source' ? m.sourceMediaID === mediaID : m.targetMediaID === mediaID);
+        if(!mapping) return null;
+        return mapping;
+    }
+
     addMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media) {
         const mapping = this.getAssetMapping(targetAsset, 'target');
 
@@ -92,4 +98,5 @@ export class AssetMapper {
         return targetAsset.dateModified !== mapping.targetDateModified;
     }
 
+    
 }
