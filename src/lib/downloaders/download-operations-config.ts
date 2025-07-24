@@ -97,7 +97,6 @@ export class DownloadOperationsRegistry {
     
     // Update state.elements with resolved dependencies if any were auto-included
     if (autoIncluded.length > 0) {
-      console.log(`🔗 Auto-including dependencies: ${autoIncluded.join(', ')}`);
       // Update the state with resolved elements
       const { setState } = require('../../core/state');
       setState({ elements: resolvedElements.join(',') });

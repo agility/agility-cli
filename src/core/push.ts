@@ -32,7 +32,6 @@ export class Push {
     // IMPORTANT: Apply model filtering before downloads to prevent unwanted elements
     const { models, modelsWithDeps } = state;
     if (models && models.trim().length > 0 && (!modelsWithDeps || modelsWithDeps.trim().length === 0)) {
-      console.log(`🎯 Simple model filtering detected - limiting downloads to Models only`);
       // Override state.elements to prevent dependency forcing from downloading unwanted elements
       const { setState } = await import("./state");
       setState({ elements: 'Models' });

@@ -160,7 +160,7 @@ export class GuidDataLoader {
         // Validate that specified models exist
         const validation = treeBuilder.validateModels(modelNames);
         if (validation.invalid.length > 0) {
-            console.log(ansiColors.red(`❌ Invalid model names: ${validation.invalid.join(', ')}`));
+            console.log(ansiColors.red(`Invalid model names: ${validation.invalid.join(', ')}`));
             console.log(ansiColors.gray(`Available models: ${guidEntities.models.map((m: any) => m.referenceName).join(', ')}`));
             return guidEntities; // Return unfiltered data if validation fails
         }

@@ -107,7 +107,6 @@ export class PushOperationsRegistry {
     
     // Update state.elements with resolved dependencies if any were auto-included
     if (autoIncluded.length > 0) {
-      console.log(`🔗 Auto-including dependencies: ${autoIncluded.join(', ')}`);
       // Update the state with resolved elements
       setState({ elements: resolvedElements.join(',') });
     }
