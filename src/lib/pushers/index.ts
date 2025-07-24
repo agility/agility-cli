@@ -5,6 +5,6 @@ export * from './content-pusher/content-pusher';
 export * from './gallery-pusher';
 export * from './model-pusher';
 export * from './orchestrate-pushers';
-export * from './page-pusher';
+export * from './page-pusher/push-pages';
 export * from './push-operations-config';
 export * from './template-pusher';

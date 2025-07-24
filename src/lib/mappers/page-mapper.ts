@@ -57,10 +57,11 @@ export class PageMapper {
     }
 
     getMappedEntity(mapping: PageMapping, type: 'source' | 'target'): mgmtApi.PageItem | null {
+        if (!mapping) return null;
         const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
         const pageID = type === 'source' ? mapping.sourcePageID : mapping.targetPageID;
         const fileOps = new fileOperations(guid, this.locale);
-        const pageData = fileOps.readJsonFile(`pages/${pageID}.json`);
+        const pageData = fileOps.readJsonFile(`page/${pageID}.json`);
         if (!pageData) return null;
         return pageData as mgmtApi.PageItem;
     }
@@ -114,15 +115,17 @@ export class PageMapper {
     }
 
     hasSourceChanged(sourcePage: mgmtApi.PageItem) {
+        if (!sourcePage) return false;
         const mapping = this.getPageMapping(sourcePage, 'source');
         if (!mapping) return false;
-        return sourcePage.properties.versionID !== mapping.sourceVersionID;
+        return sourcePage.properties.versionID > mapping.sourceVersionID;
     }
 
     hasTargetChanged(targetPage: mgmtApi.PageItem) {
+        if (!targetPage) return false;
         const mapping = this.getPageMapping(targetPage, 'target');
         if (!mapping) return false;
-        return targetPage.properties.versionID !== mapping.targetVersionID;
+        return targetPage.properties.versionID > mapping.targetVersionID;
     }
 
 
