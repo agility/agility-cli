@@ -7,25 +7,30 @@ import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { filterContentItemsForProcessing } from './util/filter-content-items-for-processing';
 import { areContentDependenciesResolved } from "./util/are-content-dependencies-resolved";
 import { ModelMapper } from "lib/mappers/model-mapper";
-import { Model } from "@agility/management-sdk";
+import { ContentItem, Model } from "@agility/management-sdk";
+import { ContainerMapper } from "lib/mappers/container-mapper";
 
 
 /**
  * Push content to the target instance
  */
 export async function pushContent(
-    sourceData: any[],
-    targetData: any[],
+    sourceData: ContentItem[],
+    targetData: ContentItem[],
 ): Promise<any> {
 
     // Use batch pusher for better performance (default behavior)
     const { ContentBatchProcessor } = await import('./content-batch-processor');
 
-    const modelMapper = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
-
     const { sourceGuid, targetGuid, locale } = state;
 
-    const referenceMapper = new ContentItemMapper(sourceGuid[0], targetGuid[0], locale[0]);
+    const sourceGuidStr = sourceGuid[0];
+    const targetGuidStr = targetGuid[0];
+    const localeStr = locale[0];
+
+    const modelMapper = new ModelMapper(sourceGuidStr, targetGuidStr);
+    const containerMapper = new ContainerMapper(sourceGuidStr, targetGuidStr);
+    const referenceMapper = new ContentItemMapper(sourceGuidStr, targetGuidStr, localeStr);
     const contentItems = sourceData || [];
 
     if (contentItems.length === 0) {
@@ -33,27 +38,25 @@ export async function pushContent(
     }
 
     // Separate content items into normal and linked batches
-    const normalContentItems: any[] = [];
-    const linkedContentItems: any[] = [];
+    const normalContentItems: ContentItem[] = [];
+    const linkedContentItems: ContentItem[] = [];
 
     for (const contentItem of contentItems) {
-        // Find source model for this content item
-        const mappedModel = modelMapper.getModelMapping(contentItem.properties.definitionName, "source");
+        // Find source model for this content item - NOTE: we HAVE to use the contentDefinitionID here (not the reference name)
+        const mappedContainer = containerMapper.getContainerMappingByReferenceName(contentItem.properties.referenceName, "source");
+        const sourceContainer = containerMapper.getMappedEntity(mappedContainer, "source");
+        const modelID = sourceContainer?.contentDefinitionID || 0
+        const sourceModelMapping = modelMapper.getModelMappingByID(modelID, "source");
+        const sourceModel = modelMapper.getMappedEntity(sourceModelMapping, "source");
 
-        let sourceModel: Model | null = null
-        if (mappedModel) sourceModel = modelMapper.getMappedEntity(mappedModel, "source");
-
-
-        if (!sourceModel) {
-            // No model found - treat as linked content for dependency resolution
-            console.log("XXX ITEM", contentItem.contentID, "NO MODEL FOUND - treating as linked content");
-
+        if (!sourceModel && modelID !== 1) {
+            // No model found (and it's not the special case for RichTextArea)- treat as linked content for dependency resolution
             linkedContentItems.push(contentItem);
             continue;
         }
-        console.log("XXX ITEM", contentItem.contentID, "MODEL", sourceModel.referenceName);
+
         // Check if content has unresolved dependencies
-        if (areContentDependenciesResolved(contentItem, referenceMapper, [sourceModel])) {
+        if (modelID === 1 || areContentDependenciesResolved(contentItem, referenceMapper, [sourceModel])) {
             normalContentItems.push(contentItem);
         } else {
             linkedContentItems.push(contentItem);
@@ -73,30 +76,31 @@ export async function pushContent(
         if (normalContentItems.length > 0) {
             const normalBatchConfig = {
                 apiClient: getApiClient(),
-                targetGuid: state.targetGuid[0],
-                sourceGuid: state.sourceGuid[0],
-                locale: state.locale[0],
+                targetGuid: targetGuidStr,
+                sourceGuid: sourceGuidStr,
+                locale: localeStr,
                 referenceMapper,
                 batchSize: 250,
                 useContentFieldMapper: true,
                 defaultAssetUrl: "",
             };
 
-            const filteredNormalContentItems = await filterContentItemsForProcessing(
-                normalContentItems,
-                getApiClient(),
-                state.targetGuid[0],
-                state.locale[0],
+            const filteredNormalContentItems = await filterContentItemsForProcessing({
+                contentItems: normalContentItems,
+                apiClient: getApiClient(),
+                targetGuid: targetGuidStr,
+                locale: localeStr,
                 referenceMapper,
                 targetData,
-                "normal"
-            );
+            });
             const normalBatchProcessor = new ContentBatchProcessor(normalBatchConfig);
             const normalResult = await normalBatchProcessor.processBatches(
-                filteredNormalContentItems.itemsToCreate as any,
+                filteredNormalContentItems.itemsToProcess as any,
                 undefined,
                 "Normal Content"
             );
+
+
 
             totalSuccessful += normalResult.successCount;
             totalFailed += normalResult.failureCount;
@@ -109,27 +113,26 @@ export async function pushContent(
         if (linkedContentItems.length > 0) {
             const linkedBatchConfig = {
                 apiClient: getApiClient(),
-                targetGuid: state.targetGuid[0],
-                sourceGuid: state.sourceGuid[0],
-                locale: state.locale[0],
+                targetGuid: targetGuidStr,
+                sourceGuid: sourceGuidStr,
+                locale: localeStr,
                 referenceMapper,
                 batchSize: 100, // Smaller batches for linked content due to complexity
                 useContentFieldMapper: true,
                 defaultAssetUrl: "",
             };
 
-            const filteredLinkedContentItems = await filterContentItemsForProcessing(
-                linkedContentItems,
-                getApiClient(),
-                state.targetGuid[0],
-                state.locale[0],
+            const filteredLinkedContentItems = await filterContentItemsForProcessing({
+                contentItems: linkedContentItems,
+                apiClient: getApiClient(),
+                targetGuid: targetGuidStr,
+                locale: localeStr,
                 referenceMapper,
-                targetData,
-                "linked"
-            );
+                targetData
+            });
             const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
             const linkedResult = await linkedBatchProcessor.processBatches(
-                filteredLinkedContentItems.itemsToCreate,
+                filteredLinkedContentItems.itemsToProcess,
                 undefined,
                 "Linked Content"
             );

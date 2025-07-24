@@ -6,7 +6,7 @@ import * as mgmtApi from '@agility/management-sdk';
  * Simple change detection for content items
  */
 export interface ChangeDetection {
-	entity: any;
+	entity: mgmtApi.ContentItem | null;
 	shouldUpdate: boolean;
 	shouldCreate: boolean;
 	shouldSkip: boolean;
@@ -18,6 +18,7 @@ export function changeDetection(
 	sourceEntity: mgmtApi.ContentItem,
 	targetEntity: mgmtApi.ContentItem | null,
 	mapping: ContentItemMapping,
+	locale: string
 ): ChangeDetection {
 
 	if (!mapping && !targetEntity) {
@@ -33,13 +34,13 @@ export function changeDetection(
 	}
 
 	// Check if update is needed based on version or modification date
-	const sourceVersion = sourceEntity.properties?.versionID;
-	const targetVersion = targetEntity.properties?.versionID;
+	const sourceVersion = sourceEntity.properties?.versionID || 0;
+	const targetVersion = targetEntity.properties?.versionID || 0;
 
 	const mappedSourceVersion = (mapping?.sourceVersionID || 0) as number;
 	const mappedTargetVersion = (mapping?.targetVersionID || 0) as number;
 
-	if (sourceVersion && targetVersion)
+	if (sourceVersion > 0 && targetVersion > 0)
 		//both the source and the target exist
 
 
@@ -50,8 +51,9 @@ export function changeDetection(
 
 			//build the url to the source and target entity
 			//TODO: if there are multiple guids we need to handle that
-			const sourceUrl = `https://app.agilitycms.com/${state.sourceGuid[0]}/${state.locale}/content/listitem-${sourceEntity.contentID}`;
-			const targetUrl = `https://app.agilitycms.com/${state.targetGuid[0]}/${state.locale}/content/listitem-${targetEntity.contentID}`;
+
+			const sourceUrl = `https://app.agilitycms.com/instance/${state.sourceGuid[0]}/${locale}/content/listitem-${sourceEntity.contentID}`;
+			const targetUrl = `https://app.agilitycms.com/instance/${state.targetGuid[0]}/${locale}/content/listitem-${targetEntity.contentID}`;
 
 			return {
 				entity: targetEntity,
@@ -59,7 +61,7 @@ export function changeDetection(
 				shouldCreate: false,
 				shouldSkip: false,
 				isConflict: true,
-				reason: `Both source and target versions have been updated. Please resolve manually - source:${sourceUrl} <-> target:${targetUrl}.`
+				reason: `Both source and target versions have been updated. Please resolve manually.\n   - source: ${sourceUrl} \n   - target: ${targetUrl}.`
 			};
 
 		}

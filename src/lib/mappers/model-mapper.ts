@@ -60,12 +60,13 @@ export class ModelMapper {
     }
 
     getMappedEntity(mapping: ModelMapping, type: 'source' | 'target'): mgmtApi.Model | null {
+        if (!mapping) return null;
         //fetch the model from the file system based on source or target GUID
         const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
         const modelID = type === 'source' ? mapping.sourceID : mapping.targetID;
+
         const fileOps = new fileOperations(guid);
-        const modelFilePath = fileOps.getDataFilePath(`models/${modelID}.json`);
-        const modelData = fileOps.readJsonFile(modelFilePath);
+        const modelData = fileOps.readJsonFile(`models/${modelID}.json`);
         if (!modelData) return null;
         return modelData as mgmtApi.Model;
     }

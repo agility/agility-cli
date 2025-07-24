@@ -289,7 +289,7 @@ export class fileOperations {
   }
 
   getMappingFile(type: string, sourceGuid: string, targetGuid: string, locale?: string | null): any[] {
-    const centralMappingsPath = path.join(this._rootPath, 'mappings',`${sourceGuid}-${targetGuid}`, locale ?? '', type);
+    const centralMappingsPath = path.join(this._rootPath, 'mappings', `${sourceGuid}-${targetGuid}`, locale ?? '', type);
     if (fs.existsSync(centralMappingsPath)) {
       const data = fs.readFileSync(path.join(centralMappingsPath, `mappings.json`), 'utf8');
       const jsonData = JSON.parse(data);
