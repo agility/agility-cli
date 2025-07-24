@@ -16,7 +16,8 @@
     "build": "tsc -p .",
     "postbuild": "chmod +x dist/index.js",
     "refresh": "rm -rf ./node_modules ./package-lock.json && npm install",
-    "test": "jest"
+    "test": "jest",
+    "debug": "node --inspect-brk -r ts-node/register src/index.ts"
   },
   "keywords": [
     "typescript",
@@ -71,6 +72,8 @@
     "@types/yargs": "^17.0.17",
     "jest": "^29.7.0",
     "ts-jest": "^29.3.4",
-    "tsconfig-paths": "^4.2.0"
+    "ts-node": "^10.9.2",
+    "tsconfig-paths": "^4.2.0",
+    "typescript": "^5.8.3"
   }
 }
