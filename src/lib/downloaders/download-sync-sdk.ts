@@ -2,7 +2,7 @@ import * as path from "path";
 import * as fs from "fs";
 import ansiColors from "ansi-colors";
 import * as agilitySync from "@agility/content-sync";
-import { state, getApiKeysForGuid } from "../../core/state";
+import { state, getApiKeysForGuid, getLoggerForGuid } from "../../core/state";
 import { fileOperations } from "../../core/fileOperations";
 import { handleSyncToken } from "./sync-token-handler";
 import { getAllChannels } from "../shared/get-all-channels";
@@ -47,6 +47,8 @@ export async function downloadSyncSDKByLocaleAndChannel(
 
   const isIncrementalSync = await handleSyncToken(syncTokenPath, state.reset);
 
+
+  const logger = getLoggerForGuid(guid);
   // Configure the Agility Sync client
   const agilityConfig = {
     guid: guid,
@@ -58,6 +60,7 @@ export async function downloadSyncSDKByLocaleAndChannel(
       interface: storeInterfaceFileSystem,
       options: {
         rootPath: instanceSpecificPath,
+        logger: logger,
         // NEW: Pass change delta tracker and mode
         isIncrementalSync: isIncrementalSync
       }

@@ -5,6 +5,7 @@ import { GuidDataLoader, GuidEntities, ModelFilterOptions } from './guid-data-lo
 import { PusherResult, SourceData } from '../../types/sourceData';
 import { state } from '../../core/state';
 import { PUSH_OPERATIONS, PushOperationsRegistry, PushOperationConfig } from './push-operations-config';
+import { Logs } from 'core/logs';
 
 export interface PushResults {
   successful: string[];
@@ -45,9 +46,9 @@ export class Pushers {
   /**
    * Execute all push operations for source to target GUID
    */
-  async guidPusher(sourceGuid: string, targetGuid: string, locale: string): Promise<PushResults> {
+  async guidPusher(sourceGuid: string, targetGuid: string, locale: string, channel: string): Promise<PushResults> {
     const startTime = Date.now();
-
+    // const log = new Logs(sourceGuid, targetGuid, locale, channel);
     const results: PushResults = {
       successful: [],
       failed: [],
@@ -99,8 +100,8 @@ export class Pushers {
       results.totalDuration = Date.now() - startTime;
 
       try {
-        const logFilePath = this.fileOps.finalizeLogFile("push");
-        results.logFilePath = logFilePath;
+        // const logFilePath = this.fileOps.finalizeLogFile("push");
+        // results.logFilePath = logFilePath;
       } catch (logError: any) {
         console.error(`${sourceGuid}→${targetGuid}: Could not finalize log file - ${logError.message}`);
       }
@@ -162,7 +163,8 @@ export class Pushers {
   private async executePushersInOrder(
     sourceData: GuidEntities,
     targetData: GuidEntities,
-    locale: string
+    locale: string,
+    channel: string
   ): Promise<{
     totalSuccess: number;
     totalFailures: number;

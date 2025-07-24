@@ -26,6 +26,8 @@ import { generateEnv } from "./lib/shared";
 import { instanceSelector } from "./lib/ui/prompts";
 import { Push } from "./core/push";
 
+import { initializeLogger, getLogger, finalizeLogger, finalizeAllGuidLoggers } from "./core/state";
+
 let auth: Auth;
 
 yargs.version("1.0.0-beta.7").demand(1).exitProcess(false);
@@ -185,6 +187,9 @@ yargs.command({
       return;
     }
 
+    // Initialize logger
+    initializeLogger("pull");
+
     try {
       const pull = new Pull();
       const result = await pull.pullInstances();
@@ -206,18 +211,49 @@ yargs.command({
         }
       });
 
-      console.log(colors.cyan('\nSummary:'));
+      getLogger().summary("pull", totalSuccessful, totalFailed, 0);
+
+      console.log(colors.cyan('Summary:'));
       console.log(`Processed ${result.results.length} GUID/locale combinations`);
       console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
       console.log(`Total time: ${timeDisplay}`);
 
       if (result.success) {
-        console.log(colors.green(`✓ Pull completed successfully`));
+        console.log(colors.green(`\n✓ Pull completed successfully`));
+        
+        // Collect and display all log file paths after success message
+        const logFilePaths = result.results
+          .map(res => res.logFilePath)
+          .filter(path => path);
+        
+        if (logFilePaths.length > 0) {
+          console.log(colors.cyan('\nLog Files:'));
+          logFilePaths.forEach(path => {
+            console.log(`${path}`);
+          });
+        }
+        
+        finalizeLogger(); // Finalize global logger if it exists
         process.exit(0);
       } else {
         console.log(colors.red(`✗ Pull completed with errors`));
+        
+        // Collect and display all log file paths even after errors
+        const logFilePaths = result.results
+          .map(res => res.logFilePath)
+          .filter(path => path);
+        
+        if (logFilePaths.length > 0) {
+          console.log(colors.cyan('\nLog Files:'));
+          logFilePaths.forEach(path => {
+            console.log(`${path}`);
+          });
+        }
+        
+        finalizeLogger(); // Finalize global logger if it exists
         process.exit(1);
       }
+
     } catch (error: any) {
       console.error(colors.red("\n❌ Pull command failed:"), error.message);
       process.exit(1);
@@ -245,7 +281,7 @@ yargs.command({
   handler: async function (argv) {
 
     const invokedAs = Array.isArray(argv._) && argv._.length > 0 ? String(argv._[0]) : "";
-    const syncCommandUsed = invokedAs === "sync";
+    const isSync = invokedAs === "sync";
 
 
     resetState(); // Clear any previous command state
@@ -259,7 +295,7 @@ yargs.command({
     setState(argv);
 
     // if the user is "pushing" only, we need to turn off the updates on the downloaders
-    if (syncCommandUsed) {
+    if (isSync) {
       state.update = true;
     }
 
@@ -275,12 +311,17 @@ yargs.command({
       return;
     }
 
+
+    // Initialize logger
+    initializeLogger(isSync ? "sync" : "push");
+
     // const syncOperation = new Sync();
     // await syncOperation.syncInstance();
     try {
       const push = new Push();
       const result = await push.pushInstances();
 
+      
       // Simple completion summary
       const totalElapsedSeconds = Math.floor(result.elapsedTime / 1000);
       const minutes = Math.floor(totalElapsedSeconds / 60);
@@ -298,6 +339,9 @@ yargs.command({
         }
       });
 
+      getLogger().summary(isSync ? "sync" : "push", totalSuccessful, totalFailed, 0);
+
+
       console.log(colors.cyan('\nSummary:'));
       console.log(`Processed ${result.results.length} GUID/locale combinations`);
       console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
@@ -305,9 +349,11 @@ yargs.command({
 
       if (result.success) {
         console.log(colors.green(`✓ Push completed successfully`));
+        finalizeLogger();
         process.exit(0);
       } else {
         console.log(colors.red(`✗ Push completed with errors`));
+        finalizeLogger();
         process.exit(1);
       }
     } catch (error: any) {
