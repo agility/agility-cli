@@ -372,10 +372,11 @@ export async function processPage({
 				completedBatch,
 				[page]
 			);
-			console.log("Batch processing completed", batchSuccessItems);
+
 			let actualPageID = -1;
 			let savedPageVersionID = -1;
 			if (batchSuccessItems.length > 0) {
+				//grab the save page info form the batch success items
 				actualPageID = batchSuccessItems[0].newId;
 				savedPageVersionID = batchSuccessItems[0].newItem?.processedItemVersionID || -1;
 			} else if (batchFailedItems.length > 0) {
