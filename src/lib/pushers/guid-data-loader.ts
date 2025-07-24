@@ -167,7 +167,7 @@ export class GuidDataLoader {
 
         if (useFullDependencyTree) {
             // Build dependency tree and filter all related entities
-            const dependencyTree = treeBuilder.buildDependencyTree(validation.valid);
+            const dependencyTree = treeBuilder.buildDependencyTree(validation.valid, this.locales[0]);
             return this.filterGuidEntitiesByDependencyTree(guidEntities, dependencyTree);
         } else {
             // Simple filtering - just filter models and their direct content
