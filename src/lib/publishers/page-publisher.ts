@@ -7,14 +7,14 @@ import { state } from '../../core/state';
  * @returns Promise with publish result
  */
 export async function publishPage(
-    pageId: number
+    pageId: number,
+    locale: string
 ): Promise<{ success: boolean; pageId: number; error?: string }> {
     try {
         // Get state values instead of parameters
         const { getApiClient } = await import('../../core/state');
 const apiClient = getApiClient();
-        const targetGuid = state.targetGuid;
-        const locale = state.locale;
+        const { targetGuid } = state;
 
         if (!apiClient) {
             throw new Error('API client not available in state');
@@ -26,7 +26,7 @@ const apiClient = getApiClient();
             throw new Error('Locale not available in state');
         }
 
-        const result = await apiClient.pageMethods.publishPage(pageId, targetGuid[0], locale[0]);
+        const result = await apiClient.pageMethods.publishPage(pageId, targetGuid[0], locale);
         
         return {
             success: true,

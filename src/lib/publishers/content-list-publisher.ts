@@ -13,14 +13,14 @@ import { state } from '../../core/state';
  * @returns Promise with publish result
  */
 export async function publishContentList(
-    contentListId: number
+    contentListId: number,
+    locale: string
 ): Promise<{ success: boolean; contentListId: number; error?: string }> {
     try {
         // Get state values instead of parameters
         const { getApiClient } = await import('../../core/state');
 const apiClient = getApiClient();
-        const targetGuid = state.targetGuid;
-        const locale = state.locale;
+        const { targetGuid } = state;
 
         if (!apiClient) {
             throw new Error('API client not available in state');
@@ -33,7 +33,7 @@ const apiClient = getApiClient();
         }
 
         // Content lists use the same publish API as content items
-        const result = await apiClient.contentMethods.publishContent(contentListId, targetGuid[0], locale[0]);
+        await apiClient.contentMethods.publishContent(contentListId, targetGuid[0], locale);
         
         return {
             success: true,

@@ -8,7 +8,7 @@ import { getState, setState } from 'core/state';
 export interface PushOperationConfig {
   name: string;
   description: string;
-  handler: (sourceData: GuidEntities, targetData: GuidEntities) => Promise<PusherResult>;
+  handler: (sourceData: GuidEntities, targetData: GuidEntities, locale: string) => Promise<PusherResult>;
   elements: string[];
   dataKey: string;
   dependencies?: string[]; // Auto-include these elements when this operation is requested
@@ -61,9 +61,9 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
   content: {
     name: 'pushContent',
     description: 'Push content items',
-    handler: async (sourceData, targetData) => {
+    handler: async (sourceData, targetData, locale) => {
       const { pushContent } = await import('./content-pusher/content-pusher');
-      return await pushContent(sourceData['content'], targetData['content']);
+      return await pushContent(sourceData['content'], targetData['content'], locale);
     },
     elements: ['Content'],
     dataKey: 'content',
@@ -72,9 +72,9 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
   templates: {
     name: 'pushTemplates',
     description: 'Push page templates and layouts',
-    handler: async (sourceData, targetData) => {
+    handler: async (sourceData, targetData, locale) => {
       const { pushTemplates } = await import('./template-pusher');
-      return await pushTemplates(sourceData['templates'], targetData['templates']);
+      return await pushTemplates(sourceData['templates'], targetData['templates'], locale);
     },
     elements: ['Templates'],
     dataKey: 'templates',
@@ -83,9 +83,9 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
   pages: {
     name: 'pushPages',
     description: 'Push pages and page hierarchy',
-    handler: async (sourceData, targetData) => {
+    handler: async (sourceData, targetData, locale) => {
       const { pushPages } = await import('./page-pusher/push-pages');
-      return await pushPages(sourceData['pages'], targetData['pages']);
+      return await pushPages(sourceData['pages'], locale);
     },
     elements: ['Pages'],
     dataKey: 'pages',

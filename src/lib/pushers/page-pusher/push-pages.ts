@@ -7,14 +7,14 @@ import { processSitemap } from "./process-sitemap";
 
 export async function pushPages(
 	sourceData: mgmtApi.PageItem[],
-	targetData: mgmtApi.PageItem[],
+	locale: string
 	// onProgress?: PusherProgressCallback
 ): Promise<PusherResult> {
 	// Extract data from sourceData - unified parameter pattern
 	let pages: mgmtApi.PageItem[] = sourceData || [];
 
-	const { sourceGuid, targetGuid, locale } = state;
-	const pageMapper = new PageMapper(sourceGuid[0], targetGuid[0], locale[0]);
+	const { sourceGuid, targetGuid } = state;
+	const pageMapper = new PageMapper(sourceGuid[0], targetGuid[0], locale);
 
 	if (!pages || pages.length === 0) {
 		console.log("No pages found to process.");
@@ -23,7 +23,7 @@ export async function pushPages(
 
 	const sitemapHierarchy = new SitemapHierarchy();
 
-	const sitemaps = await sitemapHierarchy.loadAllSitemaps();
+	const sitemaps = sitemapHierarchy.loadAllSitemaps();
 	const channels = Object.keys(sitemaps);
 
 	console.log(`Processing ${pages.length} pages across ${channels.length} channels...`);
@@ -39,7 +39,7 @@ export async function pushPages(
 	for (const channel of channels) {
 		const sitemap = sitemaps[channel];
 
-		const { sourceGuid, targetGuid, locale, overwrite } = state;
+		const { sourceGuid, targetGuid, overwrite } = state;
 		const apiClient = getApiClient();
 
 		try {
@@ -49,7 +49,7 @@ export async function pushPages(
 				sitemapNodes: sitemap,
 				sourceGuid: sourceGuid[0],
 				targetGuid: targetGuid[0],
-				locale: locale[0],
+				locale: locale,
 				apiClient,
 				overwrite,
 				sourcePages: pages,

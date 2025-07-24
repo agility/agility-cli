@@ -39,7 +39,7 @@ export class Pushers {
 
   constructor(config: PusherConfig = {}) {
     this.config = config;
-    this.fileOps = new fileOperations(state.sourceGuid[0], state.locale[0]);
+    this.fileOps = new fileOperations(state.sourceGuid[0], null);
   }
 
   /**
@@ -89,7 +89,7 @@ export class Pushers {
 
 
       // Execute all push operations for this GUID pair
-        const pushResults = await this.executePushersInOrder(sourceData, targetData, locale);
+      const pushResults = await this.executePushersInOrder(sourceData, targetData, locale);
 
       // Consolidate results
       results.totalSuccess = pushResults.totalSuccess;
@@ -134,9 +134,7 @@ export class Pushers {
    * Orchestrate push operations (MAIN METHOD)
    */
   async instanceOrchestrator(): Promise<PushResults[]> {
-    const currentState = getState();
-    const sourceGuids = currentState.sourceGuid;
-    const targetGuids = currentState.targetGuid;
+    const { elements, sourceGuid: sourceGuids, targetGuid: targetGuids, locale: locales} = getState();
 
     if (sourceGuids.length === 0 || targetGuids.length === 0) {
       throw new Error('No source or target GUIDs available for push operation');
@@ -146,13 +144,17 @@ export class Pushers {
     // Future enhancement: handle multiple source/target combinations
     const sourceGuid = sourceGuids[0];
     const targetGuid = targetGuids[0];
-    const locale = currentState.locale[0];
 
     console.log(`Starting push operations from ${sourceGuid} to ${targetGuid}`);
-    console.log(`Elements: ${currentState.elements}`);
+    console.log(`Elements: ${elements}`);
 
-    const results = await this.guidPusher(sourceGuid, targetGuid, locale);
-    return [results];
+    const pushes = locales.map(async locale => {
+      return await this.guidPusher(sourceGuid, targetGuid, locale);
+    })
+
+    const results = await Promise.all(pushes);
+
+    return results;
   }
 
   /**
@@ -203,7 +205,7 @@ export class Pushers {
 
         this.config.onOperationStart?.(config.name, state.sourceGuid[0], state.targetGuid[0]);
 
-        const pusherResult: PusherResult = await config.handler(sourceData, targetData);
+        const pusherResult: PusherResult = await config.handler(sourceData, targetData, locale);
 
         // Accumulate results using standardized pattern
         totalSuccess += pusherResult.successful || 0;

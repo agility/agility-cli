@@ -6,10 +6,7 @@
 import * as mgmtApi from '@agility/management-sdk';
 import { getState, getApiClient } from './state';
 import { 
-  publishContentItem, 
-  publishPage, 
-  publishContentList, 
-  publishBatch 
+  publishContentItem
 } from '../lib/publishers';
 
 const ansiColors = require("ansi-colors");
@@ -41,7 +38,6 @@ export interface PublishOptions {
 export class PublishService {
   private apiClient: mgmtApi.ApiClient;
   private targetGuid: string;
-  private locale: string;
   private options: PublishOptions;
 
   constructor(options: PublishOptions = {}) {
@@ -53,14 +49,13 @@ export class PublishService {
     
     this.apiClient = getApiClient();
     this.targetGuid = state.targetGuid[0];
-    this.locale = state.locale[0];
     this.options = { verbose: false, ...options };
   }
 
   /**
    * Publish a batch of content items using simple publisher functions
    */
-  async publishContentBatch(contentIds: number[]): Promise<PublishResult['contentItems']> {
+  async publishContentBatch(contentIds: number[], locale: string): Promise<PublishResult['contentItems']> {
     const result: PublishResult['contentItems'] = {
       successful: [],
       failed: []
@@ -77,7 +72,7 @@ export class PublishService {
     // Use simple publisher functions
     for (const contentId of contentIds) {
       try {
-        const publishResult = await publishContentItem(contentId);
+        const publishResult = await publishContentItem(contentId, locale);
         
         if (publishResult.success) {
           result.successful.push(contentId);
@@ -104,118 +99,4 @@ export class PublishService {
 
     return result;
   }
-
-  /**
-   * Publish a batch of pages using simple publisher functions
-   */
-  async publishPageBatch(pageIds: number[]): Promise<PublishResult['pages']> {
-    const result: PublishResult['pages'] = {
-      successful: [],
-      failed: []
-    };
-
-    if (pageIds.length === 0) {
-      return result;
-    }
-
-    if (this.options.verbose) {
-      console.log(ansiColors.cyan(`📄 Publishing ${pageIds.length} pages...`));
-    }
-
-    // Use simple publisher functions
-    for (const pageId of pageIds) {
-      try {
-        const publishResult = await publishPage(pageId);
-        
-        if (publishResult.success) {
-          result.successful.push(pageId);
-          if (this.options.verbose) {
-            console.log(`✓ Page ${ansiColors.cyan.underline(pageId)} published.`);
-          }
-        } else {
-          result.failed.push({ id: pageId, error: publishResult.error || 'Unknown error' });
-          if (this.options.verbose) {
-            console.error(ansiColors.red(`❌ Failed to publish page ${pageId}: ${publishResult.error}`));
-          }
-        }
-      } catch (error: any) {
-        result.failed.push({ id: pageId, error: error.message });
-        if (this.options.verbose) {
-          console.error(ansiColors.red(`❌ Failed to publish page ${pageId}: ${error.message}`));
-        }
-      }
-    }
-
-    if (this.options.verbose) {
-      console.log(ansiColors.gray(`Page publishing: ${result.successful.length}/${pageIds.length} successful`));
-    }
-
-    return result;
-  }
-
-  /**
-   * Publish both content items and pages
-   */
-  async publishAll(contentIds: number[], pageIds: number[], listIds?: number[]): Promise<PublishResult> {
-    if (this.options.verbose) {
-      // console.log(ansiColors.cyan(`\n🚀 Starting publishing operation...`));
-      // console.log(ansiColors.gray(`Target instance: ${this.targetGuid}`));
-      // console.log(ansiColors.gray(`Locale: ${this.locale}`));
-      
-      const totalItems = contentIds.length + pageIds.length + (listIds?.length || 0);
-      // console.log(ansiColors.gray(`Items: ${contentIds.length} content, ${pageIds.length} pages${listIds ? `, ${listIds.length} lists` : ''} (${totalItems} total)`));
-    }
-
-    // Publish content and pages in parallel
-    const [contentResult, pageResult] = await Promise.all([
-      this.publishContentBatch(contentIds),
-      this.publishPageBatch(pageIds)
-    ]);
-
-    // Publish content lists if provided
-    if (listIds && listIds.length > 0) {
-      // Content lists use the same publishContentItem function
-      for (const listId of listIds) {
-        try {
-          const publishResult = await publishContentList(listId);
-          
-          if (publishResult.success) {
-            if (this.options.verbose) {
-              console.log(`✓ Content list ${ansiColors.cyan.underline(listId)} published.`);
-            }
-          } else {
-            if (this.options.verbose) {
-              console.error(ansiColors.red(`❌ Failed to publish content list ${listId}: ${publishResult.error}`));
-            }
-          }
-        } catch (error: any) {
-          if (this.options.verbose) {
-            console.error(ansiColors.red(`❌ Failed to publish content list ${listId}: ${error.message}`));
-          }
-        }
-      }
-    }
-
-    if (this.options.verbose) {
-      const contentSuccess = contentResult.successful.length;
-      const pageSuccess = pageResult.successful.length;
-      const totalSuccess = contentSuccess + pageSuccess;
-      const totalItems = contentIds.length + pageIds.length;
-      
-      // console.log(ansiColors.green(`✅ Publishing completed: ${totalSuccess}/${totalItems} items successful`));
-      console.log(ansiColors.gray(`\nContent: ${contentSuccess}/${contentIds.length}, Pages: ${pageSuccess}/${pageIds.length}`));
-    }
-
-    return {
-      contentItems: contentResult,
-      pages: pageResult
-    };
-  }
 }
-
-/**
- * Factory function to create a PublishService instance
- */
-export function createPublishService(options?: PublishOptions): PublishService {
-  return new PublishService(options);
-} 
