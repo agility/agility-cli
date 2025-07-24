@@ -79,10 +79,6 @@ export class ContentBatchProcessor {
 				// Track skipped items from this batch
 				totalSkippedCount += batchSkippedCount;
 
-
-
-
-
 				// Execute bulk upload using saveContentItems API with returnBatchID flag
 				const batchIDResult = await this.config.apiClient.contentMethods.saveContentItems(
 					contentPayloads,
@@ -250,11 +246,18 @@ export class ContentBatchProcessor {
 		for (const contentItem of contentBatch) {
 
 			const containerMapping = containerMapper.getContainerMappingByReferenceName(contentItem.properties.referenceName, 'source');
-			const container = containerMapper.getMappedEntity(containerMapping, 'target');
+			const sourceContainer = containerMapper.getMappedEntity(containerMapping, 'target');
 
-			if (container && container.contentDefinitionID === 1) {
-				//if this is ModelID 1, we can just upload directly :)
-				payloads.push(contentItem);
+			if (sourceContainer && sourceContainer.contentDefinitionID === 1) {
+				const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(contentItem.contentID, 'source');
+
+				//if this is ModelID 1, we can just upload directly with the existing mapping
+				const payload = {
+					...contentItem, // Start with original content item
+					contentID: existingMapping ? existingMapping.targetContentID : -1,
+				};
+
+				payloads.push(payload);
 			} else {
 				//map the content item to the target instance
 				const modelMapping = modelMapper.getModelMappingByReferenceName(contentItem.properties.definitionName, 'source');
@@ -308,6 +311,7 @@ export class ContentBatchProcessor {
 					// STEP 4: Check if content already exists using reference mapper (since filtering already happened)
 					const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(contentItem.contentID, 'source');
 					const existingTargetContentItem = this.config.referenceMapper.getMappedEntity(existingMapping, 'target');
+
 
 					// STEP 5: Use proper ContentFieldMapper for field mapping and validation
 					const { ContentFieldMapper } = await import("../../content/content-field-mapper");
@@ -379,7 +383,7 @@ export class ContentBatchProcessor {
 					console.error(
 						ansiColors.yellow(
 							`✗ Orphaned content item ${contentItem.contentID}, skipping - ${error.message || 'payload preparation failed'}.`
-						), error
+						)
 					);
 
 					// Track skipped item and continue with the rest of the batch

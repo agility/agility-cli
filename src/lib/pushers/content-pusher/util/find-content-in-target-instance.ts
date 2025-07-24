@@ -15,7 +15,8 @@ interface FindResult {
 	shouldCreate: boolean;
 	shouldSkip: boolean;
 	isConflict: boolean;
-	decision?: ChangeDetection
+	decision?: ChangeDetection;
+	reason?: string;
 }
 
 /**
@@ -32,7 +33,7 @@ export function findContentInTargetInstance({
 
 	//GET FROM SOURCE MAPPING
 	const mapping = referenceMapper.getContentItemMappingByContentID(sourceContent.contentID, "source");
-
+	const locale = referenceMapper.locale;
 	let targetContent: mgmtApi.ContentItem | null = null;
 
 	if (mapping) {
@@ -45,7 +46,8 @@ export function findContentInTargetInstance({
 	const decision = changeDetection(
 		sourceContent,
 		targetContent,
-		mapping
+		mapping,
+		locale
 	);
 
 	return {
@@ -54,6 +56,7 @@ export function findContentInTargetInstance({
 		shouldCreate: decision.shouldCreate,
 		shouldSkip: decision.shouldSkip,
 		isConflict: decision.isConflict,
+		reason: decision.reason,
 		decision: decision
 	};
 }
