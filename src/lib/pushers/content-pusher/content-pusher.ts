@@ -17,20 +17,20 @@ import { ContainerMapper } from "lib/mappers/container-mapper";
 export async function pushContent(
     sourceData: ContentItem[],
     targetData: ContentItem[],
+    locale: string
 ): Promise<any> {
 
     // Use batch pusher for better performance (default behavior)
     const { ContentBatchProcessor } = await import('./content-batch-processor');
 
-    const { sourceGuid, targetGuid, locale } = state;
+    const { sourceGuid, targetGuid } = state;
 
     const sourceGuidStr = sourceGuid[0];
     const targetGuidStr = targetGuid[0];
-    const localeStr = locale[0];
 
     const modelMapper = new ModelMapper(sourceGuidStr, targetGuidStr);
     const containerMapper = new ContainerMapper(sourceGuidStr, targetGuidStr);
-    const referenceMapper = new ContentItemMapper(sourceGuidStr, targetGuidStr, localeStr);
+    const referenceMapper = new ContentItemMapper(sourceGuidStr, targetGuidStr, locale);
     const contentItems = sourceData || [];
 
     if (contentItems.length === 0) {
@@ -78,7 +78,7 @@ export async function pushContent(
                 apiClient: getApiClient(),
                 targetGuid: targetGuidStr,
                 sourceGuid: sourceGuidStr,
-                locale: localeStr,
+                locale,
                 referenceMapper,
                 batchSize: 250,
                 useContentFieldMapper: true,
@@ -89,7 +89,7 @@ export async function pushContent(
                 contentItems: normalContentItems,
                 apiClient: getApiClient(),
                 targetGuid: targetGuidStr,
-                locale: localeStr,
+                locale,
                 referenceMapper,
                 targetData,
             });
@@ -115,7 +115,7 @@ export async function pushContent(
                 apiClient: getApiClient(),
                 targetGuid: targetGuidStr,
                 sourceGuid: sourceGuidStr,
-                locale: localeStr,
+                locale,
                 referenceMapper,
                 batchSize: 100, // Smaller batches for linked content due to complexity
                 useContentFieldMapper: true,
@@ -126,7 +126,7 @@ export async function pushContent(
                 contentItems: linkedContentItems,
                 apiClient: getApiClient(),
                 targetGuid: targetGuidStr,
-                locale: localeStr,
+                locale,
                 referenceMapper,
                 targetData
             });

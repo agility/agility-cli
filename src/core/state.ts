@@ -497,44 +497,6 @@ export function getUIMode() {
 }
 
 /**
- * Get active locale for backward compatibility
- * Returns first locale from locale array or fallback
- */
-export function getActiveLocale(): string {
-  if (state.locale && state.locale.length > 0) {
-    return state.locale[0];
-  }
-  return 'en-us';
-}
-
-/**
- * Get all active locales as array
- * Returns locale array or fallback to default
- */
-export function getActiveLocales(): string[] {
-  if (state.locale && state.locale.length > 0) {
-    return state.locale;
-  }
-  return ['en-us'];
-}
-
-/**
- * Get all active source GUIDs as array
- * Returns sourceGuid array
- */
-export function getActiveSourceGuids(): string[] {
-  return state.sourceGuid || [];
-}
-
-/**
- * Get all active target GUIDs as array
- * Returns targetGuid array
- */
-export function getActiveTargetGuids(): string[] {
-  return state.targetGuid || [];
-}
-
-/**
  * Resolve locales for operation
  * Uses specified locales or stored available locales from auth.init
  */

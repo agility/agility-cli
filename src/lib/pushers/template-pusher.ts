@@ -15,6 +15,7 @@ import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 export async function pushTemplates(
     sourceData: any,
     targetData: any,
+    locale: string
     // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
 
@@ -29,7 +30,6 @@ export async function pushTemplates(
     }
 
     // Get state values instead of prop drilling
-    const { targetGuid, locale } = state;
     const apiClient = getApiClient();
 
     // Log template names for debugging
@@ -106,7 +106,7 @@ export async function pushTemplates(
             };
 
             try {
-                const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid[0], locale[0], payload);
+                const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid[0], locale, payload);
                 referenceMapper.addMapping(template, savedTemplate);
                 const action = isUpdate ? 'updated' : 'created';
                 console.log(`✓ Template ${ansiColors.underline.cyan(template.pageTemplateName)} ${ansiColors.green(action)} - Source: ${originalID} Target: ${savedTemplate.pageTemplateID}`);

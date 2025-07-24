@@ -8,6 +8,7 @@
 
 import ansiColors from 'ansi-colors';
 import { GuidDataLoader, GuidEntities } from '../pushers/guid-data-loader';
+import { locale } from 'yargs';
 
 export interface EntityComparison {
     entityType: string;
@@ -28,10 +29,12 @@ export interface ComparisonResult {
 export class EntityComparer {
     private targetGuid: string;
     private targetLoader: GuidDataLoader;
+    private locale: string
 
-    constructor(targetGuid: string) {
+    constructor(targetGuid: string, locale: string) {
         this.targetGuid = targetGuid;
         this.targetLoader = new GuidDataLoader(targetGuid);
+        this.locale = locale;
     }
 
     /**
@@ -218,6 +221,6 @@ export class EntityComparer {
      * Check if current target instance data exists
      */
     async targetDataExists(): Promise<boolean> {
-        return this.targetLoader.validateDataStructure();
+        return this.targetLoader.validateDataStructure(this.locale);
     }
 } 

@@ -317,24 +317,6 @@ export class SitemapHierarchy {
     }
 
     /**
-     * Silent page hierarchy analysis (no debug output)
-     */
-    debugPageHierarchyIssues(pages: any[], channelName: string): void {
-        // Perform hierarchy analysis silently
-        const sitemap = this.loadNestedSitemap(channelName);
-        if (!sitemap) {
-            return;
-        }
-
-        // Internal analysis only - no console output
-        pages.forEach(page => {
-            if (page.pageType === 'dynamic') {
-                this.findPageParentInSourceSitemap(page.pageID, page.name, channelName);
-            }
-        });
-    }
-
-    /**
      * Calculate depth level for each page in the hierarchy
      * Depth 0 = root pages (no parents), Depth 1 = direct children, etc.
      */

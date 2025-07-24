@@ -1,12 +1,15 @@
 import { getApiClient } from "../../core/state";
 
+export interface Channel 
+{
+	channel: string,
+	digitalChannelId: number
+}
+
 export async function getAllChannels(
 	guid: string,
 	locale: string
-): Promise<{
-	channel: string,
-	digitalChannelId: number
-}[]> {
+): Promise<Channel[]> {
 	// TODO: we should create a new mgmt SDK method to do this so we don't have to loop
 	const apiClient = getApiClient();
 

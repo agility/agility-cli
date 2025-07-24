@@ -12,7 +12,7 @@ export { systemArgs, type SystemArgsType } from './system-args';
 // export { Sync } from './sync_bak';
 
 // Publishing service
-export { PublishService, createPublishService, type PublishResult, type PublishOptions } from './publish';
+export { PublishService, type PublishResult, type PublishOptions } from './publish';
 
 // Content and data services
 export { content } from './content';

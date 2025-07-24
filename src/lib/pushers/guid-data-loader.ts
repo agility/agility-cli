@@ -57,7 +57,7 @@ export class GuidDataLoader {
         
     }
     /**
-     * Load all entities for the specified GUID - guarantees arrays are always returned
+     * Load all entities for the specified GUID and locale - guarantees arrays are always returned
      */
     async loadGuidEntities(locale: string, filterOptions?: ModelFilterOptions): Promise<GuidEntities> {
         const state = getState();
@@ -126,7 +126,7 @@ export class GuidDataLoader {
 
         // Apply model filtering if requested
         if (filterOptions) {
-            return await this.applyModelFiltering(guidEntities, filterOptions);
+            return await this.applyModelFiltering(guidEntities, filterOptions, locale);
         }
 
         return guidEntities;
@@ -135,7 +135,7 @@ export class GuidDataLoader {
     /**
      * Apply model filtering using existing ModelDependencyTreeBuilder
      */
-    private async applyModelFiltering(guidEntities: GuidEntities, filterOptions: ModelFilterOptions): Promise<GuidEntities> {
+    private async applyModelFiltering(guidEntities: GuidEntities, filterOptions: ModelFilterOptions, locale: string): Promise<GuidEntities> {
         // Determine which filtering mode to use
         let modelNames: string[] = [];
         let useFullDependencyTree = false;
@@ -167,7 +167,7 @@ export class GuidDataLoader {
 
         if (useFullDependencyTree) {
             // Build dependency tree and filter all related entities
-            const dependencyTree = treeBuilder.buildDependencyTree(validation.valid, this.locales[0]);
+            const dependencyTree = treeBuilder.buildDependencyTree(validation.valid, locale);
             return this.filterGuidEntitiesByDependencyTree(guidEntities, dependencyTree);
         } else {
             // Simple filtering - just filter models and their direct content
@@ -247,7 +247,7 @@ export class GuidDataLoader {
     /**
      * Validate that the data directory exists and contains expected structure
      */
-    validateDataStructure(): boolean {
+    validateDataStructure(locale: string): boolean {
         const state = getState();
         // Use enhanced fileOperations instancePath property
         const instancePath = new fileOperations(this.guid).instancePath;
@@ -255,7 +255,7 @@ export class GuidDataLoader {
         if (!fs.existsSync(instancePath)) {
             console.error(ansiColors.red(`❌ Data directory not found for GUID ${this.guid}: ${instancePath}`));
             console.log(ansiColors.yellow(`💡 Make sure you have pulled data first:`));
-            console.log(`   node dist/index.js pull --guid ${this.guid} --locale ${state.locale} --channel website --verbose`);
+            console.log(`   node dist/index.js pull --guid ${this.guid} --locale ${locale} --channel website --verbose`);
             return false;
         }
 
