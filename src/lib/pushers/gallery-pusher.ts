@@ -41,37 +41,36 @@ export async function pushGalleries(
         let currentStatus: 'success' | 'error' = 'success';
         try {
 
-            const existingMapping = referenceMapper.getGalleryMapping(sourceGallery, "target");
+            const existingMapping = referenceMapper.getGalleryMapping(sourceGallery, "source");
             const shouldCreate = existingMapping === null;
 
-            const targetGallery: mgmtApi.assetMediaGrouping = targetData.find(targetGallery => targetGallery.mediaGroupingID === existingMapping?.targetMediaGroupingID) || null;
-
-            const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetGallery);
-            const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(sourceGallery);
-            const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
-            const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
-
+            debugger;
 
             if (shouldCreate) {
                 // Gallery needs to be created (doesn't exist in target)
                 await createGallery(sourceGallery, apiClient, targetGuid[0], referenceMapper);
                 successful++;
 
-            } else if (shouldUpdate) {
-                // Gallery exists but needs updating
-                await updateGallery(sourceGallery, targetGallery, apiClient, targetGuid[0], referenceMapper);
-                successful++;
+            } else {
 
-            } else if (shouldSkip) {
-                // Gallery exists and is up to date - skip
-                console.log(`✓ Gallery ${ansiColors.underline(sourceGallery.name)} ${ansiColors.bold.gray('up to date, skipping')}`);
+                const targetGallery: mgmtApi.assetMediaGrouping = targetData.find(targetGallery => targetGallery.mediaGroupingID === existingMapping?.targetMediaGroupingID) || null;
+                const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetGallery);
+                const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(sourceGallery);
+                const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
+                const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
 
-                // Add mapping for existing gallery
-                // if (existingMapping) {
-                //     referenceMapper.updateMapping(mediaGrouping, mediaGrouping);
-                // }
-                skipped++;
+                if (shouldUpdate) {
+                    // Gallery exists but needs updating
+                    await updateGallery(sourceGallery, targetGallery, apiClient, targetGuid[0], referenceMapper);
+                    successful++;
+
+                } else if (shouldSkip) {
+                    // Gallery exists and is up to date - skip
+                    console.log(`✓ Gallery ${ansiColors.underline(sourceGallery.name)} ${ansiColors.bold.gray('up to date, skipping')}`);
+                    skipped++;
+                }
             }
+
 
         } catch (error: any) {
             console.error(`✗ Error processing gallery ${sourceGallery.name}:`, error.message);
@@ -100,9 +99,15 @@ async function createGallery(
     referenceMapper: GalleryMapper
 ): Promise<void> {
     const payload = { ...mediaGrouping, mediaGroupingID: 0 };
+    try {
+        
+        debugger;
     const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
     referenceMapper.addMapping(mediaGrouping, savedGallery);
     console.log(`✓ Gallery created: ${mediaGrouping.name} - ${ansiColors.green('Source')}: ${mediaGrouping.mediaGroupingID} ${ansiColors.green(targetGuid)}: ${savedGallery.mediaGroupingID}`);
+    } catch (error) {
+        console.log(error)
+    }
 }
 
 /**

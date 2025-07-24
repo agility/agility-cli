@@ -16,7 +16,8 @@
     "build": "tsc -p .",
     "postbuild": "chmod +x dist/index.js",
     "refresh": "rm -rf ./node_modules ./package-lock.json && npm install",
-    "test": "jest"
+    "test": "jest",
+    "debug": "node --inspect-brk -r ts-node/register src/index.ts"
   },
   "keywords": [
     "typescript",

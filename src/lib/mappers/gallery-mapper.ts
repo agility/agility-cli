@@ -1,4 +1,4 @@
-
+import { parse } from "date-fns";
 import * as mgmtApi from "@agility/management-sdk";
 import { fileOperations } from "../../core";
 interface GalleryMapping {
@@ -29,6 +29,7 @@ export class GalleryMapper {
     }
 
     getGalleryMapping(gallery: mgmtApi.assetMediaGrouping, type: 'source' | 'target'): GalleryMapping | null {
+        debugger;
         const mapping = this.mappings.find((m: GalleryMapping) =>
             type === 'source' ? m.sourceMediaGroupingID === gallery.mediaGroupingID : m.targetMediaGroupingID === gallery.mediaGroupingID
         );
@@ -102,13 +103,24 @@ export class GalleryMapper {
     hasSourceChanged(sourceGallery: mgmtApi.assetMediaGrouping) {
         const mapping = this.getGalleryMapping(sourceGallery, 'source');
         if (!mapping) return false;
-        return sourceGallery.modifiedOn !== mapping.sourceModifiedOn;
+
+        //the date format is: 07/23/2025 08:22PM (MM/DD/YYYY hh:mma) so we need to convert it to a Date object
+        // Note: This assumes the date is in the format MM/DD/YYYY hh:mma
+        // If the date format is different, you may need to adjust the parsing logic accordingly
+        const sourceDate = parse(sourceGallery.modifiedOn, "MM/dd/yyyy hh:mma", new Date());
+        const mappedDate = parse(mapping.sourceModifiedOn, "MM/dd/yyyy hh:mma", new Date());
+
+        return sourceDate > mappedDate;
     }
 
     hasTargetChanged(targetGallery: mgmtApi.assetMediaGrouping) {
+        if (!targetGallery) return false;
         const mapping = this.getGalleryMapping(targetGallery, 'target');
         if (!mapping) return false;
-        return targetGallery.modifiedOn !== mapping.targetModifiedOn;
+
+        const targetDate = parse(targetGallery.modifiedOn, "MM/dd/yyyy hh:mma", new Date());
+        const mappedDate = parse(mapping.targetModifiedOn, "MM/dd/yyyy hh:mma", new Date());
+        return targetDate > mappedDate;
     }
 
 

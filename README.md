@@ -872,6 +872,29 @@ If pull operations fail, you may need to specify the `--baseUrl` for your region
 | Europe    | `https://mgmt-eu.aglty.io`  |
 | Australia | `https://mgmt-aus.aglty.io` |
 
+## Debug Script
+
+The Agility CLI includes a debug script for development and troubleshooting purposes.
+
+### Using the Debug Script
+
+```bash
+# Run any CLI command with debug mode
+npm run debug -- [command] [options]
+
+# Examples:
+npm run debug -- pull --sourceGuid="abc123" --verbose
+npm run debug -- sync --sourceGuid="abc123" --targetGuid="def456" --test
+npm run debug -- sync --sourceGuid="e67929d5-u" --targetGuid="a936bcac-u" --elements Galleries
+
+# Attach to the debugger
+1. Open Chrome
+2. Go to chrome://inspect
+3. Click inspect on the available process, and debug
+```
+
+
+
 ## Troubleshooting
 
 ### Common Issues
