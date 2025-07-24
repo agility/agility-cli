@@ -18,48 +18,48 @@ let _targetSitemapCache: { [guid: string]: any } = {};
  * Flatten nested sitemap structure to get all pages at all levels
  */
 function flattenSitemapPages(pages: any[]): any[] {
-    const flatPages: any[] = [];
-    
-    function addPagesRecursively(pageArray: any[]) {
-        for (const page of pageArray) {
-            flatPages.push(page);
-            if (page.childPages && Array.isArray(page.childPages)) {
-                addPagesRecursively(page.childPages);
-            }
-        }
+  const flatPages: any[] = [];
+
+  function addPagesRecursively(pageArray: any[]) {
+    for (const page of pageArray) {
+      flatPages.push(page);
+      if (page.childPages && Array.isArray(page.childPages)) {
+        addPagesRecursively(page.childPages);
+      }
     }
-    
-    addPagesRecursively(pages);
-    return flatPages;
+  }
+
+  addPagesRecursively(pages);
+  return flatPages;
 }
 
 async function getTargetSitemap(apiClient: mgmtApi.ApiClient, targetGuid: string, locale: string): Promise<any> {
-    const cacheKey = `${targetGuid}-${locale}`;
-    
-    if (!_targetSitemapCache[cacheKey]) {
-        const sitemap = await apiClient.pageMethods.getSitemap(targetGuid, locale);
-        _targetSitemapCache[cacheKey] = sitemap;
-        
-        const websiteChannel = sitemap?.find(channel => channel.digitalChannelTypeName === 'Website');
-        if (websiteChannel && websiteChannel.pages) {
-            const flatPages = flattenSitemapPages(websiteChannel.pages);
-            (websiteChannel as any).flatPages = flatPages;
-        }
+  const cacheKey = `${targetGuid}-${locale}`;
+
+  if (!_targetSitemapCache[cacheKey]) {
+    const sitemap = await apiClient.pageMethods.getSitemap(targetGuid, locale);
+    _targetSitemapCache[cacheKey] = sitemap;
+
+    const websiteChannel = sitemap?.find(channel => channel.digitalChannelTypeName === 'Website');
+    if (websiteChannel && websiteChannel.pages) {
+      const flatPages = flattenSitemapPages(websiteChannel.pages);
+      (websiteChannel as any).flatPages = flatPages;
     }
-    
-    return _targetSitemapCache[cacheKey];
+  }
+
+  return _targetSitemapCache[cacheKey];
 }
 
 /**
  * Clear the sitemap cache (useful for testing or when target instance changes)
  */
 export function clearSitemapCache(targetGuid?: string, locale?: string): void {
-    if (targetGuid && locale) {
-        const cacheKey = `${targetGuid}-${locale}`;
-        delete _targetSitemapCache[cacheKey];
-    } else {
-        _targetSitemapCache = {};
-    }
+  if (targetGuid && locale) {
+    const cacheKey = `${targetGuid}-${locale}`;
+    delete _targetSitemapCache[cacheKey];
+  } else {
+    _targetSitemapCache = {};
+  }
 }
 
 /**
@@ -73,7 +73,7 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 //     referenceMapper: ReferenceMapperV2,
 //     sitemapPath?: string
 // ): Promise<mgmtApi.PageItem | null> {
-    
+
 //     try {
 //         // Check reference mappings first (fastest)
 //         const existingMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourcePage.pageID);
@@ -85,7 +85,7 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 //         // Get target sitemap and flatten nested pages
 //         const sitemap = await getTargetSitemap(apiClient, targetGuid, locale);
 //         const websiteChannel = sitemap?.find(channel => channel.digitalChannelTypeName === 'Website');
-        
+
 //         if (!websiteChannel || !(websiteChannel as any).flatPages) {
 //             return null;
 //         }
@@ -96,16 +96,16 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 //         const nameMatches = targetPages.filter((targetPage: any) => {
 //             const targetPageName = targetPage.pageName || targetPage.name || targetPage.title;
 //             const targetMenuText = targetPage.menuText;
-            
+
 //             // Try exact name match first
 //             if (targetPageName === sourcePage.name) return true;
-            
+
 //             // Try matching against menu text
 //             if (targetMenuText && targetMenuText === sourcePage.name) return true;
-            
+
 //             // Try matching against source page's title and menuText
 //             if (targetPageName === sourcePage.title || targetPageName === sourcePage.menuText) return true;
-            
+
 //             return false;
 //         });
 
@@ -123,7 +123,7 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 //         // Multiple matches - use parent hierarchy to disambiguate
 //         const sourceParentId = sourcePage.parentPageID || (sourcePage as any).parentID || -1;
 //         let targetParentId = -1;
-        
+
 //         if (sourceParentId > 0) {
 //             const parentMapping = referenceMapper.getMappingByKey<mgmtApi.PageItem>('page', 'pageID', sourceParentId);
 //             if (parentMapping?.target) {
@@ -134,10 +134,10 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 //         // Find best match based on hierarchy
 //         const hierarchyMatch = nameMatches.find((targetPage: any) => {
 //             const targetPageParentId = targetPage.parentPageID || targetPage.parentID || -1;
-//             return (targetParentId === -1 && targetPageParentId <= 0) || 
+//             return (targetParentId === -1 && targetPageParentId <= 0) ||
 //                    (targetParentId === targetPageParentId);
 //         });
-        
+
 //         if (hierarchyMatch) {
 //             const fullPage = await apiClient.pageMethods.getPage(hierarchyMatch.pageID, targetGuid, locale);
 //             return fullPage;
@@ -149,7 +149,7 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 //             const sourcePath = sourcePage.path || '';
 //             return targetPath === sourcePath;
 //         });
-        
+
 //         if (pathMatch) {
 //             const fullPage = await apiClient.pageMethods.getPage(pathMatch.pageID, targetGuid, locale);
 //             return fullPage;
@@ -159,7 +159,7 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 //         if (nameMatches.length > 1) {
 //             console.warn(`⚠️ Multiple pages found with name "${sourcePage.name}" in target instance. Using first match (ID: ${nameMatches[0].pageID})`);
 //         }
-        
+
 //         const firstMatch = nameMatches[0];
 //         const fullPage = await apiClient.pageMethods.getPage(firstMatch.pageID, targetGuid, locale);
 //         return fullPage;
@@ -167,7 +167,7 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 //     } catch (error: any) {
 //         return null;
 //     }
-// } 
+// }
 
 // export async function findPageInTargetInstanceEnhanced(
 //     sourcePage: mgmtApi.PageItem,
@@ -184,7 +184,7 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 //     let targetPageFromMapping: mgmtApi.PageItem | null = existingMapping?.target || null;
 
 //     // STEP 2: Find target instance data
-//     const targetInstanceData = targetData.pages?.find((p: any) => 
+//     const targetInstanceData = targetData.pages?.find((p: any) =>
 //         p.pageID === targetPageFromMapping?.pageID || p.name === sourcePage.name || p.path === sourcePage.path
 //     );
 
@@ -201,10 +201,10 @@ export function clearSitemapCache(targetGuid?: string, locale?: string): void {
 //         targetInstanceData
 //     );
 
-//     return { 
-//         page: finalTargetPage, 
-//         shouldUpdate: decision.shouldUpdate, 
-//         shouldCreate: decision.shouldCreate, 
+//     return {
+//         page: finalTargetPage,
+//         shouldUpdate: decision.shouldUpdate,
+//         shouldCreate: decision.shouldCreate,
 //         shouldSkip: decision.shouldSkip,
 //         decision: decision
 //     };
@@ -265,9 +265,9 @@ async function processPage(
   let channelID = -1;
 
   const referenceMapper = new PageMapper(sourceGuid, targetGuid, locale);
-  
 
-const templateMapper = new TemplateMapper(sourceGuid, targetGuid);
+
+  const templateMapper = new TemplateMapper(sourceGuid, targetGuid);
   try {
     let targetTemplate: mgmtApi.PageModel | null = null;
     // Only try to find template mapping for non-folder pages
@@ -275,7 +275,7 @@ const templateMapper = new TemplateMapper(sourceGuid, targetGuid);
       // Find the template mapping
       let templateRef = templateMapper.getTemplateMappingByPageTemplateName(page.templateName, 'source');
       if (!templateRef) {
-          console.error(
+        console.error(
           ansiColors.yellow(
             `✗ Page ${page.name} template ${ansiColors.underline(page.templateName)} missing in source data, skipping`
           )
@@ -294,7 +294,7 @@ const templateMapper = new TemplateMapper(sourceGuid, targetGuid);
     } else {
 
 
-        // existingPage = await findPageInTargetInstance(page, apiClient, targetGuid, locale, referenceMapper);
+      // existingPage = await findPageInTargetInstance(page, apiClient, targetGuid, locale, referenceMapper);
     }
 
     // existingPage = await findPageInTargetInstance(page, apiClient, targetGuid, locale, referenceMapper);
@@ -531,11 +531,11 @@ const templateMapper = new TemplateMapper(sourceGuid, targetGuid);
     // CRITICAL FIX: Use parentID as the correct field name (SDK documentation confirms this)
     const sourceParentId = payload.parentPageID;
     if (sourceParentId && sourceParentId > 0) {
-      const { targetPageID } = referenceMapper.getPageMappingByPageID(sourceParentId, 'source');
-      if (targetPageID) {
-        parentIDArg = targetPageID;
+      const mapping = referenceMapper.getPageMappingByPageID(sourceParentId, 'source');
+      if ((mapping?.targetPageID || 0) > 0) {
+        parentIDArg = mapping.targetPageID;
         // CRITICAL FIX: Set parentID in payload (not parentPageID)
-        payload.parentPageID = targetPageID;
+        payload.parentPageID = mapping.targetPageID;
       } else {
         parentIDArg = -1;
         payload.parentPageID = -1; // No parent
@@ -560,9 +560,9 @@ const templateMapper = new TemplateMapper(sourceGuid, targetGuid);
       placeBeforeIDArg = insertBeforePageId;
     } else if (payload.placeBeforePageItemID && payload.placeBeforePageItemID > 0) {
       // Fallback to original placeBeforePageItemID if available
-      const { targetPageID } = referenceMapper.getPageMappingByPageID(payload.placeBeforePageItemID, 'source');
-      if (targetPageID) {
-        placeBeforeIDArg = targetPageID;
+      const mapping = referenceMapper.getPageMappingByPageID(payload.placeBeforePageItemID, 'source');
+      if ((mapping?.targetPageID || 0) > 0) {
+        placeBeforeIDArg = mapping.targetPageID;
       } else {
         placeBeforeIDArg = -1;
       }
@@ -700,88 +700,98 @@ export async function pushPages(
   // Page hierarchy enrichment with dynamic page support and sibling ordering
   let pageOrderingData: any = null;
   try {
+
+
     const sitemapHierarchy = new SitemapHierarchy();
 
-    // Check for dynamic pages without verbose logging
-    const hasDynamicPages = pages.some((page: any) => page.pageType === "dynamic");
-    if (hasDynamicPages) {
-      sitemapHierarchy.debugPageHierarchyIssues(pages);
-    }
+    const sitemaps = await sitemapHierarchy.loadAllSitemaps();
+    const channels = Object.keys(sitemaps);
 
-    const sitemap = sitemapHierarchy.loadNestedSitemap();
+    console.log(`Processing ${pages.length} pages across ${channels.length} channels...`);
 
-    if (sitemap && sitemap.length > 0) {
-      // NEW: Use enhanced ordering that preserves both parent-child AND sibling relationships
-      const orderingResult = sitemapHierarchy.getOrderedProcessingSequence(pages, sitemap);
-      pageOrderingData = orderingResult.orderingData;
-      const hierarchy = pageOrderingData.hierarchy;
+    //loop all the channels
+    for (const channel of channels) {
+      const sitemap = sitemaps[channel];
 
-      if (hierarchy && Object.keys(hierarchy).length > 0) {
-        // Validate processing order is dependency-safe
-        const isValidOrder = sitemapHierarchy.validateProcessingOrder(orderingResult.orderedPages, hierarchy);
-        if (!isValidOrder) {
-          console.warn("⚠️ Page processing order validation failed - proceeding with original order");
-        } else {
-          // Use the dependency-safe order that also preserves sibling order
-          pages = orderingResult.orderedPages;
-          
-        }
+      // Check for dynamic pages without verbose logging
+      const hasDynamicPages = pages.some((page: any) => page.pageType === "dynamic");
+      if (hasDynamicPages) {
+        sitemapHierarchy.debugPageHierarchyIssues(pages, channel);
+      }
 
-        // Build child-to-parent mapping for efficient lookup
-        const childToParentMap: { [childId: number]: number } = {};
-        Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
-          const parentId = parseInt(parentIdStr);
-          (childIds as number[]).forEach((childId) => {
-            childToParentMap[childId] = parentId;
-          });
-        });
+      if (sitemap && sitemap.length > 0) {
+        // NEW: Use enhanced ordering that preserves both parent-child AND sibling relationships
+        const orderingResult = sitemapHierarchy.getOrderedProcessingSequence(pages, sitemap);
+        pageOrderingData = orderingResult.orderingData;
+        const hierarchy = pageOrderingData.hierarchy;
 
-        // Enrich each page with parent relationship information
-        let enrichedCount = 0;
-        pages = pages.map((page: any) => {
-          // First check existing parentPageID
-          let parentId = page.parentPageID && page.parentPageID > 0 ? page.parentPageID : null;
-
-          // If no parent found, try hierarchy mapping
-          if (!parentId) {
-            parentId = childToParentMap[page.pageID];
-          }
-
-          // For dynamic pages, use comprehensive lookup if still no parent
-          if (!parentId && page.pageType === "dynamic") {
-            const lookup = sitemapHierarchy.findPageParentInSourceSitemap(page.pageID, page.name);
-            if (lookup.parentId) {
-              parentId = lookup.parentId;
-              // Only log if parent lookup fails completely
-            } else {
-              console.warn(`⚠️ No parent found for dynamic page ${page.name} - may cause validation issues`);
-            }
-          }
-
-          if (parentId && parentId > 0) {
-            enrichedCount++;
-            return { ...page, parentPageID: parentId, parentID: parentId };
+        if (hierarchy && Object.keys(hierarchy).length > 0) {
+          // Validate processing order is dependency-safe
+          const isValidOrder = sitemapHierarchy.validateProcessingOrder(orderingResult.orderedPages, hierarchy);
+          if (!isValidOrder) {
+            console.warn("⚠️ Page processing order validation failed - proceeding with original order");
           } else {
-            return { ...page, parentPageID: -1, parentID: -1 };
+            // Use the dependency-safe order that also preserves sibling order
+            pages = orderingResult.orderedPages;
+
           }
-        });
 
-        // if (enrichedCount > 0) {
-        //   console.log(`✅ Enriched ${enrichedCount} pages with parent relationships`);
-        // }
+          // Build child-to-parent mapping for efficient lookup
+          const childToParentMap: { [childId: number]: number } = {};
+          Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
+            const parentId = parseInt(parentIdStr);
+            (childIds as number[]).forEach((childId) => {
+              childToParentMap[childId] = parentId;
+            });
+          });
 
-        // Only warn about orphaned dynamic pages (simplified)
-        const orphanedDynamicPages = pages.filter(
-          (page: any) => page.pageType === "dynamic" && (!page.parentPageID || page.parentPageID <= 0)
-        );
-        if (orphanedDynamicPages.length > 0) {
-          console.warn(`⚠️ ${orphanedDynamicPages.length} dynamic pages without parents may cause issues`);
+          // Enrich each page with parent relationship information
+          let enrichedCount = 0;
+          pages = pages.map((page: any) => {
+            // First check existing parentPageID
+            let parentId = page.parentPageID && page.parentPageID > 0 ? page.parentPageID : null;
+
+            // If no parent found, try hierarchy mapping
+            if (!parentId) {
+              parentId = childToParentMap[page.pageID];
+            }
+
+            // For dynamic pages, use comprehensive lookup if still no parent
+            if (!parentId && page.pageType === "dynamic") {
+              const lookup = sitemapHierarchy.findPageParentInSourceSitemap(page.pageID, page.name, channel);
+              if (lookup.parentId) {
+                parentId = lookup.parentId;
+                // Only log if parent lookup fails completely
+              } else {
+                console.warn(`⚠️ No parent found for dynamic page ${page.name} - may cause validation issues`);
+              }
+            }
+
+            if (parentId && parentId > 0) {
+              enrichedCount++;
+              return { ...page, parentPageID: parentId, parentID: parentId };
+            } else {
+              return { ...page, parentPageID: -1, parentID: -1 };
+            }
+          });
+
+          // if (enrichedCount > 0) {
+          //   console.log(`✅ Enriched ${enrichedCount} pages with parent relationships`);
+          // }
+
+          // Only warn about orphaned dynamic pages (simplified)
+          const orphanedDynamicPages = pages.filter(
+            (page: any) => page.pageType === "dynamic" && (!page.parentPageID || page.parentPageID <= 0)
+          );
+          if (orphanedDynamicPages.length > 0) {
+            console.warn(`⚠️ ${orphanedDynamicPages.length} dynamic pages without parents may cause issues`);
+          }
+        } else {
+          // Sitemap exists but no hierarchy - silent processing
         }
       } else {
-        // Sitemap exists but no hierarchy - silent processing
+        // No sitemap found - silent processing
       }
-    } else {
-      // No sitemap found - silent processing
     }
   } catch (error: any) {
     console.warn(`⚠️ Page hierarchy enrichment failed: ${error.message} - proceeding with original order`);
@@ -796,7 +806,7 @@ export async function pushPages(
 
 
   // Use centralized apiClient creation with lazy initialization
- 
+
   const apiClient = getApiClient();
 
   // Use simple legacy pattern - track processed pages directly
@@ -822,16 +832,16 @@ export async function pushPages(
     if (pageOrderingData?.siblingOrder) {
       const sitemapHierarchy = new SitemapHierarchy();
       const sourceInsertBeforeId = sitemapHierarchy.getInsertBeforePageId(page.pageID, pageOrderingData.siblingOrder);
-      
-        if (sourceInsertBeforeId !== null) {
-         // Map the source insertBefore ID to target insertBefore ID
-         const { targetPageID } = pageMapper.getPageMappingByPageID(sourceInsertBeforeId, 'source');
-         if (targetPageID) {
-           insertBeforePageId = targetPageID;
-         }
-       }
+
+      if (sourceInsertBeforeId !== null) {
+        // Map the source insertBefore ID to target insertBefore ID
+        const mapping = pageMapper.getPageMappingByPageID(sourceInsertBeforeId, 'source');
+        if ((mapping?.targetPageID || 0) > 0) {
+          insertBeforePageId = mapping.targetPageID;
+        }
+      }
     }
-const { sourceGuid, targetGuid, locale, overwrite } = state;
+    const { sourceGuid, targetGuid, locale, overwrite } = state;
     const result = await processPage(
       page,
       sourceGuid[0],
@@ -847,19 +857,19 @@ const { sourceGuid, targetGuid, locale, overwrite } = state;
     if (result === "success") {
       successful++; // Page was processed successfully (created or updated)
 
-      
+
       // Collect target page ID for auto-publishing
-      const { targetPageID } = referenceMapper.getPageMappingByPageID(page.pageID, 'source');
-      if (targetPageID) {
-        publishableIds.push(targetPageID);
+      const mapping = referenceMapper.getPageMappingByPageID(page.pageID, 'source');
+      if ((mapping?.targetPageID || 0) > 0) {
+        publishableIds.push(mapping.targetPageID);
       }
     } else if (result === "skip") {
       skipped++; // Page already exists and was skipped
 
       // Still collect target page ID for auto-publishing (skipped pages still exist)
-      const { targetPageID } = referenceMapper.getPageMappingByPageID(page.pageID, 'source');
-      if (targetPageID) {
-        publishableIds.push(targetPageID);
+      const mapping = referenceMapper.getPageMappingByPageID(page.pageID, 'source');
+      if ((mapping?.targetPageID || 0) > 0) {
+        publishableIds.push(mapping.targetPageID);
       }
     } else {
       failed++;

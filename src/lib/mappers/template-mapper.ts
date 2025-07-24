@@ -29,7 +29,9 @@ export class TemplateMapper {
 
     getTemplateMapping(template: mgmtApi.PageModel, type: 'source' | 'target'): TemplateMapping | null {
         const mapping = this.mappings.find((m: TemplateMapping) =>
-            type === 'source' ? m.sourcePageTemplateID === template.pageTemplateID : m.targetPageTemplateID === template.pageTemplateID
+            type === 'source'
+                ? m.sourcePageTemplateID === template.pageTemplateID
+                : m.targetPageTemplateID === template.pageTemplateID
         );
         if (!mapping) return null;
         return mapping;

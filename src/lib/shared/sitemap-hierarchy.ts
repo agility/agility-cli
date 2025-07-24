@@ -11,26 +11,49 @@ export class SitemapHierarchy {
         // Configuration now comes from state internally
     }
 
+    loadAllSitemaps() {
+        const state = getState();
+
+        const sitemapDir = path.join(
+            state.rootPath,
+            state.sourceGuid[0],
+            state.locale[0],
+            'nestedsitemap'
+        );
+
+        const sitemaps: { [key: string]: SitemapNode[] | null } = {};
+
+        fs.readdirSync(sitemapDir).forEach(fileName => {
+            if (!fileName.endsWith('.json')) {
+                return; // Skip non-JSON files
+            }
+            const channel = path.basename(fileName, '.json');
+
+            sitemaps[channel] = this.loadNestedSitemap(channel);
+        });
+
+        return sitemaps;
+    }
+
     /**
      * Load nested sitemap from the file system
      */
-    loadNestedSitemap(): SitemapNode[] | null {
+    loadNestedSitemap(channel: string): SitemapNode[] | null {
         try {
             const state = getState();
             let sitemapPath: string;
-            
+
             if (state.legacyFolders) {
                 // Legacy mode: flat structure {rootPath}/nestedsitemap/website.json
-                sitemapPath = path.join(state.rootPath, 'nestedsitemap', 'website.json');
+                sitemapPath = path.join(state.rootPath, 'nestedsitemap', `${channel.toLowerCase()}.json`);
             } else {
-                // Normal mode: nested structure {rootPath}/{guid}/{locale}/{mode}/nestedsitemap/website.json
+                // Normal mode: nested structure {rootPath}/{guid}/{locale}/nestedsitemap/website.json
                 sitemapPath = path.join(
                     state.rootPath,
                     state.sourceGuid[0],
                     state.locale[0],
-                    state.preview ? 'preview' : 'live',
                     'nestedsitemap',
-                    'website.json'
+                    `${channel.toLowerCase()}.json`
                 );
             }
 
@@ -41,7 +64,7 @@ export class SitemapHierarchy {
 
             const sitemapData = fs.readFileSync(sitemapPath, 'utf8');
             const sitemap: SitemapNode[] = JSON.parse(sitemapData);
-            
+
             // Loaded nested sitemap (silent)
             return sitemap;
         } catch (error) {
@@ -60,7 +83,7 @@ export class SitemapHierarchy {
             if (node.children && node.children.length > 0) {
                 // This node has children
                 hierarchy[node.pageID] = node.children.map(child => child.pageID);
-                
+
                 // Recursively process children
                 node.children.forEach(child => processNode(child));
             }
@@ -123,9 +146,9 @@ export class SitemapHierarchy {
      * Build a hierarchical group starting from a root page
      */
     private buildHierarchicalGroup(
-        rootPage: any, 
-        allPages: any[], 
-        hierarchy: PageHierarchy, 
+        rootPage: any,
+        allPages: any[],
+        hierarchy: PageHierarchy,
         processedPages: Set<number>
     ): HierarchicalPageGroup {
         const group: HierarchicalPageGroup = {
@@ -155,7 +178,7 @@ export class SitemapHierarchy {
         processedPages: Set<number>
     ): void {
         const directChildIds = hierarchy[parentPageId] || [];
-        
+
         (directChildIds as number[]).forEach(childId => {
             const childPage = allPages.find(p => p.pageID === childId);
             if (childPage && !processedPages.has(childId)) {
@@ -163,7 +186,7 @@ export class SitemapHierarchy {
                 group.childPages.push(childPage);
                 group.allPageIds.add(childId);
                 processedPages.add(childId);
-                
+
                 // Recursively collect ALL descendants (grandchildren, great-grandchildren, etc.)
                 this.collectAllDescendants(childId, allPages, hierarchy, group, processedPages);
             }
@@ -175,7 +198,7 @@ export class SitemapHierarchy {
      */
     getOrphanedPages(pages: any[], hierarchicalGroups: HierarchicalPageGroup[]): any[] {
         const allProcessedIds = new Set<number>();
-        
+
         hierarchicalGroups.forEach(group => {
             group.allPageIds.forEach(id => allProcessedIds.add(id));
         });
@@ -197,14 +220,14 @@ export class SitemapHierarchy {
      * ✅ NEW: Find page parent from source sitemap with comprehensive lookup
      * Handles both template pages and dynamic page instances
      */
-    findPageParentInSourceSitemap(pageId: number, pageName: string): { parentId: number | null; parentName: string | null; foundIn: string } {
+    findPageParentInSourceSitemap(pageId: number, pageName: string, channelName: string): { parentId: number | null; parentName: string | null; foundIn: string } {
         try {
-            const sitemap = this.loadNestedSitemap();
+            const sitemap = this.loadNestedSitemap(channelName);
             if (!sitemap || sitemap.length === 0) {
                 return { parentId: null, parentName: null, foundIn: 'no-sitemap' };
             }
 
-    
+
 
             // Recursive function to search through sitemap
             const searchSitemap = (nodes: SitemapNode[], parentNode: SitemapNode | null = null): { parentId: number | null; parentName: string | null; foundIn: string } => {
@@ -213,10 +236,10 @@ export class SitemapHierarchy {
                     if (node.pageID === pageId || node.name === pageName) {
                         if (parentNode) {
                             console.log(`🎯 [DEBUG] Found ${pageName} (ID:${pageId}) under parent ${parentNode.name} (ID:${parentNode.pageID})`);
-                            return { 
-                                parentId: parentNode.pageID, 
-                                parentName: parentNode.name, 
-                                foundIn: 'direct-match' 
+                            return {
+                                parentId: parentNode.pageID,
+                                parentName: parentNode.name,
+                                foundIn: 'direct-match'
                             };
                         } else {
                             console.log(`🏠 [DEBUG] Found ${pageName} (ID:${pageId}) at root level`);
@@ -230,10 +253,10 @@ export class SitemapHierarchy {
                         const dynamicMatch = node.children.find(child => child.pageID === pageId);
                         if (dynamicMatch) {
                             console.log(`🎯 [DEBUG] Found dynamic page ${pageName} (ID:${pageId}) under parent ${node.name} (ID:${node.pageID})`);
-                            return { 
-                                parentId: node.pageID, 
-                                parentName: node.name, 
-                                foundIn: 'dynamic-child' 
+                            return {
+                                parentId: node.pageID,
+                                parentName: node.name,
+                                foundIn: 'dynamic-child'
                             };
                         }
 
@@ -267,7 +290,7 @@ export class SitemapHierarchy {
             // If this node has children, add them to hierarchy
             if (node.children && node.children.length > 0) {
                 hierarchy[node.pageID] = node.children.map(child => child.pageID);
-                
+
                 // Process children recursively
                 node.children.forEach(child => processNode(child, node));
             }
@@ -296,9 +319,9 @@ export class SitemapHierarchy {
     /**
      * Silent page hierarchy analysis (no debug output)
      */
-    debugPageHierarchyIssues(pages: any[]): void {
+    debugPageHierarchyIssues(pages: any[], channelName: string): void {
         // Perform hierarchy analysis silently
-        const sitemap = this.loadNestedSitemap();
+        const sitemap = this.loadNestedSitemap(channelName);
         if (!sitemap) {
             return;
         }
@@ -306,7 +329,7 @@ export class SitemapHierarchy {
         // Internal analysis only - no console output
         pages.forEach(page => {
             if (page.pageType === 'dynamic') {
-                this.findPageParentInSourceSitemap(page.pageID, page.name);
+                this.findPageParentInSourceSitemap(page.pageID, page.name, channelName);
             }
         });
     }
@@ -318,7 +341,7 @@ export class SitemapHierarchy {
     calculatePageDepths(pages: any[], hierarchy: PageHierarchy): Map<number, number> {
         const pageDepths = new Map<number, number>();
         const visited = new Set<number>();
-        
+
         // Build reverse lookup: child → parent
         const childToParent = new Map<number, number>();
         Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
@@ -327,7 +350,7 @@ export class SitemapHierarchy {
                 childToParent.set(childId, parentId);
             });
         });
-        
+
         // Calculate depth recursively for each page
         const calculateDepth = (pageId: number): number => {
             if (visited.has(pageId)) {
@@ -335,13 +358,13 @@ export class SitemapHierarchy {
                 console.warn(`Circular reference detected for page ${pageId}`);
                 return 999;
             }
-            
+
             if (pageDepths.has(pageId)) {
                 return pageDepths.get(pageId)!;
             }
-            
+
             visited.add(pageId);
-            
+
             const parentId = childToParent.get(pageId);
             if (!parentId) {
                 // Root page (no parent)
@@ -349,7 +372,7 @@ export class SitemapHierarchy {
                 visited.delete(pageId);
                 return 0;
             }
-            
+
             // Parent exists - depth is parent's depth + 1
             const parentDepth = calculateDepth(parentId);
             const depth = parentDepth + 1;
@@ -357,22 +380,22 @@ export class SitemapHierarchy {
             visited.delete(pageId);
             return depth;
         };
-        
+
         // Calculate depth for all pages
         pages.forEach(page => {
             calculateDepth(page.pageID);
         });
-        
+
         return pageDepths;
     }
-    
+
     /**
      * Get pages grouped by depth level
      * Returns map of depth → pages at that depth
      */
     getPagesByDepth(pages: any[], pageDepths: Map<number, number>): Map<number, any[]> {
         const pagesByDepth = new Map<number, any[]>();
-        
+
         pages.forEach(page => {
             const depth = pageDepths.get(page.pageID) || 0;
             if (!pagesByDepth.has(depth)) {
@@ -380,10 +403,10 @@ export class SitemapHierarchy {
             }
             pagesByDepth.get(depth)!.push(page);
         });
-        
+
         return pagesByDepth;
     }
-    
+
     /**
      * Generate dependency-safe page processing order
      * Returns pages ordered by depth (shallowest first) so parents are processed before children
@@ -391,13 +414,13 @@ export class SitemapHierarchy {
     getProcessingOrder(pages: any[], hierarchy: PageHierarchy): { orderedPages: any[]; depthInfo: Map<number, number> } {
         // Calculate page depths
         const pageDepths = this.calculatePageDepths(pages, hierarchy);
-        
+
         // Group pages by depth
         const pagesByDepth = this.getPagesByDepth(pages, pageDepths);
-        
+
         // Sort depth levels in ascending order (shallowest first = parents before children)
         const sortedDepths = Array.from(pagesByDepth.keys()).sort((a, b) => a - b);
-        
+
         // Build ordered array with shallowest pages first (parents before children)
         const orderedPages: any[] = [];
         sortedDepths.forEach(depth => {
@@ -406,19 +429,19 @@ export class SitemapHierarchy {
             pagesAtDepth.sort((a, b) => a.pageID - b.pageID);
             orderedPages.push(...pagesAtDepth);
         });
-        
+
         // Page processing order calculated (silent)
-        
+
         return { orderedPages, depthInfo: pageDepths };
     }
-    
+
     /**
      * Validate page processing order is dependency-safe
      * Ensures no page is processed before its parent
      */
     validateProcessingOrder(orderedPages: any[], hierarchy: PageHierarchy): boolean {
         const processedPageIds = new Set<number>();
-        
+
         // Build reverse lookup: child → parent
         const childToParent = new Map<number, number>();
         Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
@@ -427,19 +450,19 @@ export class SitemapHierarchy {
                 childToParent.set(childId, parentId);
             });
         });
-        
+
         for (const page of orderedPages) {
             const parentId = childToParent.get(page.pageID);
-            
+
             if (parentId && !processedPageIds.has(parentId)) {
                 // This page's parent hasn't been processed yet - order is invalid
                 console.error(`❌ Invalid processing order: Page ${page.pageID} scheduled before parent ${parentId}`);
                 return false;
             }
-            
+
             processedPageIds.add(page.pageID);
         }
-        
+
         // Processing order validation passed (silent)
         return true;
     }
@@ -450,24 +473,24 @@ export class SitemapHierarchy {
      */
     extractSiblingOrderFromSitemap(sitemap: SitemapNode[]): Map<number, number | null> {
         const siblingOrderMap = new Map<number, number | null>();
-        
+
         const processSiblings = (siblings: SitemapNode[], depth: number = 0) => {
             for (let i = 0; i < siblings.length; i++) {
                 const currentPage = siblings[i];
                 const nextSibling = i < siblings.length - 1 ? siblings[i + 1] : null;
-                
+
                 // Map current page to its next sibling (or null if last)
                 siblingOrderMap.set(currentPage.pageID, nextSibling?.pageID || null);
-                
+
                 // Process child pages recursively
                 if (currentPage.children && currentPage.children.length > 0) {
                     processSiblings(currentPage.children, depth + 1);
                 }
             }
         };
-        
+
         processSiblings(sitemap, 0);
-        
+
         return siblingOrderMap;
     }
 
@@ -476,10 +499,10 @@ export class SitemapHierarchy {
      * FIXED: Returns the NEXT sibling (what this page should go before), not the previous sibling
      */
     getInsertBeforePageId(pageId: number, siblingOrder: Map<number, number | null>): number | null {
-        
+
         // FIXED: Return the next sibling directly - this page should go BEFORE its next sibling
         const nextSiblingId = siblingOrder.get(pageId) || null;
-        
+
         if (nextSiblingId) {
             return nextSiblingId;
         } else {
@@ -497,14 +520,14 @@ export class SitemapHierarchy {
     } {
         const hierarchy = this.buildPageHierarchyWithDynamicSupport(sitemap);
         const siblingOrder = this.extractSiblingOrderFromSitemap(sitemap);
-        
+
         // Build parent-to-children mapping for quick lookup
         const parentToChildrenMap = new Map<number, number[]>();
         Object.entries(hierarchy).forEach(([parentIdStr, childIds]) => {
             const parentId = parseInt(parentIdStr);
             parentToChildrenMap.set(parentId, childIds as number[]);
         });
-        
+
         return {
             hierarchy,
             siblingOrder,
@@ -525,21 +548,21 @@ export class SitemapHierarchy {
     } {
         const orderingData = this.buildPageOrderingData(sitemap);
         const { hierarchy } = orderingData;
-        
+
         // Get dependency-safe order (parents before children)
         const { orderedPages } = this.getProcessingOrder(pages, hierarchy);
-        
+
         // Within each depth level, sort by sibling order
         const pageDepths = this.calculatePageDepths(pages, hierarchy);
         const pagesByDepth = this.getPagesByDepth(pages, pageDepths);
-        
+
         // Rebuild ordered pages respecting sibling order within each depth
         const finalOrderedPages: any[] = [];
         const sortedDepths = Array.from(pagesByDepth.keys()).sort((a, b) => a - b);
-        
+
         sortedDepths.forEach(depth => {
             const pagesAtDepth = pagesByDepth.get(depth) || [];
-            
+
             // Group pages by parent for sibling ordering
             const pagesByParent = new Map<number, any[]>();
             pagesAtDepth.forEach(page => {
@@ -549,14 +572,14 @@ export class SitemapHierarchy {
                 }
                 pagesByParent.get(parentId)!.push(page);
             });
-            
+
             // Sort each parent group by sibling order
             pagesByParent.forEach((siblings, parentId) => {
                 const sortedSiblings = this.sortPagesBySiblingOrder(siblings, orderingData.siblingOrder);
                 finalOrderedPages.push(...sortedSiblings);
             });
         });
-        
+
         return {
             orderedPages: finalOrderedPages,
             orderingData
@@ -569,25 +592,25 @@ export class SitemapHierarchy {
     private sortPagesBySiblingOrder(pages: any[], siblingOrder: Map<number, number | null>): any[] {
         // Create a map to track the position of each page in the sibling order
         const pagePositions = new Map<number, number>();
-        
+
         // Build position map by following the sibling chain
         let position = 0;
         let currentPageId: number | null = null;
-        
+
         // Find the first page (one that is not a next sibling of any other page)
         const allNextSiblings = new Set(Array.from(siblingOrder.values()).filter(id => id !== null));
         const firstPage = pages.find(page => !allNextSiblings.has(page.pageID));
-        
+
         if (firstPage) {
             currentPageId = firstPage.pageID;
-            
+
             // Follow the sibling chain to assign positions
             while (currentPageId !== null) {
                 pagePositions.set(currentPageId, position++);
                 currentPageId = siblingOrder.get(currentPageId) || null;
             }
         }
-        
+
         // Sort pages by their positions (pages without positions go to end)
         return pages.sort((a, b) => {
             const posA = pagePositions.get(a.pageID) ?? 9999;
@@ -607,4 +630,4 @@ export class SitemapHierarchy {
         }
         return null;
     }
-} 
+}
