@@ -374,8 +374,11 @@ export async function processPage({
 			);
 
 			let actualPageID = -1;
+			let savedPageVersionID = -1;
 			if (batchSuccessItems.length > 0) {
+				//grab the save page info form the batch success items
 				actualPageID = batchSuccessItems[0].newId;
+				savedPageVersionID = batchSuccessItems[0].newItem?.processedItemVersionID || -1;
 			} else if (batchFailedItems.length > 0) {
 				console.error(`✗ Page ${page.name} batch failed: ${batchFailedItems[0].error}`);
 			}
@@ -385,7 +388,14 @@ export async function processPage({
 				const createdPageData = {
 					...payload, // Use the payload data which has mapped zones
 					pageID: actualPageID,
+
 				} as mgmtApi.PageItem;
+
+				if (savedPageVersionID > 0) {
+					// Set version ID if available
+					createdPageData.properties.versionID = savedPageVersionID; // Set version ID from batch result
+				}
+
 				pageMapper.addMapping(page, createdPageData); // Use original page for source key
 
 				const pageTypeDisplay =
