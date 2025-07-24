@@ -17,12 +17,12 @@ export async function pushTemplates(
     targetData: any,
     // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
-    
+
     // Extract data from sourceData - unified parameter pattern
-    const templates: mgmtApi.PageModel[] = sourceData.templates || [];
-    
+    const templates: mgmtApi.PageModel[] = sourceData || [];
+
     // console.log(`[Template Debug] Starting template processing. Found ${templates ? templates.length : 0} templates to process.`);
-    
+
     if (!templates || templates.length === 0) {
         console.log('No templates found to process.');
         return { status: 'success', successful: 0, failed: 0, skipped: 0 };
@@ -42,7 +42,7 @@ export async function pushTemplates(
     const totalTemplates = templates.length;
     let overallStatus: 'success' | 'error' = 'success';
 
-    for(let i = 0; i < templates.length; i++){
+    for (let i = 0; i < templates.length; i++) {
         let template = templates[i];
         let originalID = template.pageTemplateID;
         let currentStatus: 'success' | 'error' = 'success';
@@ -52,8 +52,11 @@ export async function pushTemplates(
 
         const { sourceGuid, targetGuid } = state;
         const referenceMapper = new TemplateMapper(sourceGuid[0], targetGuid[0]);
-        const targetTemplate = targetData.find(targetTemplate => targetTemplate.pageTemplateID === existingMapping?.targetPageTemplateID) || null;
+
         const existingMapping = referenceMapper.getTemplateMapping(template, "source");
+        const targetTemplate = targetData.find(targetTemplate => targetTemplate.pageTemplateID === existingMapping?.targetPageTemplateID) || null;
+
+
         const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetTemplate);
         const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(template);
         const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
@@ -116,13 +119,13 @@ export async function pushTemplates(
                 overallStatus = 'error';
             }
         }
-        
+
         // Progress update after each attempt
         processedCount++;
-            // if(onProgress) {
-            //     onProgress(processedCount, totalTemplates, overallStatus);
-            // }
+        // if(onProgress) {
+        //     onProgress(processedCount, totalTemplates, overallStatus);
+        // }
     }
 
-   return { status: overallStatus, successful, failed, skipped }; // Return status object
+    return { status: overallStatus, successful, failed, skipped }; // Return status object
 }

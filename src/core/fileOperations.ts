@@ -291,9 +291,15 @@ export class fileOperations {
   getMappingFile(type: string, sourceGuid: string, targetGuid: string, locale?: string | null): any[] {
     const centralMappingsPath = path.join(this._rootPath, 'mappings', `${sourceGuid}-${targetGuid}`, locale ?? '', type);
     if (fs.existsSync(centralMappingsPath)) {
-      const data = fs.readFileSync(path.join(centralMappingsPath, `mappings.json`), 'utf8');
+      const fullPath = path.join(centralMappingsPath, 'mappings.json');
+      if (!fs.existsSync(fullPath)) {
+        //initialize empty mappings file if it doesn't exist
+        fs.writeFileSync(fullPath, "[]");
+      }
+      const data = fs.readFileSync(fullPath, 'utf8');
       const jsonData = JSON.parse(data);
       return jsonData;
+
     }
     else {
       return [];

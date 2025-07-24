@@ -78,7 +78,7 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     name: 'pushPages',
     description: 'Push pages and page hierarchy',
     handler: async (sourceData, targetData) => {
-      const { pushPages } = await import('./page-pusher');
+      const { pushPages } = await import('./page-pusher/push-pages');
       return await pushPages(sourceData['pages'], targetData['pages']);
     },
     elements: ['Pages'],
