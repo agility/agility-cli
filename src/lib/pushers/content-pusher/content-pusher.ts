@@ -8,6 +8,7 @@ import { filterContentItemsForProcessing } from './util/filter-content-items-for
 import { areContentDependenciesResolved } from "./util/are-content-dependencies-resolved";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContentItem, Model } from "@agility/management-sdk";
+import { ContainerMapper } from "lib/mappers/container-mapper";
 
 
 /**
@@ -28,6 +29,7 @@ export async function pushContent(
     const localeStr = locale[0];
 
     const modelMapper = new ModelMapper(sourceGuidStr, targetGuidStr);
+    const containerMapper = new ContainerMapper(sourceGuidStr, targetGuidStr);
     const referenceMapper = new ContentItemMapper(sourceGuidStr, targetGuidStr, localeStr);
     const contentItems = sourceData || [];
 
@@ -40,21 +42,21 @@ export async function pushContent(
     const linkedContentItems: ContentItem[] = [];
 
     for (const contentItem of contentItems) {
-        // Find source model for this content item
-        const mappedModel = modelMapper.getModelMappingByReferenceName(contentItem.properties.definitionName, "source");
+        // Find source model for this content item - NOTE: we HAVE to use the contentDefinitionID here (not the reference name)
+        const mappedContainer = containerMapper.getContainerMappingByReferenceName(contentItem.properties.referenceName, "source");
+        const sourceContainer = containerMapper.getMappedEntity(mappedContainer, "source");
+        const modelID = sourceContainer?.contentDefinitionID || 0
+        const sourceModelMapping = modelMapper.getModelMappingByID(modelID, "source");
+        const sourceModel = modelMapper.getMappedEntity(sourceModelMapping, "source");
 
-        let sourceModel: Model | null = null
-        if (mappedModel) sourceModel = modelMapper.getMappedEntity(mappedModel, "source");
-
-        if (!sourceModel) {
-            // No model found - treat as linked content for dependency resolution
-
+        if (!sourceModel && modelID !== 1) {
+            // No model found (and it's not the special case for RichTextArea)- treat as linked content for dependency resolution
             linkedContentItems.push(contentItem);
             continue;
         }
 
         // Check if content has unresolved dependencies
-        if (areContentDependenciesResolved(contentItem, referenceMapper, [sourceModel])) {
+        if (modelID === 1 || areContentDependenciesResolved(contentItem, referenceMapper, [sourceModel])) {
             normalContentItems.push(contentItem);
         } else {
             linkedContentItems.push(contentItem);
@@ -93,10 +95,12 @@ export async function pushContent(
             });
             const normalBatchProcessor = new ContentBatchProcessor(normalBatchConfig);
             const normalResult = await normalBatchProcessor.processBatches(
-                filteredNormalContentItems.itemsToCreate as any,
+                filteredNormalContentItems.itemsToProcess as any,
                 undefined,
                 "Normal Content"
             );
+
+
 
             totalSuccessful += normalResult.successCount;
             totalFailed += normalResult.failureCount;
@@ -128,7 +132,7 @@ export async function pushContent(
             });
             const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
             const linkedResult = await linkedBatchProcessor.processBatches(
-                filteredLinkedContentItems.itemsToCreate,
+                filteredLinkedContentItems.itemsToProcess,
                 undefined,
                 "Linked Content"
             );

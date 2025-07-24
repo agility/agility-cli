@@ -8,8 +8,7 @@ import { ApiClient, ContentItem } from "@agility/management-sdk";
  * Moved from orchestrate-pushers.ts for better separation of concerns
  */
 export interface ContentFilterResult {
-	itemsToCreate: any[];
-	itemsToUpdate: any[];
+	itemsToProcess: any[];
 	itemsToSkip: any[];
 	skippedCount: number;
 }
@@ -31,8 +30,7 @@ export async function filterContentItemsForProcessing({
 	referenceMapper,
 	targetData = [],
 }: FilterProp): Promise<ContentFilterResult> {
-	const itemsToCreate: any[] = [];
-	const itemsToUpdate: any[] = [];
+	const itemsToProcess: any[] = [];
 	const itemsToSkip: any[] = [];
 
 	for (const contentItem of contentItems) {
@@ -45,14 +43,20 @@ export async function filterContentItemsForProcessing({
 			});
 
 
-			const { content, shouldUpdate, shouldCreate, shouldSkip } = findResult;
-
-			if (shouldCreate) {
+			const { content, shouldUpdate, shouldCreate, shouldSkip, isConflict, reason } = findResult;
+			if (isConflict) {
+				///CONFLICT DETECTED
+				console.warn(
+					`⚠️  Conflict detected for content ${ansiColors.cyan.underline(itemName)}\n   - ${reason}`
+				);
+				itemsToSkip.push(contentItem);
+				continue;
+			} else if (shouldCreate) {
 				// Content doesn't exist - include it for creation
-				itemsToCreate.push(contentItem);
+				itemsToProcess.push(contentItem);
 			} else if (shouldUpdate) {
 				// Content exists but needs updating
-				itemsToUpdate.push(contentItem);
+				itemsToProcess.push(contentItem);
 				console.log(
 					`✓ Content ${ansiColors.cyan.underline(itemName)} vID:${ansiColors.bold.yellow(
 						"needs update"
@@ -72,13 +76,12 @@ export async function filterContentItemsForProcessing({
 		} catch (error: any) {
 			// If we can't check, err on the side of processing it
 			console.warn(`⚠️ Could not check if content ${itemName} exists: ${error.message} - will process`);
-			itemsToCreate.push(contentItem);
+			itemsToProcess.push(contentItem);
 		}
 	}
 
 	return {
-		itemsToCreate,
-		itemsToUpdate,
+		itemsToProcess,
 		itemsToSkip,
 		skippedCount: itemsToSkip.length,
 	};

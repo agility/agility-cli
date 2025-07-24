@@ -10,12 +10,12 @@ import { ModelMapper } from "lib/mappers/model-mapper";
 
 
 export async function pushModels(
-    sourceData: mgmtApi.Model[],
-    targetData: mgmtApi.Model[],
+  sourceData: mgmtApi.Model[],
+  targetData: mgmtApi.Model[],
 ): Promise<PusherResult> {
 
 
-  
+
   const models: mgmtApi.Model[] = sourceData || [];
 
   if (!models || models.length === 0) {
@@ -34,49 +34,101 @@ export async function pushModels(
   let skipped = 0;
 
   /**
-   * Process a single model - handles both creation and updates
+   * Process a single model for STUB creation ONLY
    */
-  const processModel = async (
-    model: mgmtApi.Model,
-    fields: any[] | undefined,
-    passName: string
+  const processModelStub = async (
+    model: mgmtApi.Model
   ): Promise<'created' | 'updated' | 'skipped' | 'failed'> => {
     const modelName = model.referenceName;
 
-    const isStubPass = passName === "stub";
+
     try {
       // Use enhanced finder to determine what action to take
       const existingMapping = referenceMapper.getModelMapping(model, "source");
-      const targetModel = targetData.find(targetModel => targetModel.id === existingMapping?.targetID) || null;
-      const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(model);
-      const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(model);
-      const shouldCreate = existingMapping === null;
-      const shouldUpdate = !isStubPass && existingMapping !== null && isTargetSafe && hasSourceChanges;
-      const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
 
-      if (shouldCreate) {
-        // Model doesn't exist - create new one
-        try {
-          const newModel = await createNewModel(model, fields, apiClient, targetGuid[0]);
-          console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${passName} ${ansiColors.bold.green("created")}`);
-          
-          // Store mapping for both stub and full passes so Pass 2 can find stubs created in Pass 1
-          referenceMapper.addMapping(model, newModel);
-          return 'created';
-        } catch (error: any) {
-          console.log(model)
-          console.log(ansiColors.magenta(`error: ${JSON.stringify(error)}`));
-          console.error(`✗ Error creating model ${modelName}:`, error.message);
-          return 'failed';
-        }
-        
+      if (existingMapping) return 'skipped'; // If mapping exists, skip stub creation
+
+      // Model doesn't exist - create new one
+      try {
+        const newModel = await createNewModel(model, [], apiClient, targetGuid[0]);
+        console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} stub ${ansiColors.bold.green("created")}`);
+
+        // Store mapping for both stub and full passes so Pass 2 can find stubs created in Pass 1
+        referenceMapper.addMapping(model, newModel);
+
+        //push the newly created model to the target data so the full pass can find it
+        targetData.push(newModel);
+        return 'created';
+      } catch (error: any) {
+        console.log(model)
+        console.log(ansiColors.magenta(`error: ${JSON.stringify(error)}`));
+        console.error(`✗ Error creating model ${modelName}:`, error.message);
+        return 'failed';
+      }
+
+    } catch (error: any) {
+      console.error(`✗ Error processing model stub ${modelName}:`, error.message);
+      return 'failed';
+    }
+  };
+
+  /**
+     * Process a single model - handles both creation and updates
+     */
+  const processModelFull = async (
+    model: mgmtApi.Model,
+    fields: any[] | undefined,
+  ): Promise<'created' | 'updated' | 'skipped' | 'failed'> => {
+    const modelName = model.referenceName;
+
+    try {
+      // Use enhanced finder to determine what action to take
+      const existingMapping = referenceMapper.getModelMapping(model, "source");
+
+      if (!existingMapping) {
+        //if no mapping exists, we have a problem.
+        console.error(`✗ No mapping found for model ${modelName}`);
+        return 'failed';
+      }
+
+      const targetModel = targetData.find(targetModel => targetModel.id === existingMapping?.targetID) || null;
+
+      const targetFieldCount = targetModel?.fields.length || 0
+      const sourceFieldCount = fields?.length || 0;
+
+      //we only care about the field count if the target model has NO fields and the source model has fields
+      const fieldCountChanged = targetFieldCount === 0 && sourceFieldCount > 0;
+
+      //consider the target as safe if it exists, has no changes, and the field count hasn't changed
+      const hasTargetChanges = referenceMapper.hasTargetChanged(targetModel);
+
+      //consider the source as changed if it has a mapping and the target has changes
+      // or if the field count has changed (e.g. new fields added, or we have NO fields yet because of the first stub pass)
+      const hasSourceChanges = referenceMapper.hasSourceChanged(model) || fieldCountChanged;
+
+      const isConflict = hasTargetChanges && hasSourceChanges;
+      let shouldUpdate = !hasTargetChanges && hasSourceChanges;
+      const shouldSkip = hasTargetChanges || !hasSourceChanges;
+
+      if (isConflict) {
+
+        const srcType = (model as any).contentDefinitionTypeID
+        const targetType = (targetModel as any).contentDefinitionTypeID;
+
+        // If both source and target have changes, we cannot proceed automatically
+        const srcUrl = `https://app.agilitycms.com/instance/${sourceGuid[0]}/${state.locale[0]}/${srcType == 2 ? 'componentmodels' : 'contentmodels'}/${model.id}`;
+        const targetUrl = `https://app.agilitycms.com/instance/${targetGuid[0]}/${state.locale[0]}/${targetType == 2 ? 'componentmodels' : 'contentmodels'}/${targetModel.id}`;
+        console.warn(`⚠️  Model ${ansiColors.cyan.underline(modelName)} has conflicts - target has changes and source has changes. Manual resolution required.`);
+        console.warn(`   - Source Url: ${ansiColors.blue(srcUrl)}`);
+        console.warn(`   - Target Url: ${ansiColors.blue(targetUrl)}`);
+        return 'skipped';
       } else if (shouldUpdate) {
         // Model exists but needs updating
         try {
           const updatedModel = await updateExistingModel(model, targetModel, fields, apiClient, targetGuid[0]);
-          const updateType = isStubPass ? "stub" : "fields";
+          const updateType = "fields";
           console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${updateType} ${ansiColors.bold.green("updated")}`);
-          
+
           // Always store mapping for updates (both stub and full passes)
           referenceMapper.addMapping(model, updatedModel);
           return 'updated';
@@ -86,17 +138,7 @@ export async function pushModels(
         }
 
       } else if (shouldSkip) {
-        // Model exists and is up to date - skip
-        if (isStubPass) {
-          console.log(`✓ Model ${ansiColors.cyan.underline(modelName)}, ${ansiColors.bold.gray("exists, skipping")}`);
-        } else {
-          console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${ansiColors.bold.gray("is up to date, skipping")}`);
-        }
-        
-        // Ensure mapping exists for existing models
-        if (targetModel) {
-          referenceMapper.addMapping(model, targetModel);
-        }
+        // Model exists and is up-to-date, or has no changes
         return 'skipped';
       }
 
@@ -114,8 +156,8 @@ export async function pushModels(
   // 2-pass approach for models
   console.log(ansiColors.cyan("🔄 Pass 1: Model stubs (dependencies)"));
   for (const model of models) {
-    const result = await processModel(model, [], "stub");
-    
+    const result = await processModelStub(model);
+
     // Don't count in Pass 1 - only track failures for immediate feedback
     if (result === 'failed') {
       failed++;
@@ -124,8 +166,8 @@ export async function pushModels(
 
   console.log(ansiColors.cyan("\n🔄 Pass 2: Full model definitions"));
   for (const model of models) {
-    const result = await processModel(model, model.fields, "full");
-    
+    const result = await processModelFull(model, model.fields);
+
     // Count only in Pass 2 - each model counted exactly once
     if (result === 'created' || result === 'updated') {
       successful++;
@@ -203,13 +245,13 @@ async function updateExistingModel(
     fields: (fields || sourceModel.fields || []).map(field => {
       const cleanField = { ...field };
       delete cleanField.fieldID; // Remove to prevent API issues
-      
+
       // Clean up Content field settings
       if (cleanField.type === "Content" && cleanField.settings?.ContentDefinition) {
         const { ContentDefinition, ...otherSettings } = cleanField.settings;
         cleanField.settings = otherSettings;
       }
-      
+
       return cleanField;
     })
   };
@@ -219,4 +261,4 @@ async function updateExistingModel(
 
   const updatedModel = await apiClient.modelMethods.saveModel(updatePayload, targetGuid);
   return updatedModel;
-} 
+}

@@ -17,7 +17,7 @@ export class ContentItemMapper {
     private targetGuid: string;
     private mappings: ContentItemMapping[];
     private directory: string;
-    private locale: string;
+    public locale: string;
 
     constructor(sourceGuid: string, targetGuid: string, locale: string) {
         this.sourceGuid = sourceGuid;
@@ -107,13 +107,13 @@ export class ContentItemMapper {
     hasSourceChanged(sourceContentItem: mgmtApi.ContentItem) {
         const mapping = this.getContentItemMapping(sourceContentItem, 'source');
         if (!mapping) return false;
-        return sourceContentItem.properties.versionID !== mapping.sourceVersionID;
+        return sourceContentItem.properties.versionID > mapping.sourceVersionID;
     }
 
     hasTargetChanged(targetContentItem: mgmtApi.ContentItem) {
         const mapping = this.getContentItemMapping(targetContentItem, 'target');
         if (!mapping) return false;
-        return targetContentItem.properties.versionID !== mapping.targetVersionID;
+        return targetContentItem.properties.versionID > mapping.targetVersionID;
     }
 
 
