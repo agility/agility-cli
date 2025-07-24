@@ -1,3 +1,4 @@
+import { parse } from "date-fns";
 import { fileOperations } from "../../core";
 import * as mgmtApi from "@agility/management-sdk";
 
@@ -124,8 +125,12 @@ export class ContainerMapper {
         if (!sourceContainer) return false;
         const mapping = this.getContainerMapping(sourceContainer, 'source');
         if (!mapping) return false;
-        const sourceDate = new Date(sourceContainer.lastModifiedDate);
-        const mappedDate = new Date(mapping.sourceLastModifiedDate);
+
+        //the date format is: 07/23/2025 08:22PM (MM/DD/YYYY hh:mma) so we need to convert it to a Date object
+        // Note: This assumes the date is in the format MM/DD/YYYY hh:mma
+        // If the date format is different, you may need to adjust the parsing logic accordingly
+        const sourceDate = parse(sourceContainer.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
+        const mappedDate = parse(mapping.sourceLastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
 
         return sourceDate > mappedDate;
     }
@@ -134,8 +139,8 @@ export class ContainerMapper {
         if (!targetContainer) return false;
         const mapping = this.getContainerMapping(targetContainer, 'target');
         if (!mapping) return false;
-        const targetDate = new Date(targetContainer.lastModifiedDate);
-        const mappedDate = new Date(mapping.targetLastModifiedDate);
+        const targetDate = parse(targetContainer.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
+        const mappedDate = parse(mapping.targetLastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
         return targetDate > mappedDate;
     }
 

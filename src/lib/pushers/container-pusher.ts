@@ -69,10 +69,10 @@ export async function pushContainers(
             sourceContainer.referenceName === targetContainer.referenceName,
         ) || null;
 
-      const isTargetSafe = existingMapping !== null && containerMapper.hasTargetChanged(targetContainer);
+      const hasTargetChanges = existingMapping !== null && containerMapper.hasTargetChanged(targetContainer);
       const hasSourceChanges = existingMapping !== null && containerMapper.hasSourceChanged(sourceContainer);
-      const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
-      const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
+      const shouldUpdate = existingMapping !== null && !hasTargetChanges && hasSourceChanges;
+      const shouldSkip = existingMapping !== null && hasTargetChanges && !hasSourceChanges;
 
       const modelMapping = modelMapper.getModelMappingByID(sourceContainer.contentDefinitionID, 'source')
       let targetModelID = -1

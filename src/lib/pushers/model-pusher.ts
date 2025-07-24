@@ -138,7 +138,7 @@ export async function pushModels(
         }
 
       } else if (shouldSkip) {
-        console.log(`✓ Model ${ansiColors.cyan.underline(modelName)} ${ansiColors.bold.gray("is up to date, skipping")}`);
+        // Model exists and is up-to-date, or has no changes
         return 'skipped';
       }
 

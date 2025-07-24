@@ -4,7 +4,7 @@ import * as path from "path";
 import ansiColors from "ansi-colors";
 // import { ChangeDelta } from "../shared/change-delta-tracker";
 import * as fs from "fs";
-import { getAllChannels } from "../shared/get-all-channels";
+import { parse } from "date-fns";
 
 export async function downloadAllContainers(
   guid: string,
@@ -21,7 +21,7 @@ export async function downloadAllContainers(
 
   let totalContainers = 0; // Define totalContainers in a broader scope for the catch block
   const startTime = Date.now(); // Track start time for performance measurement
-  
+
   // Helper function to get local container metadata
   function getLocalContainerInfo(filePath: string): { lastModifiedDate?: string; exists: boolean } {
     try {
@@ -40,7 +40,7 @@ export async function downloadAllContainers(
 
   // Helper function to check if container needs download based on lastModifiedDate
   function shouldDownloadContainer(apiContainer: any, localInfo: { lastModifiedDate?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
-    if(state.update === false){
+    if (state.update === false) {
       return { shouldDownload: false, reason: '' };
     }
 
@@ -51,23 +51,25 @@ export async function downloadAllContainers(
     if (!localInfo.lastModifiedDate || !apiContainer.lastModifiedDate) {
       return { shouldDownload: true, reason: 'missing date info' };
     }
+    //the date format is: 07/23/2025 08:22PM (MM/DD/YYYY hh:mma) so we need to convert it to a Date object
+    // Note: This assumes the date is in the format MM/DD/YYYY hh:mma
+    // If the date format is different, you may need to adjust the parsing logic accordingly
+    const apiDateTime = parse(apiContainer.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
+    const localeDateTime = parse(localInfo.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
 
-    const apiDate = new Date(apiContainer.lastModifiedDate);
-    const localDate = new Date(localInfo.lastModifiedDate);
-
-    if (apiDate > localDate) {
+    if (apiDateTime > localeDateTime) {
       return { shouldDownload: true, reason: 'content changed' };
     }
 
     return { shouldDownload: false, reason: 'unchanged' };
   }
-  
+
   try {
     // Phase 1: Collect all container metadata
     let containers = await apiClient.containerMethods.getContainerList(guid);
 
     totalContainers = containers.length;
-    
+
     if (totalContainers === 0) {
       console.log("No containers found to download.");
       return;
@@ -84,26 +86,26 @@ export async function downloadAllContainers(
       const containerID = containerRef.contentViewID.toString();
       const containerName = containerRef.referenceName;
       const containerFilePath = path.join(containersFolderPath, `${containerID}.json`);
-      
+
       // Get local container info for comparison
       const localInfo = getLocalContainerInfo(containerFilePath);
       const downloadDecision = shouldDownloadContainer(containerRef, localInfo);
-      
+
       if (downloadDecision.shouldDownload) {
-        downloadableContainers.push({ 
-          containerRef, 
-          containerID, 
-          containerName, 
-          reason: downloadDecision.reason 
+        downloadableContainers.push({
+          containerRef,
+          containerID,
+          containerName,
+          reason: downloadDecision.reason
         });
       } else {
-        skippableContainers.push({ 
-          containerRef, 
-          containerID, 
-          containerName, 
-          reason: downloadDecision.reason 
+        skippableContainers.push({
+          containerRef,
+          containerID,
+          containerName,
+          reason: downloadDecision.reason
         });
-        
+
 
       }
     }
@@ -119,7 +121,7 @@ export async function downloadAllContainers(
     // Execute container downloads concurrently in batches
     const CONCURRENT_BATCH_SIZE = 20; // Download max 20 containers at once
     const batches = [];
-    
+
     for (let i = 0; i < downloadableContainers.length; i += CONCURRENT_BATCH_SIZE) {
       batches.push(downloadableContainers.slice(i, i + CONCURRENT_BATCH_SIZE));
     }
@@ -131,7 +133,7 @@ export async function downloadAllContainers(
     // Process each batch concurrently
     for (let batchIndex = 0; batchIndex < batches.length; batchIndex++) {
       const batch = batches[batchIndex];
-      
+
       // Create download promises for this batch
       const downloadPromises = batch.map(async (item) => {
         const { containerRef, containerID, containerName, reason } = item;
@@ -140,10 +142,10 @@ export async function downloadAllContainers(
           const container = await apiClient.containerMethods.getContainerByID(containerID, guid);
 
           // Export container JSON
-           fileOps.exportFiles(`containers`, containerID.toString(), container);
+          fileOps.exportFiles(`containers`, containerID.toString(), container);
           console.log(`✓ Downloaded container ${ansiColors.cyan(container.referenceName)} ID: ${container.contentViewID} ${ansiColors.gray(`(${reason})`)}`);
-          
-          
+
+
           return { success: true, container };
         } catch (error: any) {
           console.error(`✗ Failed to download container ${ansiColors.red(containerName)} ID: ${containerID}`, ansiColors.gray(error.message ? `- ${error.message}` : ''));
@@ -153,14 +155,14 @@ export async function downloadAllContainers(
 
       // Wait for this batch to complete
       const results = await Promise.all(downloadPromises);
-      
+
       // Update counters
       for (const result of results) {
         processedCount++;
         if (result.success) {
           downloadedCount++;
         }
-        
+
         // Update progress (include skipped containers in total processed)
         const totalProcessed = processedCount + skippedCount;
       }
