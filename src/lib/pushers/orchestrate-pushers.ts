@@ -45,7 +45,7 @@ export class Pushers {
   /**
    * Execute all push operations for source to target GUID
    */
-  async guidPusher(sourceGuid: string, targetGuid: string): Promise<PushResults> {
+  async guidPusher(sourceGuid: string, targetGuid: string, locale: string): Promise<PushResults> {
     const startTime = Date.now();
 
     const results: PushResults = {
@@ -89,7 +89,7 @@ export class Pushers {
 
 
       // Execute all push operations for this GUID pair
-        const pushResults = await this.executePushersInOrder(sourceData, targetData);
+        const pushResults = await this.executePushersInOrder(sourceData, targetData, locale);
 
       // Consolidate results
       results.totalSuccess = pushResults.totalSuccess;
@@ -146,11 +146,12 @@ export class Pushers {
     // Future enhancement: handle multiple source/target combinations
     const sourceGuid = sourceGuids[0];
     const targetGuid = targetGuids[0];
+    const locale = currentState.locale[0];
 
     console.log(`Starting push operations from ${sourceGuid} to ${targetGuid}`);
     console.log(`Elements: ${currentState.elements}`);
 
-    const results = await this.guidPusher(sourceGuid, targetGuid);
+    const results = await this.guidPusher(sourceGuid, targetGuid, locale);
     return [results];
   }
 
@@ -159,7 +160,8 @@ export class Pushers {
    */
   private async executePushersInOrder(
     sourceData: GuidEntities,
-    targetData: GuidEntities
+    targetData: GuidEntities,
+    locale: string
   ): Promise<{
     totalSuccess: number;
     totalFailures: number;
