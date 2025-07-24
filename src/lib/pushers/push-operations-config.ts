@@ -2,7 +2,6 @@
 import { GuidEntities } from './guid-data-loader';
 import { PusherResult } from 'types/sourceData';
 import { getState, setState } from 'core/state';
-import { locale } from 'yargs';
 
 
 // Central configuration for all push operations

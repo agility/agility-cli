@@ -8,7 +8,6 @@
 
 import ansiColors from 'ansi-colors';
 import { GuidDataLoader, GuidEntities } from '../pushers/guid-data-loader';
-import { locale } from 'yargs';
 
 export interface EntityComparison {
     entityType: string;
