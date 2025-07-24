@@ -245,13 +245,14 @@ export class ContentBatchProcessor {
 
 		for (const contentItem of contentBatch) {
 
-			const containerMapping = containerMapper.getContainerMappingByReferenceName(contentItem.properties.referenceName, 'source');
-			const sourceContainer = containerMapper.getMappedEntity(containerMapping, 'target');
 
-			if (sourceContainer && sourceContainer.contentDefinitionID === 1) {
+			if (contentItem.properties.definitionName.toLowerCase() === "richtextarea"
+				&& contentItem.fields.textblob) {
+				//if this is a RichText item, we don't need to do the extra processing - just upload it as is
+
+				//see if it's already mapped
 				const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(contentItem.contentID, 'source');
 
-				//if this is ModelID 1, we can just upload directly with the existing mapping
 				const payload = {
 					...contentItem, // Start with original content item
 					contentID: existingMapping ? existingMapping.targetContentID : -1,
@@ -369,7 +370,7 @@ export class ContentBatchProcessor {
 						fields: validatedFields, // Use validated fields with defaults for required fields
 						properties: {
 							...contentItem.properties,
-							referenceName: targetContainer.referenceName, // Use TARGET container reference name
+							referenceName: targetContainer?.referenceName || contentItem.properties.referenceName, // Use TARGET container reference name if possible
 							itemOrder: existingTargetContentItem
 								? existingTargetContentItem.properties.itemOrder
 								: contentItem.properties.itemOrder,

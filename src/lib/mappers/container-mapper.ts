@@ -71,6 +71,32 @@ export class ContainerMapper {
         return containerData as mgmtApi.Container;
     }
 
+    getContainerByReferenceName(referenceName: string, type: 'source' | 'target'): mgmtApi.Container | null {
+        //try to get the mapping first..
+        const mapping = this.getContainerMappingByReferenceName(referenceName, type);
+        if (mapping) {
+            return this.getMappedEntity(mapping, type);
+        } else {
+            //if there's no mappping, we have to loop through ALL the containers to find it
+            const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
+            const fileOps = new fileOperations(guid);
+            const containerFiles = fileOps.listFilesInFolder(`containers`);
+
+            for (const file of containerFiles) {
+                try {
+                    const containerData = fileOps.readJsonFile(`containers/${file}`);
+                    if (containerData && containerData.referenceName && containerData.referenceName.toLowerCase() === referenceName.toLowerCase()) {
+                        return containerData as mgmtApi.Container;
+                    }
+                } catch (error) {
+                    // If there's an error reading the file, we just skip it
+                }
+            }
+
+        }
+        return null;
+    }
+
     addMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container) {
         const mapping = this.getContainerMapping(targetContainer, 'target');
 
