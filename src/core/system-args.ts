@@ -95,9 +95,18 @@ export const systemArgs = {
 
   // **NEW: Selective Model-Based Sync Parameter (Task 103)**
   models: {
-    describe: "Comma-separated list of model reference names to sync. Automatically includes all dependent content, pages, assets, and galleries.",
+    describe: "Comma-separated list of model reference names to sync. Filters only specified models and their direct content.",
     demandOption: false,
-    alias: ["models", "Models", "MODELS", "model", "Model", "MODEL"],
+    alias: ["model", "Model", "MODEL"],
+    type: "string" as const,
+    default: "",
+  },
+
+  // **NEW: Model-Based Sync with Dependencies (Task 20.2)**
+  modelsWithDeps: {
+    describe: "Comma-separated list of model reference names to sync with full dependency tree. Automatically includes all dependent content, pages, assets, galleries, templates, and containers.",
+    demandOption: false,
+    alias: ["models-with-deps", "modelswithDeps", "ModelsWithDeps", "MODELSWITHSDEPS"],
     type: "string" as const,
     default: "",
   },

@@ -14,6 +14,7 @@ export interface OperationConfig {
   description: string;
   handler: (guid: string) => Promise<void>;
   elements: string[];
+  dependencies?: string[]; // Auto-include these elements when this operation is requested
 }
 
 export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
@@ -25,7 +26,8 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
       // For now, use default locale - this will be converted to use guidLocaleMap internally
       await downloadAllSyncSDK(guid);
     },
-    elements: ['Content', 'Pages', 'Sitemaps']
+    elements: ['Content', 'Pages', 'Sitemaps'],
+    dependencies: ['Models', 'Containers', 'Assets', 'Galleries', 'Templates'] // Content/Pages require Models and Containers
   },
   galleries: {
     name: 'downloadAllGalleries',
@@ -33,7 +35,8 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
     handler: async (guid) => {
       await downloadAllGalleries(guid);
     },
-    elements: ['Galleries']
+    elements: ['Galleries'],
+    dependencies: ['Assets'] // Galleries require Assets to be meaningful
   },
   assets: {
     name: 'downloadAllAssets',
@@ -41,7 +44,8 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
     handler: async (guid) => {
       await downloadAllAssets(guid);
     },
-    elements: ['Assets']
+    elements: ['Assets'],
+    dependencies: ['Galleries'] // Assets require Galleries to be meaningful
   },
   models: {
     name: 'downloadAllModels', 
@@ -57,7 +61,8 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
     handler: async (guid) => {
       await downloadAllTemplates(guid);
     },
-    elements: ['Templates']
+    elements: ['Templates'],
+    dependencies: ['Models', 'Containers', 'Pages', 'Content'] // Templates reference Models for container definitions
   },
   containers: {
     name: 'downloadAllContainers',
@@ -65,7 +70,8 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
     handler: async (guid) => {
       await downloadAllContainers(guid);
     },
-    elements: ['Containers']
+    elements: ['Containers'],
+    dependencies: ['Models'] // Containers require Models to be meaningful
   },
   sitemaps: {
     name: 'downloadAllSitemaps',
@@ -79,20 +85,66 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
 
 export class DownloadOperationsRegistry {
   /*
-   * Get operations based on elements filter
+   * Get operations based on elements filter with dependency resolution
    */
   static getOperationsForElements(): OperationConfig[] {
-    const { elements } = getState()
-    const elementList = elements ? elements.split(",") : 
+    const state = getState();
+    const elementList = state.elements ? state.elements.split(",") : 
       ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages', 'Sitemaps', 'Redirections'];
     
-    // Filter operations based on elements
+    // Resolve dependencies and update state
+    const { resolvedElements, autoIncluded } = this.resolveDependencies(elementList);
+    
+    // Update state.elements with resolved dependencies if any were auto-included
+    if (autoIncluded.length > 0) {
+      // Update the state with resolved elements
+      const { setState } = require('../../core/state');
+      setState({ elements: resolvedElements.join(',') });
+    }
+    
+    // Filter operations based on resolved elements
     const relevantOperations = Object.values(DOWNLOAD_OPERATIONS).filter(operation => {
-      // Check if any of the operation's elements are in the requested element list
-      return operation.elements.some(element => elementList.includes(element));
+      // Check if any of the operation's elements are in the resolved element list
+      return operation.elements.some(element => resolvedElements.includes(element));
     });
     
     return relevantOperations;
+  }
+
+  /**
+   * Resolve element dependencies
+   */
+  private static resolveDependencies(requestedElements: string[]): { 
+    resolvedElements: string[], 
+    autoIncluded: string[] 
+  } {
+    const resolvedElements = new Set(requestedElements);
+    const autoIncluded: string[] = [];
+    
+    // Check each requested element for dependencies
+    for (const element of requestedElements) {
+      // Find operations that provide this element
+      const operations = Object.values(DOWNLOAD_OPERATIONS).filter(op => 
+        op.elements.includes(element)
+      );
+      
+      // Add dependencies for each operation
+      operations.forEach(operation => {
+        if (operation.dependencies) {
+          operation.dependencies.forEach(dep => {
+            if (!resolvedElements.has(dep)) {
+              resolvedElements.add(dep);
+              autoIncluded.push(dep);
+            }
+          });
+        }
+      });
+    }
+    
+    return {
+      resolvedElements: Array.from(resolvedElements),
+      autoIncluded
+    };
   }
 
 } 

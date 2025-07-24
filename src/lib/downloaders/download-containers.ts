@@ -57,7 +57,7 @@ export async function downloadAllContainers(
     const apiDateTime = parse(apiContainer.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
     const localeDateTime = parse(localInfo.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
 
-    if (apiDateTime > localeDateTime) {
+    if (apiDateTime > localeDateTime && state.update === true) {
       return { shouldDownload: true, reason: 'content changed' };
     }
 

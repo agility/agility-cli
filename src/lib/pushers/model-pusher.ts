@@ -106,9 +106,10 @@ export async function pushModels(
       // or if the field count has changed (e.g. new fields added, or we have NO fields yet because of the first stub pass)
       const hasSourceChanges = referenceMapper.hasSourceChanged(model) || fieldCountChanged;
 
-      const isConflict = hasTargetChanges && hasSourceChanges;
-      let shouldUpdate = !hasTargetChanges && hasSourceChanges;
-      const shouldSkip = hasTargetChanges || !hasSourceChanges;
+      const isConflict = hasTargetChanges && hasSourceChanges && !state.overwrite;
+      const shouldUpdate = !hasTargetChanges && hasSourceChanges || state.overwrite;
+      const shouldSkip = hasTargetChanges || !hasSourceChanges || !state.overwrite;
+
 
       if (isConflict) {
 
@@ -138,6 +139,7 @@ export async function pushModels(
         }
 
       } else if (shouldSkip) {
+        console.log(`✓ Model ${ansiColors.cyan.underline(modelName)}${ansiColors.bold.grey(", up to date, skipping")}`);
         // Model exists and is up-to-date, or has no changes
         return 'skipped';
       }

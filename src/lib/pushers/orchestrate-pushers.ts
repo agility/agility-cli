@@ -1,7 +1,7 @@
 import { getState } from '../../core/state';
 import { fileOperations } from '../../core/fileOperations';
 import ansiColors from 'ansi-colors';
-import { GuidDataLoader, GuidEntities } from './guid-data-loader';
+import { GuidDataLoader, GuidEntities, ModelFilterOptions } from './guid-data-loader';
 import { PusherResult, SourceData } from '../../types/sourceData';
 import { state } from '../../core/state';
 import { PUSH_OPERATIONS, PushOperationsRegistry, PushOperationConfig } from './push-operations-config';
@@ -68,7 +68,20 @@ export class Pushers {
       // Load source and target data
       const sourceDataLoader = new GuidDataLoader(sourceGuid);
       const targetDataLoader = new GuidDataLoader(targetGuid);
-      const { guidEntities: sourceData, locales: sourceLocales } = await sourceDataLoader.loadGuidEntitiesForAllLocales();
+      
+      // Prepare model filtering options from state
+      const state = getState();
+      let filterOptions: ModelFilterOptions = {};
+      if (state.models && state.models.trim().length > 0) {
+        filterOptions.models = state.models.split(',').map(m => m.trim());
+      }
+      if (state.modelsWithDeps && state.modelsWithDeps.trim().length > 0) {
+        filterOptions.modelsWithDeps = state.modelsWithDeps.split(',').map(m => m.trim());
+      }
+
+      const { guidEntities: sourceData, locales: sourceLocales } = await sourceDataLoader.loadGuidEntitiesForAllLocales(
+        Object.keys(filterOptions).length > 0 ? filterOptions : undefined
+      );
       const { guidEntities: targetData, locales: targetLocales } = await targetDataLoader.loadGuidEntitiesForAllLocales();
 
       // Set up reference mapper

@@ -15,6 +15,11 @@ import ansiColors from 'ansi-colors';
 import { fileOperations } from '../../core/fileOperations';
 import { getApiClient, getState } from '../../core/state';
 
+export interface ModelFilterOptions {
+    models?: string[]; // Simple model filtering
+    modelsWithDeps?: string[]; // Model filtering with dependency tree
+}
+
 export interface GuidEntities {
     pages: any[];
     templates: any[];
@@ -37,12 +42,12 @@ export class GuidDataLoader {
         this.guid = guid;
     }
 
-    async loadGuidEntitiesForAllLocales(): Promise<{locales: any[], guidEntities: GuidEntities}> {
+    async loadGuidEntitiesForAllLocales(filterOptions?: ModelFilterOptions): Promise<{locales: any[], guidEntities: GuidEntities}> {
         const mgmtApi = getApiClient();
         const locales = await mgmtApi.instanceMethods.getLocales(this.guid);
 
         for(const locale of locales as any){
-            const guidEntities = await this.loadGuidEntities(locale.localeCode);
+            const guidEntities = await this.loadGuidEntities(locale.localeCode, filterOptions);
             return {
                 locales,
                 guidEntities
@@ -54,7 +59,7 @@ export class GuidDataLoader {
     /**
      * Load all entities for the specified GUID - guarantees arrays are always returned
      */
-    async loadGuidEntities(locale: string): Promise<GuidEntities> {
+    async loadGuidEntities(locale: string, filterOptions?: ModelFilterOptions): Promise<GuidEntities> {
         const state = getState();
         const elements = state.elements.split(',');
 
@@ -119,7 +124,101 @@ export class GuidDataLoader {
             guidEntities.pages = Array.isArray(pages) ? pages : [];
         }
 
+        // Apply model filtering if requested
+        if (filterOptions) {
+            return await this.applyModelFiltering(guidEntities, filterOptions);
+        }
+
         return guidEntities;
+    }
+
+    /**
+     * Apply model filtering using existing ModelDependencyTreeBuilder
+     */
+    private async applyModelFiltering(guidEntities: GuidEntities, filterOptions: ModelFilterOptions): Promise<GuidEntities> {
+        // Determine which filtering mode to use
+        let modelNames: string[] = [];
+        let useFullDependencyTree = false;
+
+        if (filterOptions.modelsWithDeps && filterOptions.modelsWithDeps.length > 0) {
+            modelNames = filterOptions.modelsWithDeps;
+            useFullDependencyTree = true;
+        } else if (filterOptions.models && filterOptions.models.length > 0) {
+            modelNames = filterOptions.models;
+            useFullDependencyTree = false;
+        } else {
+            // No filtering requested
+            return guidEntities;
+        }
+
+        console.log(`🔍 ${useFullDependencyTree ? 'Model dependency tree' : 'Simple model'} filtering: ${modelNames.join(', ')}`);
+
+        // Import and use ModelDependencyTreeBuilder (reuse existing logic from sync.ts)
+        const { ModelDependencyTreeBuilder } = await import('../models/model-dependency-tree-builder');
+        const treeBuilder = new ModelDependencyTreeBuilder(guidEntities);
+
+        // Validate that specified models exist
+        const validation = treeBuilder.validateModels(modelNames);
+        if (validation.invalid.length > 0) {
+            console.log(ansiColors.red(`Invalid model names: ${validation.invalid.join(', ')}`));
+            console.log(ansiColors.gray(`Available models: ${guidEntities.models.map((m: any) => m.referenceName).join(', ')}`));
+            return guidEntities; // Return unfiltered data if validation fails
+        }
+
+        if (useFullDependencyTree) {
+            // Build dependency tree and filter all related entities
+            const dependencyTree = treeBuilder.buildDependencyTree(validation.valid);
+            return this.filterGuidEntitiesByDependencyTree(guidEntities, dependencyTree);
+        } else {
+            // Simple filtering - just filter models and their direct content
+            return this.filterGuidEntitiesByModels(guidEntities, validation.valid);
+        }
+    }
+
+    /**
+     * Filter entities by dependency tree (full dependency filtering)
+     */
+    private filterGuidEntitiesByDependencyTree(guidEntities: GuidEntities, dependencyTree: any): GuidEntities {
+        return {
+            models: guidEntities.models.filter((m: any) => dependencyTree.models.has(m.referenceName)),
+            containers: guidEntities.containers.filter((c: any) => dependencyTree.containers.has(c.contentViewID)),
+            lists: guidEntities.lists.filter((l: any) => dependencyTree.lists.has(l.contentViewID)),
+            content: guidEntities.content.filter((c: any) => dependencyTree.content.has(c.contentID)),
+            templates: guidEntities.templates.filter((t: any) => dependencyTree.templates.has(t.id)),
+            pages: guidEntities.pages.filter((p: any) => dependencyTree.pages.has(p.pageID)),
+            assets: guidEntities.assets.filter((a: any) => dependencyTree.assets.has(a.url || a.originUrl || a.edgeUrl)),
+            galleries: guidEntities.galleries.filter((g: any) => dependencyTree.galleries.has(g.galleryID))
+        };
+    }
+
+    /**
+     * Filter entities by models only (simple filtering)
+     */
+    private filterGuidEntitiesByModels(guidEntities: GuidEntities, modelNames: string[]): GuidEntities {
+        const modelSet = new Set(modelNames);
+        
+        return {
+            models: guidEntities.models.filter((m: any) => modelSet.has(m.referenceName)),
+            containers: guidEntities.containers.filter((c: any) => {
+                // Include containers that use the specified models
+                const model = guidEntities.models.find((m: any) => m.id === c.contentDefinitionID);
+                return model && modelSet.has(model.referenceName);
+            }),
+            lists: guidEntities.lists.filter((l: any) => {
+                // Include lists that use the specified models
+                const model = guidEntities.models.find((m: any) => m.id === l.contentDefinitionID);
+                return model && modelSet.has(model.referenceName);
+            }),
+            content: guidEntities.content.filter((c: any) => {
+                // Include content that uses the specified models
+                return modelSet.has(c.properties?.definitionName);
+            }),
+            // For simple filtering, don't include templates, pages, assets, galleries unless they're directly related
+            templates: [],
+            pages: [],
+            assets: [],
+            galleries: []
+        };
     }
 
     /**

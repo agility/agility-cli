@@ -49,6 +49,7 @@ export interface State {
 
   // Model-specific
   models: string;
+  modelsWithDeps: string;
 
   // Content-specific
   contentItems?: string;
@@ -121,6 +122,7 @@ export const state: State = {
 
   // Model-specific
   models: "",
+  modelsWithDeps: "",
 
   // Cached API client instance (to prevent connection pool exhaustion)
   cachedApiClient: undefined,
@@ -215,6 +217,7 @@ export function setState(argv: any) {
 
   // Model-specific
   if (argv.models !== undefined) state.models = argv.models;
+  if (argv.modelsWithDeps !== undefined) state.modelsWithDeps = argv.modelsWithDeps;
 
   // Content-specific
   if (argv.contentItems !== undefined) state.contentItems = argv.contentItems;
