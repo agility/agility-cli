@@ -1,5 +1,5 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState, state } from "../../core/state";
+import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
 import ansiColors from "ansi-colors";
 import * as path from "path";
 import * as fs from "fs";
@@ -11,6 +11,8 @@ export async function downloadAllModels(
   // Get values from fileOps which is already configured for this specific GUID/locale
   const fileOps = new fileOperations(guid);
   const apiClient = getApiClient();
+  const logger = getLoggerForGuid(guid);
+  logger.startTimer();
 
   const modelsFolderPath = fileOps.getDataFolderPath('models');
   // Use fileOperations to create models folder
@@ -112,7 +114,9 @@ export async function downloadAllModels(
       }
     }
 
-    console.log(`\nModel Change Detection Results: ${ansiColors.green(downloadableModels.length.toString())} to download, ${ansiColors.gray(skippableModels.length.toString())} unchanged`);
+    if(skippableModels.length > 0){
+      logger.model.skipped(null, `Model Change Detection Results: ${downloadableModels.length} to download, ${skippableModels.length} unchanged`);
+    }
 
     // Phase 3: Download only the models that need updating
     if (downloadableModels.length === 0) {
@@ -152,13 +156,16 @@ export async function downloadAllModels(
 
           // Export model JSON
           fileOps.exportFiles(`models`, fileName, modelDetails);
-          console.log(`✓ Downloaded ${modelType} model ${ansiColors.cyan(modelDisplayName)} ${ansiColors.gray(`(${reason})`)}`);
+          logger.model.downloaded(modelDetails);
+          // console.log(`✓ Downloaded ${modelType} model ${ansiColors.cyan(modelDisplayName)} ${ansiColors.gray(`(${reason})`)}`);
           
           
           return { success: true, modelDetails };
         } catch (error: any) {
           const modelDisplayName = modelSummary.referenceName || modelSummary.displayName || `ID ${modelSummary.id}`;
-          console.error(`✗ Failed to download ${modelType} model ${ansiColors.red(modelDisplayName)}:`, ansiColors.gray(error.message || 'Unknown error'));
+
+          logger.model.error(null, error);
+          // console.error(`✗ Failed to download ${modelType} model ${ansiColors.red(modelDisplayName)}:`, ansiColors.gray(error.message || 'Unknown error'));
           return { success: false, modelSummary, error };
         }
       });
@@ -185,14 +192,8 @@ export async function downloadAllModels(
     const endTime = Date.now();
     const duration = ((endTime - startTime) / 1000).toFixed(1);
     const errorCount = downloadableModels.length - downloadedCount;
+    logger.endTimer();
 
-    console.log(`\nModel Download Summary:`);
-    console.log(`   ${ansiColors.green('✓')} Downloaded: ${downloadedCount}`);
-    // console.log(`   ${ansiColors.gray('⚬')} Unchanged: ${skippedCount}`);
-    if (errorCount > 0) {
-      console.log(`   ${ansiColors.red('✗')} Failed: ${errorCount}`);
-    }
-    // console.log(`   ⏱️  Duration: ${duration}s`);
 
   } catch (error: any) {
     console.error('Error in downloadAllModels:', error);

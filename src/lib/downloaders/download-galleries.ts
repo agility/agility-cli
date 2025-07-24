@@ -1,5 +1,5 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState, state } from "../../core/state";
+import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
 import ansiColors from "ansi-colors";
 import { getAllChannels } from "../shared/get-all-channels";
 
@@ -9,7 +9,14 @@ export async function downloadAllGalleries(
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
-
+  const logger = getLoggerForGuid(guid); // Use GUID-specific logger
+  
+  if (!logger) {
+    console.warn(`⚠️  No logger found for GUID ${guid}, skipping gallery logging`);
+    return;
+  }
+  
+  logger.startTimer();
   // Helper function to get local gallery metadata
   function getLocalGalleryInfo(filePath: string): { modifiedOn?: string; exists: boolean } {
     try {
@@ -92,11 +99,13 @@ export async function downloadAllGalleries(
     
     if (downloadDecision.shouldDownload) {
       fileOps.exportFiles("assets/galleries", index, initialRecords);
-      console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${downloadDecision.reason})`)}`);
+      logger.gallery.downloaded(initialRecords, `galleries-${index}.json`);
+      // console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${downloadDecision.reason})`)}`);
       downloadedCount++;
       
     } else {
-      console.log(`✓ Gallery file galleries-${index}.json up to date, skipping`);
+      logger.gallery.skipped(initialRecords, `galleries-${index}.json`);
+      // console.log(`✓ Gallery file galleries-${index}.json up to date, skipping`);
       skippedCount++;
     }
 
@@ -117,18 +126,24 @@ export async function downloadAllGalleries(
       
       if (galleryDownloadDecision.shouldDownload) {
         fileOps.exportFiles("assets/galleries", index, galleries);
-        console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${galleryDownloadDecision.reason})`)}`);
+        logger.gallery.downloaded(galleries, `galleries-${index}.json`);
+        // console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${galleryDownloadDecision.reason})`)}`);
         downloadedCount++;
         
       } else {
-        console.log(ansiColors.yellow(`✓ Gallery file galleries-${index}.json up to date, skipping`));
+        // console.log(ansiColors.yellow(`✓ Gallery file galleries-${index}.json up to date, skipping`));
         skippedCount++;
       }
 
       index++;
     }
 
-    console.log(`\nGallery Change Detection Results: ${ansiColors.green(downloadedCount.toString())} to download, ${ansiColors.gray(skippedCount.toString())} unchanged`);
+    if(skippedCount > 0){
+      logger.gallery.skipped(null, `galleries-${index}.json`);
+    }
+    
+    logger.endTimer();
+    logger.summary("pull", downloadedCount, skippedCount, 0);
 
   } catch (error: any) {
     console.error(`Error in downloadAllGalleries: ${error.message}`);

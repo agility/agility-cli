@@ -1,5 +1,5 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState, state } from "../../core/state";
+import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
 import { getAllChannels } from "../shared/get-all-channels";
@@ -11,6 +11,14 @@ export async function downloadAllTemplates(
   const locales = state.guidLocaleMap.get(guid); // Templates need locale for API call
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
+  const logger = getLoggerForGuid(guid); // Use GUID-specific logger
+  
+  if (!logger) {
+    console.warn(`⚠️  No logger found for GUID ${guid}, skipping template logging`);
+    return;
+  }
+  
+  logger.startTimer();
   
   const channels = await getAllChannels(guid, locales[0]);
   const templatesFolderPath = fileOps.getDataFolderPath('templates');
@@ -28,7 +36,7 @@ export async function downloadAllTemplates(
     // console.log(`Found ${totalTemplates} page templates to download.`);
 
     if (totalTemplates === 0) {
-        console.log("No page templates found to download.");
+        logger.template.skipped(null, "No page templates found to download");
         return;
     }
 
@@ -46,23 +54,21 @@ export async function downloadAllTemplates(
 
      
       
-        // Force update mode - always download
+        // Force u
         fileOps.exportFiles(`templates`, template.pageTemplateID, template);
         processedCount++;
-        console.log(`✓ Downloaded template ${ansiColors.cyan(template.pageTemplateName)} ID: ${template.pageTemplateID} ${ansiColors.gray('(forced update)')}`);
+        logger.template.downloaded(template, template.pageTemplateName);
       }
       
      
     
     
     // Summary of downloaded templates
+    logger.endTimer();
     const downloadedCount = processedCount - skippedCount;
-    const elapsedTime = Date.now() - startTime;
-    const elapsedSeconds = (elapsedTime / 1000).toFixed(2);
-    console.log(ansiColors.yellow(`\nDownloaded ${downloadedCount} templates (${downloadedCount}/${totalTemplates} templates, ${skippedCount} skipped, 0 errors) in ${elapsedSeconds}s\n`));
-    // console.log("All page templates downloaded successfully.");
+    logger.summary("pull", downloadedCount, skippedCount, 0);
   } catch (error) {
-    console.error("\nError downloading page templates:", error);
+    logger.error(`Error downloading page templates: ${error}`);
     // Use the totalTemplates variable from the outer scope
     throw error; 
   }

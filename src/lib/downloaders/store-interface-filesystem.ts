@@ -6,7 +6,8 @@ const path = require('path')
 const { lockSync, unlockSync, checkSync, check }  = require("proper-lockfile")
 import { sleep } from "../shared/sleep";
 
-const { getState } = require('../../core/state');	
+const { getState, getLoggerForGuid } = require('../../core/state');
+import { Logs } from '../../core/logs';
 
 
 // RACE CONDITION FIX: Convert global stats to instance-specific stats
@@ -32,6 +33,34 @@ interface InstanceStatsData {
 require("dotenv").config({
 	path: `.env.${process.env.NODE_ENV}`,
 })
+
+/**
+ * Get the logger for the current operation
+ */
+function getLogger(options: any): Logs | null {
+  // Extract GUID from options.rootPath or options.guid
+  const guid = options?.guid || options?.sourceGuid || extractGuidFromPath(options?.rootPath);
+  if (!guid) return null;
+  
+  return getLoggerForGuid(guid);
+}
+
+/**
+ * Extract GUID from rootPath (e.g., "agility-files/13a8b394-u/en-us/preview")
+ */
+function extractGuidFromPath(rootPath: string): string | null {
+  if (!rootPath) return null;
+  
+  // Look for GUID pattern in path segments
+  const segments = rootPath.split('/');
+  for (const segment of segments) {
+    // Match GUID patterns like "13a8b394-u" or "af9a3c91-4ca0-42db-bdb9-cced53a818d6"
+    if (/^[a-f0-9]{8}-[a-f0-9-]{1,36}$/i.test(segment)) {
+      return segment;
+    }
+  }
+  return null;
+}
 
 /**
  * Map Sync SDK itemType to ChangeDelta entity type
@@ -206,6 +235,8 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 	let dirPath = path.dirname(absoluteFilePath);
 	const forceOverwrite = options.forceOverwrite;
 
+	// Get the logger for this operation
+	const logger = options.logger;
 
 	try {
 		if (!fs.existsSync(dirPath)) {
@@ -222,11 +253,28 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 		fs.writeFileSync(absoluteFilePath, json);
         // console.log(`[Debug saveItem] Write successful for: ${absoluteFilePath}`);
 		
-		// Only log when verbose is enabled
-		// This prevents UI clutter on large instances
-		const state = getState();
-		if (state.verbose) {
-			console.log('✓ Downloaded',ansiColors.cyan(itemType), ansiColors.white(itemID));
+		// Use structured logging instead of basic console.log
+		if (logger) {
+
+			// if(itemType !== 'item' && itemType !== 'sitemap' && itemType !== 'list') { console.log('item', item); }
+			// Map itemType to appropriate logger method and include locale for content/pages
+			if (itemType === 'item') {
+				logger.contentitem.downloaded(item, undefined, languageCode);
+			} else if (itemType === 'page') {
+				logger.page.downloaded(item, undefined, languageCode);
+			} else if (itemType === 'sitemap') {
+				logger.sitemap.downloaded({ name: 'sitemap.json' });
+			} else {
+				// Fallback for other item types
+				// const entityName = extractEntityName(item, itemType);
+				// logger.info(`✓ Downloaded ${itemType}: ${entityName} [${languageCode}]`);
+			}
+		} else {
+			// Fallback to basic logging if no logger available
+			// const state = getState();
+			// if (state.verbose) {
+			// 	console.log('✓ Downloaded',ansiColors.cyan(itemType), ansiColors.white(itemID));
+			// }
 		}
 
 		if (!fs.existsSync(absoluteFilePath)) {
@@ -235,10 +283,22 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 
 		// REMOVE direct log, PUSH to stats array
         // console.log(`✓ Downloaded ${ansiColors.cyan(itemType)} (ID: ${itemID})`);
-        updateProgress(itemType, itemID, options.rootPath);
+        // updateProgress(itemType, itemID, options.rootPath);
 		
 	} catch (error) {
-		console.error('Error in saveItem:', error);
+		// Use structured error logging if available
+		if (logger) {
+			if (itemType === 'item') {
+				logger.contentitem.error(item, error, languageCode);
+			} else if (itemType === 'page') {
+				logger.page.error(item, error, languageCode);
+			} else {
+				logger.error(`Failed to save ${itemType} (ID: ${itemID}): ${error.message}`);
+			}
+		} else {
+			console.error('Error in saveItem:', error);
+		}
+		
 		console.error('Error details:', {
 			filePath,
 			absoluteFilePath,
