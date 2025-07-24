@@ -11,6 +11,7 @@
 		"skipLibCheck": true,
 		"allowSyntheticDefaultImports": true,
 		"baseUrl": ".",
+		"sourceMap": true,
 		"paths": {
 			"lib/*": ["src/lib/*"],
 			"core/*": ["src/core/*"],
@@ -18,5 +19,5 @@
 			"types/*": ["src/types/*"]
 		}
 	},
-	"include": ["src/**/*"],
+	"include": ["src/**/*"]
 }
