@@ -40,7 +40,7 @@ export class Push {
     // pull the instance data
     const pull = new Pull();
     await pull.pullInstances(true);
-  
+
 
     // CONSOLE.LOG - Calculate total operations using per-GUID locale mapping
     let totalOperations = 0;
@@ -64,7 +64,7 @@ export class Push {
     const totalStartTime = Date.now();
 
     try {
-      // Execute concurrent pushes for all GUIDs, locales and channels (sitemaps)
+      // Execute sequential pushes for all GUIDs, locales and channels (sitemaps)
       const results = await this.pushers.instanceOrchestrator();
 
       const totalElapsedTime = Date.now() - totalStartTime;

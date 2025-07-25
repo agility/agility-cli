@@ -105,8 +105,9 @@ export class ContentItemMapper {
     }
 
     hasSourceChanged(sourceContentItem: mgmtApi.ContentItem) {
+        if (!sourceContentItem) return false;
         const mapping = this.getContentItemMapping(sourceContentItem, 'source');
-        if (!mapping) return false;
+        if (!mapping) return true;
         return sourceContentItem.properties.versionID > mapping.sourceVersionID;
     }
 

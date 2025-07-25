@@ -54,7 +54,11 @@ export async function pushTemplates(
         const referenceMapper = new TemplateMapper(sourceGuid[0], targetGuid[0]);
 
         const existingMapping = referenceMapper.getTemplateMapping(template, "source");
-        const targetTemplate = targetData.find(targetTemplate => targetTemplate.pageTemplateID === existingMapping?.targetPageTemplateID) || null;
+        let targetTemplate = targetData.find(targetTemplate => targetTemplate.pageTemplateID === existingMapping?.targetPageTemplateID) || null;
+        if (!targetTemplate) {
+            // Try to get the template via the mapper
+            targetTemplate = referenceMapper.getMappedEntity(existingMapping, "target");
+        }
 
 
         const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetTemplate);

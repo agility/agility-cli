@@ -68,7 +68,7 @@ export class Pushers {
       // Load source and target data
       const sourceDataLoader = new GuidDataLoader(sourceGuid);
       const targetDataLoader = new GuidDataLoader(targetGuid);
-      
+
       // Prepare model filtering options from state
       const state = getState();
       let filterOptions: ModelFilterOptions = {};
@@ -134,7 +134,7 @@ export class Pushers {
    * Orchestrate push operations (MAIN METHOD)
    */
   async instanceOrchestrator(): Promise<PushResults[]> {
-    const { elements, sourceGuid: sourceGuids, targetGuid: targetGuids, locale: locales} = getState();
+    const { elements, sourceGuid: sourceGuids, targetGuid: targetGuids, locale: locales } = getState();
 
     if (sourceGuids.length === 0 || targetGuids.length === 0) {
       throw new Error('No source or target GUIDs available for push operation');
@@ -148,13 +148,15 @@ export class Pushers {
     console.log(`Starting push operations from ${sourceGuid} to ${targetGuid}`);
     console.log(`Elements: ${elements}`);
 
-    const pushes = locales.map(async locale => {
-      return await this.guidPusher(sourceGuid, targetGuid, locale);
-    })
+    let pushResults: PushResults[] = [];
 
-    const results = await Promise.all(pushes);
+    for (var locale of locales) {
+      console.log(`Processing locale: ${locale}`);
+      const result = await this.guidPusher(sourceGuid, targetGuid, locale);
+      pushResults.push(result);
+    }
 
-    return results;
+    return pushResults;
   }
 
   /**

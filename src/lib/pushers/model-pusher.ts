@@ -91,7 +91,11 @@ export async function pushModels(
         return 'failed';
       }
 
-      const targetModel = targetData.find(targetModel => targetModel.id === existingMapping?.targetID) || null;
+      let targetModel = targetData.find(targetModel => targetModel.id === existingMapping?.targetID) || null;
+      if (!targetModel) {
+        //try to get the model via the mapper
+        targetModel = referenceMapper.getMappedEntity(existingMapping, "target");
+      }
 
       const targetFieldCount = targetModel?.fields.length || 0
       const sourceFieldCount = fields?.length || 0;

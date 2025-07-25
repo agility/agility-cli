@@ -62,14 +62,14 @@ export class Auth {
   }
 
   private handleSSLError(error: any): never {
-    if (error.code === 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY' || 
-        error.code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
-        error.message?.includes('certificate')) {
+    if (error.code === 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY' ||
+      error.code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
+      error.message?.includes('certificate')) {
       console.error('❌ SSL Certificate Error detected.');
       console.error('This often happens in corporate environments with proxy servers.');
       console.error('Try running with the --insecure flag to bypass SSL verification:');
       console.error('  npx agility login --insecure');
-              console.error('  npx agility pull --insecure --sourceGuid <your-guid>');
+      console.error('  npx agility pull --insecure --sourceGuid <your-guid>');
       console.error('  npx agility sync --insecure --sourceGuid <guid1> --targetGuid <guid2>');
     }
     throw error;
@@ -196,11 +196,11 @@ export class Auth {
   async executeGet(apiPath: string, guid: string, userBaseUrl: string = null) {
     const baseUrl = this.getBaseUrl(guid, userBaseUrl);
     const url = `${baseUrl}${apiPath}`;
-    
+
     try {
       // Get the token for authorization
       const token = await this.getToken();
-      
+
       const response = await fetch(url, {
         method: 'GET',
         headers: {
@@ -222,8 +222,8 @@ export class Auth {
         // For non-JSON responses (like preview/fetch keys), return the text directly
         const textResponse = await response.text();
         // Handle both quoted and unquoted string responses
-        return textResponse.startsWith('"') && textResponse.endsWith('"') 
-          ? textResponse.slice(1, -1) 
+        return textResponse.startsWith('"') && textResponse.endsWith('"')
+          ? textResponse.slice(1, -1)
           : textResponse;
       }
     } catch (err) {
@@ -234,7 +234,7 @@ export class Auth {
   async executePost(apiPath: string, guid: string, data: any) {
     const baseUrl = this.getBaseUrlPoll();
     const url = `${baseUrl}${apiPath}`;
-    
+
     try {
       let body: string | FormData | URLSearchParams;
       let headers: Record<string, string> = {
@@ -298,13 +298,13 @@ export class Auth {
     // Step 3: Get API keys for all GUIDs
     const allGuids = [...state.sourceGuid, ...state.targetGuid];
     state.apiKeys = [];
-    
+
     for (const guid of allGuids) {
       if (guid) {
         try {
           const previewKey = await this.getPreviewKey(guid);
           const fetchKey = await this.getFetchKey(guid);
-          
+
           state.apiKeys.push({ guid, previewKey, fetchKey });
         } catch (error) {
           console.log(ansiColors.yellow(`Warning: Could not get keys for GUID ${guid}: ${error.message}`));
@@ -322,15 +322,15 @@ export class Auth {
     if (shouldSkip) {
       if (state.test) {
         console.log(ansiColors.yellow("🧪 TEST MODE: Bypassing permission checks for analysis..."));
-      		} else if (state.test) {
-			console.log(ansiColors.yellow("🧪 TEST MODE: Bypassing permission checks..."));
+      } else if (state.test) {
+        console.log(ansiColors.yellow("🧪 TEST MODE: Bypassing permission checks..."));
       }
     }
 
     // Step 5: Set up basic management API options
     const mgmtApiOptions = new (await import("@agility/management-sdk")).Options();
     mgmtApiOptions.token = await this.getToken();
-    
+
     // // Store basic mgmt API options in state
     state.mgmtApiOptions = mgmtApiOptions;
 
@@ -357,75 +357,117 @@ export class Auth {
     // Step 6: Auto-detect available locales for ALL GUIDs in the matrix
     if (allGuids.length > 0) {
       try {
-        
-        
-        // Get locales for each GUID in the matrix
-        const guidLocaleMap = new Map<string, string[]>();
-        const allDetectedLocales = new Set<string>();
-        let totalCombinations = 0;
-        
-        for (const guid of allGuids) {
-          if (guid) {
-            try {
-              const localesArr = await state.cachedApiClient.instanceMethods.getLocales(guid);
 
-              // TODO: Get channels for each locale
-              // const channelsArr = await getAllChannels(guid, localesArr[0].localeCode);
-              const localesForGuid = localesArr.map((locale: any) => locale.localeCode);
-              
-              // Handle user-specified locale filtering per GUID
-              let finalLocalesForGuid = localesForGuid;
-              if (state.locale.length > 0) {
-                // User specified locales: only use those that exist for this GUID
-                finalLocalesForGuid = state.locale.filter(userLocale => 
-                  localesForGuid.includes(userLocale)
-                );
-                
-                // Warn about missing locales for this GUID
-                const missingLocales = state.locale.filter(userLocale => 
-                  !localesForGuid.includes(userLocale)
-                );
-                if (missingLocales.length > 0) {
-                  console.log(ansiColors.yellow(`⚠️  ${guid}: Missing locales ${missingLocales.join(', ')} (available: ${localesForGuid.join(', ')})`));
-                }
-                
-                // Fallback if no user locales exist for this GUID
-                if (finalLocalesForGuid.length === 0) {
-                  console.log(ansiColors.yellow(`⚠️  ${guid}: None of the specified locales exist, using all available`));
-                  finalLocalesForGuid = localesForGuid;
-                }
-              }
-              
-              guidLocaleMap.set(guid, finalLocalesForGuid);
-              totalCombinations += finalLocalesForGuid.length;
-              
-              // Add to set of all detected locales
-              finalLocalesForGuid.forEach(locale => allDetectedLocales.add(locale));
-              
-              console.log(`${guid}: ${finalLocalesForGuid.join(', ')}`);
-            } catch (error) {
-              console.log(ansiColors.yellow(`⚠️  Could not get locales for ${guid}: ${error.message}`));
-              const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ['en-us'];
-              guidLocaleMap.set(guid, fallbackLocales);
-              totalCombinations += fallbackLocales.length;
-            }
+
+
+        //Get the locales for the SOURCE GUID
+        let sourceLocales: string[] = [];
+        if (state.sourceGuid.length > 0) {
+          sourceLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.sourceGuid[0])).map((locale: any) => locale.localeCode);
+          state.availableLocales = sourceLocales;
+        }
+
+        //Get the locales for the TARGET GUID
+        let targetLocales: string[] = [];
+        if (state.targetGuid.length > 0) {
+          targetLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.targetGuid[0])).map((locale: any) => locale.localeCode);
+        }
+
+        // MAKE SURE THAT the TARGET has the same locales as the SOURCE
+        const missingLocales = sourceLocales.filter(locale => !targetLocales.includes(locale));
+        if (missingLocales.length > 0) {
+          console.log(ansiColors.yellow(`⚠️  Target instance ${state.targetGuid[0]}: Missing locales ${missingLocales.join(', ')} (available: ${targetLocales.join(', ')})`));
+          return false; // Cannot proceed with missing locales
+        }
+
+        //if they pass in locales, use those, ONLY if they are all in the source locales list
+        let localesToUse = sourceLocales;
+        if (state.locale.length > 0) {
+          let validLocales = state.locale.filter(l => sourceLocales.includes(l));
+          if (validLocales.length === 0) {
+            console.log(ansiColors.yellow(`⚠️  None of the specified locales exist in the source instance ${state.sourceGuid[0]}. Using all available locales.`));
+          } else {
+            localesToUse = validLocales; // Use only valid locales that exist in the source
           }
         }
-        
-        // Store the per-GUID locale mapping in state
+
+        const guidLocaleMap = new Map<string, string[]>();
+        guidLocaleMap.set(state.sourceGuid[0], localesToUse);
+        guidLocaleMap.set(state.targetGuid[0], localesToUse);
+
+        state.locale = localesToUse; // Set the state locale list to the determined locales
         state.guidLocaleMap = guidLocaleMap;
-        state.availableLocales = Array.from(allDetectedLocales);
-        
-        
+
+
+
+        //MOD: JOELV - I didn't understand what this logic was doing, so I replaced it with the above logic...
+        // Get locales for each GUID in the matrix
+        // const guidLocaleMap = new Map<string, string[]>();
+        // const allDetectedLocales = new Set<string>();
+        // let totalCombinations = 0;
+
+        // for (const guid of allGuids) {
+        //   if (guid) {
+        //     try {
+        //       const localesArr = await state.cachedApiClient.instanceMethods.getLocales(guid);
+
+        //       // TODO: Get channels for each locale
+        //       // const channelsArr = await getAllChannels(guid, localesArr[0].localeCode);
+        //       const localesForGuid = localesArr.map((locale: any) => locale.localeCode);
+
+        //       // Handle user-specified locale filtering per GUID
+        //       let finalLocalesForGuid = localesForGuid;
+        //       if (state.locale.length > 0) {
+        //         // User specified locales: only use those that exist for this GUID
+        //         finalLocalesForGuid = state.locale.filter(userLocale =>
+        //           localesForGuid.includes(userLocale)
+        //         );
+
+        //         // Warn about missing locales for this GUID
+        //         const missingLocales = state.locale.filter(userLocale =>
+        //           !localesForGuid.includes(userLocale)
+        //         );
+        //         if (missingLocales.length > 0) {
+        //           console.log(ansiColors.yellow(`⚠️  ${guid}: Missing locales ${missingLocales.join(', ')} (available: ${localesForGuid.join(', ')})`));
+        //         }
+
+        //         // Fallback if no user locales exist for this GUID
+        //         if (finalLocalesForGuid.length === 0) {
+        //           console.log(ansiColors.yellow(`⚠️  ${guid}: None of the specified locales exist, using all available`));
+        //           finalLocalesForGuid = localesForGuid;
+        //         }
+        //       }
+
+        //       guidLocaleMap.set(guid, finalLocalesForGuid);
+        //       totalCombinations += finalLocalesForGuid.length;
+
+        //       // Add to set of all detected locales
+        //       finalLocalesForGuid.forEach(locale => allDetectedLocales.add(locale));
+
+        //       console.log(`${guid}: ${finalLocalesForGuid.join(', ')}`);
+        //     } catch (error) {
+        //       console.log(ansiColors.yellow(`⚠️  Could not get locales for ${guid}: ${error.message}`));
+        //       const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ['en-us'];
+        //       guidLocaleMap.set(guid, fallbackLocales);
+        //       totalCombinations += fallbackLocales.length;
+        //     }
+        //   }
+        // }
+
+        // // Store the per-GUID locale mapping in state
+        // state.guidLocaleMap = guidLocaleMap;
+        // state.availableLocales = Array.from(allDetectedLocales);
+
+
         // Show detailed matrix
         Array.from(guidLocaleMap.entries()).forEach(([guid, locales]) => {
           console.log(`${guid} → ${locales.length} locale(s): ${locales.join(', ')}`);
         });
-        
+
       } catch (error) {
         console.log(ansiColors.yellow(`Note: Could not auto-detect locales: ${error.message}`));
         state.availableLocales = ['en-us']; // Fallback to default
-        
+
         // Create fallback mapping for all GUIDs
         const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ['en-us'];
         for (const guid of allGuids) {
@@ -454,17 +496,17 @@ export class Auth {
       if (!permission.hasPermission) {
         throw new Error(`You do not have the required permissions on the ${instanceType} instance ${guid}.`);
       }
-      
+
       // Store user info for the primary instance
       if (instanceType === 'instance' || instanceType === 'source') {
         state.user = user;
-        
+
         // Store current website details
         if (state.sourceGuid) {
           state.currentWebsite = user.websiteAccess.find((website: any) => website.guid === state.sourceGuid);
         }
       }
-      
+
     } catch (error) {
       throw new Error(`${instanceType.charAt(0).toUpperCase() + instanceType.slice(1)} instance authentication failed: ${error.message}`);
     }
@@ -532,10 +574,10 @@ export class Auth {
 
   async login() {
     console.log("🔑 Authenticating to Agility CMS...");
-    
+
     const env = this.getEnv();
     const key = this.getEnvKey(env);
-    
+
     const cliCode = await this.authorize();
     logReplace("\rWaiting for authentication in your browser...");
 
@@ -545,7 +587,7 @@ export class Auth {
           // Create URLSearchParams directly instead of FormData
           const params = new URLSearchParams();
           params.append("cliCode", cliCode);
-          
+
           const token = await this.cliPoll(params, "blank-d");
 
           if (token && token.access_token && token.expires_in && token.timestamp) {
@@ -603,12 +645,12 @@ export class Auth {
     try {
       // Just pass the data directly - both FormData and URLSearchParams should work with fetch
       const result = await this.executePost("/CliPoll", guid, data);
-      
+
       // Add timestamp if it's missing
       if (result.access_token && !result.timestamp) {
         result.timestamp = new Date().toISOString();
       }
-      
+
       return result;
     } catch (err) {
       throw new Error(`during CLI poll: ${err.message}`);
@@ -639,16 +681,16 @@ export class Auth {
     try {
       // Use the existing getUser method which calls /users/me correctly
       const userData = await this.getUser(guid);
-      
+
       // Find the website access for this specific instance
       const instanceAccess = userData.websiteAccess?.find(access => access.guid === guid);
-      
+
       if (!instanceAccess) {
         console.log(ansiColors.red(`❌ You do not have access to instance: ${guid}`));
         console.log(ansiColors.yellow(`Contact your instance administrator to get access.`));
         return { hasPermission: false, role: null };
       }
-      
+
       // Check if user is owner of this instance
       if (instanceAccess.isOwner) {
         return { hasPermission: true, role: "Owner" };
@@ -746,28 +788,28 @@ export class Auth {
     switch (commandType) {
       case 'pull':
         if (!state.sourceGuid || state.sourceGuid.length === 0) missingFields.push('sourceGuid (use --sourceGuid or AGILITY_GUID in .env)');
-        
+
         // Check for locales: either user-specified OR auto-detected per-GUID mappings
         const hasUserLocales = state.locale && state.locale.length > 0;
         const hasAutoDetectedLocales = state.guidLocaleMap && state.guidLocaleMap.size > 0;
         if (!hasUserLocales && !hasAutoDetectedLocales) {
           missingFields.push('locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)');
         }
-        
+
         if (!state.channel) missingFields.push('channel (use --channel or AGILITY_WEBSITE in .env)');
         break;
 
       case 'sync':
         if (!state.sourceGuid || state.sourceGuid.length === 0) missingFields.push('sourceGuid (use --sourceGuid or AGILITY_GUID in .env)');
         if (!state.targetGuid || state.targetGuid.length === 0) missingFields.push('targetGuid (use --targetGuid)');
-        
+
         // Check for locales: either user-specified OR auto-detected per-GUID mappings
         const hasSyncUserLocales = state.locale && state.locale.length > 0;
         const hasSyncAutoDetectedLocales = state.guidLocaleMap && state.guidLocaleMap.size > 0;
         if (!hasSyncUserLocales && !hasSyncAutoDetectedLocales) {
           missingFields.push('locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)');
         }
-        
+
         if (!state.channel) missingFields.push('channel (use --channel or AGILITY_WEBSITE in .env)');
         break;
 
@@ -792,7 +834,7 @@ export class Auth {
 
     // Validate instance access and set up API configuration
     const shouldSkip = this.shouldSkipPermissionCheck();
-    
+
     try {
       if (commandType === 'sync' && state.targetGuid && state.targetGuid.length > 0) {
         // Sync operation - validate access to both source and target (use first GUID for validation)
@@ -800,16 +842,16 @@ export class Auth {
           await this.validateInstanceAccess(state.sourceGuid[0], 'source');
           await this.validateInstanceAccess(state.targetGuid[0], 'target');
         }
-        
+
         // Configure for target instance (sync writes to target - use first target GUID)
         const targetBaseUrl = state.baseUrl || this.determineBaseUrl(state.targetGuid[0]);
         state.mgmtApiOptions!.baseUrl = targetBaseUrl;
         state.baseUrl = targetBaseUrl;
-        
+
         // Get API keys for source instance (needed for pull phase of sync - use first source GUID)
         const previewKey = await this.getPreviewKey(state.sourceGuid[0]);
         const fetchKey = await this.getFetchKey(state.sourceGuid[0]);
-        
+
         state.previewKey = previewKey;
         state.fetchKey = fetchKey;
         state.apiKeyForPull = state.preview ? previewKey : fetchKey;
@@ -818,21 +860,21 @@ export class Auth {
           console.log(ansiColors.red(`Could not retrieve the required API key (preview: ${state.preview}) for source instance ${state.sourceGuid[0]}. Check API key configuration in Agility and --baseUrl if used.`));
           return false;
         }
-        
+
       } else if (commandType === 'pull' && state.sourceGuid && state.sourceGuid.length > 0) {
         // Pull operation - validate source access and get API keys (use first source GUID for validation)
         if (!shouldSkip) {
           await this.validateInstanceAccess(state.sourceGuid[0], 'instance');
         }
-        
+
         const baseUrl = state.baseUrl || this.determineBaseUrl(state.sourceGuid[0]);
         state.mgmtApiOptions!.baseUrl = baseUrl;
         state.baseUrl = baseUrl;
-        
+
         // Get API keys for pull operations (use first source GUID)
         const previewKey = await this.getPreviewKey(state.sourceGuid[0]);
         const fetchKey = await this.getFetchKey(state.sourceGuid[0]);
-        
+
         state.previewKey = previewKey;
         state.fetchKey = fetchKey;
         state.apiKeyForPull = state.preview ? previewKey : fetchKey;
@@ -842,7 +884,7 @@ export class Auth {
           return false;
         }
       }
-      
+
     } catch (error) {
       console.log(ansiColors.red(`Error during command validation: ${error.message}`));
       return false;
@@ -859,17 +901,17 @@ export class Auth {
   /**
    * Validate and resolve command parameters from args and .env file
    * Centralizes all GUID, LOCALE, CHANNEL validation logic
-   * 
+   *
    * @param args - Command arguments object
-   * @param requiredFields - Array of required field names 
+   * @param requiredFields - Array of required field names
    * @returns Validated parameters object
    */
   validateAndResolveParams(args: any, requiredFields: string[] = []) {
     const envCheck = this.checkForEnvFile();
-    
+
     // Start with provided args
     const params = {
-              sourceGuid: args.sourceGuid as string,
+      sourceGuid: args.sourceGuid as string,
       targetGuid: args.targetGuid as string,
       locale: args.locale as string,
       channel: args.channel as string,
@@ -877,9 +919,9 @@ export class Auth {
 
     // Fill in from .env file if missing
     if (envCheck.hasEnvFile) {
-              if (!params.sourceGuid && envCheck.guid) {
-            params.sourceGuid = envCheck.guid; // For all commands
-        }
+      if (!params.sourceGuid && envCheck.guid) {
+        params.sourceGuid = envCheck.guid; // For all commands
+      }
       if (!params.locale && envCheck.locales && envCheck.locales.length > 0) {
         params.locale = envCheck.locales[0];
       }
@@ -890,13 +932,13 @@ export class Auth {
 
     // Validate required fields
     const errors: string[] = [];
-    
+
     for (const field of requiredFields) {
       if (!params[field as keyof typeof params]) {
-                switch (field) {
-            case 'sourceGuid':
-                errors.push("Please provide a sourceGuid or ensure you are in a directory with a valid .env file containing a GUID.");
-                break;
+        switch (field) {
+          case 'sourceGuid':
+            errors.push("Please provide a sourceGuid or ensure you are in a directory with a valid .env file containing a GUID.");
+            break;
           case 'targetGuid':
             errors.push("Please provide a targetGuid.");
             break;
@@ -928,7 +970,7 @@ export class Auth {
     isPreview: boolean,
     userBaseUrl?: string
   ): Promise<{ mgmtApiOptions: mgmtApi.Options; apiKeyForPull: string }> {
-    
+
     // Verify base authentication
     const isAuthorized = await this.checkAuthorization();
     if (!isAuthorized) {
@@ -944,7 +986,7 @@ export class Auth {
     // Set up management API options
     const mgmtApiOptions = new mgmtApi.Options();
     mgmtApiOptions.token = await this.getToken();
-    
+
     const determinedMgmtBaseUrl = this.determineBaseUrl(guid);
     mgmtApiOptions.baseUrl = userBaseUrl || determinedMgmtBaseUrl;
 

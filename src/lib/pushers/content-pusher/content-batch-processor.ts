@@ -5,6 +5,7 @@ import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { AssetMapper } from "lib/mappers/asset-mapper";
 import { BatchFailedItem, BatchProcessingResult, BatchProgressCallback, BatchSuccessItem, ContentBatchConfig } from "./util/types";
+import { findContentInOtherLocale } from "./util/find-content-in-other-locale";
 /******
 * USAGE PATTERN:
 * 1. Filter content items BEFORE creating the batch processor using filterContentItemsForProcessing()
@@ -313,6 +314,17 @@ export class ContentBatchProcessor {
 					const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(contentItem.contentID, 'source');
 					const existingTargetContentItem = this.config.referenceMapper.getMappedEntity(existingMapping, 'target');
 
+					let existingContentID = existingTargetContentItem ? existingTargetContentItem.contentID : -1;
+
+					if (!existingTargetContentItem) {
+						//see if this content item has been mapped in another locale
+						existingContentID = await findContentInOtherLocale({
+							sourceGuid,
+							targetGuid,
+							sourceContentID: contentItem.contentID,
+							locale: this.config.locale
+						});
+					}
 
 					// STEP 5: Use proper ContentFieldMapper for field mapping and validation
 					const { ContentFieldMapper } = await import("../../content/content-field-mapper");
@@ -366,7 +378,7 @@ export class ContentBatchProcessor {
 					// STEP 8: Create payload using EXACT original logic
 					const payload = {
 						...contentItem, // Start with original content item
-						contentID: existingTargetContentItem ? existingTargetContentItem.contentID : -1,
+						contentID: existingContentID,
 						fields: validatedFields, // Use validated fields with defaults for required fields
 						properties: {
 							...contentItem.properties,

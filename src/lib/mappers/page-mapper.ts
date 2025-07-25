@@ -117,7 +117,7 @@ export class PageMapper {
     hasSourceChanged(sourcePage: mgmtApi.PageItem) {
         if (!sourcePage) return false;
         const mapping = this.getPageMapping(sourcePage, 'source');
-        if (!mapping) return false;
+        if (!mapping) return true;
         return sourcePage.properties.versionID > mapping.sourceVersionID;
     }
 
