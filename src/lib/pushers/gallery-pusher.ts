@@ -18,6 +18,7 @@ export async function pushGalleries(
   const galleries: mgmtApi.assetMediaGrouping[] = sourceData || [];
 
   const { sourceGuid, targetGuid } = state;
+
   
   // Get the GUID logger from state instead of creating a new one
   const logger = getLoggerForGuid(sourceGuid[0]) || new Logs("push", "gallery", sourceGuid[0]);
@@ -39,15 +40,14 @@ export async function pushGalleries(
   let processedCount = 0;
   let overallStatus: "success" | "error" = "success";
 
+  
   for (const sourceGallery of galleries) {
     let currentStatus: "success" | "error" = "success";
     try {
-      const existingMapping = referenceMapper.getGalleryMapping(sourceGallery, "source");
-
-      console.log('existingMapping',existingMapping)
-
-      const shouldCreate = existingMapping === null;
-
+      const existingMapping = referenceMapper.getGalleryMapping(sourceGallery, "source");      
+      const targetGallery =  targetData.find(targetGallery => { return targetGallery.mediaGroupingID === sourceGallery.mediaGroupingID});
+        
+      const shouldCreate = existingMapping === null && !targetGallery;
 
       if (shouldCreate) {
         // Gallery needs to be created (doesn't exist in target)
@@ -55,14 +55,7 @@ export async function pushGalleries(
         successful++;
       } else {
 
-        // const targetGallery =  referenceMapper.getMappedEntity(existingMapping, "target");
-        const targetGallery: mgmtApi.assetMediaGrouping =
-          targetData.find(
-            (targetGallery) => targetGallery.mediaGroupingID === existingMapping?.targetMediaGroupingID
-          ) || null;
-        
-        console.log('targetGallery',targetGallery)
-          const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetGallery);
+        const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetGallery);
         const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(sourceGallery);
         const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
         const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
@@ -112,10 +105,11 @@ async function createGallery(
   const payload = { ...mediaGrouping, mediaGroupingID: 0 };
   try {
     debugger;
-    const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
+    const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, mediaGrouping);
     referenceMapper.addMapping(mediaGrouping, savedGallery);
     logger.gallery.created(mediaGrouping);
   } catch (error) {
+
     logger.gallery.error(mediaGrouping, error, payload);
   }
 }

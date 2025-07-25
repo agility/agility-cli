@@ -745,8 +745,10 @@ export class Logs {
       const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
       this.logDataElement("gallery", "failed", "failed", itemName, this.guid, errorDetails);
-    //   console.log(ansiColors.red(JSON.stringify(apiError, null, 2)))
-    //   console.log(ansiColors.red(JSON.stringify(payload, null, 2)))
+
+      console.log(gallery.mediaGroupingID, gallery.name)
+      console.log(ansiColors.red(JSON.stringify(apiError, null, 2)))
+      console.log(ansiColors.red(JSON.stringify(payload, null, 2)))
     },
   };
 
