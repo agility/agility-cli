@@ -1,12 +1,11 @@
-;
 import { serverUser } from "../types/serverUser";
 import { state, getState, clearApiClient } from "./state";
 import * as mgmtApi from "@agility/management-sdk";
 const open = require("open");
 const FormData = require("form-data");
-import fs from 'fs';
-import path from 'path';
-import https from 'https';
+import fs from "fs";
+import path from "path";
+import https from "https";
 
 import keytar from "keytar";
 import { exit } from "process";
@@ -38,7 +37,7 @@ export class Auth {
   private createHttpsAgent() {
     if (this.insecureMode) {
       return new https.Agent({
-        rejectUnauthorized: false
+        rejectUnauthorized: false,
       });
     }
     return undefined;
@@ -47,15 +46,15 @@ export class Auth {
   private getFetchConfig(): RequestInit {
     const config: RequestInit = {
       headers: {
-        'Cache-Control': 'no-cache',
-        'User-Agent': 'agility-cli-fetch/1.0'
-      }
+        "Cache-Control": "no-cache",
+        "User-Agent": "agility-cli-fetch/1.0",
+      },
     };
 
     if (this.insecureMode) {
       // For fetch with Node.js, we need to handle SSL differently
       // This is a simplified approach - in production, you might need more sophisticated SSL handling
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     }
 
     return config;
@@ -79,14 +78,14 @@ export class Auth {
     return state.local ? "local" : state.dev ? "dev" : state.preprod ? "preprod" : "prod";
   }
 
-  checkForEnvFile(): { hasEnvFile: boolean; guid?: string; channel?: string, locales?: string[] } {
-    const envFiles = ['.env', '.env.local', '.env.development', '.env.production'];
-    const result: { hasEnvFile: boolean; guid?: string; channel?: string, locales?: string[] } = { hasEnvFile: false };
+  checkForEnvFile(): { hasEnvFile: boolean; guid?: string; channel?: string; locales?: string[] } {
+    const envFiles = [".env", ".env.local", ".env.development", ".env.production"];
+    const result: { hasEnvFile: boolean; guid?: string; channel?: string; locales?: string[] } = { hasEnvFile: false };
 
     for (const envFile of envFiles) {
       const envPath = path.join(process.cwd(), envFile);
       if (fs.existsSync(envPath)) {
-        const envContent = fs.readFileSync(envPath, 'utf8');
+        const envContent = fs.readFileSync(envPath, "utf8");
         const guidMatch = envContent.match(/AGILITY_GUID=([^\n]+)/);
         const channelMatch = envContent.match(/AGILITY_WEBSITE=([^\n]+)/);
         const localeMatch = envContent.match(/AGILITY_LOCALES=([^\n]+)/);
@@ -101,7 +100,7 @@ export class Auth {
         }
         if (localeMatch && localeMatch[1]) {
           result.hasEnvFile = true;
-          result.locales = localeMatch[1].trim().split(',');
+          result.locales = localeMatch[1].trim().split(",");
         }
         if (result.hasEnvFile) {
           return result;
@@ -111,8 +110,6 @@ export class Auth {
 
     return result;
   }
-
-
 
   getEnvKey(env: string): string {
     return `cli-auth-token:${env}`;
@@ -202,12 +199,12 @@ export class Auth {
       const token = await this.getToken();
 
       const response = await fetch(url, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'no-cache',
-          'User-Agent': 'agility-cli-fetch/1.0'
-        }
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+          "User-Agent": "agility-cli-fetch/1.0",
+        },
       });
 
       if (!response.ok) {
@@ -215,8 +212,8 @@ export class Auth {
       }
 
       // Try to parse as JSON first, if that fails, return as text
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
+      const contentType = response.headers.get("content-type");
+      if (contentType && contentType.includes("application/json")) {
         return await response.json();
       } else {
         // For non-JSON responses (like preview/fetch keys), return the text directly
@@ -238,8 +235,8 @@ export class Auth {
     try {
       let body: string | FormData | URLSearchParams;
       let headers: Record<string, string> = {
-        'Cache-Control': 'no-cache',
-        'User-Agent': 'agility-cli-fetch/1.0'
+        "Cache-Control": "no-cache",
+        "User-Agent": "agility-cli-fetch/1.0",
       };
 
       if (data instanceof FormData) {
@@ -247,16 +244,16 @@ export class Auth {
         // Don't set Content-Type for FormData, let fetch set it with boundary
       } else if (data instanceof URLSearchParams) {
         body = data;
-        headers['Content-Type'] = 'application/x-www-form-urlencoded';
+        headers["Content-Type"] = "application/x-www-form-urlencoded";
       } else {
         body = JSON.stringify(data);
-        headers['Content-Type'] = 'application/json';
+        headers["Content-Type"] = "application/json";
       }
 
       const response = await fetch(url, {
-        method: 'POST',
+        method: "POST",
         body: body,
-        headers: headers
+        headers: headers,
       });
 
       if (!response.ok) {
@@ -274,7 +271,9 @@ export class Auth {
 
     const baseUrl = this.determineBaseUrl(); // guid is optional and will be handled by determineBaseUrl
     const redirectUri = `${baseUrl}/oauth/CliAuth`;
-    const authUrl = `${baseUrl}/oauth/Authorize?response_type=code&redirect_uri=${encodeURIComponent(redirectUri)}&state=cli-code%2e${code}`;
+    const authUrl = `${baseUrl}/oauth/Authorize?response_type=code&redirect_uri=${encodeURIComponent(
+      redirectUri
+    )}&state=cli-code%2e${code}`;
 
     await open(authUrl);
     return code;
@@ -286,7 +285,7 @@ export class Auth {
    */
   async init(): Promise<boolean> {
     // Step 1: Configure SSL if needed
-    const { configureSSL } = await import('./state');
+    const { configureSSL } = await import("./state");
     configureSSL();
 
     // Step 2: Authenticate
@@ -469,13 +468,13 @@ export class Auth {
         state.availableLocales = ['en-us']; // Fallback to default
 
         // Create fallback mapping for all GUIDs
-        const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ['en-us'];
+        const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ["en-us"];
         for (const guid of allGuids) {
           if (guid) {
             state.guidLocaleMap.set(guid, fallbackLocales);
           }
         }
-        console.log(`📝 Using fallback mapping: all GUIDs → ${fallbackLocales.join(', ')}`);
+        console.log(`📝 Using fallback mapping: all GUIDs → ${fallbackLocales.join(", ")}`);
       }
     }
 
@@ -489,7 +488,9 @@ export class Auth {
     try {
       const user = await this.getUser(guid);
       if (!user) {
-        throw new Error(`Could not retrieve user details for ${instanceType} instance ${guid}. Please ensure it's a valid GUID and you have access.`);
+        throw new Error(
+          `Could not retrieve user details for ${instanceType} instance ${guid}. Please ensure it's a valid GUID and you have access.`
+        );
       }
 
       const permission = await this.checkUserRole(guid);
@@ -498,7 +499,7 @@ export class Auth {
       }
 
       // Store user info for the primary instance
-      if (instanceType === 'instance' || instanceType === 'source') {
+      if (instanceType === "instance" || instanceType === "source") {
         state.user = user;
 
         // Store current website details
@@ -506,9 +507,12 @@ export class Auth {
           state.currentWebsite = user.websiteAccess.find((website: any) => website.guid === state.sourceGuid);
         }
       }
-
     } catch (error) {
-      throw new Error(`${instanceType.charAt(0).toUpperCase() + instanceType.slice(1)} instance authentication failed: ${error.message}`);
+      throw new Error(
+        `${instanceType.charAt(0).toUpperCase() + instanceType.slice(1)} instance authentication failed: ${
+          error.message
+        }`
+      );
     }
   }
 
@@ -526,7 +530,7 @@ export class Auth {
           const expiresAt = issuedAt + token.expires_in * 1000;
 
           if (Date.now() < expiresAt) {
-            console.log(ansiColors.green(`\r● Authenticated to ${env === 'prod' ? 'Agility' : env} servers.\n`));
+            console.log(ansiColors.green(`\r● Authenticated to ${env === "prod" ? "Agility" : env} servers.\n`));
             return true;
           } else {
             console.log("Existing token has expired. Starting re-authentication...");
@@ -738,7 +742,7 @@ export class Auth {
 
       return data;
     } catch (error) {
-      console.error('Error fetching user:', error);
+      console.error("Error fetching user:", error);
       throw new Error("Failed to get user data. Please try logging in again.");
     }
   }
@@ -749,12 +753,12 @@ export class Auth {
 
     try {
       const response = await fetch(`${baseUrl}/api/v1/instance/${guid}/users`, {
-        method: 'GET',
+        method: "GET",
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Cache-Control': 'no-cache',
-          'User-Agent': 'agility-cli-fetch/1.0'
-        }
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+          "User-Agent": "agility-cli-fetch/1.0",
+        },
       });
 
       if (!response.ok) {
@@ -774,11 +778,11 @@ export class Auth {
    * Validate command-specific requirements and set up instance access
    * This should be called by each command after auth.init()
    */
-  async validateCommand(commandType: 'pull' | 'sync' | 'clean' | 'interactive' | 'push'): Promise<boolean> {
+  async validateCommand(commandType: "pull" | "sync" | "clean" | "interactive" | "push"): Promise<boolean> {
     const missingFields: string[] = [];
 
     // Validate that --publish flag is only used with sync command
-    if (state.publish && commandType !== 'sync') {
+    if (state.publish && commandType !== "sync") {
       console.log(ansiColors.red(`\n❌ The --publish flag is only available for sync commands.`));
       console.log(ansiColors.yellow(`💡 Use: agility sync --sourceGuid="source" --targetGuid="target" --publish`));
       return false;
@@ -793,7 +797,7 @@ export class Auth {
         const hasUserLocales = state.locale && state.locale.length > 0;
         const hasAutoDetectedLocales = state.guidLocaleMap && state.guidLocaleMap.size > 0;
         if (!hasUserLocales && !hasAutoDetectedLocales) {
-          missingFields.push('locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)');
+          missingFields.push("locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)");
         }
 
         if (!state.channel) missingFields.push('channel (use --channel or AGILITY_WEBSITE in .env)');
@@ -807,25 +811,25 @@ export class Auth {
         const hasSyncUserLocales = state.locale && state.locale.length > 0;
         const hasSyncAutoDetectedLocales = state.guidLocaleMap && state.guidLocaleMap.size > 0;
         if (!hasSyncUserLocales && !hasSyncAutoDetectedLocales) {
-          missingFields.push('locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)');
+          missingFields.push("locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)");
         }
 
         if (!state.channel) missingFields.push('channel (use --channel or AGILITY_WEBSITE in .env)');
         break;
 
-      case 'clean':
+      case "clean":
         // Clean needs minimal validation since it prompts for instance selection
         break;
 
-      case 'interactive':
+      case "interactive":
         // Interactive mode doesn't require upfront validation
         return true;
     }
 
     // Show missing fields if any
     if (missingFields.length > 0) {
-      console.log(ansiColors.red('\n❌ Missing required configuration:'));
-      missingFields.forEach(field => {
+      console.log(ansiColors.red("\n❌ Missing required configuration:"));
+      missingFields.forEach((field) => {
         console.log(ansiColors.red(`   • ${field}`));
       });
       return false;
@@ -835,11 +839,11 @@ export class Auth {
     const shouldSkip = this.shouldSkipPermissionCheck();
 
     try {
-      if (commandType === 'sync' && state.targetGuid && state.targetGuid.length > 0) {
+      if (commandType === "sync" && state.targetGuid && state.targetGuid.length > 0) {
         // Sync operation - validate access to both source and target (use first GUID for validation)
         if (!shouldSkip) {
-          await this.validateInstanceAccess(state.sourceGuid[0], 'source');
-          await this.validateInstanceAccess(state.targetGuid[0], 'target');
+          await this.validateInstanceAccess(state.sourceGuid[0], "source");
+          await this.validateInstanceAccess(state.targetGuid[0], "target");
         }
 
         // Configure for target instance (sync writes to target - use first target GUID)
@@ -856,14 +860,18 @@ export class Auth {
         state.apiKeyForPull = state.preview ? previewKey : fetchKey;
 
         if (!state.apiKeyForPull) {
-          console.log(ansiColors.red(`Could not retrieve the required API key (preview: ${state.preview}) for source instance ${state.sourceGuid[0]}. Check API key configuration in Agility and --baseUrl if used.`));
+          console.log(
+            ansiColors.red(
+              `Could not retrieve the required API key (preview: ${state.preview}) for source instance ${state.sourceGuid[0]}. Check API key configuration in Agility and --baseUrl if used.`
+            )
+          );
           return false;
         }
 
       } else if (commandType === 'pull' && state.sourceGuid && state.sourceGuid.length > 0) {
         // Pull operation - validate source access and get API keys (use first source GUID for validation)
         if (!shouldSkip) {
-          await this.validateInstanceAccess(state.sourceGuid[0], 'instance');
+          await this.validateInstanceAccess(state.sourceGuid[0], "instance");
         }
 
         const baseUrl = state.baseUrl || this.determineBaseUrl(state.sourceGuid[0]);
@@ -879,11 +887,14 @@ export class Auth {
         state.apiKeyForPull = state.preview ? previewKey : fetchKey;
 
         if (!state.apiKeyForPull) {
-          console.log(ansiColors.red(`Could not retrieve the required API key (preview: ${state.preview}) for instance ${state.sourceGuid[0]}. Check API key configuration in Agility and --baseUrl if used.`));
+          console.log(
+            ansiColors.red(
+              `Could not retrieve the required API key (preview: ${state.preview}) for instance ${state.sourceGuid[0]}. Check API key configuration in Agility and --baseUrl if used.`
+            )
+          );
           return false;
         }
       }
-
     } catch (error) {
       console.log(ansiColors.red(`Error during command validation: ${error.message}`));
       return false;
@@ -941,10 +952,10 @@ export class Auth {
           case 'targetGuid':
             errors.push("Please provide a targetGuid.");
             break;
-          case 'locale':
+          case "locale":
             errors.push("Please provide a locale or ensure AGILITY_LOCALES is in your .env file.");
             break;
-          case 'channel':
+          case "channel":
             errors.push("Please provide a channel name.");
             break;
           default:
@@ -954,7 +965,7 @@ export class Auth {
     }
 
     if (errors.length > 0) {
-      throw new Error(errors.join('\n'));
+      throw new Error(errors.join("\n"));
     }
 
     return params;
@@ -969,7 +980,6 @@ export class Auth {
     isPreview: boolean,
     userBaseUrl?: string
   ): Promise<{ mgmtApiOptions: mgmtApi.Options; apiKeyForPull: string }> {
-
     // Verify base authentication
     const isAuthorized = await this.checkAuthorization();
     if (!isAuthorized) {
@@ -979,7 +989,9 @@ export class Auth {
     // Check user access to instance
     const user = await this.getUser(guid);
     if (!user) {
-      throw new Error(`Could not retrieve user details for instance ${guid}. Please ensure it's a valid GUID and you have access.`);
+      throw new Error(
+        `Could not retrieve user details for instance ${guid}. Please ensure it's a valid GUID and you have access.`
+      );
     }
 
     // Set up management API options
@@ -995,11 +1007,11 @@ export class Auth {
     const apiKeyForPull = isPreview ? previewKey : fetchKey;
 
     if (!apiKeyForPull) {
-      throw new Error(`Could not retrieve the required API key (preview: ${isPreview}) for instance ${guid}. Check API key configuration in Agility and --baseUrl if used.`);
+      throw new Error(
+        `Could not retrieve the required API key (preview: ${isPreview}) for instance ${guid}. Check API key configuration in Agility and --baseUrl if used.`
+      );
     }
 
     return { mgmtApiOptions, apiKeyForPull };
   }
 }
-
-

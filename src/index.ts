@@ -154,8 +154,6 @@ yargs.command({
   },
 });
 
-
-
 yargs.command({
   command: "pull",
   describe: "Pull your Agility instance locally.",
@@ -172,9 +170,9 @@ yargs.command({
       console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
     }
 
-
     setState(argv);
     state.update = true; // Ensure updates are enabled for pull
+
     auth = new Auth();
     const isAuthorized = await auth.init();
     if (!isAuthorized) {
@@ -187,17 +185,9 @@ yargs.command({
       return;
     }
 
-    // Logger will be initialized by pullInstances() method
-    // No need to initialize here to avoid duplicate initialization
+    const pull = new Pull();
+    await pull.pullInstances();
 
-    try {
-      const pull = new Pull();
-      await pull.pullInstances(); // This handles everything: logging, summary, process.exit
-
-    } catch (error: any) {
-      console.error(colors.red("\n❌ Pull command failed:"), error.message);
-      process.exit(1);
-    }
   },
 });
 
@@ -223,7 +213,6 @@ yargs.command({
     const invokedAs = Array.isArray(argv._) && argv._.length > 0 ? String(argv._[0]) : "";
     const isSync = invokedAs === "sync";
 
-
     resetState(); // Clear any previous command state
 
     // Prime state from .env file before applying command line args
@@ -234,7 +223,7 @@ yargs.command({
 
     setState(argv);
 
-    // if the user is "pushing" only, we need to turn off the updates on the downloaders
+    // if the user is "syncing", we need to turn on the updates to the downloaders
     if (isSync) {
       state.update = true;
     }
@@ -251,19 +240,9 @@ yargs.command({
       return;
     }
 
-    // Logger will be initialized by the individual operations (pull/push) as needed
-    // No need to initialize here since pullInstances() and pushInstances() handle their own loggers
+    const push = new Push();
+    await push.pushInstances();
 
-    // const syncOperation = new Sync();
-    // await syncOperation.syncInstance();
-    try {
-      const push = new Push();
-      await push.pushInstances(); // This handles everything: logging, summary, finalization, process.exit
-
-    } catch (error: any) {
-      console.error(colors.red("\n❌ Push command failed:"), error.message);
-      process.exit(1);
-    }
   }
 })
 

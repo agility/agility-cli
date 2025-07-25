@@ -26,10 +26,6 @@ export interface PusherConfig {
   onOperationStart?: (operationName: string, sourceGuid: string, targetGuid: string) => void;
   onOperationComplete?: (operationName: string, sourceGuid: string, targetGuid: string, success: boolean) => void;
 }
-// export interface Pushers {
-//   pushInstances(): Promise<PushResults>;
-// }
-
 
 
 export class Pushers {
@@ -85,7 +81,6 @@ export class Pushers {
       const { guidEntities: targetData, locale: targetLocale } = await targetDataLoader.loadGuidEntitiesForAllLocales();
 
 
-      console.log(ansiColors.gray(`Executing pushers in order for ${locale}...`));
       // Execute all push operations for this GUID pair
       const pushResults = await this.executePushersInOrder(sourceData, targetData, locale);
 
@@ -174,8 +169,6 @@ export class Pushers {
     const currentState = getState();
     const elements = currentState.elements.split(',');
 
-
-    console.log(ansiColors.gray(`Executing pushers in order for ${locale}...`));
     // Initialize results tracking
     let totalSuccess = 0;
     let totalFailures = 0;

@@ -44,7 +44,6 @@ export class Push {
     // pull the instance data
     const pull = new Pull();
     await pull.pullInstances(true);
-
     // CONSOLE.LOG - Calculate total operations using per-GUID locale mapping
     let totalOperations = 0;
     const operationDetails: string[] = [];
