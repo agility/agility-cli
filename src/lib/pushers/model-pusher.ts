@@ -159,6 +159,8 @@ export async function pushModels(
 
   console.log('\n')
 
+  const modelsToProcessInFull: mgmtApi.Model[] = []
+
   // 2-pass approach for models
   console.log(ansiColors.cyan("🔄 Pass 1: Model stubs (dependencies)"));
   for (const model of models) {
@@ -168,10 +170,15 @@ export async function pushModels(
     if (result === 'failed') {
       failed++;
     }
+
+    if (result !== 'skipped') {
+      // If created or updated, add to full pass processing
+      modelsToProcessInFull.push(model);
+    }
   }
 
   console.log(ansiColors.cyan("\n🔄 Pass 2: Full model definitions"));
-  for (const model of models) {
+  for (const model of modelsToProcessInFull) {
     const result = await processModelFull(model, model.fields);
 
     // Count only in Pass 2 - each model counted exactly once
