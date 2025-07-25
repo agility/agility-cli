@@ -1,9 +1,9 @@
 /**
  * GUID Data Loader Service
- * 
+ *
  * Loads all entity types from the filesystem using consistent getter patterns.
  * Provides unified data loading for sync operations for any specified GUID.
- * 
+ *
  * ✅ USES: Proven filesystem getter pattern
  * ✅ HANDLES: Correct directory structure (page/, item/, list/, etc.)
  * ✅ SUPPORTS: All Agility CMS entity types
@@ -32,29 +32,26 @@ export interface GuidEntities {
 }
 
 export class GuidDataLoader {
-  
-    private guid: string;
-    private locales: string[];
 
-    constructor(guid: string) {
+    private guid: string;
+    private locale: string;
+
+    constructor(guid: string, locale: string) {
         const state = getState();
-        this.locales = state.locale;
+        this.locale = locale;
         this.guid = guid;
     }
 
-    async loadGuidEntitiesForAllLocales(filterOptions?: ModelFilterOptions): Promise<{locales: any[], guidEntities: GuidEntities}> {
+    async loadGuidEntitiesForAllLocales(filterOptions?: ModelFilterOptions): Promise<{ locale: string, guidEntities: GuidEntities }> {
         const mgmtApi = getApiClient();
         const locales = await mgmtApi.instanceMethods.getLocales(this.guid);
 
-        for(const locale of locales as any){
-            const guidEntities = await this.loadGuidEntities(locale.localeCode, filterOptions);
-            return {
-                locales,
-                guidEntities
-            }
+        const guidEntities = await this.loadGuidEntities(this.locale, filterOptions);
+        return {
+            locale: this.locale,
+            guidEntities
         }
 
-        
     }
     /**
      * Load all entities for the specified GUID and locale - guarantees arrays are always returned
@@ -65,7 +62,7 @@ export class GuidDataLoader {
 
         const guidFileOps = new fileOperations(this.guid);
         const localeFileOps = new fileOperations(this.guid, locale);
-        
+
         // Initialize with empty arrays - no nulls/undefined ever
         const guidEntities: GuidEntities = {
             pages: [],
@@ -196,7 +193,7 @@ export class GuidDataLoader {
      */
     private filterGuidEntitiesByModels(guidEntities: GuidEntities, modelNames: string[]): GuidEntities {
         const modelSet = new Set(modelNames);
-        
+
         return {
             models: guidEntities.models.filter((m: any) => modelSet.has(m.referenceName)),
             containers: guidEntities.containers.filter((c: any) => {
@@ -251,7 +248,7 @@ export class GuidDataLoader {
         const state = getState();
         // Use enhanced fileOperations instancePath property
         const instancePath = new fileOperations(this.guid).instancePath;
-            
+
         if (!fs.existsSync(instancePath)) {
             console.error(ansiColors.red(`❌ Data directory not found for GUID ${this.guid}: ${instancePath}`));
             console.log(ansiColors.yellow(`💡 Make sure you have pulled data first:`));
@@ -272,4 +269,4 @@ export class GuidDataLoader {
 
 // Keep backward compatibility with existing code
 // SourceDataLoader deprecated - use GuidDataLoader directly
-export type SourceEntities = GuidEntities; 
+export type SourceEntities = GuidEntities;

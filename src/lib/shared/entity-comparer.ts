@@ -1,7 +1,7 @@
 /**
  * Entity Comparer Service
- * 
- * Compares current target instance data against target mappings (from last sync) 
+ *
+ * Compares current target instance data against target mappings (from last sync)
  * using versionID and modifiedDate to detect changes that occurred on the target instance.
  * Lightweight comparison focused on actual change detection fields.
  */
@@ -32,7 +32,7 @@ export class EntityComparer {
 
     constructor(targetGuid: string, locale: string) {
         this.targetGuid = targetGuid;
-        this.targetLoader = new GuidDataLoader(targetGuid);
+        this.targetLoader = new GuidDataLoader(targetGuid, locale);
         this.locale = locale;
     }
 
@@ -41,10 +41,10 @@ export class EntityComparer {
      */
     async compareEntities(targetMappings: GuidEntities, referenceMapper?: any): Promise<ComparisonResult> {
         console.log(ansiColors.cyan(`\n🔍 Loading current target instance data for comparison...`));
-        
+
         // Load current target instance data
-        const { guidEntities: currentTargetData, locales: currentTargetLocales } = await this.targetLoader.loadGuidEntitiesForAllLocales();
-        
+        const { guidEntities: currentTargetData, locale: currentTargetLocale } = await this.targetLoader.loadGuidEntitiesForAllLocales();
+
         const comparisons: EntityComparison[] = [];
 
         // Compare each entity type
@@ -79,7 +79,7 @@ export class EntityComparer {
         comparisons: EntityComparison[]
     ): void {
         console.log(ansiColors.yellow(`📊 Comparing ${entityType}...`));
-        
+
         // Create current target map for efficient lookups
         const currentTargetMap = new Map<string, any>();
         currentTargetEntities.forEach(entity => {
@@ -95,7 +95,7 @@ export class EntityComparer {
             if (!id) continue;
 
             const currentTargetEntity = currentTargetMap.get(id);
-            
+
             if (!currentTargetEntity) {
                 // Entity exists in mappings but not in current target - DELETED on target
                 comparisons.push({
@@ -160,7 +160,7 @@ export class EntityComparer {
                     const currentVersion = currentTargetEntity.properties?.versionID;
                     const mappingModified = mappingEntity.properties?.modified;
                     const currentModified = currentTargetEntity.properties?.modified;
-                    
+
                     return mappingVersion !== currentVersion || mappingModified !== currentModified;
 
                 case 'models':
@@ -209,9 +209,9 @@ export class EntityComparer {
      * Filter entities that have changes on target instance
      */
     getChangedEntities(result: ComparisonResult, entityType: string): EntityComparison[] {
-        return result.comparisons.filter(c => 
-            c.entityType === entityType && 
-            c.hasChanges && 
+        return result.comparisons.filter(c =>
+            c.entityType === entityType &&
+            c.hasChanges &&
             (c.changeType === 'create' || c.changeType === 'update')
         );
     }
@@ -222,4 +222,4 @@ export class EntityComparer {
     async targetDataExists(): Promise<boolean> {
         return this.targetLoader.validateDataStructure(this.locale);
     }
-} 
+}
