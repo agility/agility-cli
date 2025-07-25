@@ -61,15 +61,17 @@ export class Auth {
   }
 
   private handleSSLError(error: any): never {
-    if (error.code === 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY' ||
-      error.code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
-      error.message?.includes('certificate')) {
-      console.error('❌ SSL Certificate Error detected.');
-      console.error('This often happens in corporate environments with proxy servers.');
-      console.error('Try running with the --insecure flag to bypass SSL verification:');
-      console.error('  npx agility login --insecure');
-      console.error('  npx agility pull --insecure --sourceGuid <your-guid>');
-      console.error('  npx agility sync --insecure --sourceGuid <guid1> --targetGuid <guid2>');
+    if (
+      error.code === "UNABLE_TO_GET_ISSUER_CERT_LOCALLY" ||
+      error.code === "SELF_SIGNED_CERT_IN_CHAIN" ||
+      error.message?.includes("certificate")
+    ) {
+      console.error("❌ SSL Certificate Error detected.");
+      console.error("This often happens in corporate environments with proxy servers.");
+      console.error("Try running with the --insecure flag to bypass SSL verification:");
+      console.error("  npx agility login --insecure");
+      console.error("  npx agility pull --insecure --sourceGuid <your-guid>");
+      console.error("  npx agility sync --insecure --sourceGuid <guid1> --targetGuid <guid2>");
     }
     throw error;
   }
@@ -219,9 +221,7 @@ export class Auth {
         // For non-JSON responses (like preview/fetch keys), return the text directly
         const textResponse = await response.text();
         // Handle both quoted and unquoted string responses
-        return textResponse.startsWith('"') && textResponse.endsWith('"')
-          ? textResponse.slice(1, -1)
-          : textResponse;
+        return textResponse.startsWith('"') && textResponse.endsWith('"') ? textResponse.slice(1, -1) : textResponse;
       }
     } catch (err) {
       this.handleSSLError(err);
@@ -311,6 +311,15 @@ export class Auth {
       }
     }
 
+    // Is the user an Agility Dev?
+    const user = await this.getUser(state.sourceGuid[0]);
+    if (
+      user.emailAddress.includes("@agilitycms.com") &&
+      (user.jobRole.includes("developer") || user.jobRole.includes("administrator"))
+    ) {
+      state.isAgilityDev = true;
+    }
+
     // Step 4: Set up UI mode in state
     state.useHeadless = state.headless; // headless takes precedence
     state.useVerbose = !state.useHeadless && state.verbose;
@@ -356,13 +365,12 @@ export class Auth {
     // Step 6: Auto-detect available locales for ALL GUIDs in the matrix
     if (allGuids.length > 0) {
       try {
-
-
-
         //Get the locales for the SOURCE GUID
         let sourceLocales: string[] = [];
         if (state.sourceGuid.length > 0) {
-          sourceLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.sourceGuid[0])).map((locale: any) => locale.localeCode);
+          sourceLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.sourceGuid[0])).map(
+            (locale: any) => locale.localeCode
+          );
           state.availableLocales = sourceLocales;
         }
 
@@ -382,9 +390,13 @@ export class Auth {
         //if they pass in locales, use those, ONLY if they are all in the source locales list
         let localesToUse = sourceLocales;
         if (state.locale.length > 0) {
-          let validLocales = state.locale.filter(l => sourceLocales.includes(l));
+          let validLocales = state.locale.filter((l) => sourceLocales.includes(l));
           if (validLocales.length === 0) {
-            console.log(ansiColors.yellow(`⚠️  None of the specified locales exist in the source instance ${state.sourceGuid[0]}. Using all available locales.`));
+            console.log(
+              ansiColors.yellow(
+                `⚠️  None of the specified locales exist in the source instance ${state.sourceGuid[0]}. Using all available locales.`
+              )
+            );
           } else {
             localesToUse = validLocales; // Use only valid locales that exist in the source
           }
@@ -401,73 +413,14 @@ export class Auth {
         state.locale = localesToUse; // Set the state locale list to the determined locales
         state.guidLocaleMap = guidLocaleMap;
 
-        //MOD: JOELV - I didn't understand what this logic was doing, so I replaced it with the above logic...
-        // Get locales for each GUID in the matrix
-        // const guidLocaleMap = new Map<string, string[]>();
-        // const allDetectedLocales = new Set<string>();
-        // let totalCombinations = 0;
-
-        // for (const guid of allGuids) {
-        //   if (guid) {
-        //     try {
-        //       const localesArr = await state.cachedApiClient.instanceMethods.getLocales(guid);
-
-        //       // TODO: Get channels for each locale
-        //       // const channelsArr = await getAllChannels(guid, localesArr[0].localeCode);
-        //       const localesForGuid = localesArr.map((locale: any) => locale.localeCode);
-
-        //       // Handle user-specified locale filtering per GUID
-        //       let finalLocalesForGuid = localesForGuid;
-        //       if (state.locale.length > 0) {
-        //         // User specified locales: only use those that exist for this GUID
-        //         finalLocalesForGuid = state.locale.filter(userLocale =>
-        //           localesForGuid.includes(userLocale)
-        //         );
-
-        //         // Warn about missing locales for this GUID
-        //         const missingLocales = state.locale.filter(userLocale =>
-        //           !localesForGuid.includes(userLocale)
-        //         );
-        //         if (missingLocales.length > 0) {
-        //           console.log(ansiColors.yellow(`⚠️  ${guid}: Missing locales ${missingLocales.join(', ')} (available: ${localesForGuid.join(', ')})`));
-        //         }
-
-        //         // Fallback if no user locales exist for this GUID
-        //         if (finalLocalesForGuid.length === 0) {
-        //           console.log(ansiColors.yellow(`⚠️  ${guid}: None of the specified locales exist, using all available`));
-        //           finalLocalesForGuid = localesForGuid;
-        //         }
-        //       }
-
-        //       guidLocaleMap.set(guid, finalLocalesForGuid);
-        //       totalCombinations += finalLocalesForGuid.length;
-
-        //       // Add to set of all detected locales
-        //       finalLocalesForGuid.forEach(locale => allDetectedLocales.add(locale));
-
-        //       console.log(`${guid}: ${finalLocalesForGuid.join(', ')}`);
-        //     } catch (error) {
-        //       console.log(ansiColors.yellow(`⚠️  Could not get locales for ${guid}: ${error.message}`));
-        //       const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ['en-us'];
-        //       guidLocaleMap.set(guid, fallbackLocales);
-        //       totalCombinations += fallbackLocales.length;
-        //     }
-        //   }
-        // }
-
-        // // Store the per-GUID locale mapping in state
-        // state.guidLocaleMap = guidLocaleMap;
-        // state.availableLocales = Array.from(allDetectedLocales);
-
 
         // Show detailed matrix
         Array.from(guidLocaleMap.entries()).forEach(([guid, locales]) => {
-          console.log(`${guid} → ${locales.length} locale(s): ${locales.join(', ')}`);
+          console.log(`${guid} → ${locales.length} locale(s): ${locales.join(", ")}`);
         });
-
       } catch (error) {
         console.log(ansiColors.yellow(`Note: Could not auto-detect locales: ${error.message}`));
-        state.availableLocales = ['en-us']; // Fallback to default
+        state.availableLocales = ["en-us"]; // Fallback to default
 
         // Create fallback mapping for all GUIDs
         const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ["en-us"];
@@ -689,7 +642,7 @@ export class Auth {
       const userData = await this.getUser(guid);
 
       // Find the website access for this specific instance
-      const instanceAccess = userData.websiteAccess?.find(access => access.guid === guid);
+      const instanceAccess = userData.websiteAccess?.find((access) => access.guid === guid);
 
       if (!instanceAccess) {
         console.log(ansiColors.red(`❌ You do not have access to instance: ${guid}`));
@@ -792,8 +745,9 @@ export class Auth {
 
     // Check command-specific requirements
     switch (commandType) {
-      case 'pull':
-        if (!state.sourceGuid || state.sourceGuid.length === 0) missingFields.push('sourceGuid (use --sourceGuid or AGILITY_GUID in .env)');
+      case "pull":
+        if (!state.sourceGuid || state.sourceGuid.length === 0)
+          missingFields.push("sourceGuid (use --sourceGuid or AGILITY_GUID in .env)");
 
         // Check for locales: either user-specified OR auto-detected per-GUID mappings
         const hasUserLocales = state.locale && state.locale.length > 0;
@@ -802,12 +756,13 @@ export class Auth {
           missingFields.push("locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)");
         }
 
-        if (!state.channel) missingFields.push('channel (use --channel or AGILITY_WEBSITE in .env)');
+        if (!state.channel) missingFields.push("channel (use --channel or AGILITY_WEBSITE in .env)");
         break;
 
-      case 'sync':
-        if (!state.sourceGuid || state.sourceGuid.length === 0) missingFields.push('sourceGuid (use --sourceGuid or AGILITY_GUID in .env)');
-        if (!state.targetGuid || state.targetGuid.length === 0) missingFields.push('targetGuid (use --targetGuid)');
+      case "sync":
+        if (!state.sourceGuid || state.sourceGuid.length === 0)
+          missingFields.push("sourceGuid (use --sourceGuid or AGILITY_GUID in .env)");
+        if (!state.targetGuid || state.targetGuid.length === 0) missingFields.push("targetGuid (use --targetGuid)");
 
         // Check for locales: either user-specified OR auto-detected per-GUID mappings
         const hasSyncUserLocales = state.locale && state.locale.length > 0;
@@ -816,7 +771,7 @@ export class Auth {
           missingFields.push("locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)");
         }
 
-        if (!state.channel) missingFields.push('channel (use --channel or AGILITY_WEBSITE in .env)');
+        if (!state.channel) missingFields.push("channel (use --channel or AGILITY_WEBSITE in .env)");
         break;
 
       case "clean":
@@ -844,7 +799,9 @@ export class Auth {
       if (commandType === "sync" && state.targetGuid && state.targetGuid.length > 0) {
         // Sync operation - validate access to both source and target (use first GUID for validation)
         if (!shouldSkip) {
-          await this.validateInstanceAccess(state.sourceGuid[0], "source");
+          if (!state.isAgilityDev && !state.dev && !state.local) {
+            await this.validateInstanceAccess(state.sourceGuid[0], "source");
+          }
           await this.validateInstanceAccess(state.targetGuid[0], "target");
         }
 
@@ -869,8 +826,7 @@ export class Auth {
           );
           return false;
         }
-
-      } else if (commandType === 'pull' && state.sourceGuid && state.sourceGuid.length > 0) {
+      } else if (commandType === "pull" && state.sourceGuid && state.sourceGuid.length > 0) {
         // Pull operation - validate source access and get API keys (use first source GUID for validation)
         if (!shouldSkip) {
           await this.validateInstanceAccess(state.sourceGuid[0], "instance");
@@ -948,10 +904,12 @@ export class Auth {
     for (const field of requiredFields) {
       if (!params[field as keyof typeof params]) {
         switch (field) {
-          case 'sourceGuid':
-            errors.push("Please provide a sourceGuid or ensure you are in a directory with a valid .env file containing a GUID.");
+          case "sourceGuid":
+            errors.push(
+              "Please provide a sourceGuid or ensure you are in a directory with a valid .env file containing a GUID."
+            );
             break;
-          case 'targetGuid':
+          case "targetGuid":
             errors.push("Please provide a targetGuid.");
             break;
           case "locale":

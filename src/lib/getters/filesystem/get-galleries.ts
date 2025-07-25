@@ -1,5 +1,6 @@
 import * as mgmtApi from '@agility/management-sdk';
 import { fileOperations } from '../../../core';
+import ansiColors from 'ansi-colors';
 
 /**
  * Get galleries from filesystem without side effects
@@ -11,6 +12,7 @@ export function getGalleriesFromFileSystem(
 ): mgmtApi.assetMediaGrouping[] {
     const galleryLists = fileOps.readJsonFilesFromFolder('assets/galleries');
     
+
     // Flatten assetMediaGroupings arrays (exact logic from ChainDataLoader)
     const allGalleries = galleryLists.flatMap((galleryList: any) => 
         galleryList.assetMediaGroupings || []

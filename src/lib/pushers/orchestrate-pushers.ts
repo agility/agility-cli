@@ -192,6 +192,8 @@ export class Pushers {
         // Get the specific data array for this element type
         const elementData = sourceData[config.dataKey as keyof GuidEntities] || [];
 
+        console.log(ansiColors.yellow("elementData"), elementData.slice(0, 3))
+
         // Skip if no data for this element type or element not requested
         if (Array.isArray(elementData) && elementData.length === 0 || !elements.some(element => config.elements.includes(element))) {
           console.log(ansiColors.gray(`Skipping ${config.description} - no data or not requested`));
