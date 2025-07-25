@@ -34,7 +34,7 @@ export async function downloadSyncSDKByLocaleAndChannel(
 ): Promise<void> {
 
 
-  console.log(`\nDownloading GUID: ${guid} | Locale: ${locale}`);
+  console.log(`\nDownloading GUID: ${guid} | Locale: ${locale} | Channel: ${channel}`);
   const fileOps = new fileOperations(guid, locale);
 
   // Get API keys for this specific GUID
