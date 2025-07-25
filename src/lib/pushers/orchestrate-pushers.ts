@@ -5,7 +5,6 @@ import { GuidDataLoader, GuidEntities, ModelFilterOptions } from './guid-data-lo
 import { PusherResult, SourceData } from '../../types/sourceData';
 import { state } from '../../core/state';
 import { PUSH_OPERATIONS, PushOperationsRegistry, PushOperationConfig } from './push-operations-config';
-import { Logs } from 'core/logs';
 
 export interface PushResults {
   successful: string[];
@@ -46,9 +45,9 @@ export class Pushers {
   /**
    * Execute all push operations for source to target GUID
    */
-  async guidPusher(sourceGuid: string, targetGuid: string, locale: string, channel: string): Promise<PushResults> {
+  async guidPusher(sourceGuid: string, targetGuid: string, locale: string): Promise<PushResults> {
     const startTime = Date.now();
-    // const log = new Logs(sourceGuid, targetGuid, locale, channel);
+
     const results: PushResults = {
       successful: [],
       failed: [],
@@ -100,8 +99,8 @@ export class Pushers {
       results.totalDuration = Date.now() - startTime;
 
       try {
-        // const logFilePath = this.fileOps.finalizeLogFile("push");
-        // results.logFilePath = logFilePath;
+        const logFilePath = this.fileOps.finalizeLogFile("push");
+        results.logFilePath = logFilePath;
       } catch (logError: any) {
         console.error(`${sourceGuid}→${targetGuid}: Could not finalize log file - ${logError.message}`);
       }
@@ -163,8 +162,7 @@ export class Pushers {
   private async executePushersInOrder(
     sourceData: GuidEntities,
     targetData: GuidEntities,
-    locale: string,
-    channel: string
+    locale: string
   ): Promise<{
     totalSuccess: number;
     totalFailures: number;
@@ -206,7 +204,7 @@ export class Pushers {
 
         this.config.onOperationStart?.(config.name, state.sourceGuid[0], state.targetGuid[0]);
 
-        const pusherResult: PusherResult = await config.handler(sourceData, targetData);
+        const pusherResult: PusherResult = await config.handler(sourceData, targetData, locale);
 
         // Accumulate results using standardized pattern
         totalSuccess += pusherResult.successful || 0;
