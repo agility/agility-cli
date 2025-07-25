@@ -379,7 +379,6 @@ export class Auth {
         if (state.targetGuid.length > 0) {
           targetLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.targetGuid[0])).map(
             (locale: any) => {
-              console.log(ansiColors.red("locale"), locale);
               return locale.localeCode;
             }
           );
@@ -387,7 +386,7 @@ export class Auth {
 
         // MAKE SURE THAT the TARGET has the same locales as the SOURCE
         const missingLocales = sourceLocales.filter((locale) => !targetLocales.includes(locale));
-        if (missingLocales.length > 0 && state.locale.length === 0) {
+        if (missingLocales.length > 0 && state.locale.length === 0) { // TODO: REMOVE ON PR 
           // console.log(ansiColors.red("missingLocales"), missingLocales)
           console.log(
             ansiColors.yellow(
@@ -422,10 +421,6 @@ export class Auth {
         state.guidLocaleMap = guidLocaleMap;
 
 
-        // Show detailed matrix
-        Array.from(guidLocaleMap.entries()).forEach(([guid, locales]) => {
-          console.log(`${guid} → ${locales.length} locale(s): ${locales.join(", ")}`);
-        });
       } catch (error) {
         console.log(ansiColors.yellow(`Note: Could not auto-detect locales: ${error.message}`));
         state.availableLocales = ["en-us"]; // Fallback to default

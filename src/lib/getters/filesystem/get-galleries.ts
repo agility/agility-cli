@@ -10,7 +10,7 @@ import ansiColors from 'ansi-colors';
 export function getGalleriesFromFileSystem(
     fileOps: fileOperations
 ): mgmtApi.assetMediaGrouping[] {
-    const galleryLists = fileOps.readJsonFilesFromFolder('assets/galleries');
+    const galleryLists = fileOps.readJsonFilesFromFolder('galleries');
     
 
     // Flatten assetMediaGroupings arrays (exact logic from ChainDataLoader)

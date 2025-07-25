@@ -22,6 +22,7 @@ export class Push {
     // Determine if this is a sync operation by checking if both source and target GUIDs exist
     const isSync = state.sourceGuid.length > 0 && state.targetGuid.length > 0;
     initializeLogger(isSync ? "sync" : "push");
+    const logger = getLogger();
 
     // TODO: Add support for multiple GUIDs, multiple locales, multiple chanels
     // Currently only supports one GUID, one locale, one channel
@@ -44,6 +45,10 @@ export class Push {
     // pull the instance data
     const pull = new Pull();
     await pull.pullInstances(true);
+    
+    // Re-initialize logger after pull operation (pull finalizes its logger)
+    initializeLogger(isSync ? "sync" : "push");
+    
     // CONSOLE.LOG - Calculate total operations using per-GUID locale mapping
     let totalOperations = 0;
     const operationDetails: string[] = [];
@@ -87,8 +92,14 @@ export class Push {
 
       // Use the orchestrator summary function to handle all completion logic
       const logger = getLogger();
+        
       if (logger) {
-        logger.orchestratorSummary(results, totalElapsedTime, success);
+        
+        const logFilePaths = results
+        .map(res => res.logFilePath)
+        .filter(path => path);
+      
+        logger.orchestratorSummary(results, totalElapsedTime, success, logFilePaths);
       }
 
       finalizeLogger(); // Finalize global logger if it exists
@@ -106,7 +117,7 @@ export class Push {
       finalizeLogger(); // Finalize logger even on error
       
       // Only exit if not called from another operation
-      process.exit(1);
+      // process.exit(1);
       
       throw error; // Let calling code handle error response
     }
