@@ -18,68 +18,12 @@ export async function downloadAllGalleries(
   }
   
   logger.startTimer();
-  // Helper function to get local gallery metadata
-  // function getLocalGalleryInfo(filePath: string): { modifiedOn?: string; exists: boolean } {
-  //   try {
-  //     if (!fileOps.checkFileExists(filePath)) {
-  //       return { exists: false };
-  //     }
-  //     const content = JSON.parse(fileOps.readFile(filePath));
-  //     // Gallery files contain assetMediaGroupings arrays, find the most recent modifiedOn
-  //     if (content.assetMediaGroupings && Array.isArray(content.assetMediaGroupings)) {
-  //       const dates = content.assetMediaGroupings
-  //         .map((g: any) => g.modifiedOn)
-  //         .filter((date: any) => date)
-  //         .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime());
-  //       return {
-  //         modifiedOn: dates[0],
-  //         exists: true
-  //       };
-  //     }
-  //     return { exists: true };
-  //   } catch (error) {
-  //     return { exists: false };
-  //   }
-  // }
-
-  // Helper function to check if gallery needs download based on modifiedOn date
-  function shouldDownloadGallery(apiGalleries: any[], localInfo: { modifiedOn?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
-
-    if(state.update === false){
-      return { shouldDownload: false, reason: '' };
-    }
-
-    if (!localInfo.exists) {
-      return { shouldDownload: true, reason: 'new file' };
-    }
-
-    if (!localInfo.modifiedOn || !apiGalleries || apiGalleries.length === 0) {
-      return { shouldDownload: true, reason: 'missing date info' };
-    }
-
-    // Find the most recent modifiedOn date from API galleries
-    const apiDates = apiGalleries
-      .map((g: any) => g.modifiedOn)
-      .filter((date: any) => date)
-      .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime());
-
-    if (apiDates.length === 0) {
-      return { shouldDownload: false, reason: 'unchanged' };
-    }
-
-    const apiDate = new Date(apiDates[0]);
-    const localDate = new Date(localInfo.modifiedOn);
-
-    if (apiDate > localDate) {
-      return { shouldDownload: true, reason: 'content changed' };
-    }
-
-    return { shouldDownload: false, reason: 'unchanged' };
-  }
 
   let index = 0;
   let skippedCount = 0;
   let downloadedCount = 0;
+
+  fileOps.createFolder("galleries");
 
   try {
     let initialRecords: mgmtApi.assetGalleries;
@@ -110,8 +54,6 @@ export async function downloadAllGalleries(
             skippedCount++;
           }
         }
- 
-
       index++;
     }
     

@@ -10,16 +10,20 @@ import ansiColors from 'ansi-colors';
 export function getGalleriesFromFileSystem(
     fileOps: fileOperations
 ): mgmtApi.assetMediaGrouping[] {
-    const galleryLists = fileOps.readJsonFilesFromFolder('galleries');
-    
 
-    // Flatten assetMediaGroupings arrays (exact logic from ChainDataLoader)
-    const allGalleries = galleryLists.flatMap((galleryList: any) => 
-        galleryList.assetMediaGroupings || []
-    );
+
+    const galleryFolder = fileOps.getDataFolderPath('galleries');
+    const galleryFiles = fileOps.getFolderContents(galleryFolder);
+   
+    const galleries = [];
+    for(const galleryFile of galleryFiles){
+        const gallery = fileOps.readJsonFile(`galleries/${galleryFile}`);
+        galleries.push(gallery);
+    }
+
     
     // Deduplicate galleries by mediaGroupingID to prevent double processing
-    const uniqueGalleries = allGalleries.filter((gallery, index, array) => 
+    const uniqueGalleries = galleries.filter((gallery, index, array) => 
         array.findIndex(g => g.mediaGroupingID === gallery.mediaGroupingID) === index
     );
     

@@ -213,6 +213,10 @@ export class fileOperations {
     return true;
   }
 
+  getFolderContents(folder: string) {
+    return fs.readdirSync(folder);
+  }
+
   async downloadFile(url: string, targetFile: string) {
     return await new Promise((resolve, reject) => {
       // Ensure the target directory exists
