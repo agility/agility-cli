@@ -206,7 +206,7 @@ export class Pushers {
 
         this.config.onOperationStart?.(config.name, state.sourceGuid[0], state.targetGuid[0]);
 
-        const pusherResult: PusherResult = await config.handler(sourceData, targetData, locale);
+        const pusherResult: PusherResult = await config.handler(sourceData, targetData);
 
         // Accumulate results using standardized pattern
         totalSuccess += pusherResult.successful || 0;
