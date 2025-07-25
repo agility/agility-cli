@@ -540,7 +540,7 @@ export class Auth {
         console.warn("Failed to parse token. Re-authentication required.");
       }
     } else {
-      // console.log("🔍 No token found in keychain. Starting auth flow...");
+      console.log(ansiColors.yellow("No token found in keychain. Starting auth flow..."));
     }
 
     const cliCode = await this.authorize();
@@ -830,7 +830,6 @@ export class Auth {
       missingFields.forEach(field => {
         console.log(ansiColors.red(`   • ${field}`));
       });
-      // console.log(ansiColors.yellow('\n💡 Tip: Create a .env file with your configuration to avoid specifying these every time.'));
       return false;
     }
 

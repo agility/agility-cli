@@ -213,7 +213,7 @@ yargs.command({
 
       getLogger().summary("pull", totalSuccessful, totalFailed, 0);
 
-      console.log(colors.cyan('Summary:'));
+      console.log(colors.cyan('\nSummary:'));
       console.log(`Processed ${result.results.length} GUID/locale combinations`);
       console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
       console.log(`Total time: ${timeDisplay}`);
