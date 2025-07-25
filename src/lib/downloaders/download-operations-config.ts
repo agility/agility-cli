@@ -36,7 +36,7 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
       await downloadAllGalleries(guid);
     },
     elements: ['Galleries'],
-    dependencies: ['Assets'] // Galleries require Assets to be meaningful
+    // dependencies: ['Assets'] // Galleries require Assets to be meaningful
   },
   assets: {
     name: 'downloadAllAssets',

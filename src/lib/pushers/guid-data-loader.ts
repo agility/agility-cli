@@ -79,7 +79,6 @@ export class GuidDataLoader {
         if (elements.includes('Galleries')) {
             const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
             const galleries = getGalleriesFromFileSystem(guidFileOps);
-            console.log(ansiColors.red("galleries"), this.guid, galleries.slice(0, 3))
             guidEntities.galleries = Array.isArray(galleries) ? galleries : [];
         }
 

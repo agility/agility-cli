@@ -414,10 +414,6 @@ export class Auth {
         state.guidLocaleMap = guidLocaleMap;
 
 
-        // Show detailed matrix
-        Array.from(guidLocaleMap.entries()).forEach(([guid, locales]) => {
-          console.log(`${guid} → ${locales.length} locale(s): ${locales.join(", ")}`);
-        });
       } catch (error) {
         console.log(ansiColors.yellow(`Note: Could not auto-detect locales: ${error.message}`));
         state.availableLocales = ["en-us"]; // Fallback to default

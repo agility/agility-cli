@@ -20,13 +20,11 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     name: 'pushGalleries',
     description: 'Push asset galleries and media groupings',
     handler: async (sourceData, targetData) => {
-
-      console.log(ansiColors.red("sourceData"), sourceData['galleries'].slice(0, 3))
       const { pushGalleries } = await import('./gallery-pusher');
       return await pushGalleries(sourceData['galleries'], targetData['galleries']);
     },
     elements: ['Galleries'],
-    dependencies: ['Assets'], // Galleries require Assets to be meaningful
+    // dependencies: ['Assets'], // Galleries require Assets to be meaningful
     dataKey: 'galleries'
   },
   assets: {

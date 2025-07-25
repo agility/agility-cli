@@ -2,7 +2,7 @@ import ansiColors from "ansi-colors";
 import { getState, setState } from "./state";
 import * as fs from "fs";
 import * as path from "path";
-import { generateLogHeader } from '../lib/shared';
+import { generateLogHeader } from "../lib/shared";
 
 export type OperationType = "pull" | "push" | "sync";
 
@@ -20,20 +20,24 @@ export type EntityType =
   | "system"
   | "summary";
 
-
 export type Action =
   | "downloaded"
   | "uploaded"
   | "skipped"
+  | "exists"
   | "reset"
   | "synced"
   | "update"
+  | "updated"
+  | "up-to-date"
   | "created"
   | "deleted"
   | "validated"
   | "authenticated"
   | "started"
   | "ended"
+  | "failed"
+  | "error"
   | "progressed";
 
 export type Status = "success" | "failed" | "skipped" | "conflict" | "pending" | "in_progress" | "info";
@@ -72,9 +76,19 @@ export class Logs {
   private entityType?: EntityType; // Store the entity type for this logger
   private guid?: string; // Store the GUID for this logger instance
   private availableColors: string[] = [
-    'magenta',  'cyan', 'yellow', 'blue', 'green', 
-    'gray',  'blackBright', 'redBright', 'greenBright', 
-    'yellowBright', 'blueBright', 'magentaBright', 'cyanBright'
+    "magenta",
+    "cyan",
+    "yellow",
+    "blue",
+    "green",
+    "gray",
+    "blackBright",
+    "redBright",
+    "greenBright",
+    "yellowBright",
+    "blueBright",
+    "magentaBright",
+    "cyanBright",
   ];
 
   constructor(operationType: OperationType, entityType?: EntityType, guid?: string) {
@@ -82,15 +96,15 @@ export class Logs {
     this.entityType = entityType;
     this.guid = guid;
     this.startTime = new Date();
-    
+
     // Default configuration
     this.config = {
       logToConsole: true,
       logToFile: true,
       showColors: true,
-      useStructuredFormat: true
+      useStructuredFormat: true,
     };
-    
+
     this.initializeGuidColors();
   }
 
@@ -119,7 +133,7 @@ export class Logs {
    * Single logging function - handles everything based on configuration
    */
   log(logLevel: LogLevel, message: string, entity?: any): void {
-    // Check if we should log this level   
+    // Check if we should log this level
     const logEntry: LogEntry = {
       logLevel,
       message,
@@ -143,23 +157,39 @@ export class Logs {
   changeDetectionSummary(entityType: EntityType, successful: number, skipped: number): void {
     const parts: string[] = [];
 
-    const successFormat = successful > 0 ? `${ansiColors.green(successful.toString())}` : `${ansiColors.gray(successful.toString())}`;
-    const skippedFormat = skipped > 0 ? `${ansiColors.yellow(skipped.toString())}` : `${ansiColors.gray(skipped.toString())}`;
-   const circle = this.config.showColors ? ansiColors.yellow("○ ") : "○ ";
-   const halfCircle = this.config.showColors ? ansiColors.green("◐ ") : "◐ ";
-   const icon = successful > 0 ? halfCircle : circle;
-//    const fullCircle = this.config.showColors ? ansiColors.yellow("") : "◑ ";
-   
+    const successFormat =
+      successful > 0 ? `${ansiColors.green(successful.toString())}` : `${ansiColors.gray(successful.toString())}`;
+    const skippedFormat =
+      skipped > 0 ? `${ansiColors.yellow(skipped.toString())}` : `${ansiColors.gray(skipped.toString())}`;
+    const circle = this.config.showColors ? ansiColors.yellow("○ ") : "○ ";
+    const halfCircle = this.config.showColors ? ansiColors.green("◐ ") : "◐ ";
+    const icon = successful > 0 ? halfCircle : circle;
+    //    const fullCircle = this.config.showColors ? ansiColors.yellow("") : "◑ ";
+
     // Pluralize and always show zero counts for clarity
     parts.push(successFormat + ansiColors.gray(" to download"));
     parts.push(skippedFormat + ansiColors.gray(" unchanged"));
 
     const capitalizedEntityType = entityType.charAt(0).toUpperCase() + entityType.slice(1);
-    const message = ansiColors.gray(`${icon} ${capitalizedEntityType} change detection summary:`) + " " + parts.join(" ");
+    const message =
+      ansiColors.gray(`${icon}${capitalizedEntityType} change detection summary:`) + " " + parts.join(" ");
     this.info(message);
   }
 
-
+  syncOperationsSummary(entityType: EntityType, successful: number, skipped: number): void {
+    const parts: string[] = [];
+    const successFormat =
+      successful > 0 ? `${ansiColors.green(successful.toString())}` : `${ansiColors.gray(successful.toString())}`;
+    const skippedFormat =
+      skipped > 0 ? `${ansiColors.yellow(skipped.toString())}` : `${ansiColors.gray(skipped.toString())}`;
+    const circle = this.config.showColors ? ansiColors.yellow("○ ") : "○ ";
+    const halfCircle = this.config.showColors ? ansiColors.green("◐ ") : "◐ ";
+    const icon = successful > 0 ? halfCircle : circle;
+    const capitalizedEntityType = entityType.charAt(0).toUpperCase() + entityType.slice(1);
+    const message =
+      ansiColors.gray(`${icon}${capitalizedEntityType} sync operations summary:`) + " " + parts.join(" ");
+    this.info(message);
+  }
 
   /**
    * Simple info logging method
@@ -202,7 +232,7 @@ export class Logs {
   error(message: string, entity?: any): void {
     this.log("ERROR", message);
   }
-  
+
   warning(message: string, entity?: any): void {
     this.log("WARN", message);
   }
@@ -253,27 +283,25 @@ export class Logs {
     }
 
     if (this.config.useStructuredFormat) {
-      const guidDisplay = guid ? this.formatGuidWithColor(guid) : "";
-      const styledItemName = itemName && this.config.showColors ? ansiColors.cyan.underline(itemName) : itemName;
+      const guidDisplay = guid ? status === "success" ? ansiColors.green(this.formatGuidWithColor(guid)) : status === "failed" ? ansiColors.red(`[${guid}]`) : this.formatGuidWithColor(guid) : "";
+      const styledItemName = itemName && this.config.showColors ? status === "success" ? ansiColors.green.underline(itemName) : status === "failed" ? ansiColors.red.underline(itemName) : ansiColors.cyan.underline(itemName) : itemName;
       const styledDetails = details && this.config.showColors ? ansiColors.gray(details) : details;
       const detailsDisplay = styledDetails ? ` ${styledDetails}` : "";
-      const actionDisplay = this.config.showColors ? ansiColors.gray(action) : action;
-      const localeDisplay = locale && this.config.showColors ? ansiColors.gray(`[${locale}]`) : locale ? `[${locale}]` : "";
-      const entityTypeDisplay = 
-      
-      message = `${symbol}${guidDisplay}${localeDisplay ? `${localeDisplay}` : ""} ${entityType} ${styledItemName}${detailsDisplay} ${actionDisplay}`;
+      const actionDisplay = this.config.showColors ? status === "success" ? ansiColors.gray(action) : status === "failed" ? ansiColors.red(action) : ansiColors.gray(action) : action;
+      const localeDisplay =
+        locale && this.config.showColors ? ansiColors.gray(`[${locale}]`) : locale ? `[${locale}]` : "";
+      const styledEntityType = entityType && this.config.showColors ? status === "success" ? ansiColors.white(entityType) : status === "failed" ? ansiColors.red(entityType) : ansiColors.white(entityType) : entityType;
+
+    const entityTypeDisplay = (message = `${symbol}${guidDisplay}${
+        localeDisplay ? `${localeDisplay}` : ""
+      } ${styledEntityType} ${styledItemName} ${actionDisplay}${detailsDisplay ? `\n ${detailsDisplay}` : ""}`);
     } else {
       const localeDisplay = locale ? ` [${locale}]` : "";
-      message = `${status}: ${entityType}${localeDisplay} ${itemName}${details ? ` ${details}` : ''} ${action}`;
+      message = `${status}: ${entityType}${localeDisplay} ${itemName}${details ? ` ${details}` : ""} ${action}`;
     }
 
     this.log("INFO", message);
   }
-
-
-
-
-
 
   /**
    * Single summary function - takes entity type and counts
@@ -334,9 +362,9 @@ export class Logs {
         // Count GUID occurrences in log messages to identify which GUID this logger belongs to
         const guidCounts = new Map<string, number>();
         const allGuids = [...(state.sourceGuid || []), ...(state.targetGuid || [])];
-        
-        this.logs.forEach(log => {
-          allGuids.forEach(guid => {
+
+        this.logs.forEach((log) => {
+          allGuids.forEach((guid) => {
             if (log.message.includes(`[${guid}]`)) {
               guidCounts.set(guid, (guidCounts.get(guid) || 0) + 1);
             }
@@ -354,9 +382,9 @@ export class Logs {
       }
 
       // Build filename with GUID
-      if (this.operationType === 'push' || this.operationType === 'sync') {
-        const sourceGuid = state.sourceGuid?.[0] || 'unknown';
-        const targetGuid = state.targetGuid?.[0] || 'unknown';
+      if (this.operationType === "push" || this.operationType === "sync") {
+        const sourceGuid = state.sourceGuid?.[0] || "unknown";
+        const targetGuid = state.targetGuid?.[0] || "unknown";
         filename = `${sourceGuid}-${targetGuid}-${this.operationType}-${timestamp}.txt`;
       } else {
         // For pull operations, use the specific GUID this logger is for
@@ -402,17 +430,17 @@ export class Logs {
   /**
    * Get logs by level (for debugging)
    */
-//   getLogsByLevel(level: LogLevel): LogEntry[] {
-//     return this.logs.filter((log) => log.logLevel === level);
-//   }
+  //   getLogsByLevel(level: LogLevel): LogEntry[] {
+  //     return this.logs.filter((log) => log.logLevel === level);
+  //   }
 
   // Private helper methods
-//   private shouldLog(level: LogLevel): boolean {
-//     const levels = ["DEBUG", "INFO", "WARN", "ERROR"];
-//     const currentLevelIndex = levels.indexOf(this.config.minLevel);
-//     const logLevelIndex = levels.indexOf(level);
-//     return logLevelIndex >= currentLevelIndex;
-//   }
+  //   private shouldLog(level: LogLevel): boolean {
+  //     const levels = ["DEBUG", "INFO", "WARN", "ERROR"];
+  //     const currentLevelIndex = levels.indexOf(this.config.minLevel);
+  //     const logLevelIndex = levels.indexOf(level);
+  //     return logLevelIndex >= currentLevelIndex;
+  //   }
 
   private outputToConsole(log: LogEntry): void {
     let output = log.message;
@@ -420,7 +448,7 @@ export class Logs {
     // Only apply color formatting if the message doesn't already contain ANSI codes
     // This preserves custom styling from logDataElement
     const hasAnsiCodes = /\x1b\[[0-9;]*m/.test(log.message);
-    
+
     if (this.config.showColors && !hasAnsiCodes) {
       switch (log.logLevel) {
         case "ERROR":
@@ -467,11 +495,8 @@ export class Logs {
    */
   private initializeGuidColors(): void {
     const state = getState();
-    const allGuids = [
-      ...(state.sourceGuid || []),
-      ...(state.targetGuid || [])
-    ];
-    
+    const allGuids = [...(state.sourceGuid || []), ...(state.targetGuid || [])];
+
     // Assign unique colors to each GUID
     allGuids.forEach((guid, index) => {
       if (guid && !this.guidColorMap.has(guid)) {
@@ -488,14 +513,14 @@ export class Logs {
     if (!this.config.showColors) {
       return `[${guid}]`;
     }
-    
-    const colorName = this.guidColorMap.get(guid) || 'gray';
+
+    const colorName = this.guidColorMap.get(guid) || "gray";
     const colorFunction = (ansiColors as any)[colorName];
-    
+
     if (colorFunction) {
       return colorFunction(`[${guid}]`);
     }
-    
+
     return `[${guid}]`;
   }
 
@@ -533,202 +558,221 @@ export class Logs {
   // Asset logging methods
   asset = {
     downloaded: (entity: any, details?: string) => {
-      const itemName = entity?.fileName || entity?.name || `Asset ${entity?.mediaID || 'Unknown'}`;
+      const itemName = entity?.fileName || entity?.name || `Asset ${entity?.mediaID || "Unknown"}`;
       this.logDataElement("asset", "downloaded", "success", itemName, this.guid, details);
     },
-    
+
     uploaded: (entity: any, details?: string) => {
-      const itemName = entity?.fileName || entity?.name || `Asset ${entity?.mediaID || 'Unknown'}`;
+      const itemName = entity?.fileName || entity?.name || `Asset ${entity?.mediaID || "Unknown"}`;
       this.logDataElement("asset", "uploaded", "success", itemName, this.guid, details);
     },
-    
+
     skipped: (entity: any, details?: string) => {
-      const itemName = entity?.fileName || entity?.name || `Asset ${entity?.mediaID || 'Unknown'}`;
+      const itemName = entity?.fileName || entity?.name || `Asset ${entity?.mediaID || "Unknown"}`;
       this.logDataElement("asset", "skipped", "skipped", itemName, this.guid, details);
     },
-    
+
     error: (payload: any, apiError: any) => {
-      const itemName = payload?.fileName || payload?.name || `Asset ${payload?.mediaID || 'Unknown'}`;
-      const errorDetails = apiError?.message || apiError || 'Unknown error';
+      const itemName = payload?.fileName || payload?.name || `Asset ${payload?.mediaID || "Unknown"}`;
+      const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
-      // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
-    }
+      this.logDataElement("asset", "failed", "failed", itemName, this.guid, errorDetails);
+
+      const asset = payload?.asset || payload;
+      console.log('error',asset)
+
+    },
   };
 
   // Model logging methods
   model = {
     downloaded: (entity: any, details?: string) => {
-      const itemName = entity?.referenceName || entity?.displayName || `Model ${entity?.id || 'Unknown'}`;
+      const itemName = entity?.referenceName || entity?.displayName || `Model ${entity?.id || "Unknown"}`;
       this.logDataElement("model", "downloaded", "success", itemName, this.guid, details);
     },
-    
+
     uploaded: (entity: any, details?: string) => {
-      const itemName = entity?.referenceName || entity?.displayName || `Model ${entity?.id || 'Unknown'}`;
+      const itemName = entity?.referenceName || entity?.displayName || `Model ${entity?.id || "Unknown"}`;
       this.logDataElement("model", "uploaded", "success", itemName, this.guid, details);
     },
-    
+
     skipped: (entity: any, details?: string) => {
-      const itemName = entity?.referenceName || entity?.displayName || `Model ${entity?.id || 'Unknown'}`;
+      const itemName = entity?.referenceName || entity?.displayName || `Model ${entity?.id || "Unknown"}`;
       this.logDataElement("model", "skipped", "skipped", itemName, this.guid, details);
     },
-    
+
     error: (payload: any, apiError: any) => {
-      const itemName = payload?.referenceName || payload?.displayName || `Model ${payload?.id || 'Unknown'}`;
-      const errorDetails = apiError?.message || apiError || 'Unknown error';
+      const itemName = payload?.referenceName || payload?.displayName || `Model ${payload?.id || "Unknown"}`;
+      const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
       // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
-    }
+    },
   };
 
   // Container logging methods
   container = {
     downloaded: (entity: any, details?: string) => {
-      const itemName = entity?.referenceName || entity?.name || `Container ${entity?.contentViewID || 'Unknown'}`;
+      const itemName = entity?.referenceName || entity?.name || `Container ${entity?.contentViewID || "Unknown"}`;
       this.logDataElement("container", "downloaded", "success", itemName, this.guid, details);
     },
-    
+
     uploaded: (entity: any, details?: string) => {
-      const itemName = entity?.referenceName || entity?.name || `Container ${entity?.contentViewID || 'Unknown'}`;
+      const itemName = entity?.referenceName || entity?.name || `Container ${entity?.contentViewID || "Unknown"}`;
       this.logDataElement("container", "uploaded", "success", itemName, this.guid, details);
     },
-    
+
     skipped: (entity: any, details?: string) => {
-      const itemName = entity?.referenceName || entity?.name || `Container ${entity?.contentViewID || 'Unknown'}`;
+      const itemName = entity?.referenceName || entity?.name || `Container ${entity?.contentViewID || "Unknown"}`;
       this.logDataElement("container", "skipped", "skipped", itemName, this.guid, details);
     },
-    
+
     error: (payload: any, apiError: any) => {
-      const itemName = payload?.referenceName || payload?.name || `Container ${payload?.contentViewID || 'Unknown'}`;
-      const errorDetails = apiError?.message || apiError || 'Unknown error';
+      const itemName = payload?.referenceName || payload?.name || `Container ${payload?.contentViewID || "Unknown"}`;
+      const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
       // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
-    }
+    },
   };
 
   // Content Item logging methods
   contentitem = {
     downloaded: (entity: any, details?: string, locale?: string) => {
-    
-      const itemName = entity?.fields?.title || entity?.fields?.name || entity?.properties?.referenceName || `${entity?.contentID || 'Unknown'}`;
+      const itemName =
+        entity?.fields?.title ||
+        entity?.fields?.name ||
+        entity?.properties?.referenceName ||
+        `${entity?.contentID || "Unknown"}`;
       this.logDataElement("content", "downloaded", "success", itemName, this.guid, details, locale);
     },
-    
+
     uploaded: (entity: any, details?: string, locale?: string) => {
-      const itemName = entity?.fields?.title || entity?.fields?.name || `Content ${entity?.contentID || 'Unknown'}`;
+      const itemName = entity?.fields?.title || entity?.fields?.name || `Content ${entity?.contentID || "Unknown"}`;
       this.logDataElement("content", "uploaded", "success", itemName, this.guid, details, locale);
     },
-    
+
     skipped: (entity: any, details?: string, locale?: string) => {
-      const itemName = entity?.fields?.title || entity?.fields?.name || `Content ${entity?.contentID || 'Unknown'}`;
+      const itemName = entity?.fields?.title || entity?.fields?.name || `Content ${entity?.contentID || "Unknown"}`;
       this.logDataElement("content", "skipped", "skipped", itemName, this.guid, details, locale);
     },
-    
+
     error: (payload: any, apiError: any, locale?: string) => {
-      const itemName = payload?.fields?.title || payload?.fields?.name || `Content ${payload?.contentID || 'Unknown'}`;
-      const errorDetails = apiError?.message || apiError || 'Unknown error';
+      const itemName = payload?.fields?.title || payload?.fields?.name || `Content ${payload?.contentID || "Unknown"}`;
+      const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
       // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
-    }
+    },
   };
 
   // Template logging methods
   template = {
     downloaded: (entity: any, details?: string) => {
-      const itemName = entity?.pageTemplateName || entity?.name || `Template ${entity?.pageTemplateID || 'Unknown'}`;
+      const itemName = entity?.pageTemplateName || entity?.name || `Template ${entity?.pageTemplateID || "Unknown"}`;
       this.logDataElement("template", "downloaded", "success", itemName, this.guid, details);
     },
-    
+
     uploaded: (entity: any, details?: string) => {
-      const itemName = entity?.pageTemplateName || entity?.name || `Template ${entity?.pageTemplateID || 'Unknown'}`;
+      const itemName = entity?.pageTemplateName || entity?.name || `Template ${entity?.pageTemplateID || "Unknown"}`;
       this.logDataElement("template", "uploaded", "success", itemName, this.guid, details);
     },
-    
+
     skipped: (entity: any, details?: string) => {
-      const itemName = entity?.pageTemplateName || entity?.name || `Template ${entity?.pageTemplateID || 'Unknown'}`;
+      const itemName = entity?.pageTemplateName || entity?.name || `Template ${entity?.pageTemplateID || "Unknown"}`;
       this.logDataElement("template", "skipped", "skipped", itemName, this.guid, details);
     },
-    
+
     error: (payload: any, apiError: any) => {
-      const itemName = payload?.pageTemplateName || payload?.name || `Template ${payload?.pageTemplateID || 'Unknown'}`;
-      const errorDetails = apiError?.message || apiError || 'Unknown error';
+      const itemName = payload?.pageTemplateName || payload?.name || `Template ${payload?.pageTemplateID || "Unknown"}`;
+      const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
       // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
-    }
+    },
   };
 
   // Page logging methods
   page = {
     downloaded: (entity: any, details?: string, locale?: string) => {
-      const itemName = entity?.name || entity?.menuText || `Page ${entity?.pageID || 'Unknown'}`;
+      const itemName = entity?.name || entity?.menuText || `Page ${entity?.pageID || "Unknown"}`;
       this.logDataElement("page", "downloaded", "success", itemName, this.guid, details, locale);
     },
-    
+
     uploaded: (entity: any, details?: string, locale?: string) => {
-      const itemName = entity?.name || entity?.menuText || `Page ${entity?.pageID || 'Unknown'}`;
+      const itemName = entity?.name || entity?.menuText || `Page ${entity?.pageID || "Unknown"}`;
       this.logDataElement("page", "uploaded", "success", itemName, this.guid, details, locale);
     },
-    
+
     skipped: (entity: any, details?: string, locale?: string) => {
-      const itemName = entity?.name || entity?.menuText || `Page ${entity?.pageID || 'Unknown'}`;
+      const itemName = entity?.name || entity?.menuText || `Page ${entity?.pageID || "Unknown"}`;
       this.logDataElement("page", "skipped", "skipped", itemName, this.guid, details, locale);
     },
-    
+
     error: (payload: any, apiError: any, locale?: string) => {
-      const itemName = payload?.name || payload?.menuText || `Page ${payload?.pageID || 'Unknown'}`;
-      const errorDetails = apiError?.message || apiError || 'Unknown error';
+      const itemName = payload?.name || payload?.menuText || `Page ${payload?.pageID || "Unknown"}`;
+      const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
       // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
-    }
+    },
   };
 
   // Gallery logging methods
   gallery = {
     downloaded: (entity: any, details?: string) => {
-      const itemName = entity?.name || `Gallery ${entity?.id || 'Unknown'}`;
+      const itemName = entity?.name || `Gallery ${entity?.id || "Unknown"}`;
       this.logDataElement("gallery", "downloaded", "success", itemName, this.guid, details);
     },
-    
-    uploaded: (entity: any, details?: string) => {
-      const itemName = entity?.name || `Gallery ${entity?.id || 'Unknown'}`;
-      this.logDataElement("gallery", "uploaded", "success", itemName, this.guid, details);
+
+    created: (entity: any, details?: string) => {
+      const itemName = entity?.name || `Gallery ${entity?.id || "Unknown"}`;
+      this.logDataElement("gallery", "created", "success", itemName, this.guid, details);
+    },
+
+    updated: (entity: any, details?: string) => {
+      const itemName = entity?.name || `Gallery ${entity?.id || "Unknown"}`;
+      this.logDataElement("gallery", "updated", "success", itemName, this.guid, details);
     },
 
     skipped: (entity: any, details?: string) => {
       const itemName = entity?.name || `Gallery`;
       this.logDataElement("gallery", "skipped", "skipped", itemName, this.guid, details);
     },
-    
-    error: (payload: any, apiError: any) => {
-      const itemName = payload?.name || `Gallery ${payload?.id || 'Unknown'}`;
-      const errorDetails = apiError?.message || apiError || 'Unknown error';
+
+    exists: (entity: any, details?: string) => {
+      const itemName = entity?.name || `Gallery`;
+      this.logDataElement("gallery", "up-to-date", "skipped", itemName, this.guid, details);
+    },
+
+    error: (gallery: any, apiError: any, payload?:any) => {
+      const itemName = gallery?.name || `Gallery ${gallery?.id || "Unknown"}`;
+      const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
-      // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
-    }
+      this.logDataElement("gallery", "failed", "failed", itemName, this.guid, errorDetails);
+    //   console.log(ansiColors.red(JSON.stringify(apiError, null, 2)))
+    //   console.log(ansiColors.red(JSON.stringify(payload, null, 2)))
+    },
   };
 
-  // Sitemap logging methods  
+  // Sitemap logging methods
   sitemap = {
     downloaded: (entity: any, details?: string) => {
-      const itemName = entity?.name || 'sitemap.json';
+      const itemName = entity?.name || "sitemap.json";
       this.logDataElement("sitemap", "downloaded", "success", itemName, this.guid, details);
     },
-    
+
     uploaded: (entity: any, details?: string) => {
-      const itemName = entity?.name || 'sitemap.json';
+      const itemName = entity?.name || "sitemap.json";
       this.logDataElement("sitemap", "uploaded", "success", itemName, this.guid, details);
     },
-    
+
     skipped: (entity: any, details?: string) => {
-      const itemName = entity?.name || 'sitemap.json';
+      const itemName = entity?.name || "sitemap.json";
       this.logDataElement("sitemap", "skipped", "skipped", itemName, this.guid, details);
     },
-    
+
     error: (payload: any, apiError: any) => {
-      const itemName = payload?.name || 'sitemap.json';
-      const errorDetails = apiError?.message || apiError || 'Unknown error';
+      const itemName = payload?.name || "sitemap.json";
+      const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
       // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
-    }
+    },
   };
 
   /**
@@ -736,22 +780,22 @@ export class Logs {
    */
   logOperationHeader(): void {
     // Get current state information
-    const state = require('./state').getState();
-    
+    const state = require("./state").getState();
+
     const additionalInfo: Record<string, any> = {
-      'GUID': this.guid || 'Not specified',
-      'Operation Type': this.operationType,
-      'Entity Type': this.entityType || 'All entities',
-      'Source GUIDs': state.sourceGuid?.join(', ') || 'None',
-      'Target GUIDs': state.targetGuid?.join(', ') || 'None',
-      'Locales': this.guid ? (state.guidLocaleMap?.get(this.guid)?.join(', ') || 'Not specified') : 'Multiple',
-      'Channel': state.channel || 'Not specified',
-      'Elements': state.elements || 'All',
-      'Reset Mode': state.reset ? 'Full reset' : 'Incremental',
-      'Verbose': state.verbose ? 'Enabled' : 'Disabled',
-      'Preview Mode': state.isPreview ? 'Preview' : 'Live'
+      GUID: this.guid || "Not specified",
+      "Operation Type": this.operationType,
+      "Entity Type": this.entityType || "All entities",
+      "Source GUIDs": state.sourceGuid?.join(", ") || "None",
+      "Target GUIDs": state.targetGuid?.join(", ") || "None",
+      Locales: this.guid ? state.guidLocaleMap?.get(this.guid)?.join(", ") || "Not specified" : "Multiple",
+      Channel: state.channel || "Not specified",
+      Elements: state.elements || "All",
+      "Reset Mode": state.reset ? "Full reset" : "Incremental",
+      Verbose: state.verbose ? "Enabled" : "Disabled",
+      "Preview Mode": state.isPreview ? "Preview" : "Live",
     };
-    
+
     const header = generateLogHeader(this.operationType, additionalInfo);
     this.fileOnly(header);
   }
@@ -759,14 +803,9 @@ export class Logs {
   /**
    * Log orchestrator summary with timing, counts, and completion status
    */
-  orchestratorSummary(
-    results: any[], 
-    elapsedTime: number, 
-    success: boolean,
-    logFilePaths?: string[]
-  ): void {
-    const ansiColors = require('ansi-colors');
-    
+  orchestratorSummary(results: any[], elapsedTime: number, success: boolean, logFilePaths?: string[]): void {
+    const ansiColors = require("ansi-colors");
+
     // Calculate time display
     const totalElapsedSeconds = Math.floor(elapsedTime / 1000);
     const minutes = Math.floor(totalElapsedSeconds / 60);
@@ -777,7 +816,7 @@ export class Logs {
     let totalSuccessful = 0;
     let totalFailed = 0;
 
-    results.forEach(res => {
+    results.forEach((res) => {
       if (res.failed?.length > 0) {
         totalFailed++;
       } else {
@@ -789,29 +828,37 @@ export class Logs {
     this.summary(this.operationType, totalSuccessful, totalFailed, 0);
 
     // Console output
-    console.log(ansiColors.cyan('\nSummary:'));
+    console.log(ansiColors.cyan("\nSummary:"));
     console.log(`Processed ${results.length} GUID/locale combinations`);
     console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
     console.log(`Total time: ${timeDisplay}`);
 
     // Success/failure message
     if (success) {
-      console.log(ansiColors.green(`\n✓ ${this.operationType.charAt(0).toUpperCase() + this.operationType.slice(1)} completed successfully`));
-      
+      console.log(
+        ansiColors.green(
+          `\n✓ ${this.operationType.charAt(0).toUpperCase() + this.operationType.slice(1)} completed successfully`
+        )
+      );
+
       // Display log file paths if provided
       if (logFilePaths && logFilePaths.length > 0) {
-        console.log(ansiColors.cyan('\nLog Files:'));
-        logFilePaths.forEach(path => {
-          console.log(`  ${path}`);
+        console.log(ansiColors.cyan("\nLog Files:"));
+        logFilePaths.forEach((path) => {
+          console.log(`${path}`);
         });
       }
     } else {
-      console.log(ansiColors.red(`\n✗ ${this.operationType.charAt(0).toUpperCase() + this.operationType.slice(1)} completed with errors`));
-      
+      console.log(
+        ansiColors.red(
+          `\n✗ ${this.operationType.charAt(0).toUpperCase() + this.operationType.slice(1)} completed with errors`
+        )
+      );
+
       // Display log file paths even on errors
       if (logFilePaths && logFilePaths.length > 0) {
-        console.log(ansiColors.cyan('\nLog Files:'));
-        logFilePaths.forEach(path => {
+        console.log(ansiColors.cyan("\nLog Files:"));
+        logFilePaths.forEach((path) => {
           console.log(`  ${path}`);
         });
       }

@@ -128,6 +128,7 @@ export async function downloadAllAssets(guid: string): Promise<void> {
       if (downloadDecision.shouldDownload) {
         downloadableAssets.push({ asset, reason: downloadDecision.reason });
       } else {
+        logger.asset.skipped(asset);
         skippableAssets.push({ asset, reason: downloadDecision.reason });
       }
     }
@@ -176,7 +177,8 @@ export async function downloadAllAssets(guid: string): Promise<void> {
             }
           } else {
             // Asset without downloadable file - just metadata
-            logger.asset.downloaded(asset, asset.fileName);
+            logger.warning("Asset without downloadable file", asset);
+            // logger.asset.downloaded(asset);
             return { success: true, asset };
           }
         } catch (error: any) {

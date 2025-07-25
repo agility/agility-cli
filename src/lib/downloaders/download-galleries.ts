@@ -2,6 +2,7 @@ import { fileOperations } from "../../core/fileOperations";
 import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
 import ansiColors from "ansi-colors";
 import { getAllChannels } from "../shared/get-all-channels";
+import * as mgmtApi from "@agility/management-sdk";
 
 export async function downloadAllGalleries(
   guid: string,
@@ -18,28 +19,28 @@ export async function downloadAllGalleries(
   
   logger.startTimer();
   // Helper function to get local gallery metadata
-  function getLocalGalleryInfo(filePath: string): { modifiedOn?: string; exists: boolean } {
-    try {
-      if (!fileOps.checkFileExists(filePath)) {
-        return { exists: false };
-      }
-      const content = JSON.parse(fileOps.readFile(filePath));
-      // Gallery files contain assetMediaGroupings arrays, find the most recent modifiedOn
-      if (content.assetMediaGroupings && Array.isArray(content.assetMediaGroupings)) {
-        const dates = content.assetMediaGroupings
-          .map((g: any) => g.modifiedOn)
-          .filter((date: any) => date)
-          .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime());
-        return {
-          modifiedOn: dates[0],
-          exists: true
-        };
-      }
-      return { exists: true };
-    } catch (error) {
-      return { exists: false };
-    }
-  }
+  // function getLocalGalleryInfo(filePath: string): { modifiedOn?: string; exists: boolean } {
+  //   try {
+  //     if (!fileOps.checkFileExists(filePath)) {
+  //       return { exists: false };
+  //     }
+  //     const content = JSON.parse(fileOps.readFile(filePath));
+  //     // Gallery files contain assetMediaGroupings arrays, find the most recent modifiedOn
+  //     if (content.assetMediaGroupings && Array.isArray(content.assetMediaGroupings)) {
+  //       const dates = content.assetMediaGroupings
+  //         .map((g: any) => g.modifiedOn)
+  //         .filter((date: any) => date)
+  //         .sort((a: string, b: string) => new Date(b).getTime() - new Date(a).getTime());
+  //       return {
+  //         modifiedOn: dates[0],
+  //         exists: true
+  //       };
+  //     }
+  //     return { exists: true };
+  //   } catch (error) {
+  //     return { exists: false };
+  //   }
+  // }
 
   // Helper function to check if gallery needs download based on modifiedOn date
   function shouldDownloadGallery(apiGalleries: any[], localInfo: { modifiedOn?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
@@ -81,7 +82,7 @@ export async function downloadAllGalleries(
   let downloadedCount = 0;
 
   try {
-    let initialRecords;
+    let initialRecords: mgmtApi.assetGalleries;
     try {
       initialRecords = await apiClient.assetMethods.getGalleries(guid, "", 250, 0);
     } catch (error) {
@@ -89,54 +90,30 @@ export async function downloadAllGalleries(
       console.error(error);
       return;
     }
-
-    fileOps.createFolder("assets/galleries");
-    
-    // Process initial records
-    const initialFilePath = fileOps.getDataFolderPath(`assets/galleries/${index}.json`);
-    const localInfo = getLocalGalleryInfo(initialFilePath);
-    const downloadDecision = shouldDownloadGallery(initialRecords.assetMediaGroupings, localInfo);
-    
-    if (downloadDecision.shouldDownload) {
-      fileOps.exportFiles("assets/galleries", index, initialRecords);
-      logger.gallery.downloaded({name: `galleries/${index}.json`});
-      downloadedCount++;
-      
-    } else {
-      logger.gallery.skipped({name: `galleries/${index}.json`});
-      skippedCount++;
-    }
-
-    index++;
-
-    // Process remaining records in batches
-    for (let rowIndex = 500; rowIndex < initialRecords.totalCount; rowIndex += 500) {
-      const galleries = await apiClient.assetMethods.getGalleries(
-        guid,
-        "",
-        500,
-        rowIndex
-      );
-
-      const galleryFilePath = fileOps.getDataFolderPath(`assets/galleries/${index}.json`);
-      const localGalleryInfo = getLocalGalleryInfo(galleryFilePath);
-      const galleryDownloadDecision = shouldDownloadGallery(galleries.assetMediaGroupings, localGalleryInfo);
-      
-      if (galleryDownloadDecision.shouldDownload) {
-        fileOps.exportFiles("assets/galleries", index, galleries);
-        logger.gallery.downloaded(galleries);
-        downloadedCount++;
-        
-      } else {
-        skippedCount++;
-      }
+  
+    for(const gallery of initialRecords.assetMediaGroupings){
+        const filename = gallery.mediaGroupingID + ".json";
+        const localGallery = fileOps.readJsonFile(`galleries/${filename}`);
+        if(!localGallery){
+          fileOps.exportFiles("galleries", gallery.mediaGroupingID, gallery);
+          logger.gallery.downloaded(gallery);
+          downloadedCount++;
+        } else {
+          const incomingGalleryModifiedOn = new Date(gallery.modifiedOn);
+          const localGalleryModifiedOn = new Date(localGallery.modifiedOn);
+          if(incomingGalleryModifiedOn > localGalleryModifiedOn){
+            fileOps.exportFiles("galleries", gallery.mediaGroupingID, gallery);
+            logger.gallery.downloaded(gallery);
+            downloadedCount++;
+          } else {
+            logger.gallery.skipped(gallery);
+            skippedCount++;
+          }
+        }
+ 
 
       index++;
     }
-
-    // if(skippedCount > 0){
-    //   logger.gallery.skipped(null, `galleries-${index}.json`);
-    // }
     
     logger.endTimer();
     logger.summary("pull", downloadedCount, skippedCount, 0);

@@ -1,4 +1,4 @@
-import { getState } from '../../core/state';
+import { getState, initializeGuidLogger, finalizeGuidLogger } from '../../core/state';
 import { fileOperations } from '../../core/fileOperations';
 import ansiColors from 'ansi-colors';
 import { GuidDataLoader, GuidEntities, ModelFilterOptions } from './guid-data-loader';
@@ -59,8 +59,9 @@ export class Pushers {
     };
 
     try {
-      console.log(`Processing push operations from ${sourceGuid} to ${targetGuid}...`);
-
+      // Initialize GUID logger for this push operation
+      initializeGuidLogger(sourceGuid, "push");
+      
       // Load source and target data
       const sourceDataLoader = new GuidDataLoader(sourceGuid, locale);
       const targetDataLoader = new GuidDataLoader(targetGuid, locale);
@@ -94,9 +95,12 @@ export class Pushers {
       // Calculate final duration
       results.totalDuration = Date.now() - startTime;
 
+      // Finalize the GUID logger (this creates the log file with source and target GUIDs)
       try {
-        const logFilePath = this.fileOps.finalizeLogFile("push");
-        results.logFilePath = logFilePath;
+        const logFilePath = finalizeGuidLogger(sourceGuid);
+        if (logFilePath) {
+          results.logFilePath = logFilePath;
+        }
       } catch (logError: any) {
         console.error(`${sourceGuid}→${targetGuid}: Could not finalize log file - ${logError.message}`);
       }
@@ -113,8 +117,10 @@ export class Pushers {
 
       // Try to finalize log file even on error
       try {
-        const logFilePath = this.fileOps.finalizeLogFile("push");
-        results.logFilePath = logFilePath;
+        const logFilePath = finalizeGuidLogger(sourceGuid);
+        if (logFilePath) {
+          results.logFilePath = logFilePath;
+        }
       } catch (logError: any) {
         console.error(`${sourceGuid}→${targetGuid}: Could not finalize log file - ${logError.message}`);
       }
@@ -138,13 +144,14 @@ export class Pushers {
     const sourceGuid = sourceGuids[0];
     const targetGuid = targetGuids[0];
 
-    console.log(`Starting push operations from ${sourceGuid} to ${targetGuid}`);
-    console.log(`Elements: ${elements}`);
+    console.log('--------------------------------')
+    // console.log(`Starting push operations from ${sourceGuid} to ${targetGuid}`);
+    // console.log(`Elements: ${elements}`);
 
     let pushResults: PushResults[] = [];
 
     for (var locale of locales) {
-      console.log(`Processing locale: ${locale}`);
+      // console.log(`Processing locale: ${locale}`);
       const result = await this.guidPusher(sourceGuid, targetGuid, locale);
       pushResults.push(result);
     }
@@ -191,9 +198,6 @@ export class Pushers {
       for (const config of pusherConfig) {
         // Get the specific data array for this element type
         const elementData = sourceData[config.dataKey as keyof GuidEntities] || [];
-
-        console.log(ansiColors.yellow("elementData"), elementData.slice(0, 3))
-
         // Skip if no data for this element type or element not requested
         if (Array.isArray(elementData) && elementData.length === 0 || !elements.some(element => config.elements.includes(element))) {
           console.log(ansiColors.gray(`Skipping ${config.description} - no data or not requested`));

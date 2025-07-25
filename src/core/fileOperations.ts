@@ -260,6 +260,10 @@ export class fileOperations {
     fs.writeFileSync(filename, content);
   }
 
+  saveFileToPath(filename: string, content: string, filePath: string) {
+    fs.writeFileSync(path.join(filePath, filename), content);
+  }
+
   readFile(fileName: string) {
     const file = fs.readFileSync(fileName, "utf-8");
     return file;
@@ -480,7 +484,8 @@ export class fileOperations {
       const content = fs.readFileSync(absolutePath, 'utf8');
       return JSON.parse(content);
     } catch (error: any) {
-      console.warn(`[FileOps] Error reading JSON file ${absolutePath}: ${error.message}`);
+      return null;
+      // console.warn(`[FileOps] Error reading JSON file ${absolutePath}: ${error.message}`);
     }
   }
 
@@ -670,7 +675,7 @@ export class fileOperations {
       // This might happen if no logging occurred.
       // We can either create an empty one to signify the operation or just return an expected path.
       // For now, let's log a message and return the expected path if it were created.
-      console.warn(`\nLog file ${this._currentLogFilePath} not found. Cannot finalize.`);
+      // console.warn(`\nLog file ${this._currentLogFilePath} not found. Cannot finalize.`);
       const newLogFileName = `${operationType}-${semanticTimestamp}.txt`;
       return path.join(this._instanceLogDir, newLogFileName);
     }
