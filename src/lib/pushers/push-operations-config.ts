@@ -8,7 +8,7 @@ import { getState, setState } from 'core/state';
 export interface PushOperationConfig {
   name: string;
   description: string;
-  handler: (sourceData: GuidEntities, targetData: GuidEntities) => Promise<PusherResult>;
+  handler: (sourceData: GuidEntities, targetData: GuidEntities, locale: string) => Promise<PusherResult>;
   elements: string[];
   dataKey: string;
   dependencies?: string[]; // Auto-include these elements when this operation is requested
