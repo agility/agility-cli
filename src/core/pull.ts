@@ -16,7 +16,12 @@ export class Pull {
 
   async pullInstances(fromPush: boolean = false): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
     const state = getState();
-    const logger = getLogger();
+    
+    // Initialize logger inside the method so it works correctly when called from push operations
+    // But only if not called from push operation (to avoid conflicts with push logger)
+    if (!fromPush) {
+      initializeLogger("pull");
+    }
 
     // TODO: Add support for multiple GUIDs, multiple locales, multiple chanels
     // Currently only supports one GUID, one locale, one channel
@@ -79,11 +84,31 @@ export class Pull {
 
       const success = totalFailed === 0;
 
+      // Use the orchestrator summary function to handle all completion logic
+      const logger = getLogger();
+      if (logger) {
+        // Collect log file paths
+        const logFilePaths = results
+          .map(res => res.logFilePath)
+          .filter(path => path);
+        
+        logger.orchestratorSummary(results, totalElapsedTime, success, logFilePaths);
+      }
+
+      finalizeLogger(); // Finalize global logger if it exists
+      
+      // Only exit if not called from push operation
+      if (!fromPush) {
+        process.exit(success ? 0 : 1);
+      }
+
+      // Return results for use by calling code (especially when fromPush = true)
       return {
         success,
         results,
-        elapsedTime: totalElapsedTime,
+        elapsedTime: totalElapsedTime
       };
+
     } catch (error: any) {
       console.error(ansiColors.red("\n❌ An error occurred during the pull command:"), error);
       throw error; // Let calling code handle error response

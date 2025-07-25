@@ -187,72 +187,12 @@ yargs.command({
       return;
     }
 
-    // Initialize logger
-    initializeLogger("pull");
+    // Logger will be initialized by pullInstances() method
+    // No need to initialize here to avoid duplicate initialization
 
     try {
       const pull = new Pull();
-      const result = await pull.pullInstances();
-
-      // Simple completion summary
-      const totalElapsedSeconds = Math.floor(result.elapsedTime / 1000);
-      const minutes = Math.floor(totalElapsedSeconds / 60);
-      const seconds = totalElapsedSeconds % 60;
-      const timeDisplay = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-
-      let totalSuccessful = 0;
-      let totalFailed = 0;
-
-      result.results.forEach(res => {
-        if (res.failed?.length > 0) {
-          totalFailed++;
-        } else {
-          totalSuccessful++;
-        }
-      });
-
-      getLogger().summary("pull", totalSuccessful, totalFailed, 0);
-
-      console.log(colors.cyan('\nSummary:'));
-      console.log(`Processed ${result.results.length} GUID/locale combinations`);
-      console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
-      console.log(`Total time: ${timeDisplay}`);
-
-      if (result.success) {
-        console.log(colors.green(`\n✓ Pull completed successfully`));
-        
-        // Collect and display all log file paths after success message
-        const logFilePaths = result.results
-          .map(res => res.logFilePath)
-          .filter(path => path);
-        
-        if (logFilePaths.length > 0) {
-          console.log(colors.cyan('\nLog Files:'));
-          logFilePaths.forEach(path => {
-            console.log(`${path}`);
-          });
-        }
-        
-        finalizeLogger(); // Finalize global logger if it exists
-        process.exit(0);
-      } else {
-        console.log(colors.red(`✗ Pull completed with errors`));
-        
-        // Collect and display all log file paths even after errors
-        const logFilePaths = result.results
-          .map(res => res.logFilePath)
-          .filter(path => path);
-        
-        if (logFilePaths.length > 0) {
-          console.log(colors.cyan('\nLog Files:'));
-          logFilePaths.forEach(path => {
-            console.log(`${path}`);
-          });
-        }
-        
-        finalizeLogger(); // Finalize global logger if it exists
-        process.exit(1);
-      }
+      await pull.pullInstances(); // This handles everything: logging, summary, process.exit
 
     } catch (error: any) {
       console.error(colors.red("\n❌ Pull command failed:"), error.message);
@@ -311,51 +251,15 @@ yargs.command({
       return;
     }
 
-
-    // Initialize logger
-    initializeLogger(isSync ? "sync" : "push");
+    // Logger will be initialized by the individual operations (pull/push) as needed
+    // No need to initialize here since pullInstances() and pushInstances() handle their own loggers
 
     // const syncOperation = new Sync();
     // await syncOperation.syncInstance();
     try {
       const push = new Push();
-      const result = await push.pushInstances();
+      await push.pushInstances(); // This handles everything: logging, summary, finalization, process.exit
 
-      
-      // Simple completion summary
-      const totalElapsedSeconds = Math.floor(result.elapsedTime / 1000);
-      const minutes = Math.floor(totalElapsedSeconds / 60);
-      const seconds = totalElapsedSeconds % 60;
-      const timeDisplay = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-
-      let totalSuccessful = 0;
-      let totalFailed = 0;
-
-      result.results.forEach(res => {
-        if (res.failed?.length > 0) {
-          totalFailed++;
-        } else {
-          totalSuccessful++;
-        }
-      });
-
-      getLogger().summary(isSync ? "sync" : "push", totalSuccessful, totalFailed, 0);
-
-
-      console.log(colors.cyan('\nSummary:'));
-      console.log(`Processed ${result.results.length} GUID/locale combinations`);
-      console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
-      console.log(`Total time: ${timeDisplay}`);
-
-      if (result.success) {
-        console.log(colors.green(`✓ Push completed successfully`));
-        finalizeLogger();
-        process.exit(0);
-      } else {
-        console.log(colors.red(`✗ Push completed with errors`));
-        finalizeLogger();
-        process.exit(1);
-      }
     } catch (error: any) {
       console.error(colors.red("\n❌ Push command failed:"), error.message);
       process.exit(1);

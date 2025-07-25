@@ -750,4 +750,66 @@ export class Logs {
     const header = generateLogHeader(this.operationType, additionalInfo);
     this.fileOnly(header);
   }
+
+  /**
+   * Log orchestrator summary with timing, counts, and completion status
+   */
+  orchestratorSummary(
+    results: any[], 
+    elapsedTime: number, 
+    success: boolean,
+    logFilePaths?: string[]
+  ): void {
+    const ansiColors = require('ansi-colors');
+    
+    // Calculate time display
+    const totalElapsedSeconds = Math.floor(elapsedTime / 1000);
+    const minutes = Math.floor(totalElapsedSeconds / 60);
+    const seconds = totalElapsedSeconds % 60;
+    const timeDisplay = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+
+    // Calculate success/failure counts
+    let totalSuccessful = 0;
+    let totalFailed = 0;
+
+    results.forEach(res => {
+      if (res.failed?.length > 0) {
+        totalFailed++;
+      } else {
+        totalSuccessful++;
+      }
+    });
+
+    // Log to file using logger summary
+    this.summary(this.operationType, totalSuccessful, totalFailed, 0);
+
+    // Console output
+    console.log(ansiColors.cyan('\nSummary:'));
+    console.log(`Processed ${results.length} GUID/locale combinations`);
+    console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
+    console.log(`Total time: ${timeDisplay}`);
+
+    // Success/failure message
+    if (success) {
+      console.log(ansiColors.green(`\n✓ ${this.operationType.charAt(0).toUpperCase() + this.operationType.slice(1)} completed successfully`));
+      
+      // Display log file paths if provided
+      if (logFilePaths && logFilePaths.length > 0) {
+        console.log(ansiColors.cyan('\nLog Files:'));
+        logFilePaths.forEach(path => {
+          console.log(`  ${path}`);
+        });
+      }
+    } else {
+      console.log(ansiColors.red(`\n✗ ${this.operationType.charAt(0).toUpperCase() + this.operationType.slice(1)} completed with errors`));
+      
+      // Display log file paths even on errors
+      if (logFilePaths && logFilePaths.length > 0) {
+        console.log(ansiColors.cyan('\nLog Files:'));
+        logFilePaths.forEach(path => {
+          console.log(`  ${path}`);
+        });
+      }
+    }
+  }
 }
