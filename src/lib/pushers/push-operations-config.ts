@@ -2,6 +2,7 @@
 import { GuidEntities } from './guid-data-loader';
 import { PusherResult } from 'types/sourceData';
 import { getState, setState } from 'core/state';
+import ansiColors from 'ansi-colors';
 
 
 // Central configuration for all push operations
@@ -19,6 +20,8 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     name: 'pushGalleries',
     description: 'Push asset galleries and media groupings',
     handler: async (sourceData, targetData) => {
+
+      console.log(ansiColors.red("sourceData"), sourceData['galleries'].slice(0, 3))
       const { pushGalleries } = await import('./gallery-pusher');
       return await pushGalleries(sourceData['galleries'], targetData['galleries']);
     },

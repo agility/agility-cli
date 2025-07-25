@@ -65,20 +65,21 @@ export class GuidDataLoader {
 
         // Initialize with empty arrays - no nulls/undefined ever
         const guidEntities: GuidEntities = {
-            pages: [],
-            templates: [],
+            galleries: [],
+            assets: [],
+            models: [],
             containers: [],
             lists: [],
-            models: [],
             content: [],
-            assets: [],
-            galleries: []
+            pages: [],
+            templates: []
         };
 
         // Load different entity types using pure getters for consistent architecture
         if (elements.includes('Galleries')) {
             const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
             const galleries = getGalleriesFromFileSystem(guidFileOps);
+            console.log(ansiColors.red("galleries"), this.guid, galleries.slice(0, 3))
             guidEntities.galleries = Array.isArray(galleries) ? galleries : [];
         }
 
