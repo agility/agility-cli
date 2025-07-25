@@ -28,6 +28,7 @@ export class TemplateMapper {
     }
 
     getTemplateMapping(template: mgmtApi.PageModel, type: 'source' | 'target'): TemplateMapping | null {
+        if (!template) return null;
         const mapping = this.mappings.find((m: TemplateMapping) =>
             type === 'source'
                 ? m.sourcePageTemplateID === template.pageTemplateID
@@ -54,6 +55,7 @@ export class TemplateMapper {
     }
 
     getMappedEntity(mapping: TemplateMapping, type: 'source' | 'target'): mgmtApi.PageModel | null {
+        if (!mapping) return null;
         const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
         const pageTemplateID = type === 'source' ? mapping.sourcePageTemplateID : mapping.targetPageTemplateID;
         const fileOps = new fileOperations(guid);
@@ -108,6 +110,7 @@ export class TemplateMapper {
     }
 
     hasTargetChanged(template: mgmtApi.PageModel): boolean {
+        if (!template) return false;
         const mapping = this.getTemplateMapping(template, 'target');
         if (!mapping) return false;
         return mapping.targetPageTemplateID !== template.pageTemplateID;

@@ -4,6 +4,7 @@ import { PageMapper } from "../../mappers/page-mapper";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { TemplateMapper } from "lib/mappers/template-mapper";// Internal helper function to process a single page
 import { translateZoneNames } from "./translate-zone-names";
+import { findPageInOtherLocale, OtherLocaleMapping } from "./find-page-in-other-locale";
 
 interface Props {
 	channel: string,
@@ -58,6 +59,19 @@ export async function processPage({
 		//get the existing page from the target instance
 		const pageMapping = pageMapper.getPageMapping(page, 'source');
 		existingPage = pageMapper.getMappedEntity(pageMapping, 'target');
+		let mappingToOtherLocale: OtherLocaleMapping | null = null;
+
+		if (!existingPage) {
+			//check the other locales to see if this page has been mapped in another locale
+			mappingToOtherLocale = await findPageInOtherLocale({
+				sourcePageID: page.pageID,
+				locale,
+				sourceGuid,
+				targetGuid
+			});
+
+
+		}
 
 		// Get channel ID from target instance sitemap (not from existing page which may be invalid)
 		const sitemap = await apiClient.pageMethods.getSitemap(targetGuid, locale);
@@ -100,7 +114,9 @@ export async function processPage({
 			//CREATE NEW PAGE - nothing to do here yet...
 		} else if (!updateRequired) {
 			// Add to reference mapper for future lookups
-			pageMapper.addMapping(page, existingPage);
+			if (existingPage) {
+				pageMapper.addMapping(page, existingPage);
+			}
 
 			console.log(
 				`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.grey("up to date, skipping")}`
@@ -290,15 +306,21 @@ export async function processPage({
 		// Folder pages often don't have titles, but API requires them
 		const pageTitle = page.title || page.menuText || page.name || "Untitled Page";
 
-		const payload: mgmtApi.PageItem = {
+		const payload: any = {
 			...page,
-			pageID: existingPage ? existingPage.pageID : -1,
+			pageID: existingPage ? existingPage.pageID : -1, // Use existing page ID if available
 			title: pageTitle, // CRITICAL: Ensure title is always present
 			channelID: channelID, // CRITICAL: Always use target instance channel ID to avoid FK constraint errors
 			zones: formattedZones,
 			// CRITICAL: Include path field from sitemap enrichment (API bug: target sitemap returns null paths)
 			path: page.path || "",
 		};
+
+		if (mappingToOtherLocale) {
+			// If a mapping to another locale was found, include it in the payload
+			payload.OtherLanguageCode = mappingToOtherLocale.OtherLanguageCode
+			payload.PageIDOtherLanguage = mappingToOtherLocale.PageIDOtherLanguage;
+		}
 
 		let parentIDArg = -1;
 
@@ -410,38 +432,38 @@ export async function processPage({
 						console.log(
 							`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan(
 								"updated (forced)"
-							)} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || "None"})`
+							)} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} Locale:${locale} (Template:${page.templateName || "None"})`
 						);
 					} else {
 						console.log(
 							`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan(
 								"updated"
-							)} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || "None"})`
+							)} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} Locale:${locale} (Template:${page.templateName || "None"})`
 						);
 					}
 				} else {
 					console.log(
 						`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.green(
 							"created"
-						)} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} (Template:${page.templateName || "None"})`
+						)} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} Locale:${locale} (Template:${page.templateName || "None"})`
 					);
 				}
 				return "success"; // Success
 			} else {
 				// Show errorData if available, otherwise generic failure
 				if (completedBatch.errorData && completedBatch.errorData.trim()) {
-					console.error(`✗ Page "${page.name}" failed - ${completedBatch.errorData}`);
+					console.error(`✗ Page "${page.name}" failed  - ${completedBatch.errorData}, locale:${locale}`);
 				} else {
-					console.error(`✗ Page "${page.name}" failed - invalid page ID: ${actualPageID}`);
+					console.error(`✗ Page "${page.name}" failed - invalid page ID: ${actualPageID}, locale:${locale}`);
 				}
 				return "failure";
 			}
 		} else {
-			console.error(`✗ Page "${page.name}" failed - unexpected response format`);
+			console.error(`✗ Page "${page.name}" failed in locale:${locale} - unexpected response format`);
 			return "failure"; // Failure
 		}
 	} catch (error: any) {
-		console.error(`✗ Page "${page.name}" failed - ${error.message}`, error);
+		console.error(`✗ Page "${page.name}" failed in locale:${locale} - ${error.message}`, error);
 		return "failure"; // Failure
 	}
 }
