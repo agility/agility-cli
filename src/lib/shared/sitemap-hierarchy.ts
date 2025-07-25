@@ -11,13 +11,13 @@ export class SitemapHierarchy {
         // Configuration now comes from state internally
     }
 
-    loadAllSitemaps() {
+    loadAllSitemaps(guid?: string, locale?: string): { [key: string]: SitemapNode[] | null } {
         const state = getState();
 
         const sitemapDir = path.join(
             state.rootPath,
-            state.sourceGuid[0],
-            state.locale[0],
+            guid,
+            locale,
             'nestedsitemap'
         );
 
