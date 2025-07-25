@@ -393,12 +393,14 @@ export class Auth {
 
         const guidLocaleMap = new Map<string, string[]>();
         guidLocaleMap.set(state.sourceGuid[0], localesToUse);
-        guidLocaleMap.set(state.targetGuid[0], localesToUse);
+
+        if (state.targetGuid.length > 0) {
+          //if we have a target...
+          guidLocaleMap.set(state.targetGuid[0], localesToUse);
+        }
 
         state.locale = localesToUse; // Set the state locale list to the determined locales
         state.guidLocaleMap = guidLocaleMap;
-
-
 
         //MOD: JOELV - I didn't understand what this logic was doing, so I replaced it with the above logic...
         // Get locales for each GUID in the matrix
