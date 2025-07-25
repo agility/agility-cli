@@ -316,11 +316,7 @@ export async function processPage({
 			path: page.path || "",
 		};
 
-		if (mappingToOtherLocale) {
-			// If a mapping to another locale was found, include it in the payload
-			payload.OtherLanguageCode = mappingToOtherLocale.OtherLanguageCode
-			payload.PageIDOtherLanguage = mappingToOtherLocale.PageIDOtherLanguage;
-		}
+
 
 		let parentIDArg = -1;
 
@@ -347,6 +343,10 @@ export async function processPage({
 			}
 		}
 
+		const pageIDInOtherLocale = mappingToOtherLocale ? mappingToOtherLocale.PageIDOtherLanguage : -1;
+		const otherLocale = mappingToOtherLocale ? mappingToOtherLocale.OtherLanguageCode : null;
+
+
 		// Save the page with returnBatchID flag for consistent batch processing
 		const savePageResponse = await apiClient.pageMethods.savePage(
 			payload,
@@ -354,7 +354,9 @@ export async function processPage({
 			locale,
 			parentIDArg,
 			placeBeforeIDArg,
-			true
+			true,
+			pageIDInOtherLocale,
+			otherLocale
 		);
 
 		// Process the response - with returnBatchID=true, we should always get a batch ID
