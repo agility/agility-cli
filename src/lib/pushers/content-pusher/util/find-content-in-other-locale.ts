@@ -20,7 +20,6 @@ export const findContentInOtherLocale = async ({ sourceContentID, locale, source
 		try {
 			const mapping = contentMapper.getContentItemMappingByContentID(sourceContentID, "source");
 			if (mapping) {
-				console.log(`Found content mapping in locale ${otherLocale}:`, mapping);
 				return mapping.targetContentID; // Return the target content ID if found
 			}
 

@@ -66,8 +66,8 @@ export class Pushers {
       console.log(`Processing push operations from ${sourceGuid} to ${targetGuid}...`);
 
       // Load source and target data
-      const sourceDataLoader = new GuidDataLoader(sourceGuid);
-      const targetDataLoader = new GuidDataLoader(targetGuid);
+      const sourceDataLoader = new GuidDataLoader(sourceGuid, locale);
+      const targetDataLoader = new GuidDataLoader(targetGuid, locale);
 
       // Prepare model filtering options from state
       const state = getState();
@@ -79,13 +79,10 @@ export class Pushers {
         filterOptions.modelsWithDeps = state.modelsWithDeps.split(',').map(m => m.trim());
       }
 
-      const { guidEntities: sourceData, locales: sourceLocales } = await sourceDataLoader.loadGuidEntitiesForAllLocales(
+      const { guidEntities: sourceData, locale: sourceLocale } = await sourceDataLoader.loadGuidEntitiesForAllLocales(
         Object.keys(filterOptions).length > 0 ? filterOptions : undefined
       );
-      const { guidEntities: targetData, locales: targetLocales } = await targetDataLoader.loadGuidEntitiesForAllLocales();
-
-      // Set up reference mapper
-      // const referenceMapper = new ReferenceMapperV2();
+      const { guidEntities: targetData, locale: targetLocale } = await targetDataLoader.loadGuidEntitiesForAllLocales();
 
 
       // Execute all push operations for this GUID pair

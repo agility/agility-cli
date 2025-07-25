@@ -71,7 +71,9 @@ export async function pushTemplates(
         // const { template: existingTemplate, shouldUpdate, shouldCreate, shouldSkip } = findResult;
 
         if (shouldSkip) {
-            referenceMapper.addMapping(template, targetTemplate);
+            if (targetTemplate) {
+                referenceMapper.addMapping(template, targetTemplate);
+            }
             console.log(`✓ Template ${ansiColors.underline.cyan(template.pageTemplateName)} ${ansiColors.bold.gray('up to date, skipping')}`);
             skipped++;
         } else {
