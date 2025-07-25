@@ -23,10 +23,10 @@ export async function pushPages(
 
 	const sitemapHierarchy = new SitemapHierarchy();
 
-	const sitemaps = sitemapHierarchy.loadAllSitemaps();
+	const sitemaps = sitemapHierarchy.loadAllSitemaps(sourceGuid[0], locale);
 	const channels = Object.keys(sitemaps);
 
-	console.log(`Processing ${pages.length} pages across ${channels.length} channels...`);
+	console.log(`Processing ${pages.length} pages across ${channels.length} channels in ${locale}...`);
 
 	let successful = 0;
 	let failed = 0;
