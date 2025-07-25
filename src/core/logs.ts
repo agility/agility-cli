@@ -145,12 +145,17 @@ export class Logs {
 
     const successFormat = successful > 0 ? `${ansiColors.green(successful.toString())}` : `${ansiColors.gray(successful.toString())}`;
     const skippedFormat = skipped > 0 ? `${ansiColors.yellow(skipped.toString())}` : `${ansiColors.gray(skipped.toString())}`;
+   const circle = this.config.showColors ? ansiColors.yellow("○ ") : "○ ";
+   const halfCircle = this.config.showColors ? ansiColors.green("◐ ") : "◐ ";
+   const icon = successful > 0 ? halfCircle : circle;
+//    const fullCircle = this.config.showColors ? ansiColors.yellow("") : "◑ ";
+   
     // Pluralize and always show zero counts for clarity
     parts.push(successFormat + ansiColors.gray(" to download"));
     parts.push(skippedFormat + ansiColors.gray(" unchanged"));
 
     const capitalizedEntityType = entityType.charAt(0).toUpperCase() + entityType.slice(1);
-    const message = ansiColors.gray(`${capitalizedEntityType} change detection summary:`) + " " + parts.join(" ");
+    const message = ansiColors.gray(`${icon} ${capitalizedEntityType} change detection summary:`) + " " + parts.join(" ");
     this.info(message);
   }
 
