@@ -1,9 +1,8 @@
-import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
-import ansiColors from "ansi-colors";
+import { fileOperations } from "core/fileOperations";
+import { getApiClient, getLoggerForGuid, getState, state } from "core/state";
 import * as path from "path";
 import * as fs from "fs";
-import { getAllChannels } from "../shared/get-all-channels";
+import { getAllChannels } from "lib/shared/get-all-channels";
 
 export async function downloadAllModels(
   guid: string,
@@ -19,7 +18,6 @@ export async function downloadAllModels(
   fileOps.createFolder('models');
 
   let totalModels = 0;
-  const startTime = Date.now(); // Track start time for performance measurement
   
   // Helper function to get local model metadata
   function getLocalModelInfo(filePath: string): { lastModifiedDate?: string; exists: boolean } {
@@ -70,16 +68,6 @@ export async function downloadAllModels(
     const allModels = [...contentModules, ...pageModules];
     totalModels = allModels.length;
     
-    // if (totalModels === 0) {
-    //   if (progressCallback) progressCallback(0, 0, 'success');
-    //   return;
-    // }
-
-    // if (progressCallback) progressCallback(0, totalModels, 'progress');
-
-    // Phase 2: Analyze which models need downloading
-    // console.log(`\n📥 Processing ${totalModels} models with smart change detection...`);
-
     const downloadableModels = [];
     const skippableModels = [];
 
@@ -115,13 +103,11 @@ export async function downloadAllModels(
     }
 
     if(skippableModels.length > 0){
-      logger.model.skipped(null, `Model Change Detection Results: ${downloadableModels.length} to download, ${skippableModels.length} unchanged`);
+      logger.changeDetectionSummary("model", downloadableModels.length, skippableModels.length);
     }
 
     // Phase 3: Download only the models that need updating
     if (downloadableModels.length === 0) {
-      // console.log("✅ All models are up to date!");
-      // if (progressCallback) progressCallback(totalModels, totalModels, 'success');
       return;
     }
 
@@ -151,21 +137,12 @@ export async function downloadAllModels(
           if (!modelDetails) {
             throw new Error("Could not retrieve model details.");
           }
-          
-          const modelDisplayName = modelDetails.referenceName || modelDetails.displayName || `ID ${modelDetails.id}`;
-
           // Export model JSON
           fileOps.exportFiles(`models`, fileName, modelDetails);
-          logger.model.downloaded(modelDetails);
-          // console.log(`✓ Downloaded ${modelType} model ${ansiColors.cyan(modelDisplayName)} ${ansiColors.gray(`(${reason})`)}`);
-          
-          
+          logger.model.downloaded(modelDetails);  
           return { success: true, modelDetails };
         } catch (error: any) {
-          const modelDisplayName = modelSummary.referenceName || modelSummary.displayName || `ID ${modelSummary.id}`;
-
-          logger.model.error(null, error);
-          // console.error(`✗ Failed to download ${modelType} model ${ansiColors.red(modelDisplayName)}:`, ansiColors.gray(error.message || 'Unknown error'));
+          logger.model.error(item, error);
           return { success: false, modelSummary, error };
         }
       });
@@ -179,24 +156,14 @@ export async function downloadAllModels(
         if (result.success) {
           downloadedCount++;
         }
-        
-        // Update progress (include skipped models in total processed)
-        const totalProcessed = processedCount + skippedCount;
-            // if (progressCallback) {
-            //   progressCallback(totalProcessed, totalModels, result.success ? 'success' : 'error');
-            // }
       }
     }
 
-    // Performance and summary reporting
-    const endTime = Date.now();
-    const duration = ((endTime - startTime) / 1000).toFixed(1);
-    const errorCount = downloadableModels.length - downloadedCount;
     logger.endTimer();
-
+    logger.summary("pull", downloadedCount, 0, 0);
 
   } catch (error: any) {
-    console.error('Error in downloadAllModels:', error);
+    logger.error("Error in downloadAllModels:", error);
     throw error;
   }
 } 

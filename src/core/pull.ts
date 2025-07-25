@@ -46,7 +46,7 @@ export class Pull {
       operationDetails.push(`${guid}: ${guidLocales.join(", ")}`);
     }
 
-    operationDetails.forEach((detail) => console.log(`${detail}`));
+    // operationDetails.forEach((detail) => console.log(`${detail}`));
 
     // Handle --reset flag: completely delete GUID folders and start fresh
     if (state.reset) {

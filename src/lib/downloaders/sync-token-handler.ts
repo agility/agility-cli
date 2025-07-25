@@ -7,9 +7,9 @@ export async function handleSyncToken(syncTokenPath: string, reset: boolean) {
 
   if (!reset) {
     if (syncTokenExists) {
-      console.log("--reset=false (default): Existing content sync token found. Performing incremental content sync.");
+      // console.log("--reset=false (default): Existing content sync token found. Performing incremental content sync.");
     } else {
-      console.log("--reset=false (default): No existing content sync token. Performing full content sync by default.");
+      // console.log("--reset=false (default): No existing content sync token. Performing full content sync by default.");
     }
   } else {
     if (syncTokenExists) {

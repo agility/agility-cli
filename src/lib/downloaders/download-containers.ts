@@ -83,9 +83,6 @@ export async function downloadAllContainers(
       return;
     }
 
-    // Phase 2: Analyze which containers need downloading
-    // console.log(`\n📥 Processing ${totalContainers} containers with smart change detection...`);
-
     const downloadableContainers = [];
     const skippableContainers = [];
 
@@ -116,12 +113,11 @@ export async function downloadAllContainers(
     }
 
     if(skippableContainers.length > 0){
-      logger.container.skipped(null, `Container Change Detection Results: ${downloadableContainers.length} to download, ${skippableContainers.length} unchanged`);
+      logger.changeDetectionSummary("container", downloadableContainers.length, skippableContainers.length);
     }
 
     // Phase 3: Download only the containers that need updating
     if (downloadableContainers.length === 0) {
-      // console.log("✅ All containers are up to date!");
       return;
     }
 

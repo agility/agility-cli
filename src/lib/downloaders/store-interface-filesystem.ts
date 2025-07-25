@@ -228,7 +228,6 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 		return;
 	}
 
-	// console.log('saveItem-> ', itemType, languageCode, itemID);
 	const cwd = process.cwd();
 	let filePath = getFilePath({ options, itemType, languageCode, itemID });
 	const absoluteFilePath = path.resolve(cwd, filePath);

@@ -52,9 +52,9 @@ export async function downloadAllSitemaps(
     if (sitemapDownloadDecision.shouldDownload) {
       // Write sitemap file
       fs.writeFileSync(sitemapFilePath, JSON.stringify(sitemap, null, 2));
-      logger.sitemap.downloaded(sitemap, sitemapFileName);
+      logger.sitemap.downloaded(sitemap);
     } else {
-      logger.sitemap.skipped(sitemap, sitemapFileName);
+      logger.sitemap.skipped(sitemap);
     }
 
     logger.endTimer();

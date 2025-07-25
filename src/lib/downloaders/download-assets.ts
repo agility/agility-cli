@@ -116,9 +116,6 @@ export async function downloadAllAssets(guid: string): Promise<void> {
       }
     }
 
-    // Phase 2: Process all assets with intelligent change detection
-    // console.log(`\n📥 Processing ${totalRecords} assets with smart change detection...`);
-
     // Group assets by downloadable batches
     const downloadableAssets = [];
     const skippableAssets = [];
@@ -136,15 +133,11 @@ export async function downloadAllAssets(guid: string): Promise<void> {
     }
 
     if (skippableAssets.length > 0) {
-      logger.info(
-        `Asset Change Detection Results: ${downloadableAssets.length} to download, ${skippableAssets.length} unchanged`
-      );
-      // console.log(`\nAsset Change Detection Results: ${ansiColors.green(downloadableAssets.length.toString())} to download, ${ansiColors.gray(skippableAssets.length.toString())} unchanged`);
+      logger.changeDetectionSummary("asset", downloadableAssets.length, skippableAssets.length);
     }
 
     // Phase 3: Download only the assets that need updating
     if (downloadableAssets.length === 0) {
-      // console.log("✅ All assets are up to date!");
       return;
     }
 
@@ -176,11 +169,9 @@ export async function downloadAllAssets(guid: string): Promise<void> {
             if (success) {
               const sizeDisplay = asset.size ? formatFileSize(asset.size) : "";
               logger.asset.downloaded(asset);
-              // console.log(`✓ Downloaded asset ${ansiColors.cyan(asset.fileName)} ${ansiColors.gray(`(${reason})`)} ${ansiColors.gray(sizeDisplay)}`);
-
               return { success: true, asset };
             } else {
-              logger.asset.error(asset, 'Download failed');
+              logger.asset.error(asset, "Download failed");
               throw new Error("Download failed");
             }
           } else {
@@ -218,21 +209,6 @@ export async function downloadAllAssets(guid: string): Promise<void> {
     const unprocessedCount = Object.keys(unProcessedAssets).length;
 
     logger.summary("pull", totalSuccessfullyDownloaded, totalSkippedAssets, unprocessedCount);
-
-    // console.log(`\n📊 Asset Download Summary:`);
-    // console.log(`   ${ansiColors.green('✓')} Downloaded: ${totalSuccessfullyDownloaded}`);
-    // console.log(`   ${ansiColors.gray('⚬')} Unchanged: ${totalSkippedAssets}`);
-    // if (unprocessedCount > 0) {
-    //   console.log(`   ${ansiColors.red('✗')} Failed: ${unprocessedCount}`);
-    // }
-    // console.log(`   ⏱️  Duration: ${duration}s`);
-
-    // if (unprocessedCount > 0) {
-    //   console.log(`\n⚠️  Unprocessed assets:`);
-    //   Object.entries(unProcessedAssets).forEach(([id, fileName]) => {
-    //     console.log(`   • ${fileName} (ID: ${id})`);
-    //   });
-    // }
   } catch (error: any) {
     console.error("Error in downloadAllAssets:", error);
     throw error;

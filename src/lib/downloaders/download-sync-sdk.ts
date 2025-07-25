@@ -1,11 +1,10 @@
 import * as path from "path";
 import * as fs from "fs";
-import ansiColors from "ansi-colors";
 import * as agilitySync from "@agility/content-sync";
-import { state, getApiKeysForGuid, getLoggerForGuid } from "../../core/state";
-import { fileOperations } from "../../core/fileOperations";
+import { state, getApiKeysForGuid, getLoggerForGuid } from "core/state";
+import { fileOperations } from "core/fileOperations";
 import { handleSyncToken } from "./sync-token-handler";
-import { getAllChannels } from "../shared/get-all-channels";
+import { getAllChannels } from "lib/shared/get-all-channels";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
@@ -23,8 +22,7 @@ export async function downloadAllSyncSDK(guid: string) {
   });
 
   await Promise.allSettled(downloads);
-  console.log("All sync SDKs completed downloading.")
-
+  
 }
 
 export async function downloadSyncSDKByLocaleAndChannel(
@@ -33,8 +31,6 @@ export async function downloadSyncSDKByLocaleAndChannel(
   locale: string
 ): Promise<void> {
 
-
-  console.log(`\nDownloading GUID: ${guid} | Locale: ${locale}`);
   const fileOps = new fileOperations(guid, locale);
 
   // Get API keys for this specific GUID
@@ -83,24 +79,6 @@ export async function downloadSyncSDKByLocaleAndChannel(
   // Get enhanced sync stats (pass rootPath for instance isolation)
   if (storeInterfaceFileSystem.getAndClearSavedItemStats && typeof storeInterfaceFileSystem.getAndClearSavedItemStats === 'function') {
     const syncResults = storeInterfaceFileSystem.getAndClearSavedItemStats(instanceSpecificPath);
-
-    // Log summary by item type
-    const typeBreakdown = Object.entries(syncResults.itemsByType)
-      .map(([type, count]) => `${type}: ${count}`)
-      .join(', ');
-
-    const summary = syncResults.summary;
-    console.log(`Content Sync completed: ${summary.totalItems} items in ${(summary.elapsedTime / 1000).toFixed(1)}s`);
-    console.log(`  Breakdown: ${typeBreakdown}`);
-    console.log(`  Performance: ${summary.itemsPerSecond.toFixed(1)} items/sec`);
-
-    // Detailed logging for verbose mode
-    if (state.useVerbose) {
-      console.log("--- Detailed Sync Results ---");
-      Object.entries(syncResults.itemsByType).forEach(([itemType, count]) => {
-        console.log(`  ${ansiColors.cyan(itemType)}: ${count} items`);
-      });
-    }
   }
 
   // After sync, count the items in the 'item' folder for verification
@@ -120,6 +98,4 @@ export async function downloadSyncSDKByLocaleAndChannel(
   // Summary of sync operation
   const elapsedTime = Date.now() - startTime;
   const elapsedSeconds = (elapsedTime / 1000).toFixed(2);
-  console.log(ansiColors.yellow(`Content Sync SDK completed in ${elapsedSeconds}s`));
-  console.log(itemsFoundMessage);
 }

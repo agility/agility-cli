@@ -99,13 +99,11 @@ export async function downloadAllGalleries(
     
     if (downloadDecision.shouldDownload) {
       fileOps.exportFiles("assets/galleries", index, initialRecords);
-      logger.gallery.downloaded(initialRecords, `galleries-${index}.json`);
-      // console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${downloadDecision.reason})`)}`);
+      logger.gallery.downloaded({name: `galleries/${index}.json`});
       downloadedCount++;
       
     } else {
-      logger.gallery.skipped(initialRecords, `galleries-${index}.json`);
-      // console.log(`✓ Gallery file galleries-${index}.json up to date, skipping`);
+      logger.gallery.skipped({name: `galleries/${index}.json`});
       skippedCount++;
     }
 
@@ -126,21 +124,19 @@ export async function downloadAllGalleries(
       
       if (galleryDownloadDecision.shouldDownload) {
         fileOps.exportFiles("assets/galleries", index, galleries);
-        logger.gallery.downloaded(galleries, `galleries-${index}.json`);
-        // console.log(`✓ Downloaded galleries-${index}.json ${ansiColors.gray(`(${galleryDownloadDecision.reason})`)}`);
+        logger.gallery.downloaded(galleries);
         downloadedCount++;
         
       } else {
-        // console.log(ansiColors.yellow(`✓ Gallery file galleries-${index}.json up to date, skipping`));
         skippedCount++;
       }
 
       index++;
     }
 
-    if(skippedCount > 0){
-      logger.gallery.skipped(null, `galleries-${index}.json`);
-    }
+    // if(skippedCount > 0){
+    //   logger.gallery.skipped(null, `galleries-${index}.json`);
+    // }
     
     logger.endTimer();
     logger.summary("pull", downloadedCount, skippedCount, 0);

@@ -2,6 +2,7 @@ import ansiColors from "ansi-colors";
 import { getState, setState } from "./state";
 import * as fs from "fs";
 import * as path from "path";
+import { generateLogHeader } from '../lib/shared';
 
 export type OperationType = "pull" | "push" | "sync";
 
@@ -136,6 +137,26 @@ export class Logs {
   }
 
   /**
+   * Log a summary of the operation, including counts and proper formatting.
+   * Handles empty results, pluralization, and avoids type errors.
+   */
+  changeDetectionSummary(entityType: EntityType, successful: number, skipped: number): void {
+    const parts: string[] = [];
+
+    const successFormat = successful > 0 ? `${ansiColors.green(successful.toString())}` : `${ansiColors.gray(successful.toString())}`;
+    const skippedFormat = skipped > 0 ? `${ansiColors.yellow(skipped.toString())}` : `${ansiColors.gray(skipped.toString())}`;
+    // Pluralize and always show zero counts for clarity
+    parts.push(successFormat + ansiColors.gray(" to download"));
+    parts.push(skippedFormat + ansiColors.gray(" unchanged"));
+
+    const capitalizedEntityType = entityType.charAt(0).toUpperCase() + entityType.slice(1);
+    const message = ansiColors.gray(`${capitalizedEntityType} change detection summary:`) + " " + parts.join(" ");
+    this.info(message);
+  }
+
+
+
+  /**
    * Simple info logging method
    */
   info(message: string): void {
@@ -150,6 +171,20 @@ export class Logs {
     if (this.config.logToConsole) {
       this.outputToConsole(logEntry);
     }
+  }
+
+  /**
+   * Log to file only (no console output)
+   */
+  fileOnly(message: string): void {
+    const logEntry: LogEntry = {
+      logLevel: "INFO",
+      message,
+      timestamp: new Date().toISOString(),
+    };
+
+    this.logs.push(logEntry);
+    // Intentionally skip outputToConsole - file only
   }
 
   /**
@@ -493,7 +528,6 @@ export class Logs {
   // Asset logging methods
   asset = {
     downloaded: (entity: any, details?: string) => {
-    // console.log('downloaded', entity, details);
       const itemName = entity?.fileName || entity?.name || `Asset ${entity?.mediaID || 'Unknown'}`;
       this.logDataElement("asset", "downloaded", "success", itemName, this.guid, details);
     },
@@ -653,9 +687,9 @@ export class Logs {
       const itemName = entity?.name || `Gallery ${entity?.id || 'Unknown'}`;
       this.logDataElement("gallery", "uploaded", "success", itemName, this.guid, details);
     },
-    
+
     skipped: (entity: any, details?: string) => {
-      const itemName = entity?.name || `Gallery ${entity?.id || 'Unknown'}`;
+      const itemName = entity?.name || `Gallery`;
       this.logDataElement("gallery", "skipped", "skipped", itemName, this.guid, details);
     },
     
@@ -691,4 +725,29 @@ export class Logs {
       // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
     }
   };
+
+  /**
+   * Log operation header with state information
+   */
+  logOperationHeader(): void {
+    // Get current state information
+    const state = require('./state').getState();
+    
+    const additionalInfo: Record<string, any> = {
+      'GUID': this.guid || 'Not specified',
+      'Operation Type': this.operationType,
+      'Entity Type': this.entityType || 'All entities',
+      'Source GUIDs': state.sourceGuid?.join(', ') || 'None',
+      'Target GUIDs': state.targetGuid?.join(', ') || 'None',
+      'Locales': this.guid ? (state.guidLocaleMap?.get(this.guid)?.join(', ') || 'Not specified') : 'Multiple',
+      'Channel': state.channel || 'Not specified',
+      'Elements': state.elements || 'All',
+      'Reset Mode': state.reset ? 'Full reset' : 'Incremental',
+      'Verbose': state.verbose ? 'Enabled' : 'Disabled',
+      'Preview Mode': state.isPreview ? 'Preview' : 'Live'
+    };
+    
+    const header = generateLogHeader(this.operationType, additionalInfo);
+    this.fileOnly(header);
+  }
 }

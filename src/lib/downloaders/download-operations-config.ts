@@ -20,14 +20,14 @@ export interface OperationConfig {
 export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
   syncSDK: {
     name: 'downloadAllSyncSDK',
-    description: 'Download content items, pages, sitemaps via Content Sync SDK',
+    description: 'Download content items and sitemaps via Content Sync SDK',
     handler: async (guid) => {
       // Sync SDK will handle locales internally via guidLocaleMap (user will update this)
       // For now, use default locale - this will be converted to use guidLocaleMap internally
       await downloadAllSyncSDK(guid);
     },
-    elements: ['Content', 'Pages', 'Sitemaps'],
-    dependencies: ['Models', 'Containers', 'Assets', 'Galleries', 'Templates'] // Content/Pages require Models and Containers
+    elements: ['Content', 'Sitemaps'], // NOTE: Content Sync SDK doesn't download page structures - only content items
+    dependencies: ['Models', 'Containers', 'Assets', 'Galleries', 'Templates'] // Content requires Models and Containers
   },
   galleries: {
     name: 'downloadAllGalleries',
