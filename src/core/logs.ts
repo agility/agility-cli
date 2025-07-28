@@ -284,7 +284,7 @@ export class Logs {
 
     if (this.config.useStructuredFormat) {
       const guidDisplay = guid ? status === "success" ? ansiColors.green(this.formatGuidWithColor(guid)) : status === "failed" ? ansiColors.red(`[${guid}]`) : this.formatGuidWithColor(guid) : "";
-      const styledItemName = itemName && this.config.showColors ? status === "success" ? ansiColors.green.underline(itemName) : status === "failed" ? ansiColors.red.underline(itemName) : ansiColors.cyan.underline(itemName) : itemName;
+      const styledItemName = itemName && this.config.showColors ? status === "success" ? ansiColors.cyan.underline(itemName) : status === "failed" ? ansiColors.red.underline(itemName) : ansiColors.cyan.underline(itemName) : itemName;
       const styledDetails = details && this.config.showColors ? ansiColors.gray(`${details}`) : details;
       const detailsDisplay = styledDetails ? `${styledDetails}` : "";
       const actionDisplay = this.config.showColors ? status === "success" ? ansiColors.gray(action) : status === "failed" ? ansiColors.red(action) : ansiColors.gray(action) : action;
@@ -656,31 +656,39 @@ export class Logs {
   };
 
   // Content Item logging methods
-  contentitem = {
+  content = {
     downloaded: (entity: any, details?: string, locale?: string) => {
       const itemName =
-        entity?.fields?.title ||
-        entity?.fields?.name ||
         entity?.properties?.referenceName ||
         `${entity?.contentID || "Unknown"}`;
       this.logDataElement("content", "downloaded", "success", itemName, this.guid, details, locale);
     },
 
     uploaded: (entity: any, details?: string, locale?: string) => {
-      const itemName = entity?.fields?.title || entity?.fields?.name || `Content ${entity?.contentID || "Unknown"}`;
+      const itemName = entity?.properties?.referenceName || entity?.fields?.title || entity?.fields?.name || `Content ${entity?.contentID || "Unknown"}`;
       this.logDataElement("content", "uploaded", "success", itemName, this.guid, details, locale);
     },
 
+    created: (entity: any, details?: string, locale?: string) => {
+      const itemName = entity?.properties?.referenceName || entity?.fields?.title || entity?.fields?.name || `Content ${entity?.contentID || "Unknown"}`;
+      this.logDataElement("content", "created", "success", itemName, this.guid, details, locale);
+    },
+
+    updated: (entity: any, details?: string, locale?: string) => {
+      const itemName = entity?.properties?.referenceName || entity?.fields?.title || entity?.fields?.name || `Content ${entity?.contentID || "Unknown"}`;
+      this.logDataElement("content", "updated", "success", itemName, this.guid, details, locale);
+    },
+
     skipped: (entity: any, details?: string, locale?: string) => {
-      const itemName = entity?.fields?.title || entity?.fields?.name || `Content ${entity?.contentID || "Unknown"}`;
+      const itemName = entity?.properties?.referenceName || entity?.fields?.title || entity?.fields?.name || `Content ${entity?.contentID || "Unknown"}`;
       this.logDataElement("content", "skipped", "skipped", itemName, this.guid, details, locale);
     },
 
     error: (payload: any, apiError: any, locale?: string) => {
-      const itemName = payload?.fields?.title || payload?.fields?.name || `Content ${payload?.contentID || "Unknown"}`;
+      const itemName = payload?.properties?.referenceName || payload?.fields?.title || payload?.fields?.name || `Content ${payload?.contentID || "Unknown"}`;
       const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
-      // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
+      this.logDataElement("content", "error", "failed", itemName, this.guid, errorDetails, locale);
     },
   };
 

@@ -2,6 +2,7 @@ import ansiColors from "ansi-colors";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { findContentInTargetInstance } from "./find-content-in-target-instance";
 import { ApiClient, ContentItem } from "@agility/management-sdk";
+import { Logs } from "core/logs";
 
 /**
  * Filter content items for processing
@@ -20,6 +21,7 @@ interface FilterProp {
 	locale: string;
 	referenceMapper: ContentItemMapper;
 	targetData: ContentItem[];
+	logger: Logs;
 }
 
 export async function filterContentItemsForProcessing({
@@ -29,6 +31,7 @@ export async function filterContentItemsForProcessing({
 	locale,
 	referenceMapper,
 	targetData = [],
+	logger,
 }: FilterProp): Promise<ContentFilterResult> {
 	const itemsToProcess: any[] = [];
 	const itemsToSkip: any[] = [];
@@ -42,13 +45,10 @@ export async function filterContentItemsForProcessing({
 				referenceMapper
 			});
 
-
 			const { content, shouldUpdate, shouldCreate, shouldSkip, isConflict, reason } = findResult;
 			if (isConflict) {
 				///CONFLICT DETECTED
-				console.warn(
-					`⚠️  Conflict detected for content ${ansiColors.cyan.underline(itemName)}\n   - ${reason}`
-				);
+				logger.content.error(contentItem, `!! Conflict detected for content ${itemName}: ${reason}`, locale);
 				itemsToSkip.push(contentItem);
 				continue;
 			} else if (shouldCreate) {
@@ -57,25 +57,14 @@ export async function filterContentItemsForProcessing({
 			} else if (shouldUpdate) {
 				// Content exists but needs updating
 				itemsToProcess.push(contentItem);
-				console.log(
-					`✓ Content ${ansiColors.cyan.underline(itemName)} vID:${ansiColors.bold.yellow(
-						"needs update"
-					)} vID:${ansiColors.bold.green(content?.properties?.versionID.toString())} → ${ansiColors.bold.green(
-						contentItem.properties?.versionID.toString()
-					)} - ${ansiColors.green(targetGuid)}: ID:${content?.contentID}`
-				);
 			} else if (shouldSkip) {
 				// Content exists and is up to date - skip
-				console.log(
-					`✓ Content ${ansiColors.cyan.underline(itemName)} ${ansiColors.bold.gray(
-						"up to date, skipping"
-					)}`
-				);
+				logger.content.skipped(contentItem, "up to date, skipping", locale);
 				itemsToSkip.push(contentItem);
 			}
 		} catch (error: any) {
 			// If we can't check, err on the side of processing it
-			console.warn(`⚠️ Could not check if content ${itemName} exists: ${error.message} - will process`);
+			logger.content.error(contentItem, error.message, locale);
 			itemsToProcess.push(contentItem);
 		}
 	}

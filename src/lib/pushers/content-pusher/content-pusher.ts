@@ -2,14 +2,14 @@
 // Removed finder imports - using mapper directly
 import ansiColors from "ansi-colors";
 // Removed ContentBatchProcessor import - individual pusher only handles individual processing
-import { state } from '../../../core/state';
+import { getLoggerForGuid, state } from 'core/state';
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { filterContentItemsForProcessing } from './util/filter-content-items-for-processing';
 import { areContentDependenciesResolved } from "./util/are-content-dependencies-resolved";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContentItem, Model } from "@agility/management-sdk";
 import { ContainerMapper } from "lib/mappers/container-mapper";
-
+import { getApiClient } from 'core/state';
 
 /**
  * Push content to the target instance
@@ -23,7 +23,8 @@ export async function pushContent(
     // Use batch pusher for better performance (default behavior)
     const { ContentBatchProcessor } = await import('./content-batch-processor');
 
-    const { sourceGuid, targetGuid } = state;
+    const { sourceGuid, targetGuid, overwrite, cachedApiClient: apiClient } = state;
+    const logger = getLoggerForGuid(sourceGuid[0]);
 
     const sourceGuidStr = sourceGuid[0];
     const targetGuidStr = targetGuid[0];
@@ -70,7 +71,7 @@ export async function pushContent(
 
     try {
         // Import getApiClient for both batch configurations
-        const { getApiClient } = await import('../../../core/state');
+
 
         // Process normal content items first (no dependencies)
         if (normalContentItems.length > 0) {
@@ -92,11 +93,12 @@ export async function pushContent(
                 locale,
                 referenceMapper,
                 targetData,
+                logger
             });
             const normalBatchProcessor = new ContentBatchProcessor(normalBatchConfig);
             const normalResult = await normalBatchProcessor.processBatches(
-                filteredNormalContentItems.itemsToProcess as any,
-                undefined,
+                filteredNormalContentItems.itemsToProcess as ContentItem[],
+                logger,
                 "Normal Content"
             );
 
@@ -128,12 +130,13 @@ export async function pushContent(
                 targetGuid: targetGuidStr,
                 locale,
                 referenceMapper,
-                targetData
+                targetData,
+                logger
             });
             const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
             const linkedResult = await linkedBatchProcessor.processBatches(
                 filteredLinkedContentItems.itemsToProcess,
-                undefined,
+                logger,
                 "Linked Content"
             );
 
