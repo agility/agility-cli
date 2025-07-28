@@ -19,7 +19,7 @@ export async function pushAssets(
 
   // Get state values and logger
   const { sourceGuid, targetGuid, locale, preview: isPreview } = state;
-  const logger = getLoggerForGuid(sourceGuid[0]) || new Logs("push", "asset", sourceGuid[0]);
+  const logger = getLoggerForGuid(sourceGuid[0]);
 
   if (!assets || assets.length === 0) {
     logger.log("INFO", "No assets found to process.");

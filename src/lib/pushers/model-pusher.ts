@@ -1,8 +1,8 @@
 import * as mgmtApi from "@agility/management-sdk";
-import ansiColors from "ansi-colors";
-import { getState, getApiClient, state } from "../../core/state";
-import { SourceData, PusherProgressCallback, PusherResult } from "../../types/sourceData";
+import { getApiClient, state, getLoggerForGuid } from "../../core/state";
+import { PusherResult } from "../../types/sourceData";
 import { ModelMapper } from "lib/mappers/model-mapper";
+import { Logs } from "core/logs";
 
 /**
  * Simple change detection for models
@@ -10,13 +10,14 @@ import { ModelMapper } from "lib/mappers/model-mapper";
 
 export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtApi.Model[]): Promise<PusherResult> {
   const models: mgmtApi.Model[] = sourceData || [];
+  const { sourceGuid, targetGuid } = state;
+  const logger = getLoggerForGuid(sourceGuid[0]);
 
   if (!models || models.length === 0) {
-    console.log("No models found to process.");
+    logger.log("INFO", "No models found to process.");
     return { status: "success", successful: 0, failed: 0, skipped: 0 };
   }
 
-  const { sourceGuid, targetGuid } = state;
   const referenceMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
 
   const apiClient = getApiClient();
@@ -31,19 +32,13 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   let stubCreated = [];
 
   for (const model of models) {
-    // if(model.referenceName === "Post"){
-    //   console.log(model);
-    // }
     const mapping = referenceMapper.getModelMapping(model, "source");
     const targetModel = targetData.find((targetModel) => targetModel.referenceName === model.referenceName) || null;
-
     const modelLastModifiedDate = new Date(model.lastModifiedDate);
     const targetLastModifiedDate = targetModel ? new Date(targetModel.lastModifiedDate) : null;
     const mappingLastModifiedDate = mapping ? new Date(mapping.targetLastModifiedDate) : null;
-
     const hasSourceChanged = modelLastModifiedDate > targetLastModifiedDate;
     const hasTargetChanged = targetLastModifiedDate > mappingLastModifiedDate;
-
     const sourceFieldCount = model?.fields?.length || 0;
     const targetFieldCount = targetModel?.fields?.length || 0;
     const fieldCountChanged = sourceFieldCount !== targetFieldCount;
@@ -72,7 +67,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   }
 
   for (const model of shouldCreateStub) {
-    const result = await createNewModel(model, referenceMapper, apiClient, targetGuid[0]);
+    const result = await createNewModel(model, referenceMapper, apiClient, targetGuid[0], logger);
     if (result === "created") {
       stubCreated.push(model);
     } else {
@@ -83,8 +78,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   const modelsToUpdate = [...stubCreated, ...shouldUpdateFields];
   for (const model of modelsToUpdate) {
     const mapping = referenceMapper.getModelMapping(model, "source");
-    // const targetModel = targetData.find((targetModel) => targetModel.referenceName === model.referenceName) || null;
-    const result = await updateExistingModel(model, mapping.targetID, referenceMapper, apiClient, targetGuid[0]);
+    const result = await updateExistingModel(model, mapping.targetID, referenceMapper, apiClient, targetGuid[0], logger);
     if (result) {
       successful++;
     } else {
@@ -93,7 +87,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   }
 
   for (const model of shouldSkip) {
-    console.log(`✓ Model ${ansiColors.cyan.underline(model.referenceName)} ${ansiColors.bold.yellow("up to date, skipping")}`);
+    logger.model.skipped(model, "up to date, skipping")
     skipped++;
   }
 
@@ -112,7 +106,8 @@ const createNewModel = async (
   model: mgmtApi.Model,
   referenceMapper: ModelMapper,
   apiClient: mgmtApi.ApiClient,
-  targetGuid: string
+  targetGuid: string,
+  logger: Logs
 ): Promise<"created" | "updated" | "skipped" | "failed"> => {
   try {
     // process the model without fields
@@ -123,11 +118,11 @@ const createNewModel = async (
     };
 
     const newModel = await apiClient.modelMethods.saveModel(createPayload, targetGuid);
-    console.log(`✓ Model ${ansiColors.cyan.underline(model.referenceName)} stub ${ansiColors.bold.green("created")}`);
+    logger.model.created(model)
     referenceMapper.addMapping(model, newModel);
     return "created";
   } catch (error: any) {
-    console.error(`✗ Error creating model ${model.referenceName}:`, error.message);
+    logger.model.error(model, error)
     return "failed";
   }
 };
@@ -140,7 +135,8 @@ async function updateExistingModel(
   targetID: number,
   referenceMapper: ModelMapper,
   apiClient: mgmtApi.ApiClient,
-  targetGuid: string
+  targetGuid: string,
+  logger: Logs
 ): Promise<"updated" | "failed"> {
  
 
@@ -150,11 +146,9 @@ async function updateExistingModel(
     const updatePayload = {
       ...sourceModel,
       id: targetID,
-      // lastModifiedDate: targetModel.lastModifiedDate,
       fields: (fields || sourceModel.fields || []).map((field) => {
         const cleanField = { ...field };
         delete cleanField.fieldID; // Remove to prevent API issues
-
         // Clean up Content field settings
         if (cleanField.type === "Content" && cleanField.settings?.ContentDefinition) {
           const { ContentDefinition, ...otherSettings } = cleanField.settings;
@@ -166,11 +160,11 @@ async function updateExistingModel(
     };
 
     const updatedModel = await apiClient.modelMethods.saveModel(updatePayload, targetGuid);
-    console.log(`✓ Model ${ansiColors.cyan.underline(sourceModel.referenceName)} ${ansiColors.bold.green("updated")}`);
+    logger.model.updated(sourceModel)
     referenceMapper.addMapping(sourceModel, updatedModel);
     return "updated";
   } catch (error: any) {
-    console.error(`✗ Error updating model ${sourceModel.referenceName}:`, error.message);
+    logger.model.error(sourceModel, error)
     return "failed";
   }
 }
