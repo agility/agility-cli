@@ -62,7 +62,7 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
       await downloadAllTemplates(guid);
     },
     elements: ['Templates'],
-    dependencies: ['Models', 'Containers', 'Pages', 'Content'] // Templates reference Models for container definitions
+    // dependencies: ['Models', 'Containers', 'Pages', 'Content'] // Templates reference Models for container definitions
   },
   containers: {
     name: 'downloadAllContainers',

@@ -260,7 +260,7 @@ export class Logs {
     // Set symbols based on status
     switch (status) {
       case "success":
-        symbol = this.config.showColors ? ansiColors.green("✓ ") : "✓ ";
+        symbol = this.config.showColors ? ansiColors.green("● ") : "● ";
         break;
       case "failed":
         symbol = this.config.showColors ? ansiColors.red("✗ ") : "✗ ";
@@ -696,6 +696,11 @@ export class Logs {
       this.logDataElement("template", "uploaded", "success", itemName, this.guid, details);
     },
 
+    updated: (entity: any, details?: string) => {
+      const itemName = entity?.pageTemplateName || entity?.name || `Template ${entity?.pageTemplateID || "Unknown"}`;
+      this.logDataElement("template", "updated", "success", itemName, this.guid, details);
+    },
+    
     skipped: (entity: any, details?: string) => {
       const itemName = entity?.pageTemplateName || entity?.name || `Template ${entity?.pageTemplateID || "Unknown"}`;
       this.logDataElement("template", "skipped", "skipped", itemName, this.guid, details);
@@ -705,7 +710,7 @@ export class Logs {
       const itemName = payload?.pageTemplateName || payload?.name || `Template ${payload?.pageTemplateID || "Unknown"}`;
       const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
-      // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
+      this.logDataElement("template", "failed", "failed", itemName, this.guid, errorDetails);
     },
   };
 

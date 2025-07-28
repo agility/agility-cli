@@ -1,6 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { state, getState, getApiClient } from '../../core/state';
+import { state, getState, getApiClient, getLoggerForGuid } from '../../core/state';
 import { TemplateMapper } from "lib/mappers/template-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContainerMapper } from "lib/mappers/container-mapper";
@@ -21,6 +21,8 @@ export async function pushTemplates(
 
     // Extract data from sourceData - unified parameter pattern
     const templates: mgmtApi.PageModel[] = sourceData || [];
+    const { sourceGuid, targetGuid, cachedApiClient: apiClient, overwrite } = state;
+    const logger = getLoggerForGuid(sourceGuid[0]);
 
     // console.log(`[Template Debug] Starting template processing. Found ${templates ? templates.length : 0} templates to process.`);
 
@@ -28,12 +30,6 @@ export async function pushTemplates(
         console.log('No templates found to process.');
         return { status: 'success', successful: 0, failed: 0, skipped: 0 };
     }
-
-    // Get state values instead of prop drilling
-    const apiClient = getApiClient();
-
-    // Log template names for debugging
-    // console.log(`[Template Debug] Template names: ${templates.map(t => t.pageTemplateName).join(', ')}`);
 
     let successful = 0;
     let failed = 0;
@@ -63,18 +59,19 @@ export async function pushTemplates(
 
         const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetTemplate);
         const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(template);
-        const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
-        const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
+        let shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
+        let shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
 
-
-        // const findResult = await findTemplateInTargetInstanceEnhanced(template, apiClient, targetGuid[0], targetData, referenceMapper);
-        // const { template: existingTemplate, shouldUpdate, shouldCreate, shouldSkip } = findResult;
+        if (overwrite) {
+            shouldUpdate = true;
+            shouldSkip = false;
+        }
 
         if (shouldSkip) {
             if (targetTemplate) {
                 referenceMapper.addMapping(template, targetTemplate);
             }
-            console.log(`✓ Template ${ansiColors.underline.cyan(template.pageTemplateName)} ${ansiColors.bold.gray('up to date, skipping')}`);
+            logger.template.skipped(template, "up to date, skipping")
             skipped++;
         } else {
             let isUpdate = shouldUpdate;
@@ -115,22 +112,17 @@ export async function pushTemplates(
                 const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid[0], locale, payload);
                 referenceMapper.addMapping(template, savedTemplate);
                 const action = isUpdate ? 'updated' : 'created';
-                console.log(`✓ Template ${ansiColors.underline.cyan(template.pageTemplateName)} ${ansiColors.green(action)} - Source: ${originalID} Target: ${savedTemplate.pageTemplateID}`);
+                logger.template.updated(template)
                 successful++;
             } catch (error: any) {
-                console.error(`✗ Failed to ${isUpdate ? 'update' : 'create'} template ${template.pageTemplateName}: ${error.message}`);
-                if (error.response) console.log(JSON.stringify(error.response.data, null, 2));
+                logger.template.error(template, error)
                 failed++;
                 currentStatus = 'error';
                 overallStatus = 'error';
             }
         }
 
-        // Progress update after each attempt
         processedCount++;
-        // if(onProgress) {
-        //     onProgress(processedCount, totalTemplates, overallStatus);
-        // }
     }
 
     return { status: overallStatus, successful, failed, skipped }; // Return status object
