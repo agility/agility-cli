@@ -1,7 +1,8 @@
 import * as fs from 'fs';
 import * as path from 'path';
-import { SitemapNode, PageHierarchy, HierarchicalPageGroup, SourceEntities } from '../../types/syncAnalysis';
-import { getState } from '../../core/state';
+import { SitemapNode, PageHierarchy, HierarchicalPageGroup, SourceEntities } from '../../../types/syncAnalysis';
+import { getState, state } from '../../../core/state';
+import ansiColors from 'ansi-colors';
 
 /**
  * Load and parse sitemap hierarchy for hierarchical page chain analysis
@@ -12,10 +13,10 @@ export class SitemapHierarchy {
     }
 
     loadAllSitemaps(guid?: string, locale?: string): { [key: string]: SitemapNode[] | null } {
-        const state = getState();
-
+        
+        const { rootPath, sourceGuid } = state;  
         const sitemapDir = path.join(
-            state.rootPath,
+            rootPath,
             guid,
             locale,
             'nestedsitemap'
@@ -28,7 +29,6 @@ export class SitemapHierarchy {
                 return; // Skip non-JSON files
             }
             const channel = path.basename(fileName, '.json');
-
             sitemaps[channel] = this.loadNestedSitemap(channel);
         });
 

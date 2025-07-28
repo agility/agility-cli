@@ -5,6 +5,7 @@ import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { TemplateMapper } from "lib/mappers/template-mapper";// Internal helper function to process a single page
 import { translateZoneNames } from "./translate-zone-names";
 import { findPageInOtherLocale, OtherLocaleMapping } from "./find-page-in-other-locale";
+import { Logs } from "core/logs";
 
 interface Props {
 	channel: string,
@@ -16,7 +17,8 @@ interface Props {
 	overwrite: boolean,
 	insertBeforePageId: number | null,
 	pageMapper: PageMapper,
-	parentPageID: number
+	parentPageID: number,
+	logger: Logs
 }
 
 export async function processPage({
@@ -29,7 +31,8 @@ export async function processPage({
 	overwrite = false,
 	insertBeforePageId = null,
 	pageMapper,
-	parentPageID
+	parentPageID,
+	logger
 }: Props): Promise<"success" | "skip" | "failure"> {
 	// Returns 'success', 'skip', or 'failure'
 
@@ -45,11 +48,7 @@ export async function processPage({
 			// Find the template mapping
 			let templateRef = templateMapper.getTemplateMappingByPageTemplateName(page.templateName, 'source');
 			if (!templateRef) {
-				console.error(
-					ansiColors.yellow(
-						`✗ Page ${page.name} template ${ansiColors.underline(page.templateName)} missing in source data, skipping`
-					)
-				);
+				logger.page.error(page, `Missing in source data, skipping`, locale, channel);
 				return "skip";
 			}
 			targetTemplate = templateMapper.getMappedEntity(templateRef, 'target') as mgmtApi.PageModel;
@@ -116,9 +115,7 @@ export async function processPage({
 				pageMapper.addMapping(page, existingPage);
 			}
 
-			console.log(
-				`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.grey("up to date, skipping")}`
-			);
+			logger.page.skipped(page, "up to date, skipping", locale, channel);
 			return "skip"; // Skip processing - page already exists
 		}
 
@@ -405,7 +402,7 @@ export async function processPage({
 				actualPageID = batchSuccessItems[0].newId;
 				savedPageVersionID = batchSuccessItems[0].newItem?.processedItemVersionID || -1;
 			} else if (batchFailedItems.length > 0) {
-				console.error(`✗ Page ${page.name} batch failed: ${batchFailedItems[0].error}`);
+				logger.page.error(page, `✗ Page ${page.name} batch failed: ${batchFailedItems[0].error}`, locale, channel);
 			}
 
 			if (actualPageID > 0) {
@@ -432,41 +429,30 @@ export async function processPage({
 
 				if (existingPage) {
 					if (overwrite) {
-						console.log(
-							`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan(
-								"updated (forced)"
-							)} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} Locale:${locale} (Template:${page.templateName || "None"})`
-						);
+						logger.page.updated(page, "updated", locale, channel);
+						
 					} else {
-						console.log(
-							`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.cyan(
-								"updated"
-							)} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} Locale:${locale} (Template:${page.templateName || "None"})`
-						);
+						logger.page.updated(page, "updated", locale, channel);
 					}
 				} else {
-					console.log(
-						`✓ ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.green(
-							"created"
-						)} - ${ansiColors.green(targetGuid)}: ID:${actualPageID} Locale:${locale} (Template:${page.templateName || "None"})`
-					);
+					logger.page.created(page, "created", locale, channel);
 				}
 				return "success"; // Success
 			} else {
 				// Show errorData if available, otherwise generic failure
 				if (completedBatch.errorData && completedBatch.errorData.trim()) {
-					console.error(`✗ Page "${page.name}" failed  - ${completedBatch.errorData}, locale:${locale}`);
+					logger.page.error(page, `✗ Page "${page.name}" failed  - ${completedBatch.errorData}, locale:${locale}`, locale, channel);
 				} else {
-					console.error(`✗ Page "${page.name}" failed - invalid page ID: ${actualPageID}, locale:${locale}`);
+					logger.page.error(page, `✗ Page "${page.name}" failed - invalid page ID: ${actualPageID}, locale:${locale}`, locale, channel);
 				}
 				return "failure";
 			}
 		} else {
-			console.error(`✗ Page "${page.name}" failed in locale:${locale} - unexpected response format`);
+			logger.page.error(page, `✗ Page "${page.name}" failed in locale:${locale} - unexpected response format`, locale, channel);
 			return "failure"; // Failure
 		}
 	} catch (error: any) {
-		console.error(`✗ Page "${page.name}" failed in locale:${locale} - ${error.message}`, error);
+		logger.page.error(page, `✗ Page "${page.name}" failed in locale:${locale} - ${error.message}`, locale, channel);
 		return "failure"; // Failure
 	}
 }

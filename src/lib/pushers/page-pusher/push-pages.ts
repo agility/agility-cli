@@ -1,19 +1,20 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { state, getApiClient } from "../../../core/state";
+import { state, getApiClient, getLoggerForGuid } from "core/state";
 import { PusherResult } from "../../../types/sourceData";
-import { SitemapHierarchy } from "../../shared/sitemap-hierarchy";
-import { PageMapper } from "../../mappers/page-mapper";
+import { SitemapHierarchy } from "lib/pushers/page-pusher/sitemap-hierarchy";
+import { PageMapper } from "lib/mappers/page-mapper";
 import { processSitemap } from "./process-sitemap";
+import ansiColors from "ansi-colors";
 
 export async function pushPages(
 	sourceData: mgmtApi.PageItem[],
 	locale: string
-	// onProgress?: PusherProgressCallback
 ): Promise<PusherResult> {
 	// Extract data from sourceData - unified parameter pattern
 	let pages: mgmtApi.PageItem[] = sourceData || [];
 
 	const { sourceGuid, targetGuid } = state;
+	const logger = getLoggerForGuid(sourceGuid[0]);
 	const pageMapper = new PageMapper(sourceGuid[0], targetGuid[0], locale);
 
 	if (!pages || pages.length === 0) {
@@ -54,7 +55,8 @@ export async function pushPages(
 				overwrite,
 				sourcePages: pages,
 				// Top-level pages have no parent
-				parentPageID: -1
+				parentPageID: -1,
+				logger
 			})
 
 			successful = res.successful;
@@ -67,7 +69,7 @@ export async function pushPages(
 			}
 
 		} catch (error) {
-			console.error(`⚠️ Error in page processing for channel: ${channel}`, error);
+			logger.page.error(null,`⚠️ Error in page processing for channel: ${channel}: ${JSON.stringify(error, null, 2)}`, locale);
 			status = "error";
 		}
 
