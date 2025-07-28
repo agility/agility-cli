@@ -104,8 +104,7 @@ async function createGallery(
 ): Promise<void> {
   const payload = { ...mediaGrouping, mediaGroupingID: 0 };
   try {
-    debugger;
-    const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, mediaGrouping);
+    const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
     referenceMapper.addMapping(mediaGrouping, savedGallery);
     logger.gallery.created(mediaGrouping);
   } catch (error) {
