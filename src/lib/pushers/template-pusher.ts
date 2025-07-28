@@ -71,7 +71,7 @@ export async function pushTemplates(
             if (targetTemplate) {
                 referenceMapper.addMapping(template, targetTemplate);
             }
-            logger.template.skipped(template, "up to date, skipping")
+            logger.template.skipped(template, "up to date, skipping", targetGuid[0])
             skipped++;
         } else {
             let isUpdate = shouldUpdate;
@@ -112,10 +112,10 @@ export async function pushTemplates(
                 const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid[0], locale, payload);
                 referenceMapper.addMapping(template, savedTemplate);
                 const action = isUpdate ? 'updated' : 'created';
-                logger.template.updated(template)
+                logger.template[action](template, action, targetGuid[0])
                 successful++;
             } catch (error: any) {
-                logger.template.error(template, error)
+                logger.template.error(template, error, targetGuid[0])
                 failed++;
                 currentStatus = 'error';
                 overallStatus = 'error';

@@ -105,11 +105,11 @@ export async function pushAssets(
         successful++;
       } else if (shouldSkip) {
         // Asset exists and is up to date - skip
-        logger.asset.skipped(media);
+        logger.asset.skipped(media, "up to date, skipping", targetGuid[0]);
         skipped++;
       }
     } catch (error: any) {
-      logger.asset.error(media, error);
+      logger.asset.error(media, error, targetGuid[0]);
       failed++;
       currentStatus = "error";
       overallStatus = "error";
@@ -161,7 +161,7 @@ async function createAsset(
 
   const uploadedMedia = uploadedMediaArray[0];
 
-  logger.asset.uploaded(media);
+  logger.asset.uploaded(media, "uploaded", targetGuid);
 
   return uploadedMedia;
 }
@@ -198,7 +198,7 @@ async function updateAsset(
   }
   const uploadedMedia = uploadedMediaArray[0];
 
-  logger.asset.uploaded(media);
+  logger.asset.uploaded(media, "uploaded", targetGuid);
 
 
   return uploadedMedia;

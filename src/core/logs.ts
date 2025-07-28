@@ -592,21 +592,21 @@ export class Logs {
       this.logDataElement("asset", "downloaded", "success", itemName, this.guid, details);
     },
 
-    uploaded: (entity: any, details?: string) => {
+    uploaded: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.fileName || entity?.name || `Asset ${entity?.mediaID || "Unknown"}`;
-      this.logDataElement("asset", "uploaded", "success", itemName, this.guid, details);
+      this.logDataElement("asset", "uploaded", "success", itemName, targetGuid, details);
     },
 
-    skipped: (entity: any, details?: string) => {
+    skipped: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.fileName || entity?.name || `Asset ${entity?.mediaID || "Unknown"}`;
-      this.logDataElement("asset", "skipped", "skipped", itemName, this.guid, details);
+      this.logDataElement("asset", "skipped", "skipped", itemName, targetGuid || this.guid, details);
     },
 
-    error: (payload: any, apiError: any) => {
+    error: (payload: any, apiError: any, targetGuid?: string) => {
       const itemName = payload?.fileName || payload?.name || `Asset ${payload?.mediaID || "Unknown"}`;
       const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
-      this.logDataElement("asset", "failed", "failed", itemName, this.guid, errorDetails);
+      this.logDataElement("asset", "failed", "failed", itemName, targetGuid || this.guid, errorDetails);
 
       const asset = payload?.asset || payload;
       console.log("error", asset);
@@ -619,14 +619,14 @@ export class Logs {
       const itemName = entity?.referenceName || entity?.displayName || `Model ${entity?.id || "Unknown"}`;
       this.logDataElement("model", "downloaded", "success", itemName, this.guid, details);
     },
-    created: (entity: any, details?: string) => {
+    created: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.referenceName || entity?.displayName || `Model ${entity?.id || "Unknown"}`;
-      this.logDataElement("model", "created", "success", itemName, this.guid, details);
+      this.logDataElement("model", "created", "success", itemName, targetGuid, details);
     },
 
-    updated: (entity: any, details?: string) => {
+    updated: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.referenceName || entity?.displayName || `Model ${entity?.id || "Unknown"}`;
-      this.logDataElement("model", "updated", "success", itemName, this.guid, details);
+      this.logDataElement("model", "updated", "success", itemName, targetGuid, details);
     },
 
     uploaded: (entity: any, details?: string) => {
@@ -634,16 +634,16 @@ export class Logs {
       this.logDataElement("model", "uploaded", "success", itemName, this.guid, details);
     },
 
-    skipped: (entity: any, details?: string) => {
+    skipped: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.referenceName || entity?.displayName || `Model ${entity?.id || "Unknown"}`;
-      this.logDataElement("model", `skipped`, "skipped", itemName, this.guid, details);
+      this.logDataElement("model", `skipped`, "skipped", itemName, targetGuid || this.guid, details);
     },
 
-    error: (payload: any, apiError: any) => {
+    error: (payload: any, apiError: any, targetGuid?: string) => {
       const itemName = payload?.referenceName || payload?.displayName || `Model ${payload?.id || "Unknown"}`;
       const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
-      // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
+      this.logDataElement("model", "error", "failed", itemName, targetGuid || this.guid, errorDetails);
     },
   };
 
@@ -654,14 +654,14 @@ export class Logs {
       this.logDataElement("container", "downloaded", "success", itemName, this.guid, details);
     },
 
-    created: (entity: any, details?: string) => {
+    created: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.referenceName || entity?.name || `Container ${entity?.contentViewID || "Unknown"}`;
-      this.logDataElement("container", "created", "success", itemName, this.guid, details);
+      this.logDataElement("container", "created", "success", itemName, targetGuid, details);
     },
 
-    updated: (entity: any, details?: string) => {
+    updated: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.referenceName || entity?.name || `Container ${entity?.contentViewID || "Unknown"}`;
-      this.logDataElement("container", "updated", "success", itemName, this.guid, details);
+      this.logDataElement("container", "updated", "success", itemName, targetGuid, details);
     },
 
     uploaded: (entity: any, details?: string) => {
@@ -669,17 +669,17 @@ export class Logs {
       this.logDataElement("container", "uploaded", "success", itemName, this.guid, details);
     },
 
-    skipped: (entity: any, details?: string) => {
+    skipped: (entity: any, details?: string, targetGuid?: string) => {
       //   console.log(ansiColors.yellow('skipped'), entity)
       const itemName = entity?.referenceName || entity?.name || `Container ${entity?.contentViewID || "Unknown"}`;
-      this.logDataElement("container", "skipped", "skipped", itemName, this.guid, details);
+      this.logDataElement("container", "skipped", "skipped", itemName, targetGuid || this.guid, details);
     },
 
-    error: (payload: any, apiError: any) => {
+    error: (payload: any, apiError: any, targetGuid?: string) => {
       const itemName = payload?.referenceName || payload?.name || `Container ${payload?.contentViewID || "Unknown"}`;
       const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
-      // this.logDataElement("failed", "failed", itemName, this.guid, errorDetails);
+      this.logDataElement("container", "error", "failed", itemName, targetGuid || this.guid, errorDetails);
     },
   };
 
@@ -690,43 +690,43 @@ export class Logs {
       this.logDataElement("content", "downloaded", "success", itemName, this.guid, details, locale);
     },
 
-    uploaded: (entity: any, details?: string, locale?: string) => {
+    uploaded: (entity: any, details?: string, locale?: string, targetGuid?: string) => {
       const itemName =
         entity?.properties?.referenceName ||
         entity?.fields?.title ||
         entity?.fields?.name ||
         `Content ${entity?.contentID || "Unknown"}`;
-      this.logDataElement("content", "uploaded", "success", itemName, this.guid, details, locale);
+      this.logDataElement("content", "uploaded", "success", itemName, targetGuid || this.guid, details, locale);
     },
 
-    created: (entity: any, details?: string, locale?: string) => {
+    created: (entity: any, details?: string, locale?: string, targetGuid?: string) => {
       const itemName =
         entity?.properties?.referenceName ||
         entity?.fields?.title ||
         entity?.fields?.name ||
         `Content ${entity?.contentID || "Unknown"}`;
-      this.logDataElement("content", "created", "success", itemName, this.guid, details, locale);
+      this.logDataElement("content", "created", "success", itemName, targetGuid || this.guid, details, locale);
     },
 
-    updated: (entity: any, details?: string, locale?: string) => {
+    updated: (entity: any, details?: string, locale?: string, targetGuid?: string) => {
       const itemName =
         entity?.properties?.referenceName ||
         entity?.fields?.title ||
         entity?.fields?.name ||
         `Content ${entity?.contentID || "Unknown"}`;
-      this.logDataElement("content", "updated", "success", itemName, this.guid, details, locale);
+      this.logDataElement("content", "updated", "success", itemName, targetGuid || this.guid, details, locale);
     },
 
-    skipped: (entity: any, details?: string, locale?: string) => {
+    skipped: (entity: any, details?: string, locale?: string, targetGuid?: string) => {
       const itemName =
         entity?.properties?.referenceName ||
         entity?.fields?.title ||
         entity?.fields?.name ||
         `Content ${entity?.contentID || "Unknown"}`;
-      this.logDataElement("content", "skipped", "skipped", itemName, this.guid, details, locale);
+      this.logDataElement("content", "skipped", "skipped", itemName, targetGuid || this.guid, details, locale);
     },
 
-    error: (payload: any, apiError: any, locale?: string) => {
+    error: (payload: any, apiError: any, locale?: string, targetGuid?: string) => {
       const itemName =
         payload?.properties?.referenceName ||
         payload?.fields?.title ||
@@ -734,7 +734,7 @@ export class Logs {
         `Content ${payload?.contentID || "Unknown"}`;
       const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
-      this.logDataElement("content", "error", "failed", itemName, this.guid, errorDetails, locale);
+      this.logDataElement("content", "error", "failed", itemName, targetGuid || this.guid, errorDetails, locale);
     },
   };
 
@@ -750,21 +750,26 @@ export class Logs {
       this.logDataElement("template", "uploaded", "success", itemName, this.guid, details);
     },
 
-    updated: (entity: any, details?: string) => {
+    created: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.pageTemplateName || entity?.name || `Template ${entity?.pageTemplateID || "Unknown"}`;
-      this.logDataElement("template", "updated", "success", itemName, this.guid, details);
+      this.logDataElement("template", "created", "success", itemName, targetGuid, details);
     },
 
-    skipped: (entity: any, details?: string) => {
+    updated: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.pageTemplateName || entity?.name || `Template ${entity?.pageTemplateID || "Unknown"}`;
-      this.logDataElement("template", "skipped", "skipped", itemName, this.guid, details);
+      this.logDataElement("template", "updated", "success", itemName, targetGuid, details);
     },
 
-    error: (payload: any, apiError: any) => {
+    skipped: (entity: any, details?: string, targetGuid?: string) => {
+      const itemName = entity?.pageTemplateName || entity?.name || `Template ${entity?.pageTemplateID || "Unknown"}`;
+      this.logDataElement("template", "skipped", "skipped", itemName, targetGuid || this.guid, details);
+    },
+
+    error: (payload: any, apiError: any, targetGuid?: string) => {
       const itemName = payload?.pageTemplateName || payload?.name || `Template ${payload?.pageTemplateID || "Unknown"}`;
       const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
-      this.logDataElement("template", "failed", "failed", itemName, this.guid, errorDetails);
+      this.logDataElement("template", "failed", "failed", itemName, targetGuid || this.guid, errorDetails);
     },
   };
 
@@ -775,29 +780,29 @@ export class Logs {
       this.logDataElement("page", "downloaded", "success", itemName, this.guid, details, locale);
     },
 
-    uploaded: (entity: any, details?: string, locale?: string) => {
+    uploaded: (entity: any, details?: string, locale?: string, targetGuid?: string) => {
       const itemName = entity?.name || entity?.menuText || `Page ${entity?.pageID || "Unknown"}`;
-      this.logDataElement("page", "uploaded", "success", itemName, this.guid, details, locale);
+      this.logDataElement("page", "uploaded", "success", itemName, targetGuid || this.guid, details, locale);
     },
 
-    updated: (entity: any, details?: string, locale?: string, channel?: string) => {
+    updated: (entity: any, details?: string, locale?: string, channel?: string, targetGuid?: string) => {
       const itemName = entity?.name || entity?.menuText || `Page ${entity?.pageID || "Unknown"}`;
-      this.logDataElement("page", "updated", "success", itemName, this.guid, details, locale, channel);
+      this.logDataElement("page", "updated", "success", itemName, targetGuid || this.guid, details, locale, channel);
     },
-    created: (entity: any, details?: string, locale?: string, channel?: string) => {
+    created: (entity: any, details?: string, locale?: string, channel?: string, targetGuid?: string) => {
       const itemName = entity?.name || entity?.menuText || `Page ${entity?.pageID || "Unknown"}`;
-      this.logDataElement("page", "created", "success", itemName, this.guid, details, locale, channel);
+      this.logDataElement("page", "created", "success", itemName, targetGuid || this.guid, details, locale, channel);
     },
-    skipped: (entity: any, details?: string, locale?: string, channel?: string) => {
+    skipped: (entity: any, details?: string, locale?: string, channel?: string, targetGuid?: string) => {
       const itemName = entity?.name || entity?.menuText || `Page ${entity?.pageID || "Unknown"}`;
-      this.logDataElement("page", "skipped", "skipped", itemName, this.guid, details, locale, channel);
+      this.logDataElement("page", "skipped", "skipped", itemName, targetGuid || this.guid, details, locale, channel);
     },
 
-    error: (payload: any, apiError: any, locale?: string, channel?: string) => {
+    error: (payload: any, apiError: any, locale?: string, channel?: string, targetGuid?: string) => {
       const itemName = payload?.name || payload?.menuText || `Page ${payload?.pageID || "Unknown"}`;
       const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
-      this.logDataElement("page", "error", "failed", itemName, this.guid, errorDetails, locale, channel);
+      this.logDataElement("page", "error", "failed", itemName, targetGuid || this.guid, errorDetails, locale, channel);
     },
   };
 
@@ -808,19 +813,19 @@ export class Logs {
       this.logDataElement("gallery", "downloaded", "success", itemName, this.guid, details);
     },
 
-    created: (entity: any, details?: string) => {
+    created: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.name || `Gallery ${entity?.id || "Unknown"}`;
-      this.logDataElement("gallery", "created", "success", itemName, this.guid, details);
+      this.logDataElement("gallery", "created", "success", itemName, targetGuid, details);
     },
 
-    updated: (entity: any, details?: string) => {
+    updated: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.name || `Gallery ${entity?.id || "Unknown"}`;
-      this.logDataElement("gallery", "updated", "success", itemName, this.guid, details);
+      this.logDataElement("gallery", "updated", "success", itemName, targetGuid, details);
     },
 
-    skipped: (entity: any, details?: string) => {
+    skipped: (entity: any, details?: string, targetGuid?: string) => {
       const itemName = entity?.name || `Gallery`;
-      this.logDataElement("gallery", "skipped", "skipped", itemName, this.guid, details);
+      this.logDataElement("gallery", "skipped", "skipped", itemName, targetGuid || this.guid, details);
     },
 
     exists: (entity: any, details?: string) => {
@@ -828,11 +833,11 @@ export class Logs {
       this.logDataElement("gallery", "up-to-date", "skipped", itemName, this.guid, details);
     },
 
-    error: (gallery: any, apiError: any, payload?: any) => {
+    error: (gallery: any, apiError: any, payload?: any, targetGuid?: string) => {
       const itemName = gallery?.name || `Gallery ${gallery?.id || "Unknown"}`;
       const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
-      this.logDataElement("gallery", "failed", "failed", itemName, this.guid, errorDetails);
+      this.logDataElement("gallery", "failed", "failed", itemName, targetGuid || this.guid, errorDetails);
 
       console.log(gallery.mediaGroupingID, gallery.name);
       console.log(ansiColors.red(JSON.stringify(apiError, null, 2)));

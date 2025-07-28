@@ -7,6 +7,7 @@ import { AssetMapper } from "lib/mappers/asset-mapper";
 import { BatchFailedItem, BatchProcessingResult, BatchProgressCallback, BatchSuccessItem, ContentBatchConfig } from "./util/types";
 import { findContentInOtherLocale } from "./util/find-content-in-other-locale";
 import { Logs } from "core/logs";
+import { state } from "core/state";
 /******
 * USAGE PATTERN:
 * 1. Filter content items BEFORE creating the batch processor using filterContentItemsForProcessing()
@@ -138,8 +139,9 @@ export class ContentBatchProcessor {
 				// Display individual item results for better visibility
 				if (batchResult.successfulItems.length > 0) {
 					batchResult.successfulItems.forEach((item) => {
+
 						// const modelName = item.originalContent.properties.definitionName || "Unknown";
-						logger.content.created(item.originalContent, "created", this.config.locale);
+						logger.content.created(item.originalContent, "created", this.config.locale, state.targetGuid[0]);
 					});
 				}
 
@@ -147,7 +149,7 @@ export class ContentBatchProcessor {
 					console.log(`❌ Batch ${batchNumber} failed items:`);
 					batchResult.failedItems.forEach((item) => {
 						// const modelName = item.originalContent.properties.definitionName || "Unknown";
-						logger.content.error(item.originalContent, item.error);
+						logger.content.error(item.originalContent, item.error, this.config.locale, state.targetGuid[0]);
 					});
 				}
 

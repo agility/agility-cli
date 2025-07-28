@@ -69,7 +69,7 @@ export async function pushPages(
 			}
 
 		} catch (error) {
-			logger.page.error(null,`⚠️ Error in page processing for channel: ${channel}: ${JSON.stringify(error, null, 2)}`, locale);
+			logger.page.error(null,`⚠️ Error in page processing for channel: ${channel}: ${JSON.stringify(error, null, 2)}`, locale, channel, targetGuid[0]);
 			status = "error";
 		}
 

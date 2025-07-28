@@ -65,7 +65,7 @@ export async function processSitemap({
 		const sourcePage = sourcePages.find(page => page.pageID === node.pageID);
 
 		if (!sourcePage) {
-			logger.page.error(node, `source page with ID ${node.pageID} not found in source data.`, locale, channel);
+			logger.page.error(node, `source page with ID ${node.pageID} not found in source data.`, locale, channel, targetGuid[0]);
 			returnData.failed++;
 			continue; // Skip if source page is missing
 		}

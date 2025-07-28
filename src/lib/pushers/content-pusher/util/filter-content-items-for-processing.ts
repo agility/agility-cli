@@ -3,6 +3,7 @@ import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { findContentInTargetInstance } from "./find-content-in-target-instance";
 import { ApiClient, ContentItem } from "@agility/management-sdk";
 import { Logs } from "core/logs";
+import { state } from "core";
 
 /**
  * Filter content items for processing
@@ -48,7 +49,7 @@ export async function filterContentItemsForProcessing({
 			const { content, shouldUpdate, shouldCreate, shouldSkip, isConflict, reason } = findResult;
 			if (isConflict) {
 				///CONFLICT DETECTED
-				logger.content.error(contentItem, `!! Conflict detected for content ${itemName}: ${reason}`, locale);
+				logger.content.error(contentItem, `!! Conflict detected for content ${itemName}: ${reason}`, locale, state.targetGuid[0]);
 				itemsToSkip.push(contentItem);
 				continue;
 			} else if (shouldCreate) {
@@ -59,12 +60,12 @@ export async function filterContentItemsForProcessing({
 				itemsToProcess.push(contentItem);
 			} else if (shouldSkip) {
 				// Content exists and is up to date - skip
-				logger.content.skipped(contentItem, "up to date, skipping", locale);
+				logger.content.skipped(contentItem, "up to date, skipping", locale, state.targetGuid[0]);
 				itemsToSkip.push(contentItem);
 			}
 		} catch (error: any) {
 			// If we can't check, err on the side of processing it
-			logger.content.error(contentItem, error.message, locale);
+			logger.content.error(contentItem, error.message, locale, state.targetGuid[0]);
 			itemsToProcess.push(contentItem);
 		}
 	}

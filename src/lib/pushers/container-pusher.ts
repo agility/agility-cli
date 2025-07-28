@@ -90,7 +90,7 @@ export async function pushContainers(
       if (shouldCreate) {
         // Container doesn't exist - create new one
         if (targetModelID < 1) {
-          logger.container.skipped(sourceContainer, "Target model mapping not found")
+          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0])
           skipped++;
         } else {
           // Container doesn't exist - create new one
@@ -103,11 +103,11 @@ export async function pushContainers(
           );
 
           if (createResult) {
-            logger.container.created(sourceContainer)
+            logger.container.created(sourceContainer, "created", targetGuid[0])
             containerMapper.addMapping(sourceContainer, createResult)
             successful++;
           } else {
-            logger.container.error(sourceContainer, "Failed to create container")
+            logger.container.error(sourceContainer, "Failed to create container", targetGuid[0])
             failed++;
             currentStatus = "error";
             overallStatus = "error";
@@ -119,7 +119,7 @@ export async function pushContainers(
         // Container exists but needs updating
 
         if (targetModelID < 1) {
-          logger.container.skipped(sourceContainer, "Target model mapping not found")
+          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0])
 
           skipped++;
         } else {
@@ -133,11 +133,11 @@ export async function pushContainers(
           );
 
           if (updateResult) {
-            logger.container.updated(sourceContainer)
+            logger.container.updated(sourceContainer, "updated", targetGuid[0])
             containerMapper.updateMapping(sourceContainer, updateResult);
             successful++;
           } else {
-            logger.container.error(sourceContainer, "Failed to update container")
+            logger.container.error(sourceContainer, "Failed to update container", targetGuid[0])
             failed++;
             currentStatus = "error";
             overallStatus = "error";
@@ -147,11 +147,11 @@ export async function pushContainers(
         }
       } else if (shouldSkip) {
         // Container exists and is up to date - skip
-        logger.container.skipped(sourceContainer, "up to date, skipping")
+        logger.container.skipped(sourceContainer, "up to date, skipping", targetGuid[0])
         skipped++;
       }
     } catch (error: any) {
-      logger.container.error(sourceContainer, error)
+      logger.container.error(sourceContainer, error, targetGuid[0])
       failed++;
       currentStatus = "error";
       overallStatus = "error";
@@ -184,7 +184,7 @@ async function updateExistingContainer(
 
   // Update the container
   const updatedContainer = await apiClient.containerMethods.saveContainer(updatePayload, targetGuid, true);
-  logger.container.updated(sourceContainer)
+  logger.container.updated(sourceContainer, "updated", targetGuid)
   return updatedContainer;
 }
 
@@ -211,7 +211,7 @@ async function createNewContainer(
     const newContainer = await apiClient.containerMethods.saveContainer(createPayload, targetGuid, true);
     return newContainer;
   } catch (error: any) {
-    logger.container.error(createPayload, error)
+    logger.container.error(createPayload, error, targetGuid)
     throw error;
   }
 }

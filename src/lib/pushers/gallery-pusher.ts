@@ -71,13 +71,13 @@ export async function pushGalleries(
           successful++;
         } else if (shouldSkip) {
           // Gallery exists and is up to date - skip
-          logger.gallery.skipped(sourceGallery, "up to date, skipping");
+          logger.gallery.skipped(sourceGallery, "up to date, skipping", targetGuid[0]);
           // console.log(`✓ Gallery ${ansiColors.underline(sourceGallery.name)} ${ansiColors.bold.gray('up to date, skipping')}`);
           skipped++;
         }
       }
     } catch (error: any) {
-      logger.gallery.error(sourceGallery, error)
+      logger.gallery.error(sourceGallery, error, targetGuid[0])
       failed++;
       currentStatus = "error";
       overallStatus = "error";
@@ -111,10 +111,10 @@ async function createGallery(
   try {
     const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
     referenceMapper.addMapping(mediaGrouping, savedGallery);
-    logger.gallery.created(mediaGrouping);
+    logger.gallery.created(mediaGrouping, "created", targetGuid);
   } catch (error) {
 
-    logger.gallery.error(mediaGrouping, error, payload);
+    logger.gallery.error(mediaGrouping, error, payload, targetGuid);
   }
 }
 
@@ -132,5 +132,5 @@ async function updateGallery(
   const payload = { ...sourceGallery, mediaGroupingID: targetID };
   const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
   referenceMapper.addMapping(sourceGallery, savedGallery);
-  logger.gallery.updated(sourceGallery);
+  logger.gallery.updated(sourceGallery, "updated", targetGuid);
 }

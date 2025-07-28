@@ -87,7 +87,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   }
 
   for (const model of shouldSkip) {
-    logger.model.skipped(model, "up to date, skipping")
+    logger.model.skipped(model, "up to date, skipping", targetGuid[0])
     skipped++;
   }
 
@@ -118,11 +118,11 @@ const createNewModel = async (
     };
 
     const newModel = await apiClient.modelMethods.saveModel(createPayload, targetGuid);
-    logger.model.created(model)
+    logger.model.created(model, "created", targetGuid)
     referenceMapper.addMapping(model, newModel);
     return "created";
   } catch (error: any) {
-    logger.model.error(model, error)
+    logger.model.error(model, error, targetGuid)
     return "failed";
   }
 };
@@ -160,11 +160,11 @@ async function updateExistingModel(
     };
 
     const updatedModel = await apiClient.modelMethods.saveModel(updatePayload, targetGuid);
-    logger.model.updated(sourceModel)
+    logger.model.updated(sourceModel, "updated", targetGuid)
     referenceMapper.addMapping(sourceModel, updatedModel);
     return "updated";
   } catch (error: any) {
-    logger.model.error(sourceModel, error)
+    logger.model.error(sourceModel, error, targetGuid)
     return "failed";
   }
 }
