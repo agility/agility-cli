@@ -17,7 +17,7 @@ export async function pushGalleries(
   // Extract data from sourceData - unified parameter pattern
   const galleries: mgmtApi.assetMediaGrouping[] = sourceData || [];
 
-  const { sourceGuid, targetGuid } = state;
+  const { sourceGuid, targetGuid, overwrite } = state;
 
   
   // Get the GUID logger from state instead of creating a new one
@@ -47,7 +47,7 @@ export async function pushGalleries(
       const existingMapping = referenceMapper.getGalleryMapping(sourceGallery, "source");      
       const targetGallery =  targetData.find(targetGallery => { return targetGallery.mediaGroupingID === sourceGallery.mediaGroupingID});
         
-      const shouldCreate = existingMapping === null && !targetGallery;
+      const shouldCreate = existingMapping === null;
 
       if (shouldCreate) {
         // Gallery needs to be created (doesn't exist in target)
@@ -57,22 +57,27 @@ export async function pushGalleries(
 
         const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetGallery);
         const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(sourceGallery);
-        const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
-        const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
+        let shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
+        let shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
+
+        if (overwrite) {
+          shouldUpdate = true;
+          shouldSkip = false;
+        }
 
         if (shouldUpdate) {
           // Gallery exists but needs updating
-          await updateGallery(sourceGallery, targetGallery, apiClient, targetGuid[0], referenceMapper, logger);
+          await updateGallery(sourceGallery, existingMapping.targetMediaGroupingID, apiClient, targetGuid[0], referenceMapper, logger);
           successful++;
         } else if (shouldSkip) {
           // Gallery exists and is up to date - skip
-          logger.gallery.exists(sourceGallery);
+          logger.gallery.skipped(sourceGallery, "up to date, skipping");
           // console.log(`✓ Gallery ${ansiColors.underline(sourceGallery.name)} ${ansiColors.bold.gray('up to date, skipping')}`);
           skipped++;
         }
       }
     } catch (error: any) {
-      console.error(`✗ Error processing gallery ${sourceGallery.name}:`, error.message);
+      logger.gallery.error(sourceGallery, error)
       failed++;
       currentStatus = "error";
       overallStatus = "error";
@@ -118,13 +123,13 @@ async function createGallery(
  */
 async function updateGallery(
   sourceGallery: mgmtApi.assetMediaGrouping,
-  targetGallery: mgmtApi.assetMediaGrouping,
+  targetID: number,
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
   referenceMapper: GalleryMapper,
   logger: Logs
 ): Promise<void> {
-  const payload = { ...sourceGallery, mediaGroupingID: targetGallery.mediaGroupingID };
+  const payload = { ...sourceGallery, mediaGroupingID: targetID };
   const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
   referenceMapper.addMapping(sourceGallery, savedGallery);
   logger.gallery.updated(sourceGallery);
