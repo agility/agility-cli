@@ -36,7 +36,6 @@ export async function processPage({
 	let existingPage: mgmtApi.PageItem | null = null;
 	let channelID = -1;
 
-
 	const templateMapper = new TemplateMapper(sourceGuid, targetGuid);
 
 	try {
@@ -88,7 +87,6 @@ export async function processPage({
 		const hasSourceChanged = pageMapper.hasSourceChanged(page);
 
 		const isConflict = hasTargetChanged && hasSourceChanged;
-
 		const updateRequired = (hasSourceChanged && !isConflict) || overwrite;
 		const createRequired = !existingPage;
 
@@ -306,8 +304,11 @@ export async function processPage({
 		// Folder pages often don't have titles, but API requires them
 		const pageTitle = page.title || page.menuText || page.name || "Untitled Page";
 
+		const pageJSON = JSON.stringify(page, null, 2);
+		const pageCopy = JSON.parse(pageJSON) as mgmtApi.PageItem; // Create a copy to avoid modifying original
+
 		const payload: any = {
-			...page,
+			...pageCopy,
 			pageID: existingPage ? existingPage.pageID : -1, // Use existing page ID if available
 			title: pageTitle, // CRITICAL: Ensure title is always present
 			channelID: channelID, // CRITICAL: Always use target instance channel ID to avoid FK constraint errors
@@ -316,11 +317,7 @@ export async function processPage({
 			path: page.path || "",
 		};
 
-		if (mappingToOtherLocale) {
-			// If a mapping to another locale was found, include it in the payload
-			payload.OtherLanguageCode = mappingToOtherLocale.OtherLanguageCode
-			payload.PageIDOtherLanguage = mappingToOtherLocale.PageIDOtherLanguage;
-		}
+
 
 		let parentIDArg = -1;
 
@@ -347,6 +344,10 @@ export async function processPage({
 			}
 		}
 
+		const pageIDInOtherLocale = mappingToOtherLocale ? mappingToOtherLocale.PageIDOtherLanguage : -1;
+		const otherLocale = mappingToOtherLocale ? mappingToOtherLocale.OtherLanguageCode : null;
+
+
 		// Save the page with returnBatchID flag for consistent batch processing
 		const savePageResponse = await apiClient.pageMethods.savePage(
 			payload,
@@ -354,7 +355,9 @@ export async function processPage({
 			locale,
 			parentIDArg,
 			placeBeforeIDArg,
-			true
+			true,
+			pageIDInOtherLocale,
+			otherLocale
 		);
 
 		// Process the response - with returnBatchID=true, we should always get a batch ID

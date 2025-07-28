@@ -377,25 +377,14 @@ export class Auth {
         //Get the locales for the TARGET GUID
         let targetLocales: string[] = [];
         if (state.targetGuid.length > 0) {
-          targetLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.targetGuid[0])).map(
-            (locale: any) => {
-              return locale.localeCode;
-            }
-          );
-        }
+          targetLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.targetGuid[0])).map((locale: any) => locale.localeCode);
 
-        // MAKE SURE THAT the TARGET has the same locales as the SOURCE
-        const missingLocales = sourceLocales.filter((locale) => !targetLocales.includes(locale));
-        if (missingLocales.length > 0 && state.locale.length === 0) { // TODO: REMOVE ON PR 
-          // console.log(ansiColors.red("missingLocales"), missingLocales)
-          console.log(
-            ansiColors.yellow(
-              `⚠️  Target instance ${state.targetGuid[0]}: Missing locales ${missingLocales.join(
-                ", "
-              )} (available: ${targetLocales.join(", ")})`
-            )
-          );
-          return false; // Cannot proceed with missing locales
+          // MAKE SURE THAT the TARGET has the same locales as the SOURCE
+          const missingLocales = sourceLocales.filter(locale => !targetLocales.includes(locale));
+          if (missingLocales.length > 0) {
+            console.log(ansiColors.yellow(`⚠️  Target instance ${state.targetGuid[0]}: Missing locales ${missingLocales.join(', ')} (available: ${targetLocales.join(', ')})`));
+            return false; // Cannot proceed with missing locales
+          }
         }
 
         //if they pass in locales, use those, ONLY if they are all in the source locales list
@@ -415,7 +404,11 @@ export class Auth {
 
         const guidLocaleMap = new Map<string, string[]>();
         guidLocaleMap.set(state.sourceGuid[0], localesToUse);
-        guidLocaleMap.set(state.targetGuid[0], localesToUse);
+
+        if (state.targetGuid.length > 0) {
+          //if we have a target...
+          guidLocaleMap.set(state.targetGuid[0], localesToUse);
+        }
 
         state.locale = localesToUse; // Set the state locale list to the determined locales
         state.guidLocaleMap = guidLocaleMap;
