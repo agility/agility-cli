@@ -116,16 +116,11 @@ const createNewModel = async (
 ): Promise<"created" | "updated" | "skipped" | "failed"> => {
   try {
     // process the model without fields
-    // const newModel = await createNewModel(model, [], apiClient, targetGuid[0]);
     const createPayload = {
       ...model,
       id: 0,
       fields: [], // no fields for a stub
     };
-
-    // delete createPayload.lastModifiedDate;
-    // delete createPayload.lastModifiedBy;
-    // delete createPayload.lastModifiedAuthorID;
 
     const newModel = await apiClient.modelMethods.saveModel(createPayload, targetGuid);
     console.log(`✓ Model ${ansiColors.cyan.underline(model.referenceName)} stub ${ansiColors.bold.green("created")}`);
@@ -149,9 +144,6 @@ async function updateExistingModel(
 ): Promise<"updated" | "failed"> {
  
 
-  // const mapping = referenceMapper.getModelMapping(sourceModel, "source");
-  // console.log('mapping', mapping);
-  // const targetModel = referenceMapper.getMappedEntity(mapping, "target");
   const fields = sourceModel?.fields || [];
 
   try {
@@ -172,9 +164,6 @@ async function updateExistingModel(
         return cleanField;
       }),
     };
-
-    // delete updatePayload.lastModifiedBy;
-    // delete updatePayload.lastModifiedAuthorID;
 
     const updatedModel = await apiClient.modelMethods.saveModel(updatePayload, targetGuid);
     console.log(`✓ Model ${ansiColors.cyan.underline(sourceModel.referenceName)} ${ansiColors.bold.green("updated")}`);
