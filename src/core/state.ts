@@ -507,32 +507,6 @@ export function getUIMode() {
 }
 
 /**
- * Resolve locales for operation
- * Uses specified locales or stored available locales from auth.init
- */
-export function resolveLocales(): string[] {
-  // If locales already specified, use them
-  if (state.locale && state.locale.length > 0) {
-    console.log(`Using specified locales: ${state.locale.join(', ')}`);
-    return state.locale;
-  }
-
-  // Use available locales detected during auth.init
-  if (state.availableLocales && state.availableLocales.length > 0) {
-    console.log(`Using auto-detected locales: ${state.availableLocales.join(', ')}`);
-
-    // Update state with detected locales for consistency
-    state.locale = state.availableLocales;
-
-    return state.availableLocales;
-  }
-
-  // Fallback if no locales available
-  console.log('⚠️  No locales available, falling back to en-us');
-  return ['en-us'];
-}
-
-/**
  * Get API keys for a specific GUID
  */
 export function getApiKeysForGuid(guid: string): { previewKey: string; fetchKey: string } | null {
