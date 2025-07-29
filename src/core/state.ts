@@ -6,6 +6,7 @@
 import * as mgmtApi from '@agility/management-sdk';
 import fs from 'fs';
 import path from 'path';
+import { Logs, OperationType, EntityType } from './logs';
 
 export interface State {
   // Environment modes
@@ -72,11 +73,20 @@ export interface State {
   // Cached API client instance (to prevent connection pool exhaustion)
   cachedApiClient?: mgmtApi.ApiClient;
 
+  // Centralized logger instance
+  logger?: Logs;
+  loggerRegistry: Map<string, Logs>; // New: Registry for per-GUID loggers
+
   // Legacy fields (for backward compatibility)
   token: string | null;
   localServer: string;
   isAgilityDev: boolean;
   forceNGROK: boolean;
+
+  // Push/Pull/Sync flags
+  isPush: boolean;
+  isPull: boolean;
+  isSync: boolean;
 }
 
 // Global state - populated from argv and referenced throughout the app
@@ -107,6 +117,7 @@ export const state: State = {
 
   // Network/Security
   insecure: false,
+  baseUrl: undefined,
 
   // Debug/Analysis
   test: false,
@@ -124,17 +135,24 @@ export const state: State = {
   models: "",
   modelsWithDeps: "",
 
-  // Cached API client instance (to prevent connection pool exhaustion)
-  cachedApiClient: undefined,
-
   // Content-specific
   contentItems: undefined,
 
-  // Legacy fields
+  // Cached API client instance (to prevent connection pool exhaustion)
+  cachedApiClient: undefined,
+
+  // Centralized logger instance
+  logger: undefined,
+  loggerRegistry: new Map(),
+
+  // Legacy fields (for backward compatibility)
   token: null,
   localServer: "",
   isAgilityDev: false,
   forceNGROK: false,
+  isPush: false,
+  isPull: false,
+  isSync: false,
 };
 
 /**
@@ -497,32 +515,6 @@ export function getUIMode() {
 }
 
 /**
- * Resolve locales for operation
- * Uses specified locales or stored available locales from auth.init
- */
-export function resolveLocales(): string[] {
-  // If locales already specified, use them
-  if (state.locale && state.locale.length > 0) {
-    console.log(`Using specified locales: ${state.locale.join(', ')}`);
-    return state.locale;
-  }
-
-  // Use available locales detected during auth.init
-  if (state.availableLocales && state.availableLocales.length > 0) {
-    console.log(`Using auto-detected locales: ${state.availableLocales.join(', ')}`);
-
-    // Update state with detected locales for consistency
-    state.locale = state.availableLocales;
-
-    return state.availableLocales;
-  }
-
-  // Fallback if no locales available
-  console.log('⚠️  No locales available, falling back to en-us');
-  return ['en-us'];
-}
-
-/**
  * Get API keys for a specific GUID
  */
 export function getApiKeysForGuid(guid: string): { previewKey: string; fetchKey: string } | null {
@@ -561,4 +553,143 @@ export function validateLocales(locales: string[]): { valid: string[], invalid: 
   }
 
   return { valid, invalid };
+}
+
+/**
+ * Initialize centralized logger for the current operation
+ */
+export function initializeLogger(operationType: OperationType): Logs {
+  state.logger = new Logs(operationType);
+  
+  // Configure based on current state
+  state.logger.configure({
+    logToConsole: !state.headless,
+    logToFile: true,
+    showColors: !state.headless,
+    useStructuredFormat: true
+  });
+  
+  return state.logger;
+}
+
+/**
+ * Initialize a per-GUID logger for parallel operations
+ */
+export function initializeGuidLogger(guid: string, operationType: OperationType, entityType?: EntityType): Logs {
+  if (!state.loggerRegistry) {
+    state.loggerRegistry = new Map();
+  }
+  
+  const logger = new Logs(operationType, entityType, guid);
+  
+  // Configure based on current state
+  logger.configure({
+    logToConsole: !state.headless,
+    logToFile: true,
+    showColors: !state.headless,
+    useStructuredFormat: true
+  });
+  
+  state.loggerRegistry.set(guid, logger);
+  return logger;
+}
+
+/**
+ * Get logger for a specific GUID
+ */
+export function getLoggerForGuid(guid: string): Logs | null {
+  if (!state.loggerRegistry) {
+    return null;
+  }
+  
+  const logger = state.loggerRegistry.get(guid);
+  if (logger && !logger.getGuid()) {
+    // Ensure the logger has the GUID set
+    logger.setGuid(guid);
+  }
+  
+  return logger || null;
+}
+
+/**
+ * Get the current global logger instance
+ */
+export function getLogger(): Logs | null {
+  return state.logger || null;
+}
+
+/**
+ * Save and clear a specific GUID logger
+ */
+export function finalizeGuidLogger(guid: string): string | null {
+  if (state.loggerRegistry && state.loggerRegistry.has(guid)) {
+    const guidLogger = state.loggerRegistry.get(guid);
+    if (guidLogger) {
+      const result = guidLogger.saveLogs();
+      state.loggerRegistry.delete(guid);
+      return result;
+    }
+  }
+  return null;
+}
+
+/**
+ * Save and clear all GUID loggers and merge into global log
+ */
+export function finalizeAllGuidLoggers(): string[] {
+  const results: string[] = [];
+  
+  if (state.loggerRegistry) {
+    const entries = Array.from(state.loggerRegistry.entries());
+    
+    for (const [guid, logger] of entries) {
+      const logCount = logger.getLogCount();
+      
+      if (logCount > 0) {
+        const result = logger.saveLogs();
+        if (result) {
+          results.push(result);
+          console.log(`${result}`);
+        }
+      }
+    }
+    state.loggerRegistry.clear();
+  }
+  
+  return results;
+}
+
+/**
+ * Finalize and save the global logger
+ */
+export function finalizeLogger(): string | null {
+  if (state.logger) {
+    const result = state.logger.saveLogs();
+    state.logger = undefined;
+    
+    // Return result without automatically displaying it
+    // The calling code will handle display if needed
+    return result;
+  }
+  return null;
+}
+
+export function startTimer(): void {
+  if (state.logger) {
+    state.logger.startTimer();
+  }
+}
+
+export function endTimer(): void {
+  if (state.logger) {
+    state.logger.endTimer();
+  }
+}
+
+
+/**
+ * Clear the current logger from state
+ */
+export function clearLogger(): void {
+  state.logger = undefined;
 }

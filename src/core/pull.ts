@@ -1,11 +1,8 @@
 import * as path from "path";
 import * as fs from "fs";
-import { getState } from "./state";
+import { getState, initializeLogger, finalizeLogger, getLogger } from "./state";
 import ansiColors from "ansi-colors";
-import {
-  markPullStart,
-  clearTimestamps,
-} from "../lib/incremental";
+import { markPullStart, clearTimestamps } from "../lib/incremental";
 
 import { Downloader } from "../lib/downloaders/orchestrate-downloaders";
 
@@ -20,7 +17,11 @@ export class Pull {
   async pullInstances(fromPush: boolean = false): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
     const state = getState();
     
-
+    // Initialize logger inside the method so it works correctly when called from push operations
+    // But only if not called from push operation (to avoid conflicts with push logger)
+    if (!fromPush) {
+      initializeLogger("pull");
+    }
 
     // TODO: Add support for multiple GUIDs, multiple locales, multiple chanels
     // Currently only supports one GUID, one locale, one channel
@@ -28,30 +29,30 @@ export class Pull {
     const { update } = state;
 
     let allGuids = [];
-    if(update === false && fromPush === true){
+    if (update === false && fromPush === true) {
       allGuids = [...state.targetGuid];
-    } else if(update === true && fromPush === true){
+    } else if (update === true && fromPush === true) {
       allGuids = [...state.sourceGuid, ...state.targetGuid];
-    } else if(update === true && fromPush === false){
+    } else if (update === true && fromPush === false) {
       allGuids = [...state.sourceGuid];
     }
-    
+
     if (allGuids.length === 0) {
-      throw new Error('No GUIDs specified for pull operation');
+      throw new Error("No GUIDs specified for pull operation");
     }
 
     // Calculate total operations using per-GUID locale mapping
     let totalOperations = 0;
     const operationDetails: string[] = [];
-    
+
     for (const guid of allGuids) {
-      const guidLocales = state.guidLocaleMap.get(guid) || ['en-us'];
+      const guidLocales = state.guidLocaleMap.get(guid) || ["en-us"];
       totalOperations += guidLocales.length;
-      operationDetails.push(`${guid}: ${guidLocales.join(', ')}`);
+      operationDetails.push(`${guid}: ${guidLocales.join(", ")}`);
     }
- 
-    operationDetails.forEach(detail => console.log(`${detail}`));
-    
+
+    // operationDetails.forEach((detail) => console.log(`${detail}`));
+
     // Handle --reset flag: completely delete GUID folders and start fresh
     if (state.reset) {
       for (const guid of allGuids) {
@@ -66,14 +67,14 @@ export class Pull {
     try {
       // Execute concurrent downloads for all GUIDs, locales and channels (sitemaps)
       const results = await this.downloader.instanceOrchestrator();
-      
+
       const totalElapsedTime = Date.now() - totalStartTime;
 
       // Calculate success/failure counts
       let totalSuccessful = 0;
       let totalFailed = 0;
-      
-      results.forEach(result => {
+
+      results.forEach((result) => {
         if (result.failed?.length > 0) {
           totalFailed++;
         } else {
@@ -82,7 +83,26 @@ export class Pull {
       });
 
       const success = totalFailed === 0;
+
+      // Use the orchestrator summary function to handle all completion logic
+      const logger = getLogger();
+      if (logger) {
+        // Collect log file paths
+        const logFilePaths = results
+          .map(res => res.logFilePath)
+          .filter(path => path);
+        
+        logger.orchestratorSummary(results, totalElapsedTime, success, logFilePaths);
+      }
+
+      finalizeLogger(); // Finalize global logger if it exists
       
+      // Only exit if not called from push operation
+      if (!fromPush) {
+        process.exit(success ? 0 : 1);
+      }
+
+      // Return results for use by calling code (especially when fromPush = true)
       return {
         success,
         results,

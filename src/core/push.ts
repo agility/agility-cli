@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as fs from "fs";
-import { getState } from "./state";
+import { getState, initializeLogger, finalizeLogger, getLogger, state } from "./state";
 import ansiColors from "ansi-colors";
 import { markPushStart, clearTimestamps } from "../lib/incremental";
 
@@ -15,33 +15,39 @@ export class Push {
     this.pushers = new Pushers();
   }
 
-  async pushInstances(): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
-    const state = getState();
+  async pushInstances(fromSync: boolean = false): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
+    const { isSync, sourceGuid, targetGuid, models, modelsWithDeps } = state;
+    
+    // Initialize logger for push operation
+    // Determine if this is a sync operation by checking if both source and target GUIDs exist
+    initializeLogger(isSync ? "sync" : "push");
+    const logger = getLogger();
 
     // TODO: Add support for multiple GUIDs, multiple locales, multiple chanels
     // Currently only supports one GUID, one locale, one channel
     // Get all GUIDs to process (both source and target)
-    const allGuids = [...state.sourceGuid, ...state.targetGuid];
+    const allGuids = [...sourceGuid, ...targetGuid];
 
     if (allGuids.length === 0) {
       throw new Error("No GUIDs specified for push operation");
     }
 
-    console.log(ansiColors.bgCyan(`state.update: ${state.update}`));
-
     // IMPORTANT: Apply model filtering before downloads to prevent unwanted elements
-    const { models, modelsWithDeps } = state;
+    const {  } = state;
     if (models && models.trim().length > 0 && (!modelsWithDeps || modelsWithDeps.trim().length === 0)) {
       // Override state.elements to prevent dependency forcing from downloading unwanted elements
       const { setState } = await import("./state");
       setState({ elements: 'Models' });
     }
 
+
     // pull the instance data
     const pull = new Pull();
     await pull.pullInstances(true);
-
-
+    
+    // Re-initialize logger after pull operation (pull finalizes its logger)
+    initializeLogger(isSync ? "sync" : "push");
+    
     // CONSOLE.LOG - Calculate total operations using per-GUID locale mapping
     let totalOperations = 0;
     const operationDetails: string[] = [];
@@ -83,13 +89,35 @@ export class Push {
 
       const success = totalFailed === 0;
 
+      // Use the orchestrator summary function to handle all completion logic
+      const logger = getLogger();
+        
+      if (logger) {
+        
+        const logFilePaths = results
+        .map(res => res.logFilePath)
+        .filter(path => path);
+      
+        logger.orchestratorSummary(results, totalElapsedTime, success, logFilePaths);
+      }
+
+      finalizeLogger(); // Finalize global logger if it exists
+      
+      // Only exit if not called from another operation
+    
       return {
         success,
         results,
         elapsedTime: totalElapsedTime,
       };
+
     } catch (error: any) {
-      console.error(ansiColors.red("\n❌ An error occurred during the pull command:"), error);
+      console.error(ansiColors.red("\n❌ An error occurred during the push command:"), error);
+      finalizeLogger(); // Finalize logger even on error
+      
+      // Only exit if not called from another operation
+      // process.exit(1);
+      
       throw error; // Let calling code handle error response
     }
   }

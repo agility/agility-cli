@@ -10,7 +10,7 @@
 
 import { SourceData } from '../../types/sourceData';
 import ansiColors from 'ansi-colors';
-import { SitemapHierarchy } from '../shared/sitemap-hierarchy';
+import { SitemapHierarchy } from '../pushers/page-pusher/sitemap-hierarchy';
 
 export interface ModelDependencyTree {
   models: Set<string>;        // Model reference names

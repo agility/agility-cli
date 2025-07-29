@@ -1,10 +1,11 @@
 import * as mgmtApi from "@agility/management-sdk";
 import { state, getApiClient } from "../../../core/state";
 import { PusherResult } from "../../../types/sourceData";
-import { SitemapHierarchy } from "../../shared/sitemap-hierarchy";
+import { SitemapHierarchy } from "./sitemap-hierarchy";
 import { PageMapper } from "../../mappers/page-mapper";
 import { processPage } from "./process-page";
 import { SitemapNode } from "types/index";
+import { Logs } from "core/logs";
 
 interface ReturnType {
 	successful: number;
@@ -23,7 +24,8 @@ interface Props {
 	apiClient: mgmtApi.ApiClient,
 	overwrite: boolean,
 	sourcePages: mgmtApi.PageItem[],
-	parentPageID: number
+	parentPageID: number,
+	logger: Logs
 }
 
 /**
@@ -40,7 +42,8 @@ export async function processSitemap({
 	apiClient,
 	overwrite,
 	sourcePages,
-	parentPageID
+	parentPageID,
+	logger
 }: Props): Promise<ReturnType> {
 
 	let returnData: ReturnType = {
@@ -62,7 +65,8 @@ export async function processSitemap({
 		const sourcePage = sourcePages.find(page => page.pageID === node.pageID);
 
 		if (!sourcePage) {
-			console.warn(`⚠️ Source page with ID ${node.pageID} not found in source data.`);
+			logger.page.error(node, `source page with ID ${node.pageID} not found in source data.`, locale, channel, targetGuid);
+			returnData.failed++;
 			continue; // Skip if source page is missing
 		}
 
@@ -76,7 +80,8 @@ export async function processSitemap({
 			overwrite,
 			insertBeforePageId: previousPageID,
 			pageMapper,
-			parentPageID
+			parentPageID,
+			logger
 		})
 
 		if (pageRes === "success") {
@@ -106,7 +111,8 @@ export async function processSitemap({
 			overwrite,
 			sourcePages,
 			// Pass current node's page ID as parent for children
-			parentPageID: node.pageID
+			parentPageID: node.pageID,
+			logger
 		})
 
 		// Update returnData based on childRes

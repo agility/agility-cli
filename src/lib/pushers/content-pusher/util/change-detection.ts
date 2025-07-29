@@ -20,7 +20,6 @@ export function changeDetection(
 	mapping: ContentItemMapping,
 	locale: string
 ): ChangeDetection {
-
 	if (!mapping && !targetEntity) {
 		//if we have no target content and no mapping
 		return {
@@ -80,6 +79,17 @@ export function changeDetection(
 		};
 	}
 
+	const { overwrite } = state;
+	if (overwrite) {
+		return {
+			entity: targetEntity,
+			shouldUpdate: true,
+			shouldCreate: false,
+			shouldSkip: false,
+			isConflict: false,
+			reason: 'Overwrite mode enabled'
+		};
+	}
 
 	return {
 		entity: targetEntity,

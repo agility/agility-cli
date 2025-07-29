@@ -1,10 +1,9 @@
 import * as mgmtApi from "@agility/management-sdk";
-import ansiColors from "ansi-colors";
 import { ApiClient } from "@agility/management-sdk";
-import { state } from "../../core/state";
-import { sleep } from "../shared/sleep";
+import { getLoggerForGuid, state } from "core/state";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
+import { Logs } from "core/logs";
 
 /**
  * Container pusher with enhanced version-based comparison
@@ -13,26 +12,22 @@ import { ModelMapper } from "lib/mappers/model-mapper";
 export async function pushContainers(
   sourceData: mgmtApi.Container[],
   targetData: mgmtApi.Container[],
-  // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
   // Extract data from sourceData - unified parameter pattern
   const sourceContainers: mgmtApi.Container[] = sourceData || [];
+  const { sourceGuid, targetGuid, cachedApiClient: apiClient, overwrite } = state;
+  const logger = getLoggerForGuid(sourceGuid[0]);
 
   if (!sourceContainers || sourceContainers.length === 0) {
-    console.log("No containers found to process.");
+    logger.log("INFO", "No containers found to process.");
     return { status: "success", successful: 0, failed: 0, skipped: 0 };
   }
-
-  // Get state values instead of prop drilling
-  const { targetGuid, cachedApiClient, sourceGuid } = state;
-  const apiClient = cachedApiClient;
 
   let successful = 0;
   let failed = 0;
   let skipped = 0;
   let processedCount = 0;
   let overallStatus: "success" | "error" = "success";
-  let totalFailures = { value: 0 }; // Track total failures across entire operation
 
   const containerMapper = new ContainerMapper(sourceGuid[0], targetGuid[0]);
   const modelMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
@@ -71,8 +66,13 @@ export async function pushContainers(
 
       const hasTargetChanges = existingMapping !== null && containerMapper.hasTargetChanged(targetContainer);
       const hasSourceChanges = existingMapping !== null && containerMapper.hasSourceChanged(sourceContainer);
-      const shouldUpdate = existingMapping !== null && !hasTargetChanges && hasSourceChanges;
-      const shouldSkip = existingMapping !== null && hasTargetChanges && !hasSourceChanges;
+      let shouldUpdate = existingMapping !== null && !hasTargetChanges && hasSourceChanges;
+      let shouldSkip = existingMapping !== null && hasTargetChanges && !hasSourceChanges || existingMapping !== null && !hasSourceChanges && !hasTargetChanges;
+
+      if (overwrite) {
+        shouldUpdate = true;
+        shouldSkip = false;
+      }
 
       const modelMapping = modelMapper.getModelMappingByID(sourceContainer.contentDefinitionID, 'source')
       let targetModelID = -1
@@ -90,30 +90,24 @@ export async function pushContainers(
       if (shouldCreate) {
         // Container doesn't exist - create new one
         if (targetModelID < 1) {
-          console.log(
-            `${ansiColors.yellow("⚠️ Container")} ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.yellow("skipped - target model mapping not found")} (Model ID: ${sourceContainer.contentDefinitionID})`,
-          );
+          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0])
           skipped++;
         } else {
           // Container doesn't exist - create new one
-          const createResult = await createNewContainerWithRetry(
+          const createResult = await createNewContainer(
             sourceContainer,
             apiClient,
             targetGuid[0],
             targetModelID,
-            totalFailures,
+            logger,
           );
 
-          if (createResult.success) {
-            console.log(
-              `✓ Container ${ansiColors.cyan.underline(sourceRefName)} created - ${ansiColors.green(state.sourceGuid[0])}: ${sourceContainer.contentViewID} ${ansiColors.green(targetGuid[0])}: ${createResult.container.contentViewID} (Model:${createResult.container.contentDefinitionID})`,
-            );
-
-            containerMapper.addMapping(sourceContainer, createResult.container)
+          if (createResult) {
+            logger.container.created(sourceContainer, "created", targetGuid[0])
+            containerMapper.addMapping(sourceContainer, createResult)
             successful++;
           } else {
-            // console.log(createResult)
-            console.error(`✗ Failed to create container ${sourceRefName} after 5 attempts: ${createResult.error}`);
+            logger.container.error(sourceContainer, "Failed to create container", targetGuid[0])
             failed++;
             currentStatus = "error";
             overallStatus = "error";
@@ -125,28 +119,25 @@ export async function pushContainers(
         // Container exists but needs updating
 
         if (targetModelID < 1) {
-          console.log(
-            `${ansiColors.yellow("⚠️ Container")} ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.yellow("skipped - target model mapping not found")} (Model ID: ${sourceContainer.contentDefinitionID})`,
-          );
+          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0])
+
           skipped++;
         } else {
-          const updateResult = await updateExistingContainerWithRetry(
+          const updateResult = await updateExistingContainer(
             sourceContainer,
             targetContainer,
             apiClient,
             targetGuid[0],
             targetModelID,
-            totalFailures,
+            logger,
           );
 
-          if (updateResult.success) {
-            console.log(
-              `✓ Container updated: ${ansiColors.cyan.underline(sourceRefName)} - ${ansiColors.green("Source")}: ${sourceContainer.contentViewID} ${ansiColors.green(targetGuid[0])}: ${updateResult.container.contentViewID}`,
-            );
-            containerMapper.updateMapping(sourceContainer, updateResult.container);
+          if (updateResult) {
+            logger.container.updated(sourceContainer, "updated", targetGuid[0])
+            containerMapper.updateMapping(sourceContainer, updateResult);
             successful++;
           } else {
-            console.error(`✗ Failed to update container ${sourceRefName} after 5 attempts: ${updateResult.error}`);
+            logger.container.error(sourceContainer, "Failed to update container", targetGuid[0])
             failed++;
             currentStatus = "error";
             overallStatus = "error";
@@ -156,24 +147,16 @@ export async function pushContainers(
         }
       } else if (shouldSkip) {
         // Container exists and is up to date - skip
-        console.log(
-          `✓ Container ${ansiColors.cyan.underline(sourceRefName)} ${ansiColors.bold.gray("up to date, skipping")}`,
-        );
-
+        logger.container.skipped(sourceContainer, "up to date, skipping", targetGuid[0])
         skipped++;
       }
     } catch (error: any) {
-      console.error(`✗ Error processing container ${sourceRefName}:`, JSON.stringify(error));
-      totalFailures.value++;
-      await sleep(totalFailures.value * 2000); // Progressive backoff
+      logger.container.error(sourceContainer, error, targetGuid[0])
       failed++;
       currentStatus = "error";
       overallStatus = "error";
     } finally {
       processedCount++;
-      // if (onProgress) {
-      //     onProgress(processedCount, sourceContainers.length, currentStatus);
-      // }
     }
   }
 
@@ -188,7 +171,8 @@ async function updateExistingContainer(
   targetContainer: any,
   apiClient: ApiClient,
   targetGuid: string,
-  targetModelId: number
+  targetModelId: number,
+  logger: Logs
 ): Promise<mgmtApi.Container> {
 
   // Prepare update payload
@@ -200,47 +184,8 @@ async function updateExistingContainer(
 
   // Update the container
   const updatedContainer = await apiClient.containerMethods.saveContainer(updatePayload, targetGuid, true);
+  logger.container.updated(sourceContainer, "updated", targetGuid)
   return updatedContainer;
-}
-
-/**
- * Retry wrapper for updating existing containers
- */
-async function updateExistingContainerWithRetry(
-  sourceContainer: any,
-  targetContainer: any,
-  apiClient: ApiClient,
-  targetGuid: string,
-  targetModelId: number,
-  totalFailuresRef: { value: number },
-): Promise<{ success: boolean; container?: mgmtApi.Container; error?: string; failureCount: number }> {
-  let failureCount = 0;
-  let lastError: string = "";
-
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const container = await updateExistingContainer(
-        sourceContainer,
-        targetContainer,
-        apiClient,
-        targetGuid,
-        targetModelId
-      );
-      return { success: true, container, failureCount };
-    } catch (error: any) {
-      failureCount++;
-      totalFailuresRef.value++; // Increment immediately for progressive backoff
-      lastError = error.message || JSON.stringify(error);
-
-      if (attempt < 2) {
-        const backoffTime = totalFailuresRef.value * 2000;
-        console.log(`⚠️ Retry ${attempt}/2 for container ${sourceContainer.referenceName} (waiting ${backoffTime}ms)`);
-        await sleep(backoffTime);
-      }
-    }
-  }
-
-  return { success: false, error: lastError, failureCount };
 }
 
 /**
@@ -250,7 +195,8 @@ async function createNewContainer(
   sourceContainer: any,
   apiClient: ApiClient,
   targetGuid: string,
-  targetModelId: number
+  targetModelId: number,
+  logger: Logs
 ): Promise<mgmtApi.Container> {
 
   // Prepare creation payload
@@ -265,42 +211,7 @@ async function createNewContainer(
     const newContainer = await apiClient.containerMethods.saveContainer(createPayload, targetGuid, true);
     return newContainer;
   } catch (error: any) {
-    console.log(ansiColors.yellow(JSON.stringify(createPayload)));
-    console.log(ansiColors.red(JSON.stringify(error)));
+    logger.container.error(createPayload, error, targetGuid)
     throw error;
   }
-}
-
-/**
- * Retry wrapper for creating new containers
- */
-async function createNewContainerWithRetry(
-  sourceContainer: any,
-  apiClient: ApiClient,
-  targetGuid: string,
-  targetModelId: number,
-  totalFailuresRef: { value: number },
-): Promise<{ success: boolean; container?: mgmtApi.Container; error?: string; failureCount: number }> {
-  let failureCount = 0;
-  let lastError: string = "";
-
-  for (let attempt = 1; attempt <= 2; attempt++) {
-    try {
-      const container = await createNewContainer(sourceContainer, apiClient, targetGuid, targetModelId);
-      return { success: true, container, failureCount };
-    } catch (error: any) {
-      failureCount++;
-      totalFailuresRef.value++; // Increment immediately for progressive backoff
-      lastError = error.message || JSON.stringify(error);
-
-      if (attempt < 2) {
-        console.log(error);
-        const backoffTime = totalFailuresRef.value * 2000;
-        console.log(`⚠️ Retry ${attempt}/2 for container ${sourceContainer.referenceName} (waiting ${backoffTime}ms)`);
-        await sleep(backoffTime);
-      }
-    }
-  }
-
-  return { success: false, error: lastError, failureCount };
 }

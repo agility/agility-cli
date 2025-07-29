@@ -1,5 +1,5 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState, state } from "../../core/state";
+import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
 // import { ChangeDelta } from "../shared/change-delta-tracker";
@@ -13,6 +13,14 @@ export async function downloadAllContainers(
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
+  const logger = getLoggerForGuid(guid); // Use GUID-specific logger
+  
+  if (!logger) {
+    console.warn(`⚠️  No logger found for GUID ${guid}, skipping container logging`);
+    return;
+  }
+  
+  logger.startTimer();
 
   const containersFolderPath = fileOps.getDataFolderPath('containers');
 
@@ -71,13 +79,9 @@ export async function downloadAllContainers(
     totalContainers = containers.length;
 
     if (totalContainers === 0) {
-      console.log("No containers found to download.");
+      logger.info("No containers found to download");
       return;
     }
-
-
-    // Phase 2: Analyze which containers need downloading
-    // console.log(`\n📥 Processing ${totalContainers} containers with smart change detection...`);
 
     const downloadableContainers = [];
     const skippableContainers = [];
@@ -105,16 +109,15 @@ export async function downloadAllContainers(
           containerName,
           reason: downloadDecision.reason
         });
-
-
       }
     }
 
-    console.log(`\nContainer Change Detection Results: ${ansiColors.green(downloadableContainers.length.toString())} to download, ${ansiColors.gray(skippableContainers.length.toString())} unchanged`);
+    if(skippableContainers.length > 0){
+      logger.changeDetectionSummary("container", downloadableContainers.length, skippableContainers.length);
+    }
 
     // Phase 3: Download only the containers that need updating
     if (downloadableContainers.length === 0) {
-      // console.log("✅ All containers are up to date!");
       return;
     }
 
@@ -143,12 +146,11 @@ export async function downloadAllContainers(
 
           // Export container JSON
           fileOps.exportFiles(`containers`, containerID.toString(), container);
-          console.log(`✓ Downloaded container ${ansiColors.cyan(container.referenceName)} ID: ${container.contentViewID} ${ansiColors.gray(`(${reason})`)}`);
-
+          logger.container.downloaded(container,);
 
           return { success: true, container };
         } catch (error: any) {
-          console.error(`✗ Failed to download container ${ansiColors.red(containerName)} ID: ${containerID}`, ansiColors.gray(error.message ? `- ${error.message}` : ''));
+          logger.container.error(null, `ID: ${containerID} - ${error.message || 'Unknown error'}`);
           return { success: false, containerRef, error };
         }
       });
@@ -169,20 +171,12 @@ export async function downloadAllContainers(
     }
 
     // Performance and summary reporting
-    const endTime = Date.now();
-    const duration = ((endTime - startTime) / 1000).toFixed(1);
+    logger.endTimer();
     const errorCount = downloadableContainers.length - downloadedCount;
-
-    console.log(`\n📊 Container Download Summary:`);
-    console.log(`   ${ansiColors.green('✓')} Downloaded: ${downloadedCount}`);
-    console.log(`   ${ansiColors.gray('⚬')} Unchanged: ${skippedCount}`);
-    if (errorCount > 0) {
-      console.log(`   ${ansiColors.red('✗')} Failed: ${errorCount}`);
-    }
-    console.log(`   ⏱️  Duration: ${duration}s`);
+    logger.summary("pull", downloadedCount, skippedCount, errorCount);
 
   } catch (error: any) {
-    console.error('Error in downloadAllContainers:', error);
+    logger.error(`Error in downloadAllContainers: ${error.message || error}`);
     throw error;
   }
 }

@@ -1,7 +1,5 @@
-import { getState } from '../../core/state';
-import { fileOperations } from '../../core/fileOperations';
-import ansiColors from 'ansi-colors';
-import { DownloadOperationsRegistry } from './download-operations-config';
+import { DownloadOperationsRegistry } from "./download-operations-config";
+import { getState, initializeGuidLogger, finalizeGuidLogger } from "core/state";
 
 export interface DownloadResults {
   successful: string[];
@@ -19,7 +17,6 @@ export interface DownloaderConfig {
 
 export class Downloader {
   private config: DownloaderConfig;
-  private startTime: Date = new Date();
 
   constructor(config: DownloaderConfig = {}) {
     this.config = config;
@@ -31,6 +28,14 @@ export class Downloader {
   async guidDownloader(guid: string): Promise<DownloadResults> {
     const startTime = Date.now();
     
+    // Initialize per-GUID logger for true parallel logging (no specific entity type since operations vary)
+    const guidLogger = initializeGuidLogger(guid, "pull");
+    
+    // Log operation header with state information
+    if (guidLogger) {
+      guidLogger.logOperationHeader();
+    }
+    
     const results: DownloadResults = {
       successful: [],
       failed: [],
@@ -40,8 +45,6 @@ export class Downloader {
     };
 
     try {
-      console.log(`Processing ${guid}...`);
-
 
       // Execute all data elements for this GUID
       await this.downloadDataElements(guid, results);
@@ -49,18 +52,17 @@ export class Downloader {
       // Calculate final duration
       results.totalDuration = Date.now() - startTime;
 
-      // Create fileOperations instance for log finalization
-      const fileOps = new fileOperations(guid);
-      
+      // Finalize the per-GUID logger (this creates the log file)
       try {
-        const logFilePath = fileOps.finalizeLogFile("pull");
-        results.logFilePath = logFilePath;
+        const logFilePath = finalizeGuidLogger(guid);
+        if (logFilePath) {
+          results.logFilePath = logFilePath;
+          // Don't display immediately - will be shown at the end
+        }
       } catch (logError: any) {
         console.error(`${guid}: Could not finalize log file - ${logError.message}`);
       }
 
-      const duration = Math.floor(results.totalDuration / 1000);
-      console.log(`${guid}: Completed in ${duration}s`);
 
       return results;
 
@@ -71,9 +73,11 @@ export class Downloader {
       
       // Try to finalize log file even on error
       try {
-        const fileOps = new fileOperations(guid);
-        const logFilePath = fileOps.finalizeLogFile("pull");
-        results.logFilePath = logFilePath;
+        const logFilePath = finalizeGuidLogger(guid);
+        if (logFilePath) {
+          results.logFilePath = logFilePath;
+          console.log(`\n${logFilePath}`); // Display log file path to user even on error
+        }
       } catch (logError: any) {
         console.error(`${guid}: Could not finalize log file - ${logError.message}`);
       }
@@ -92,15 +96,11 @@ export class Downloader {
     if (allGuids.length === 0) {
       throw new Error('No GUIDs available for download operation');
     }
-    
-    console.log(`Starting parallel downloads for ${allGuids.length} GUID(s): ${allGuids.join(', ')}`);
-    
+     
     // Start ALL downloads simultaneously (true parallel execution)
-    const startTime = Date.now();
     const downloadTasks = allGuids.map(guid => this.guidDownloader(guid));
     
     const results = await Promise.allSettled(downloadTasks);
-    const totalElapsed = Date.now() - startTime;
     
     // Process results and separate successful from failed
     const successfulResults: DownloadResults[] = [];
@@ -120,18 +120,6 @@ export class Downloader {
     });
     
     // Report parallel execution summary
-    const totalElapsedSeconds = Math.floor(totalElapsed / 1000);
-    
-    console.log(`\n📊 Parallel Download Summary:`);
-    console.log(`   ${ansiColors.green('✓')} Successful: ${successfulResults.length}/${allGuids.length}`);
-    if (failedResults.length > 0) {
-      console.log(`   ${ansiColors.red('✗')} Failed: ${failedResults.length}/${allGuids.length}`);
-      failedResults.forEach(result => {
-        console.log(`     • ${result.guid}: ${result.error}`);
-      });
-    }
-    console.log(`   ⏱️  Total Duration: ${totalElapsedSeconds}s`);
-    
     return successfulResults;
   }
 
@@ -145,7 +133,7 @@ export class Downloader {
     // Get operations based on elements filter
     const operations = DownloadOperationsRegistry.getOperationsForElements();
 
-    console.log(`${guid}: Processing ${operations.length} data element(s)...`);
+    // console.log(`${guid}: Processing ${operations.length} data element(s)...`);
 
     // Execute each operation
     for (const operation of operations) {
@@ -172,7 +160,7 @@ export class Downloader {
    * Reset orchestrator state
    */
   reset(): void {
-    this.startTime = new Date();
+    // this.startTime = new Date();
   }
 
   /**

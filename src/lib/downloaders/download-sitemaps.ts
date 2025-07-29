@@ -1,5 +1,5 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState, state } from "../../core/state";
+import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
 import * as fs from "fs";
 import * as path from "path";
 import ansiColors from "ansi-colors";
@@ -12,7 +12,14 @@ export async function downloadAllSitemaps(
   const locales = state.guidLocaleMap.get(guid);
   const update = state.update;
   const apiClient = getApiClient();
+  const logger = getLoggerForGuid(guid); // Use GUID-specific logger
   
+  if (!logger) {
+    console.warn(`⚠️  No logger found for GUID ${guid}, skipping sitemap logging`);
+    return;
+  }
+  
+  logger.startTimer();
 
   // const changeDelta = new ChangeDelta(guid);
 
@@ -27,7 +34,7 @@ export async function downloadAllSitemaps(
     const sitemap = await apiClient.pageMethods.getSitemap(guid, locales[0]);
     
     if (!sitemap || sitemap.length === 0) {
-      console.log("No sitemap found to download.");
+      logger.sitemap.skipped(null, "No sitemap found to download");
       return;
     }
 
@@ -45,17 +52,16 @@ export async function downloadAllSitemaps(
     if (sitemapDownloadDecision.shouldDownload) {
       // Write sitemap file
       fs.writeFileSync(sitemapFilePath, JSON.stringify(sitemap, null, 2));
-      console.log(`✓ Downloaded ${ansiColors.underline.cyan(sitemapFileName)} ${ansiColors.gray(`(${sitemapDownloadDecision.reason})`)}`);
+      logger.sitemap.downloaded(sitemap);
     } else {
-      console.log(ansiColors.yellow(`⚠ Skipped ${sitemapFileName} ${ansiColors.gray(`(${sitemapDownloadDecision.reason})`)}`));
+      logger.sitemap.skipped(sitemap);
     }
 
-    const endTime = Date.now();
-    const duration = Math.floor((endTime - startTime) / 1000);
-    console.log(`Sitemap download completed in ${duration}s`);
+    logger.endTimer();
+    logger.summary("pull", sitemapDownloadDecision.shouldDownload ? 1 : 0, sitemapDownloadDecision.shouldDownload ? 0 : 1, 0);
 
   } catch (error: any) {
-    console.error(`❌ Failed to download sitemap: ${error.message}`);
+    logger.error(`Failed to download sitemap: ${error.message}`);
     throw error;
   }
 }

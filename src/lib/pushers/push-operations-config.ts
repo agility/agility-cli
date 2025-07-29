@@ -2,6 +2,7 @@
 import { GuidEntities } from './guid-data-loader';
 import { PusherResult } from 'types/sourceData';
 import { getState, setState } from 'core/state';
+import ansiColors from 'ansi-colors';
 
 
 // Central configuration for all push operations
@@ -23,7 +24,7 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
       return await pushGalleries(sourceData['galleries'], targetData['galleries']);
     },
     elements: ['Galleries'],
-    dependencies: ['Assets'], // Galleries require Assets to be meaningful
+    // dependencies: ['Assets'], // Galleries require Assets to be meaningful
     dataKey: 'galleries'
   },
   assets: {

@@ -26,6 +26,8 @@ import { generateEnv } from "./lib/shared";
 import { instanceSelector } from "./lib/ui/prompts";
 import { Push } from "./core/push";
 
+import { initializeLogger, getLogger, finalizeLogger, finalizeAllGuidLoggers } from "./core/state";
+
 let auth: Auth;
 
 yargs.version("1.0.0-beta.7").demand(1).exitProcess(false);
@@ -152,8 +154,6 @@ yargs.command({
   },
 });
 
-
-
 yargs.command({
   command: "pull",
   describe: "Pull your Agility instance locally.",
@@ -170,9 +170,10 @@ yargs.command({
       console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
     }
 
-
     setState(argv);
     state.update = true; // Ensure updates are enabled for pull
+    state.isPull = true;
+    
     auth = new Auth();
     const isAuthorized = await auth.init();
     if (!isAuthorized) {
@@ -185,43 +186,9 @@ yargs.command({
       return;
     }
 
-    try {
-      const pull = new Pull();
-      const result = await pull.pullInstances();
+    const pull = new Pull();
+    await pull.pullInstances();
 
-      // Simple completion summary
-      const totalElapsedSeconds = Math.floor(result.elapsedTime / 1000);
-      const minutes = Math.floor(totalElapsedSeconds / 60);
-      const seconds = totalElapsedSeconds % 60;
-      const timeDisplay = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-
-      let totalSuccessful = 0;
-      let totalFailed = 0;
-
-      result.results.forEach(res => {
-        if (res.failed?.length > 0) {
-          totalFailed++;
-        } else {
-          totalSuccessful++;
-        }
-      });
-
-      console.log(colors.cyan('\nSummary:'));
-      console.log(`Processed ${result.results.length} GUID/locale combinations`);
-      console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
-      console.log(`Total time: ${timeDisplay}`);
-
-      if (result.success) {
-        console.log(colors.green(`✓ Pull completed successfully`));
-        process.exit(0);
-      } else {
-        console.log(colors.red(`✗ Pull completed with errors`));
-        process.exit(1);
-      }
-    } catch (error: any) {
-      console.error(colors.red("\n❌ Pull command failed:"), error.message);
-      process.exit(1);
-    }
   },
 });
 
@@ -245,8 +212,7 @@ yargs.command({
   handler: async function (argv) {
 
     const invokedAs = Array.isArray(argv._) && argv._.length > 0 ? String(argv._[0]) : "";
-    const syncCommandUsed = invokedAs === "sync";
-
+    const isSync = invokedAs === "sync";
 
     resetState(); // Clear any previous command state
 
@@ -258,9 +224,12 @@ yargs.command({
 
     setState(argv);
 
-    // if the user is "pushing" only, we need to turn off the updates on the downloaders
-    if (syncCommandUsed) {
+    // if the user is "syncing", we need to turn on the updates to the downloaders
+    if (isSync) {
       state.update = true;
+      state.isSync = true;
+    } else {
+      state.isPush = true;
     }
 
     auth = new Auth();
@@ -275,45 +244,9 @@ yargs.command({
       return;
     }
 
-    // const syncOperation = new Sync();
-    // await syncOperation.syncInstance();
-    try {
-      const push = new Push();
-      const result = await push.pushInstances();
+    const push = new Push();
+    await push.pushInstances();
 
-      // Simple completion summary
-      const totalElapsedSeconds = Math.floor(result.elapsedTime / 1000);
-      const minutes = Math.floor(totalElapsedSeconds / 60);
-      const seconds = totalElapsedSeconds % 60;
-      const timeDisplay = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
-
-      let totalSuccessful = 0;
-      let totalFailed = 0;
-
-      result.results.forEach(res => {
-        if (res.failed?.length > 0) {
-          totalFailed++;
-        } else {
-          totalSuccessful++;
-        }
-      });
-
-      console.log(colors.cyan('\nSummary:'));
-      console.log(`Processed ${result.results.length} GUID/locale combinations`);
-      console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
-      console.log(`Total time: ${timeDisplay}`);
-
-      if (result.success) {
-        console.log(colors.green(`✓ Push completed successfully`));
-        process.exit(0);
-      } else {
-        console.log(colors.red(`✗ Push completed with errors`));
-        process.exit(1);
-      }
-    } catch (error: any) {
-      console.error(colors.red("\n❌ Push command failed:"), error.message);
-      process.exit(1);
-    }
   }
 })
 

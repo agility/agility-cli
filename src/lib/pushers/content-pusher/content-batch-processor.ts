@@ -6,6 +6,8 @@ import { ContainerMapper } from "lib/mappers/container-mapper";
 import { AssetMapper } from "lib/mappers/asset-mapper";
 import { BatchFailedItem, BatchProcessingResult, BatchProgressCallback, BatchSuccessItem, ContentBatchConfig } from "./util/types";
 import { findContentInOtherLocale } from "./util/find-content-in-other-locale";
+import { Logs } from "core/logs";
+import { state } from "core/state";
 /******
 * USAGE PATTERN:
 * 1. Filter content items BEFORE creating the batch processor using filterContentItemsForProcessing()
@@ -30,7 +32,7 @@ export class ContentBatchProcessor {
 	 */
 	async processBatches(
 		contentItems: mgmtApi.ContentItem[],
-		onProgress?: BatchProgressCallback,
+		logger: Logs,
 		batchType?: string
 	): Promise<BatchProcessingResult> {
 		const batchSize = this.config.batchSize!;
@@ -64,9 +66,9 @@ export class ContentBatchProcessor {
 				`[${progress}%] Bulk batch ${batchNumber}/${contentBatches.length}: Processing ${contentBatch.length} content items (ETA: ${etaMinutes}m)...`
 			);
 
-			if (onProgress) {
-				onProgress(batchNumber, contentBatches.length, processedSoFar, contentItems.length, "processing");
-			}
+			// if (onProgress) {
+			// 	onProgress(batchNumber, contentBatches.length, processedSoFar, contentItems.length, "processing");
+			// }
 
 			try {
 				// Prepare content payloads for bulk upload
@@ -137,20 +139,17 @@ export class ContentBatchProcessor {
 				// Display individual item results for better visibility
 				if (batchResult.successfulItems.length > 0) {
 					batchResult.successfulItems.forEach((item) => {
-						const modelName = item.originalContent.properties.definitionName || "Unknown";
-						console.log(
-							`✓ Content ${ansiColors.cyan.underline(
-								item.originalContent.properties.referenceName
-							)} (${modelName}) ${ansiColors.bold.green("created")}`
-						);
+
+						// const modelName = item.originalContent.properties.definitionName || "Unknown";
+						logger.content.created(item.originalContent, "created", this.config.locale, state.targetGuid[0]);
 					});
 				}
 
 				if (batchResult.failedItems.length > 0) {
 					console.log(`❌ Batch ${batchNumber} failed items:`);
 					batchResult.failedItems.forEach((item) => {
-						const modelName = item.originalContent.properties.definitionName || "Unknown";
-						console.log(`  ✗ Failed: ${item.originalContent.properties.referenceName} (${modelName}) - ${item.error}`);
+						// const modelName = item.originalContent.properties.definitionName || "Unknown";
+						logger.content.error(item.originalContent, item.error, this.config.locale, state.targetGuid[0]);
 					});
 				}
 
@@ -164,15 +163,15 @@ export class ContentBatchProcessor {
 					}
 				}
 
-				if (onProgress) {
-					onProgress(
-						batchNumber,
-						contentBatches.length,
-						processedSoFar + contentBatch.length,
-						contentItems.length,
-						"success"
-					);
-				}
+				// if (onProgress) {
+				// 	onProgress(
+				// 		batchNumber,
+				// 		contentBatches.length,
+				// 		processedSoFar + contentBatch.length,
+				// 		contentItems.length,
+				// 		"success"
+				// 	);
+				// }
 
 				// Add small delay between batches to prevent API throttling
 				if (i < contentBatches.length - 1) {
@@ -191,15 +190,15 @@ export class ContentBatchProcessor {
 				totalFailureCount += failedBatchItems.length;
 				allFailedItems.push(...failedBatchItems);
 
-				if (onProgress) {
-					onProgress(
-						batchNumber,
-						contentBatches.length,
-						processedSoFar + contentBatch.length,
-						contentItems.length,
-						"error"
-					);
-				}
+				// if (onProgress) {
+				// 	onProgress(
+				// 		batchNumber,
+				// 		contentBatches.length,
+				// 		processedSoFar + contentBatch.length,
+				// 		contentItems.length,
+				// 		"error"
+				// 	);
+				// }
 			}
 		}
 

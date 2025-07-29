@@ -45,14 +45,22 @@ export class GalleryMapper {
         return mapping;
     }
 
-    getMappedEntity(mapping: GalleryMapping, type: 'source' | 'target'): mgmtApi.assetMediaGrouping | null {
+
+    getMappedEntity(mapping: GalleryMapping | null, type: 'source' | 'target'): mgmtApi.assetMediaGrouping | null {
+        if(!mapping) return null;
         const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
         const mediaGroupingID = type === 'source' ? mapping.sourceMediaGroupingID : mapping.targetMediaGroupingID;
         const fileOps = new fileOperations(guid);
-        const galleryFilePath = fileOps.getDataFilePath(`galleries/${mediaGroupingID}.json`);
-        const galleryData = fileOps.readJsonFile(galleryFilePath);
-        if (!galleryData) return null;
-        return galleryData as mgmtApi.assetMediaGrouping;
+        const galleriesFiles = fileOps.getFolderContents('galleries');
+
+        console.log('galleriesFiles',galleriesFiles)
+        for(const galleryFile of galleriesFiles){
+            const galleryData = fileOps.readJsonFile(`galleries/${galleryFile}`);
+            if(galleryData.mediaGroupingID === mediaGroupingID){
+                return galleryData;
+            }
+        }
+        return null;
     }
 
     addMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping) {

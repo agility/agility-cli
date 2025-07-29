@@ -34,25 +34,11 @@ export interface GuidEntities {
 export class GuidDataLoader {
 
     private guid: string;
-    private locale: string;
 
-    constructor(guid: string, locale: string) {
-        const state = getState();
-        this.locale = locale;
+    constructor(guid: string) {
         this.guid = guid;
     }
 
-    async loadGuidEntitiesForAllLocales(filterOptions?: ModelFilterOptions): Promise<{ locale: string, guidEntities: GuidEntities }> {
-        const mgmtApi = getApiClient();
-        const locales = await mgmtApi.instanceMethods.getLocales(this.guid);
-
-        const guidEntities = await this.loadGuidEntities(this.locale, filterOptions);
-        return {
-            locale: this.locale,
-            guidEntities
-        }
-
-    }
     /**
      * Load all entities for the specified GUID and locale - guarantees arrays are always returned
      */
@@ -65,14 +51,14 @@ export class GuidDataLoader {
 
         // Initialize with empty arrays - no nulls/undefined ever
         const guidEntities: GuidEntities = {
-            pages: [],
-            templates: [],
+            galleries: [],
+            assets: [],
+            models: [],
             containers: [],
             lists: [],
-            models: [],
             content: [],
-            assets: [],
-            galleries: []
+            pages: [],
+            templates: []
         };
 
         // Load different entity types using pure getters for consistent architecture
