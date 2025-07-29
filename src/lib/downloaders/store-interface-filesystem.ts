@@ -258,7 +258,7 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 			// if(itemType !== 'item' && itemType !== 'sitemap' && itemType !== 'list') { console.log('item', item); }
 			// Map itemType to appropriate logger method and include locale for content/pages
 			if (itemType === 'item') {
-				logger.contentitem.downloaded(item, undefined, languageCode);
+				logger.content.downloaded(item, undefined, languageCode);
 			} else if (itemType === 'page') {
 				logger.page.downloaded(item, undefined, languageCode);
 			} else if (itemType === 'sitemap') {
