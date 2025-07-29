@@ -49,7 +49,7 @@ export async function processPage({
 			// Find the template mapping
 			let templateRef = templateMapper.getTemplateMappingByPageTemplateName(page.templateName, 'source');
 			if (!templateRef) {
-				logger.page.error(page, `Missing in source data, skipping`, locale, channel, targetGuid);
+				logger.page.error(page, `Missing page template ${page.templateName} in source data, skipping`, locale, channel, targetGuid);
 				return "skip";
 			}
 			targetTemplate = templateMapper.getMappedEntity(templateRef, 'target') as mgmtApi.PageModel;
@@ -431,7 +431,7 @@ export async function processPage({
 				if (existingPage) {
 					if (overwrite) {
 						logger.page.updated(page, "updated", locale, channel, targetGuid);
-						
+
 					} else {
 						logger.page.updated(page, "updated", locale, channel, targetGuid);
 					}

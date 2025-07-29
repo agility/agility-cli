@@ -12,9 +12,9 @@ export class SitemapHierarchy {
         // Configuration now comes from state internally
     }
 
-    loadAllSitemaps(guid?: string, locale?: string): { [key: string]: SitemapNode[] | null } {
-        
-        const { rootPath, sourceGuid } = state;  
+    loadAllSitemaps(guid: string, locale: string): { [key: string]: SitemapNode[] | null } {
+
+        const { rootPath, sourceGuid } = state;
         const sitemapDir = path.join(
             rootPath,
             guid,
@@ -29,7 +29,7 @@ export class SitemapHierarchy {
                 return; // Skip non-JSON files
             }
             const channel = path.basename(fileName, '.json');
-            sitemaps[channel] = this.loadNestedSitemap(channel);
+            sitemaps[channel] = this.loadNestedSitemap(path.join(sitemapDir, fileName));
         });
 
         return sitemaps;
@@ -38,31 +38,14 @@ export class SitemapHierarchy {
     /**
      * Load nested sitemap from the file system
      */
-    loadNestedSitemap(channel: string): SitemapNode[] | null {
+    loadNestedSitemap(filePath: string): SitemapNode[] | null {
         try {
-            const state = getState();
-            let sitemapPath: string;
-
-            if (state.legacyFolders) {
-                // Legacy mode: flat structure {rootPath}/nestedsitemap/website.json
-                sitemapPath = path.join(state.rootPath, 'nestedsitemap', `${channel.toLowerCase()}.json`);
-            } else {
-                // Normal mode: nested structure {rootPath}/{guid}/{locale}/nestedsitemap/website.json
-                sitemapPath = path.join(
-                    state.rootPath,
-                    state.sourceGuid[0],
-                    state.locale[0],
-                    'nestedsitemap',
-                    `${channel.toLowerCase()}.json`
-                );
-            }
-
-            if (!fs.existsSync(sitemapPath)) {
-                console.warn(`Nested sitemap not found at: ${sitemapPath}`);
+            if (!fs.existsSync(filePath)) {
+                console.warn(`Nested sitemap not found at: ${filePath}`);
                 return null;
             }
 
-            const sitemapData = fs.readFileSync(sitemapPath, 'utf8');
+            const sitemapData = fs.readFileSync(filePath, 'utf8');
             const sitemap: SitemapNode[] = JSON.parse(sitemapData);
 
             // Loaded nested sitemap (silent)
