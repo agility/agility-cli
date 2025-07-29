@@ -172,7 +172,8 @@ yargs.command({
 
     setState(argv);
     state.update = true; // Ensure updates are enabled for pull
-
+    state.isPull = true;
+    
     auth = new Auth();
     const isAuthorized = await auth.init();
     if (!isAuthorized) {
@@ -226,6 +227,9 @@ yargs.command({
     // if the user is "syncing", we need to turn on the updates to the downloaders
     if (isSync) {
       state.update = true;
+      state.isSync = true;
+    } else {
+      state.isPush = true;
     }
 
     auth = new Auth();

@@ -49,7 +49,7 @@ export async function processPage({
 			// Find the template mapping
 			let templateRef = templateMapper.getTemplateMappingByPageTemplateName(page.templateName, 'source');
 			if (!templateRef) {
-				logger.page.error(page, `Missing in source data, skipping`, locale, channel, state.targetGuid[0]);
+				logger.page.error(page, `Missing in source data, skipping`, locale, channel, targetGuid);
 				return "skip";
 			}
 			targetTemplate = templateMapper.getMappedEntity(templateRef, 'target') as mgmtApi.PageModel;
@@ -116,7 +116,7 @@ export async function processPage({
 				pageMapper.addMapping(page, existingPage);
 			}
 
-			logger.page.skipped(page, "up to date, skipping", locale, channel, state.targetGuid[0]);
+			logger.page.skipped(page, "up to date, skipping", locale, channel, targetGuid);
 			return "skip"; // Skip processing - page already exists
 		}
 
@@ -403,7 +403,7 @@ export async function processPage({
 				actualPageID = batchSuccessItems[0].newId;
 				savedPageVersionID = batchSuccessItems[0].newItem?.processedItemVersionID || -1;
 			} else if (batchFailedItems.length > 0) {
-				logger.page.error(page, `✗ Page ${page.name} batch failed: ${batchFailedItems[0].error}`, locale, channel, state.targetGuid[0]);
+				logger.page.error(page, `✗ Page ${page.name} batch failed: ${batchFailedItems[0].error}`, locale, channel, targetGuid);
 			}
 
 			if (actualPageID > 0) {
@@ -430,30 +430,30 @@ export async function processPage({
 
 				if (existingPage) {
 					if (overwrite) {
-						logger.page.updated(page, "updated", locale, channel, state.targetGuid[0]);
+						logger.page.updated(page, "updated", locale, channel, targetGuid);
 						
 					} else {
-						logger.page.updated(page, "updated", locale, channel, state.targetGuid[0]);
+						logger.page.updated(page, "updated", locale, channel, targetGuid);
 					}
 				} else {
-					logger.page.created(page, "created", locale, channel, state.targetGuid[0]);
+					logger.page.created(page, "created", locale, channel, targetGuid);
 				}
 				return "success"; // Success
 			} else {
 				// Show errorData if available, otherwise generic failure
 				if (completedBatch.errorData && completedBatch.errorData.trim()) {
-					logger.page.error(page, `✗ Page "${page.name}" failed  - ${completedBatch.errorData}, locale:${locale}`, locale, channel, state.targetGuid[0]);
+					logger.page.error(page, `✗ Page "${page.name}" failed  - ${completedBatch.errorData}, locale:${locale}`, locale, channel, targetGuid);
 				} else {
-					logger.page.error(page, `✗ Page "${page.name}" failed - invalid page ID: ${actualPageID}, locale:${locale}`, locale, channel, state.targetGuid[0]);
+					logger.page.error(page, `✗ Page "${page.name}" failed - invalid page ID: ${actualPageID}, locale:${locale}`, locale, channel, targetGuid);
 				}
 				return "failure";
 			}
 		} else {
-			logger.page.error(page, `✗ Page "${page.name}" failed in locale:${locale} - unexpected response format`, locale, channel, state.targetGuid[0]);
+			logger.page.error(page, `✗ Page "${page.name}" failed in locale:${locale} - unexpected response format`, locale, channel, targetGuid);
 			return "failure"; // Failure
 		}
 	} catch (error: any) {
-		logger.page.error(page, `✗ Page "${page.name}" failed in locale:${locale} - ${error.message}`, locale, channel, state.targetGuid[0]);
+		logger.page.error(page, `✗ Page "${page.name}" failed in locale:${locale} - ${error.message}`, locale, channel, targetGuid);
 		return "failure"; // Failure
 	}
 }

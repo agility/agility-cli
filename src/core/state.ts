@@ -82,6 +82,11 @@ export interface State {
   localServer: string;
   isAgilityDev: boolean;
   forceNGROK: boolean;
+
+  // Push/Pull/Sync flags
+  isPush: boolean;
+  isPull: boolean;
+  isSync: boolean;
 }
 
 // Global state - populated from argv and referenced throughout the app
@@ -145,6 +150,9 @@ export const state: State = {
   localServer: "",
   isAgilityDev: false,
   forceNGROK: false,
+  isPush: false,
+  isPull: false,
+  isSync: false,
 };
 
 /**

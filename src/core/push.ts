@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as fs from "fs";
-import { getState, initializeLogger, finalizeLogger, getLogger } from "./state";
+import { getState, initializeLogger, finalizeLogger, getLogger, state } from "./state";
 import ansiColors from "ansi-colors";
 import { markPushStart, clearTimestamps } from "../lib/incremental";
 
@@ -16,25 +16,24 @@ export class Push {
   }
 
   async pushInstances(fromSync: boolean = false): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
-    const state = getState();
+    const { isSync, sourceGuid, targetGuid, models, modelsWithDeps } = state;
     
     // Initialize logger for push operation
     // Determine if this is a sync operation by checking if both source and target GUIDs exist
-    const isSync = state.sourceGuid.length > 0 && state.targetGuid.length > 0;
     initializeLogger(isSync ? "sync" : "push");
     const logger = getLogger();
 
     // TODO: Add support for multiple GUIDs, multiple locales, multiple chanels
     // Currently only supports one GUID, one locale, one channel
     // Get all GUIDs to process (both source and target)
-    const allGuids = [...state.sourceGuid, ...state.targetGuid];
+    const allGuids = [...sourceGuid, ...targetGuid];
 
     if (allGuids.length === 0) {
       throw new Error("No GUIDs specified for push operation");
     }
 
     // IMPORTANT: Apply model filtering before downloads to prevent unwanted elements
-    const { models, modelsWithDeps } = state;
+    const {  } = state;
     if (models && models.trim().length > 0 && (!modelsWithDeps || modelsWithDeps.trim().length === 0)) {
       // Override state.elements to prevent dependency forcing from downloading unwanted elements
       const { setState } = await import("./state");
