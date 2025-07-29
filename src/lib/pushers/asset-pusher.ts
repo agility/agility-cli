@@ -60,7 +60,10 @@ export async function pushAssets(
       // Extract container folder path from asset's originUrl (not local path)
       const assetRelativePath = getAssetFilePath(media.originUrl); // e.g., "folder/file.jpg" or "file.jpg"
       const containerFolderPath = path.dirname(assetRelativePath); // e.g., "folder" or "."
-      const folderPath = containerFolderPath === "." ? "" : containerFolderPath; // Use empty string for root level
+
+      // root level folder needs to be "/", otherwise the variable is OK to use.
+      let folderPath = containerFolderPath === "." ? "/" : containerFolderPath;
+
 
       // TODO: this is where we need to check if the asset is a gallery asset and if so, we need to check if the gallery is up to date
       // Use simplified change detection pattern
@@ -68,7 +71,7 @@ export async function pushAssets(
       const shouldCreate = existingMapping === null;
 
       // get the target asset, check if the source and targets need updates
-      const targetAsset: mgmtApi.Media = targetData.find(targetAsset => targetAsset.mediaID === existingMapping?.targetMediaID) || null;      
+      const targetAsset: mgmtApi.Media = targetData.find(targetAsset => targetAsset.mediaID === existingMapping?.targetMediaID) || null;
       const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetAsset);
       const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(media);
       const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;

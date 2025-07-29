@@ -311,15 +311,6 @@ export class Auth {
       }
     }
 
-    // Is the user an Agility Dev?
-    const user = await this.getUser(state.sourceGuid[0]);
-    if (
-      user.emailAddress.includes("@agilitycms.com") &&
-      (user.jobRole.includes("developer") || user.jobRole.includes("administrator"))
-    ) {
-      state.isAgilityDev = true;
-    }
-
     // Step 4: Set up UI mode in state
     state.useHeadless = state.headless; // headless takes precedence
     state.useVerbose = !state.useHeadless && state.verbose;
@@ -460,8 +451,7 @@ export class Auth {
       }
     } catch (error) {
       throw new Error(
-        `${instanceType.charAt(0).toUpperCase() + instanceType.slice(1)} instance authentication failed: ${
-          error.message
+        `${instanceType.charAt(0).toUpperCase() + instanceType.slice(1)} instance authentication failed: ${error.message
         }`
       );
     }
