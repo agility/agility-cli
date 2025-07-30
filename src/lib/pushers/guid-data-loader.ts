@@ -51,8 +51,9 @@ export class GuidDataLoader {
 
         // Initialize with empty arrays - no nulls/undefined ever
         const guidEntities: GuidEntities = {
-            galleries: [],
+
             assets: [],
+            galleries: [],
             models: [],
             containers: [],
             lists: [],
