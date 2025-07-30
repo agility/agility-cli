@@ -153,7 +153,7 @@ async function createAsset(
   if (!fileOps.checkFileExists(absoluteLocalFilePath)) {
     throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
   }
-  const fileBuffer = fileOps.readFile(absoluteLocalFilePath);
+  const fileBuffer = fileOps.createReadStream(absoluteLocalFilePath);
   form.append("files", fileBuffer, media.fileName);
 
   const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
