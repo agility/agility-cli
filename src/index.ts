@@ -96,7 +96,14 @@ yargs.command({
 
     setState(argv);
     auth = new Auth();
-    await auth.init();
+    const isAuthorized = await auth.init();
+    if (!isAuthorized) {
+      console.log(colors.red("You are not authorized to login."));
+      return;
+    } else {
+      console.log(colors.green("You are now logged in, you can now use the CLI commands such as 'pull', 'push', 'sync', 'genenv', etc."));
+      process.exit(0);
+    }
   },
 });
 
