@@ -30,7 +30,8 @@ import { initializeLogger, getLogger, finalizeLogger, finalizeAllGuidLoggers } f
 
 let auth: Auth;
 
-yargs.version("1.0.0-beta.7").demand(1).exitProcess(false);
+// TODO: Do not hardcode this
+yargs.version("1.0.0-beta.9.0").demand(1).exitProcess(false);
 
 console.log(colors.yellow("Welcome to Agility CLI."));
 yargs.command({
