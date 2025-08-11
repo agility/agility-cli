@@ -165,6 +165,8 @@ export class Auth {
       return "https://mgmt-eu.aglty.io";
     } else if (guid?.endsWith("a")) {
       return "https://mgmt-aus.aglty.io";
+    } else if (guid?.endsWith("us2")) {
+      return "https://mgmt-us2.aglty.io";
     }
     return "https://mgmt.aglty.io";
   }
