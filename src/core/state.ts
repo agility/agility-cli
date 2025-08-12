@@ -386,7 +386,16 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
       }
 
       if (envVars.AGILITY_TOKEN && envVars.AGILITY_TOKEN[1] && !state.token) {
-        state.token = envVars.AGILITY_TOKEN[1].trim();
+        // Strip quotes from token value if present
+        let tokenValue = envVars.AGILITY_TOKEN[1].trim();
+        if ((tokenValue.startsWith('"') && tokenValue.endsWith('"')) || 
+            (tokenValue.startsWith("'") && tokenValue.endsWith("'"))) {
+          tokenValue = tokenValue.slice(1, -1);
+        }
+        
+        state.token = tokenValue;
+        // Also set in process.env so getUserProvidedToken() can find it
+        process.env.AGILITY_TOKEN = tokenValue;
         primedValues.push('token');
       }
 
