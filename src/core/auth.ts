@@ -288,10 +288,18 @@ export class Auth {
     const { configureSSL } = await import("./state");
     configureSSL();
 
-    // Step 2: Authenticate
-    const isAuthenticated = await this.checkAuthorization();
-    if (!isAuthenticated) {
-      return false;
+    // Step 2: Authenticate (PAT or Auth0)
+    const hasPAT = await this.hasPersonalAccessToken();
+    if (hasPAT) {
+      console.log(ansiColors.green("🔑 Using Personal Access Token for authentication."));
+      // Store PAT in keytar for future sessions
+      await this.storePATInKeytar();
+    } else {
+      // Use traditional Auth0 flow
+      const isAuthenticated = await this.checkAuthorization();
+      if (!isAuthenticated) {
+        return false;
+      }
     }
 
     // Step 3: Get API keys for all GUIDs
@@ -556,7 +564,60 @@ export class Auth {
     });
   }
 
+  /**
+   * Resolves authentication token with priority order:
+   * 1. Personal Access Token from --token flag or AGILITY_TOKEN env var
+   * 2. Auth0 token from keytar
+   */
   async getToken(): Promise<string> {
+    // Step 1: Check for Personal Access Token (PAT)
+    const personalAccessToken = await this.getPersonalAccessToken();
+    if (personalAccessToken) {
+      return personalAccessToken;
+    }
+
+    // Step 2: Fallback to Auth0 token
+    return await this.getAuth0Token();
+  }
+
+  /**
+   * Get Personal Access Token from --token flag or AGILITY_TOKEN environment variable
+   * Returns null if no PAT is available
+   */
+  private async getPersonalAccessToken(): Promise<string | null> {
+    const state = getState();
+    
+    // Priority 1: --token flag
+    if (state.token && state.token.trim().length > 0) {
+      // Validate PAT format (basic check)
+      if (await this.validatePersonalAccessToken(state.token)) {
+        return state.token;
+      } else {
+        console.warn("⚠️  Invalid Personal Access Token format. Falling back to Auth0 authentication.");
+        return null;
+      }
+    }
+
+    // Priority 2: Check for PAT stored in keytar from previous session
+    const env = this.getEnv();
+    const patKey = `cli-pat-token:${env}`;
+    
+    try {
+      const storedPAT = await keytar.getPassword(SERVICE_NAME, patKey);
+      if (storedPAT && await this.validatePersonalAccessToken(storedPAT)) {
+        return storedPAT;
+      }
+    } catch (err) {
+      // Silent fail - continue to Auth0 fallback
+    }
+
+    return null;
+  }
+
+  /**
+   * Get Auth0 token from keytar (original authentication method)
+   */
+  private async getAuth0Token(): Promise<string> {
     const env = this.getEnv();
     const key = this.getEnvKey(env);
 
@@ -583,6 +644,47 @@ export class Auth {
       }
     } catch (err) {
       throw new Error("❌ Failed to parse stored token. Please log in again.");
+    }
+  }
+
+  /**
+   * Basic validation for Personal Access Token format
+   * Returns true if token appears to be a valid PAT
+   */
+  private async validatePersonalAccessToken(token: string): Promise<boolean> {
+    // Basic format validation - PATs are typically long alphanumeric strings
+    if (!token || token.length < 20) {
+      return false;
+    }
+
+    // TODO: Could add more sophisticated validation here
+    // For now, we'll do a basic check and let the API validate it
+    return /^[a-zA-Z0-9\-_]+$/.test(token);
+  }
+
+  /**
+   * Check if a Personal Access Token is available (from flag or env)
+   */
+  private async hasPersonalAccessToken(): Promise<boolean> {
+    const pat = await this.getPersonalAccessToken();
+    return pat !== null;
+  }
+
+  /**
+   * Store PAT in keytar for future sessions
+   */
+  private async storePATInKeytar(): Promise<void> {
+    const state = getState();
+    if (state.token && state.token.trim().length > 0) {
+      const env = this.getEnv();
+      const patKey = `cli-pat-token:${env}`;
+      
+      try {
+        await keytar.setPassword(SERVICE_NAME, patKey, state.token);
+      } catch (err) {
+        // Non-fatal - just warn user
+        console.warn("⚠️  Could not store PAT in keychain for future sessions.");
+      }
     }
   }
 
