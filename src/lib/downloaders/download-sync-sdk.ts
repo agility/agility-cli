@@ -52,6 +52,7 @@ export async function downloadSyncSDKByLocaleAndChannel(
     isPreview: true,
     languages: [locale],
     channels: [channel],
+    baseUrl: state.baseUrl.replace('mgmt','api'),
     store: {
       interface: storeInterfaceFileSystem,
       options: {

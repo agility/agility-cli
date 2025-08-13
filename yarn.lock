@@ -10,24 +10,24 @@
     axios "^0.21.1"
     axios-cache-adapter "^2.4.1"
 
-"@agility/content-fetch@^2.0.8":
-  version "2.0.9"
-  resolved "https://registry.npmjs.org/@agility/content-fetch/-/content-fetch-2.0.9.tgz"
-  integrity sha512-7JIlP16NM4+cpoxm24SuTaIkzIxNtz+UsV2cwFtTM7e8V8cFyxRtYhdLMajXjxPQ68DJCHuYI9BezBUjZvVQHA==
+"@agility/content-fetch@^2.0.10":
+  version "2.0.10"
+  resolved "https://registry.npmjs.org/@agility/content-fetch/-/content-fetch-2.0.10.tgz"
+  integrity sha512-DhEQtd4943M4aQKXuYxDFOKSTbP68CqwMCBxVkPhXAExNyeNNHLt2s3O55pF3OzVAMnIFByw71BLz8lKQmeB3Q==
 
-"@agility/content-sync@^1.2.0-beta.7":
-  version "1.2.0-beta.7"
-  resolved "https://registry.npmjs.org/@agility/content-sync/-/content-sync-1.2.0-beta.7.tgz"
-  integrity sha512-/QJX9Dr+zu2NuPpkSRqUI7/R0gArod9tpJsZW8bnHEfm3BKvJCGfhSrui9aHct1sVCHjL+XTGYE3WwuCzlx/Jw==
+"@agility/content-sync@^1.2.0":
+  version "1.2.0"
+  resolved "https://registry.npmjs.org/@agility/content-sync/-/content-sync-1.2.0.tgz"
+  integrity sha512-hNoCogqUqLeHeBuzCWhRnmBZRoV9JQeGPcr98gUfhFdB8tl+mrxl/3hcIWzGQEFtHultqoF3UVJa+TaUraLffQ==
   dependencies:
     "@agility/content-fetch" "^1.0.0"
     dotenv "^8.2.0"
     proper-lockfile "^4.1.2"
 
-"@agility/management-sdk@^0.1.32":
-  version "0.1.32"
-  resolved "https://registry.npmjs.org/@agility/management-sdk/-/management-sdk-0.1.32.tgz"
-  integrity sha512-eoWB0nOY8d578cbuO91nUcigQVcHg/cmu2ZmG133XYyIYa8dFRKEuwOoiXaFWpUySe9VlWnj+J/OCuzGzHk0rA==
+"@agility/management-sdk@^0.1.33":
+  version "0.1.33"
+  resolved "https://registry.npmjs.org/@agility/management-sdk/-/management-sdk-0.1.33.tgz"
+  integrity sha512-+lxk49pi4nPJO+jZLECYGEp1U30HApwtoRGZSNGkboOAsWkCIzP4URcZPLgOExRt5iiXjKSCLxMcryR44q5h2g==
   dependencies:
     axios "^0.27.2"
 
