@@ -52,7 +52,7 @@ export async function downloadSyncSDKByLocaleAndChannel(
     isPreview: true,
     languages: [locale],
     channels: [channel],
-    baseUrl: state.baseUrl.replace('mgmt','api'),
+    baseUrl: state.baseUrl.replace('mgmt','api').replace('https://localhost:5050','https://api.aglty.io'),
     store: {
       interface: storeInterfaceFileSystem,
       options: {
