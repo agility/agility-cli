@@ -141,59 +141,59 @@ export class Auth {
     return firstString + secondString;
   }
 
-  determineBaseUrl(guid?: string, userBaseUrl: string = null): string {
+  determineBaseUrl(guid?: string): string {
+
+    let baseGUID = guid;
+    if (!baseGUID) {
+      baseGUID = state.sourceGuid[0];
+    }
+
+    const userBaseUrl = state.baseUrl;
     if (userBaseUrl) {
       return userBaseUrl;
     }
-    if (state.local) {
-      return "https://localhost:5050";
-    }
-    if (state.dev) {
-      return "https://mgmt-dev.aglty.io";
-    }
-    if (state.preprod) {
-      return "https://management-api-us-pre-prod.azurewebsites.net";
+
+    switch (true) {
+      case state.local:
+        return "https://localhost:5050";
+      case state.dev:
+        return "https://mgmt-dev.aglty.io";
+      case state.preprod:
+        return "https://management-api-us-pre-prod.azurewebsites.net";
     }
 
-    if (guid?.endsWith("d")) {
-      return "https://mgmt-dev.aglty.io";
-    } else if (guid?.endsWith("u")) {
-      return "https://mgmt.aglty.io";
-    } else if (guid?.endsWith("c")) {
-      return "https://mgmt-ca.aglty.io";
-    } else if (guid?.endsWith("e")) {
-      return "https://mgmt-eu.aglty.io";
-    } else if (guid?.endsWith("a")) {
-      return "https://mgmt-aus.aglty.io";
+    if (baseGUID) {
+      switch (true) {
+        case baseGUID.endsWith("d"):
+          return "https://mgmt-dev.aglty.io";
+        case baseGUID.endsWith("u"):
+          return "https://mgmt.aglty.io";
+        case baseGUID.endsWith("c"):
+          return "https://mgmt-ca.aglty.io";
+        case baseGUID.endsWith("e"):
+          return "https://mgmt-eu.aglty.io";
+        case baseGUID.endsWith("a"):
+          return "https://mgmt-aus.aglty.io";
+        case baseGUID.endsWith("us2"):
+          return "https://mgmt-usa2.aglty.io";
+      }
     }
+    // no guid, use default
     return "https://mgmt.aglty.io";
   }
 
   getBaseUrl(guid: string, userBaseUrl: string = null): string {
-    let baseUrl = this.determineBaseUrl(guid, userBaseUrl);
+    let baseUrl = this.determineBaseUrl(guid);
     return `${baseUrl}/oauth`;
   }
 
-  getBaseUrlPoll(): string {
-    let baseURL = "https://mgmt.aglty.io";
-
-    if (state.dev) {
-      baseURL = "https://mgmt-dev.aglty.io";
-    }
-
-    if (state.preprod) {
-      baseURL = "https://management-api-us-pre-prod.azurewebsites.net";
-    }
-
-    if (state.local) {
-      baseURL = "https://localhost:5050";
-    }
-
+  getBaseUrlPoll(guid: string): string {
+    let baseURL = this.determineBaseUrl();
     return `${baseURL}/oauth`;
   }
 
   async executeGet(apiPath: string, guid: string, userBaseUrl: string = null) {
-    const baseUrl = this.getBaseUrl(guid, userBaseUrl);
+    const baseUrl = this.getBaseUrl(guid)
     const url = `${baseUrl}${apiPath}`;
 
     try {
@@ -229,7 +229,7 @@ export class Auth {
   }
 
   async executePost(apiPath: string, guid: string, data: any) {
-    const baseUrl = this.getBaseUrlPoll();
+    const baseUrl = this.getBaseUrlPoll(guid);
     const url = `${baseUrl}${apiPath}`;
 
     try {
@@ -269,7 +269,8 @@ export class Auth {
   async authorize() {
     let code = await this.generateCode();
 
-    const baseUrl = this.determineBaseUrl(); // guid is optional and will be handled by determineBaseUrl
+    const baseUrl = this.determineBaseUrl();
+    
     const redirectUri = `${baseUrl}/oauth/CliAuth`;
     const authUrl = `${baseUrl}/oauth/Authorize?response_type=code&redirect_uri=${encodeURIComponent(
       redirectUri
@@ -652,7 +653,7 @@ export class Auth {
   }
 
   async getUser(guid?: string): Promise<serverUser> {
-    let baseUrl = this.determineBaseUrl(guid);
+    let baseUrl = this.determineBaseUrl();
     let apiPath = "/users/me";
     let endpoint = `${baseUrl}/api/v1${apiPath}`;
 
@@ -689,7 +690,7 @@ export class Auth {
   }
 
   async getUsers(guid: string, userBaseUrl: string = null): Promise<serverUser[]> {
-    const baseUrl = this.determineBaseUrl(guid, userBaseUrl);
+    const baseUrl = this.determineBaseUrl();
     const token = await this.getToken();
 
     try {
