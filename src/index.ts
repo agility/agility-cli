@@ -21,9 +21,6 @@ inquirer.registerPrompt("search-list", searchList);
 
 import { Auth, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
 import { Pull } from "./core/pull";
-import { homePrompt, instancesPrompt, localePrompt } from "./lib/ui/prompts";
-import { generateEnv } from "./lib/shared";
-import { instanceSelector } from "./lib/ui/prompts";
 import { Push } from "./core/push";
 
 import { initializeLogger, getLogger, finalizeLogger, finalizeAllGuidLoggers } from "./core/state";
@@ -34,51 +31,6 @@ let auth: Auth;
 yargs.version("1.0.0-beta.9.0").demand(1).exitProcess(false);
 
 console.log(colors.yellow("Welcome to Agility CLI."));
-yargs.command({
-  command: "$0",
-  describe: "Default command",
-  builder: {
-    ...systemArgs,
-    // Add any default-command-specific args here if needed
-  },
-  handler: async function (argv) {
-    resetState(); // Clear any previous command state
-
-    // Prime state from .env file before applying command line args
-    const envPriming = primeFromEnv();
-    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
-      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
-    }
-
-    setState(argv);
-
-    auth = new Auth();
-    const isAuthorized = await auth.init();
-    if (!isAuthorized) {
-      return;
-    }
-
-    // Interactive mode doesn't need strict validation
-    const isValidCommand = await auth.validateCommand('interactive');
-    if (!isValidCommand) {
-      return;
-    }
-
-    // Check if we have a specific instance defined and should skip home prompt
-    if (state.sourceGuid && !state.local && !state.dev && !state.preprod) {
-      console.log("------------------------------------------------");
-      console.log(colors.green("●"), colors.green(`${state.currentWebsite?.displayName || 'Instance'}`), colors.white(`${state.sourceGuid}`));
-      console.log("------------------------------------------------");
-
-      await instancesPrompt();
-      return;
-    }
-
-    // Default to home prompt
-    homePrompt();
-  },
-});
-
 yargs.command({
   command: "login",
   describe: "Login to Agility.",
@@ -130,37 +82,6 @@ yargs.command({
   },
 });
 
-
-yargs.command({
-  command: "genenv",
-  describe: "Generate an env file for your instance.",
-  builder: {
-    // System args (commonly repeated across commands)
-    ...systemArgs
-  },
-  handler: async function (argv) {
-    resetState(); // Clear any previous command state
-
-    // Prime state from .env file before applying command line args
-    const envPriming = primeFromEnv();
-    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
-      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
-    }
-
-    setState(argv);
-    auth = new Auth();
-    const isAuthorized = await auth.init();
-    if (!isAuthorized) {
-      console.log(colors.red("You are not authorized to generate an env file."));
-      return;
-    }
-
-    const result = await generateEnv();
-    if (result) {
-      process.exit(0);
-    }
-  },
-});
 
 yargs.command({
   command: "pull",
