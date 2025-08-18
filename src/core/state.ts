@@ -239,6 +239,9 @@ export function setState(argv: any) {
 
   // Content-specific
   if (argv.contentItems !== undefined) state.contentItems = argv.contentItems;
+
+  // Token authentication
+  if (argv.token !== undefined) state.token = argv.token;
 }
 
 /**
@@ -286,6 +289,7 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
         AGILITY_INSECURE: envContent.match(/AGILITY_INSECURE=([^\n]+)/),
 
         AGILITY_MODELS: envContent.match(/AGILITY_MODELS=([^\n]+)/),
+        AGILITY_TOKEN: envContent.match(/AGILITY_TOKEN=([^\n]+)/),
       };
 
       // Only prime state values that aren't already set from command line
@@ -379,6 +383,20 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
       if (envVars.AGILITY_MODELS && envVars.AGILITY_MODELS[1] && !state.models) {
         state.models = envVars.AGILITY_MODELS[1].trim();
         primedValues.push('models');
+      }
+
+      if (envVars.AGILITY_TOKEN && envVars.AGILITY_TOKEN[1] && !state.token) {
+        // Strip quotes from token value if present
+        let tokenValue = envVars.AGILITY_TOKEN[1].trim();
+        if ((tokenValue.startsWith('"') && tokenValue.endsWith('"')) || 
+            (tokenValue.startsWith("'") && tokenValue.endsWith("'"))) {
+          tokenValue = tokenValue.slice(1, -1);
+        }
+        
+        state.token = tokenValue;
+        // Also set in process.env so getUserProvidedToken() can find it
+        process.env.AGILITY_TOKEN = tokenValue;
+        primedValues.push('token');
       }
 
       if (primedValues.length > 0) {

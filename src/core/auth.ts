@@ -289,10 +289,18 @@ export class Auth {
     const { configureSSL } = await import("./state");
     configureSSL();
 
-    // Step 2: Authenticate
-    const isAuthenticated = await this.checkAuthorization();
-    if (!isAuthenticated) {
-      return false;
+    // Step 2: Authenticate (PAT or Auth0)
+    const hasPAT = await this.hasPersonalAccessToken();
+    if (hasPAT) {
+      console.log(ansiColors.green("🔑 Using Personal Access Token for authentication."));
+      // Store PAT in keytar for future sessions
+      await this.storePATInKeytar();
+    } else {
+      // Use traditional Auth0 flow
+      const isAuthenticated = await this.checkAuthorization();
+      if (!isAuthenticated) {
+        return false;
+      }
     }
 
     // Step 3: Get API keys for all GUIDs
@@ -557,7 +565,94 @@ export class Auth {
     });
   }
 
+  /**
+   * Resolves authentication token with priority order:
+   * 1. Personal Access Token from --token flag or AGILITY_TOKEN env var
+   * 2. Auth0 token from keytar
+   */
   async getToken(): Promise<string> {
+    // Step 1: Check for Personal Access Token (PAT)
+    const personalAccessToken = await this.getPersonalAccessToken();
+    if (personalAccessToken) {
+      return personalAccessToken;
+    }
+
+    // Step 2: Fallback to Auth0 token
+    return await this.getAuth0Token();
+  }
+
+  /**
+   * Get Personal Access Token from --token flag or AGILITY_TOKEN environment variable
+   * Returns null if no PAT is available
+   * NOTE: This checks the SOURCE of the token, not state.token which gets populated by Auth0
+   */
+  private async getPersonalAccessToken(): Promise<string | null> {
+    // Priority 1: Check if token came from --token flag or AGILITY_TOKEN env var
+    // We need to check the ORIGINAL source, not state.token which Auth0 also populates
+    const userProvidedToken = await this.getUserProvidedToken();
+    
+    if (userProvidedToken && userProvidedToken.trim().length > 0) {
+      // Validate PAT format (basic check)
+      if (await this.validatePersonalAccessToken(userProvidedToken)) {
+        return userProvidedToken;
+      } else {
+        console.warn("⚠️  Invalid Personal Access Token format. Falling back to Auth0 authentication.");
+        return null;
+      }
+    }
+
+    // Priority 2: Check for PAT stored in keytar from previous session
+    const env = this.getEnv();
+    const patKey = `cli-pat-token:${env}`;
+    
+    try {
+      const storedPAT = await keytar.getPassword(SERVICE_NAME, patKey);
+      if (storedPAT && await this.validatePersonalAccessToken(storedPAT)) {
+        return storedPAT;
+      }
+    } catch (err) {
+      // Silent fail - continue to Auth0 fallback
+    }
+
+    return null;
+  }
+
+  /**
+   * Get user-provided token from original sources (before Auth0 processing)
+   * Checks argv directly and environment variables
+   */
+  private async getUserProvidedToken(): Promise<string | null> {
+    // Priority 1: Check if token was provided via command line argument
+    const args = process.argv;
+    
+    // Handle both --token=value and --token value formats
+    for (let i = 0; i < args.length; i++) {
+      const arg = args[i];
+      
+      // Format: --token=value
+      if (arg.startsWith('--token=')) {
+        return arg.substring('--token='.length);
+      }
+      
+      // Format: --token value
+      if (arg === '--token' && i + 1 < args.length) {
+        return args[i + 1];
+      }
+    }
+
+    // Priority 2: Check environment variable (includes .env file via primeFromEnv())
+    const envToken = process.env.AGILITY_TOKEN;
+    if (envToken && envToken.trim().length > 0) {
+      return envToken.trim();
+    }
+
+    return null;
+  }
+
+  /**
+   * Get Auth0 token from keytar (original authentication method)
+   */
+  private async getAuth0Token(): Promise<string> {
     const env = this.getEnv();
     const key = this.getEnvKey(env);
 
@@ -584,6 +679,47 @@ export class Auth {
       }
     } catch (err) {
       throw new Error("❌ Failed to parse stored token. Please log in again.");
+    }
+  }
+
+  /**
+   * Basic validation for Personal Access Token format
+   * Returns true if token appears to be a valid PAT (supports both simple PATs and JWTs)
+   */
+  private async validatePersonalAccessToken(token: string): Promise<boolean> {
+    // Basic format validation - PATs are typically long alphanumeric strings
+    if (!token || token.length < 20) {
+      return false;
+    }
+
+    // Allow alphanumeric characters, hyphens, underscores, dots, plus, slash, and equals (for JWT tokens)
+    // JWT tokens use base64url encoding and have the format: header.payload.signature
+    return /^[a-zA-Z0-9\-_.+=\/]+$/.test(token);
+  }
+
+  /**
+   * Check if a Personal Access Token is available (from flag or env)
+   */
+  private async hasPersonalAccessToken(): Promise<boolean> {
+    const pat = await this.getPersonalAccessToken();
+    return pat !== null;
+  }
+
+  /**
+   * Store PAT in keytar for future sessions
+   */
+  private async storePATInKeytar(): Promise<void> {
+    const userProvidedToken = await this.getUserProvidedToken();
+    if (userProvidedToken && userProvidedToken.trim().length > 0) {
+      const env = this.getEnv();
+      const patKey = `cli-pat-token:${env}`;
+      
+      try {
+        await keytar.setPassword(SERVICE_NAME, patKey, userProvidedToken);
+      } catch (err) {
+        // Non-fatal - just warn user
+        console.warn("⚠️  Could not store PAT in keychain for future sessions.");
+      }
     }
   }
 

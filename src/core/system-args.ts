@@ -8,6 +8,15 @@
  * These should be spread into command builders: ...systemArgs
  */
 export const systemArgs = {
+
+  // tokens
+  token: {
+    describe: "Provide your personal access token. Or use AGILITY_TOKEN from .env file if available.",
+    demandOption: false,
+    type: "string" as const,
+    // default: "",
+  },
+
   // Development/Environment args
   dev: {
     describe: "Enable developer mode",
