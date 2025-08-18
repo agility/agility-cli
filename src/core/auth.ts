@@ -572,10 +572,10 @@ export class Auth {
    */
   async getToken(): Promise<string> {
     // Step 1: Check for Personal Access Token (PAT)
-          const personalAccessToken = await this.getPersonalAccessToken();
-      if (personalAccessToken) {
-        return personalAccessToken;
-      }
+    const personalAccessToken = await this.getPersonalAccessToken();
+    if (personalAccessToken) {
+      return personalAccessToken;
+    }
 
     // Step 2: Fallback to Auth0 token
     return await this.getAuth0Token();
