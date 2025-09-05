@@ -1,4 +1,4 @@
-name: Integration Tests
+name: Build and Test
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
     branches: [ main, dev ]
 
 jobs:
-  test:
+  basic-tests:
     runs-on: ubuntu-latest
     
     strategy:
@@ -101,10 +101,12 @@ jobs:
       
     - name: Check for vulnerabilities
       run: |
-        if npm audit --audit-level=high --json | grep -q '"vulnerabilities"'; then
-          echo "High-severity vulnerabilities found"
+        # Run npm audit and capture the exit code
+        if npm audit --audit-level=high >/dev/null 2>&1; then
+          echo "✅ No high-severity vulnerabilities found"
+        else
+          echo "❌ High-severity vulnerabilities detected"
+          echo "📋 Full audit report:"
           npm audit --audit-level=high
           exit 1
-        else
-          echo "No high-severity vulnerabilities found"
         fi
