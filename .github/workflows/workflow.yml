@@ -30,9 +30,6 @@ jobs:
     - name: Build CLI
       run: npm run build
       
-    - name: Run unit tests (if any)
-      run: npm test -- --testPathPattern="unit" --passWithNoTests
-      
     - name: Check integration test credentials
       env:
         AGILITY_GUID: ${{ secrets.AGILITY_GUID }}
@@ -49,6 +46,7 @@ jobs:
         
     - name: Run integration tests
       env:
+        CI: true
         AGILITY_GUID: ${{ secrets.AGILITY_GUID }}
         AGILITY_TOKEN: ${{ secrets.AGILITY_TOKEN }}
         AGILITY_WEBSITE: ${{ secrets.AGILITY_WEBSITE || 'website' }}
@@ -57,11 +55,14 @@ jobs:
       run: |
         if [ -n "$AGILITY_GUID" ] && [ -n "$AGILITY_TOKEN" ]; then
           echo "🚀 Running essential integration tests with PAT authentication..."
+          echo "🔍 Debug: AGILITY_GUID length: ${#AGILITY_GUID}"
+          echo "🔍 Debug: AGILITY_TOKEN length: ${#AGILITY_TOKEN}"
           # Run basic tests for CI/CD (fast and lightweight)
-          npm run test:pull-basic
-          npm run test:auth
+          npm test
         else
           echo "⏭️  Skipping integration tests: credentials not configured"
+          echo "🔍 Debug: AGILITY_GUID='$AGILITY_GUID'"
+          echo "🔍 Debug: AGILITY_TOKEN='$AGILITY_TOKEN'"
         fi
       
     - name: Run linting

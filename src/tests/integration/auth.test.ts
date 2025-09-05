@@ -17,6 +17,11 @@ describe('Authentication Integration Tests', () => {
       console.warn('📝 For local development: Edit .env.test.local with your actual AGILITY_GUID and AGILITY_TOKEN');
       console.warn('🔧 For CI/CD: Set AGILITY_GUID and AGILITY_TOKEN environment variables');
       console.warn('💡 These tests require PAT authentication - Auth0 flow is not supported in automated testing');
+      
+      // In CI/CD, fail the tests if credentials are missing
+      if (process.env.CI) {
+        throw new Error('Integration tests require AGILITY_GUID and AGILITY_TOKEN in CI/CD environment');
+      }
       return;
     }
   });
