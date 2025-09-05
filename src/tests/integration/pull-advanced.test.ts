@@ -1,8 +1,8 @@
-import { 
-  runCLICommand, 
-  loadTestEnvironment, 
+import {
+  runCLICommand,
+  loadTestEnvironment,
   cleanupTestFiles,
-  validateDownloadedFiles
+  validateDownloadedFiles,
 } from '../utils/cli-test-utils';
 import path from 'path';
 
@@ -12,12 +12,18 @@ describe('Advanced Pull Command Tests', () => {
   beforeAll(async () => {
     try {
       testEnv = loadTestEnvironment();
-      console.log(`✅ Test environment loaded: GUID=${testEnv.guid.substring(0, 8)}..., TOKEN=${testEnv.token.substring(0, 8)}...`);
+      console.log(
+        `✅ Test environment loaded: GUID=${testEnv.guid.substring(0, 8)}..., TOKEN=${testEnv.token.substring(0, 8)}...`
+      );
     } catch (error) {
       console.warn('❌ Skipping advanced pull tests: Test environment not configured');
-      console.warn('📝 For local development: Edit .env.test.local with your actual AGILITY_GUID and AGILITY_TOKEN');
+      console.warn(
+        '📝 For local development: Edit .env.test.local with your actual AGILITY_GUID and AGILITY_TOKEN'
+      );
       console.warn('🔧 For CI/CD: Set AGILITY_GUID and AGILITY_TOKEN environment variables');
-      console.warn('💡 These tests require PAT authentication - Auth0 flow is not supported in automated testing');
+      console.warn(
+        '💡 These tests require PAT authentication - Auth0 flow is not supported in automated testing'
+      );
       return;
     }
   });
@@ -37,17 +43,27 @@ describe('Advanced Pull Command Tests', () => {
         return;
       }
 
-      const result = await runCLICommand('pull', [
-        '--sourceGuid', testEnv.guid,
-        '--locale', testEnv.locales.split(',')[0],
-        '--channel', testEnv.website,
-        '--token', testEnv.token,
-        '--headless',
-        '--preview', 'true',
-        '--elements', 'Models'
-      ], {
-        timeout: 90000
-      });
+      const result = await runCLICommand(
+        'pull',
+        [
+          '--sourceGuid',
+          testEnv.guid,
+          '--locale',
+          testEnv.locales.split(',')[0],
+          '--channel',
+          testEnv.website,
+          '--token',
+          testEnv.token,
+          '--headless',
+          '--preview',
+          'true',
+          '--elements',
+          'Models',
+        ],
+        {
+          timeout: 90000,
+        }
+      );
 
       expect(result.exitCode).toBe(0);
       const output = result.stdout + result.stderr;
@@ -61,18 +77,28 @@ describe('Advanced Pull Command Tests', () => {
       }
 
       const customRoot = 'test-agility-files';
-      
-      const result = await runCLICommand('pull', [
-        '--sourceGuid', testEnv.guid,
-        '--locale', testEnv.locales.split(',')[0],
-        '--channel', testEnv.website,
-        '--token', testEnv.token,
-        '--headless',
-        '--rootPath', customRoot,
-        '--elements', 'Models'
-      ], {
-        timeout: 90000
-      });
+
+      const result = await runCLICommand(
+        'pull',
+        [
+          '--sourceGuid',
+          testEnv.guid,
+          '--locale',
+          testEnv.locales.split(',')[0],
+          '--channel',
+          testEnv.website,
+          '--token',
+          testEnv.token,
+          '--headless',
+          '--rootPath',
+          customRoot,
+          '--elements',
+          'Models',
+        ],
+        {
+          timeout: 90000,
+        }
+      );
 
       expect(result.exitCode).toBe(0);
 
@@ -96,16 +122,25 @@ describe('Advanced Pull Command Tests', () => {
         return;
       }
 
-      const result = await runCLICommand('pull', [
-        '--sourceGuid', 'invalid-guid-12345',
-        '--locale', 'en-us',
-        '--channel', 'website',
-        '--token', testEnv.token,
-        '--headless',
-        '--elements', 'Models'
-      ], {
-        timeout: 60000
-      });
+      const result = await runCLICommand(
+        'pull',
+        [
+          '--sourceGuid',
+          'invalid-guid-12345',
+          '--locale',
+          'en-us',
+          '--channel',
+          'website',
+          '--token',
+          testEnv.token,
+          '--headless',
+          '--elements',
+          'Models',
+        ],
+        {
+          timeout: 60000,
+        }
+      );
 
       expect(result.exitCode).not.toBe(0);
       const output = result.stdout + result.stderr;
@@ -118,16 +153,25 @@ describe('Advanced Pull Command Tests', () => {
         return;
       }
 
-      const result = await runCLICommand('pull', [
-        '--sourceGuid', testEnv.guid,
-        '--locale', 'invalid-locale',
-        '--channel', testEnv.website,
-        '--token', testEnv.token,
-        '--headless',
-        '--elements', 'Models'
-      ], {
-        timeout: 60000
-      });
+      const result = await runCLICommand(
+        'pull',
+        [
+          '--sourceGuid',
+          testEnv.guid,
+          '--locale',
+          'invalid-locale',
+          '--channel',
+          testEnv.website,
+          '--token',
+          testEnv.token,
+          '--headless',
+          '--elements',
+          'Models',
+        ],
+        {
+          timeout: 60000,
+        }
+      );
 
       expect(result.exitCode).not.toBe(0);
       const output = result.stdout + result.stderr;
@@ -141,16 +185,25 @@ describe('Advanced Pull Command Tests', () => {
       }
 
       // This test verifies timeout handling - we'll use a very short timeout
-      const result = await runCLICommand('pull', [
-        '--sourceGuid', testEnv.guid,
-        '--locale', testEnv.locales.split(',')[0],
-        '--channel', testEnv.website,
-        '--token', testEnv.token,
-        '--headless',
-        '--elements', 'Models'
-      ], {
-        timeout: 5000 // Very short timeout to force a timeout
-      });
+      const result = await runCLICommand(
+        'pull',
+        [
+          '--sourceGuid',
+          testEnv.guid,
+          '--locale',
+          testEnv.locales.split(',')[0],
+          '--channel',
+          testEnv.website,
+          '--token',
+          testEnv.token,
+          '--headless',
+          '--elements',
+          'Models',
+        ],
+        {
+          timeout: 5000, // Very short timeout to force a timeout
+        }
+      );
 
       // Should either succeed quickly or timeout gracefully
       if (result.exitCode !== 0) {

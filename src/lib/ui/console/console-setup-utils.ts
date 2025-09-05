@@ -22,21 +22,21 @@ export interface ConsoleSetupResult {
 export function createConsoleSetup(config: ConsoleSetupConfig): ConsoleSetupResult {
   // Determine mode from state or use forced mode
   const mode = config.forceMode || LoggingModes.determineMode();
-  
+
   // Create file logger
   const fileLogger = FileLogger.fromState(config.operationType, config.guid);
-  
+
   // Create console manager
   const consoleManager = new ConsoleManager();
-  
+
   // Setup console mode with file operations and handlers
   consoleManager.setupMode(mode, fileLogger.getFileOps(), config.handlers);
-  
+
   return {
     consoleManager,
     fileLogger,
     mode,
-    shouldRestore: consoleManager.isRedirected()
+    shouldRestore: consoleManager.isRedirected(),
   };
 }
 
@@ -45,19 +45,19 @@ export function createConsoleSetup(config: ConsoleSetupConfig): ConsoleSetupResu
  */
 export function cleanupConsoleSetup(setup: ConsoleSetupResult): string | null {
   let logPath: string | null = null;
-  
+
   // Restore console if it was redirected
   if (setup.shouldRestore) {
     setup.consoleManager.restoreConsole();
   }
-  
+
   // Finalize log file
   try {
     logPath = setup.fileLogger.finalize();
   } catch (error) {
     console.error('Error finalizing log file:', error);
   }
-  
+
   return logPath;
 }
 
@@ -69,7 +69,7 @@ export function cleanupConsoleSetup(setup: ConsoleSetupResult): string | null {
 export function createHeadlessConsoleSetup(config: ConsoleSetupConfig): ConsoleSetupResult {
   return createConsoleSetup({
     ...config,
-    forceMode: 'headless'
+    forceMode: 'headless',
   });
 }
 
@@ -79,7 +79,7 @@ export function createHeadlessConsoleSetup(config: ConsoleSetupConfig): ConsoleS
 export function createVerboseConsoleSetup(config: ConsoleSetupConfig): ConsoleSetupResult {
   return createConsoleSetup({
     ...config,
-    forceMode: 'verbose'
+    forceMode: 'verbose',
   });
 }
 
@@ -93,22 +93,22 @@ export function validateConsoleSetup(config: ConsoleSetupConfig): {
 } {
   const errors: string[] = [];
   const warnings: string[] = [];
-  
+
   // Validate operation type
   if (!['pull', 'push', 'sync'].includes(config.operationType)) {
     errors.push(`Invalid operation type: ${config.operationType}`);
   }
-  
+
   // Validate logging state
   const stateValidation = LoggingModes.validateLoggingState();
   if (!stateValidation.isValid) {
     errors.push(...stateValidation.errors);
   }
   warnings.push(...stateValidation.warnings);
-  
+
   return {
     isValid: errors.length === 0,
     errors,
-    warnings
+    warnings,
   };
-} 
+}

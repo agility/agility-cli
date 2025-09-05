@@ -5,11 +5,9 @@
 
 import * as mgmtApi from '@agility/management-sdk';
 import { getState, getApiClient } from './state';
-import { 
-  publishContentItem
-} from '../lib/publishers';
+import { publishContentItem } from '../lib/publishers';
 
-const ansiColors = require("ansi-colors");
+const ansiColors = require('ansi-colors');
 
 /**
  * Result interface for publishing operations
@@ -42,11 +40,11 @@ export class PublishService {
 
   constructor(options: PublishOptions = {}) {
     const state = getState();
-    
+
     if (!state.targetGuid) {
       throw new Error('PublishService requires targetGuid to be set in state');
     }
-    
+
     this.apiClient = getApiClient();
     this.targetGuid = state.targetGuid[0];
     this.options = { verbose: false, ...options };
@@ -55,10 +53,13 @@ export class PublishService {
   /**
    * Publish a batch of content items using simple publisher functions
    */
-  async publishContentBatch(contentIds: number[], locale: string): Promise<PublishResult['contentItems']> {
+  async publishContentBatch(
+    contentIds: number[],
+    locale: string
+  ): Promise<PublishResult['contentItems']> {
     const result: PublishResult['contentItems'] = {
       successful: [],
-      failed: []
+      failed: [],
     };
 
     if (contentIds.length === 0) {
@@ -73,7 +74,7 @@ export class PublishService {
     for (const contentId of contentIds) {
       try {
         const publishResult = await publishContentItem(contentId, locale);
-        
+
         if (publishResult.success) {
           result.successful.push(contentId);
           if (this.options.verbose) {
@@ -82,19 +83,29 @@ export class PublishService {
         } else {
           result.failed.push({ id: contentId, error: publishResult.error || 'Unknown error' });
           if (this.options.verbose) {
-            console.error(ansiColors.red(`❌ Failed to publish content item ${contentId}: ${publishResult.error}`));
+            console.error(
+              ansiColors.red(
+                `❌ Failed to publish content item ${contentId}: ${publishResult.error}`
+              )
+            );
           }
         }
       } catch (error: any) {
         result.failed.push({ id: contentId, error: error.message });
         if (this.options.verbose) {
-          console.error(ansiColors.red(`❌ Failed to publish content item ${contentId}: ${error.message}`));
+          console.error(
+            ansiColors.red(`❌ Failed to publish content item ${contentId}: ${error.message}`)
+          );
         }
       }
     }
 
     if (this.options.verbose) {
-      console.log(ansiColors.gray(`Content publishing: ${result.successful.length}/${contentIds.length} successful`));
+      console.log(
+        ansiColors.gray(
+          `Content publishing: ${result.successful.length}/${contentIds.length} successful`
+        )
+      );
     }
 
     return result;

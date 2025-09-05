@@ -1,6 +1,6 @@
-import * as mgmtApi from "@agility/management-sdk";
-import ansiColors from "ansi-colors";
-import _ from "lodash";
+import * as mgmtApi from '@agility/management-sdk';
+import ansiColors from 'ansi-colors';
+import _ from 'lodash';
 
 /**
  * Model Diff Logger - Extracted from model-pusher.ts
@@ -17,17 +17,21 @@ export function logModelDifferences(source: any, target: any, modelName: string)
     const targetVal = target[key];
 
     if (!_.has(target, key)) {
-      console.log(ansiColors.green(`  + Source only: ${key} = ${JSON.stringify(sourceVal, null, 2)}`));
+      console.log(
+        ansiColors.green(`  + Source only: ${key} = ${JSON.stringify(sourceVal, null, 2)}`)
+      );
     } else if (!_.has(source, key)) {
-      console.log(ansiColors.red(`  - Target only: ${key} = ${JSON.stringify(targetVal, null, 2)}`));
+      console.log(
+        ansiColors.red(`  - Target only: ${key} = ${JSON.stringify(targetVal, null, 2)}`)
+      );
     } else if (!_.isEqual(sourceVal, targetVal)) {
       console.log(ansiColors.yellow(`  ~ Different: ${key}`));
-      if (key === "fields" && Array.isArray(sourceVal) && Array.isArray(targetVal)) {
+      if (key === 'fields' && Array.isArray(sourceVal) && Array.isArray(targetVal)) {
         logFieldArrayDifferences(sourceVal, targetVal);
       } else if (
-        typeof sourceVal === "object" &&
+        typeof sourceVal === 'object' &&
         sourceVal !== null &&
-        typeof targetVal === "object" &&
+        typeof targetVal === 'object' &&
         targetVal !== null
       ) {
         // For nested objects, show both values if they are not too large
@@ -41,7 +45,10 @@ export function logModelDifferences(source: any, target: any, modelName: string)
   }
 }
 
-export function logFieldArrayDifferences(sourceFields: mgmtApi.ModelField[], targetFields: mgmtApi.ModelField[]) {
+export function logFieldArrayDifferences(
+  sourceFields: mgmtApi.ModelField[],
+  targetFields: mgmtApi.ModelField[]
+) {
   const sourceFieldNames = sourceFields.map((f) => f.name);
   const targetFieldNames = targetFields.map((f) => f.name);
 
@@ -87,4 +94,4 @@ export function logFieldArrayDifferences(sourceFields: mgmtApi.ModelField[], tar
         diffMessages.forEach((msg) => console.log(msg));
       }
     });
-} 
+}

@@ -1,7 +1,11 @@
 import { getState } from '../../../core/state';
 
 export type ProgressStatus = 'pending' | 'success' | 'error' | 'progress';
-export type ProgressCallbackType = (processed: number, total: number, status?: "success" | "error" | "progress") => void;
+export type ProgressCallbackType = (
+  processed: number,
+  total: number,
+  status?: 'success' | 'error' | 'progress'
+) => void;
 
 export interface StepStatus {
   name: string;
@@ -44,10 +48,10 @@ export class ProgressTracker {
    * Initialize steps for tracking
    */
   initializeSteps(stepNames: string[]): void {
-    this.steps = stepNames.map(name => ({
+    this.steps = stepNames.map((name) => ({
       name,
       status: 'pending',
-      percentage: 0
+      percentage: 0,
     }));
     this.startTime = new Date();
   }
@@ -76,7 +80,11 @@ export class ProgressTracker {
   /**
    * Update step progress
    */
-  updateStepProgress(stepIndex: number, percentage: number, status: ProgressStatus = 'progress'): void {
+  updateStepProgress(
+    stepIndex: number,
+    percentage: number,
+    status: ProgressStatus = 'progress'
+  ): void {
     if (stepIndex < 0 || stepIndex >= this.steps.length) return;
 
     this.steps[stepIndex].percentage = Math.min(100, Math.max(0, percentage));
@@ -87,7 +95,11 @@ export class ProgressTracker {
       this.steps[stepIndex].percentage = 100;
     }
 
-    this.callbacks.onStepProgress?.(stepIndex, this.steps[stepIndex].name, this.steps[stepIndex].percentage);
+    this.callbacks.onStepProgress?.(
+      stepIndex,
+      this.steps[stepIndex].name,
+      this.steps[stepIndex].percentage
+    );
 
     if (status === 'success' || status === 'error') {
       this.callbacks.onStepComplete?.(stepIndex, this.steps[stepIndex].name, status);
@@ -115,12 +127,12 @@ export class ProgressTracker {
    * Create a progress callback for a specific step
    */
   createStepProgressCallback(stepIndex: number): ProgressCallbackType {
-    return (processed: number, total: number, status = "progress") => {
+    return (processed: number, total: number, status = 'progress') => {
       const percentage = total > 0 ? Math.floor((processed / total) * 100) : 0;
-      
-      if (status === "error") {
+
+      if (status === 'error') {
         this.failStep(stepIndex);
-      } else if (status === "success") {
+      } else if (status === 'success') {
         this.completeStep(stepIndex);
       } else {
         this.updateStepProgress(stepIndex, percentage, 'progress');
@@ -133,9 +145,9 @@ export class ProgressTracker {
    */
   getSummary(): ProgressSummary {
     const totalSteps = this.steps.length;
-    const successfulSteps = this.steps.filter(step => step.status === 'success').length;
-    const errorSteps = this.steps.filter(step => step.status === 'error').length;
-    const pendingSteps = this.steps.filter(step => step.status === 'pending').length;
+    const successfulSteps = this.steps.filter((step) => step.status === 'success').length;
+    const errorSteps = this.steps.filter((step) => step.status === 'error').length;
+    const pendingSteps = this.steps.filter((step) => step.status === 'pending').length;
     const overallSuccess = errorSteps === 0 && successfulSteps === totalSteps;
 
     const now = new Date();
@@ -152,7 +164,7 @@ export class ProgressTracker {
       pendingSteps,
       overallSuccess,
       totalDuration,
-      durationFormatted
+      durationFormatted,
     };
 
     this.callbacks.onOverallProgress?.(summary);
@@ -171,7 +183,7 @@ export class ProgressTracker {
    * Get step status by name
    */
   getStepByName(stepName: string): StepStatus | null {
-    const step = this.steps.find(s => s.name === stepName);
+    const step = this.steps.find((s) => s.name === stepName);
     return step ? { ...step } : null;
   }
 
@@ -179,49 +191,49 @@ export class ProgressTracker {
    * Get all steps
    */
   getAllSteps(): StepStatus[] {
-    return this.steps.map(step => ({ ...step }));
+    return this.steps.map((step) => ({ ...step }));
   }
 
   /**
    * Get step index by name
    */
   getStepIndex(stepName: string): number {
-    return this.steps.findIndex(s => s.name === stepName);
+    return this.steps.findIndex((s) => s.name === stepName);
   }
 
   /**
    * Check if all steps are complete
    */
   isComplete(): boolean {
-    return this.steps.every(step => step.status === 'success' || step.status === 'error');
+    return this.steps.every((step) => step.status === 'success' || step.status === 'error');
   }
 
   /**
    * Check if any steps have errors
    */
   hasErrors(): boolean {
-    return this.steps.some(step => step.status === 'error');
+    return this.steps.some((step) => step.status === 'error');
   }
 
   /**
    * Get steps with errors
    */
   getFailedSteps(): StepStatus[] {
-    return this.steps.filter(step => step.status === 'error').map(step => ({ ...step }));
+    return this.steps.filter((step) => step.status === 'error').map((step) => ({ ...step }));
   }
 
   /**
    * Get completed steps
    */
   getCompletedSteps(): StepStatus[] {
-    return this.steps.filter(step => step.status === 'success').map(step => ({ ...step }));
+    return this.steps.filter((step) => step.status === 'success').map((step) => ({ ...step }));
   }
 
   /**
    * Get pending steps
    */
   getPendingSteps(): StepStatus[] {
-    return this.steps.filter(step => step.status === 'pending').map(step => ({ ...step }));
+    return this.steps.filter((step) => step.status === 'pending').map((step) => ({ ...step }));
   }
 
   /**
@@ -229,7 +241,7 @@ export class ProgressTracker {
    */
   getOverallProgress(): number {
     if (this.steps.length === 0) return 0;
-    
+
     const totalProgress = this.steps.reduce((sum, step) => sum + step.percentage, 0);
     return Math.floor(totalProgress / this.steps.length);
   }
@@ -238,13 +250,13 @@ export class ProgressTracker {
    * Reset all steps to pending
    */
   reset(): void {
-    this.steps = this.steps.map(step => ({
+    this.steps = this.steps.map((step) => ({
       ...step,
       status: 'pending',
       percentage: 0,
       startTime: undefined,
       endTime: undefined,
-      error: undefined
+      error: undefined,
     }));
     this.startTime = new Date();
   }
@@ -256,22 +268,25 @@ export class ProgressTracker {
     const summary = this.getSummary();
     const lines: string[] = [];
 
-    lines.push(`${this.operationName} completed: ${summary.successfulSteps}/${summary.totalSteps} steps successful, ${summary.errorSteps} errors, ${summary.durationFormatted}`);
+    lines.push(
+      `${this.operationName} completed: ${summary.successfulSteps}/${summary.totalSteps} steps successful, ${summary.errorSteps} errors, ${summary.durationFormatted}`
+    );
 
     if (includeDetails) {
       if (summary.errorSteps > 0) {
         lines.push('Failed steps:');
-        this.getFailedSteps().forEach(step => {
+        this.getFailedSteps().forEach((step) => {
           lines.push(`  ✗ ${step.name}${step.error ? `: ${step.error}` : ''}`);
         });
       }
 
       if (summary.successfulSteps > 0) {
         lines.push('Successful steps:');
-        this.getCompletedSteps().forEach(step => {
-          const duration = step.startTime && step.endTime 
-            ? `(${Math.floor((step.endTime.getTime() - step.startTime.getTime()) / 1000)}s)`
-            : '';
+        this.getCompletedSteps().forEach((step) => {
+          const duration =
+            step.startTime && step.endTime
+              ? `(${Math.floor((step.endTime.getTime() - step.startTime.getTime()) / 1000)}s)`
+              : '';
           lines.push(`  ✓ ${step.name} ${duration}`);
         });
       }
@@ -284,16 +299,16 @@ export class ProgressTracker {
    * Create a throttled progress callback for memory optimization
    */
   createThrottledProgressCallback(
-    stepIndex: number, 
+    stepIndex: number,
     updateInterval: number = 500
   ): ProgressCallbackType {
     let lastUpdate = 0;
 
-    return (processed: number, total: number, status = "progress") => {
+    return (processed: number, total: number, status = 'progress') => {
       const now = Date.now();
-      
+
       // Always process success/error status immediately
-      if (status === "success" || status === "error") {
+      if (status === 'success' || status === 'error') {
         this.createStepProgressCallback(stepIndex)(processed, total, status);
         return;
       }
@@ -326,4 +341,4 @@ export class ProgressTracker {
   getStartTime(): Date {
     return new Date(this.startTime);
   }
-} 
+}

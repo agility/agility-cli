@@ -13,18 +13,18 @@ import ansiColors from 'ansi-colors';
 import { SitemapHierarchy } from '../pushers/page-pusher/sitemap-hierarchy';
 
 export interface ModelDependencyTree {
-  models: Set<string>;        // Model reference names
+  models: Set<string>; // Model reference names
   containers: Set<number>;
-  lists: Set<number>;   // Container IDs using these models
-  content: Set<number>;       // Content item IDs of these models
-  templates: Set<number>;     // Template IDs using these containers
-  pages: Set<number>;         // Page IDs using these templates/content
-  assets: Set<string>;        // Asset URLs referenced in content/pages
-  galleries: Set<number>;     // Gallery IDs referenced in content/pages
+  lists: Set<number>; // Container IDs using these models
+  content: Set<number>; // Content item IDs of these models
+  templates: Set<number>; // Template IDs using these containers
+  pages: Set<number>; // Page IDs using these templates/content
+  assets: Set<string>; // Asset URLs referenced in content/pages
+  galleries: Set<number>; // Gallery IDs referenced in content/pages
 }
 
 export class ModelDependencyTreeBuilder {
-  constructor(private sourceData: SourceData) { }
+  constructor(private sourceData: SourceData) {}
 
   /**
    * Build comprehensive dependency tree from specified model names
@@ -44,7 +44,7 @@ export class ModelDependencyTreeBuilder {
       templates: new Set(),
       pages: new Set(),
       assets: new Set(),
-      galleries: new Set()
+      galleries: new Set(),
     };
 
     // Build dependency tree in CORRECTED logical order
@@ -82,18 +82,18 @@ export class ModelDependencyTreeBuilder {
 
     // Create model reference name to ID mapping
     const modelMap = new Map<string, number>();
-    this.sourceData.models.forEach(model => {
+    this.sourceData.models.forEach((model) => {
       modelMap.set(model.referenceName, model.id);
     });
 
     // Find containers that use these models
-    modelNames.forEach(modelName => {
+    modelNames.forEach((modelName) => {
       const modelId = modelMap.get(modelName);
       if (modelId) {
-        const containers = this.sourceData.containers.filter(c =>
-          c.contentDefinitionID === modelId
+        const containers = this.sourceData.containers.filter(
+          (c) => c.contentDefinitionID === modelId
         );
-        containers.forEach(container => {
+        containers.forEach((container) => {
           tree.containers.add(container.contentViewID);
         });
       }
@@ -108,11 +108,11 @@ export class ModelDependencyTreeBuilder {
   private findContentForModels(modelNames: string[], tree: ModelDependencyTree): void {
     if (!this.sourceData.content) return;
 
-    modelNames.forEach(modelName => {
-      const contentItems = this.sourceData.content.filter(c =>
-        c.properties?.definitionName === modelName
+    modelNames.forEach((modelName) => {
+      const contentItems = this.sourceData.content.filter(
+        (c) => c.properties?.definitionName === modelName
       );
-      contentItems.forEach(content => {
+      contentItems.forEach((content) => {
         tree.content.add(content.contentID);
       });
     });
@@ -127,7 +127,7 @@ export class ModelDependencyTreeBuilder {
     if (!this.sourceData.templates) return;
 
     // Find templates that use discovered containers through contentSectionDefinitions
-    this.sourceData.templates.forEach(template => {
+    this.sourceData.templates.forEach((template) => {
       if (template.contentSectionDefinitions) {
         template.contentSectionDefinitions.forEach((section: any) => {
           // Check if section references discovered containers
@@ -151,7 +151,7 @@ export class ModelDependencyTreeBuilder {
   private findPagesForTemplatesAndContent(tree: ModelDependencyTree): void {
     if (!this.sourceData.pages) return;
 
-    this.sourceData.pages.forEach(page => {
+    this.sourceData.pages.forEach((page) => {
       let shouldIncludePage = false;
       const pageAny = page as any; // Use defensive typing for complex Agility CMS structures
 
@@ -195,10 +195,10 @@ export class ModelDependencyTreeBuilder {
   private findTemplatesUsedByPages(tree: ModelDependencyTree): void {
     if (!this.sourceData.pages) return;
 
-    this.sourceData.pages.forEach(page => {
+    this.sourceData.pages.forEach((page) => {
       if (tree.pages.has(page.pageID)) {
         const templateIds = this.extractTemplateIdsFromPage(page);
-        templateIds.forEach(id => tree.templates.add(id));
+        templateIds.forEach((id) => tree.templates.add(id));
       }
     });
 
@@ -219,8 +219,8 @@ export class ModelDependencyTreeBuilder {
 
     // Also check if templateName exists and try to resolve to ID
     if (page.templateName && this.sourceData.templates) {
-      const template = this.sourceData.templates.find(t =>
-        t.pageTemplateName === page.templateName
+      const template = this.sourceData.templates.find(
+        (t) => t.pageTemplateName === page.templateName
       );
       if (template && template.pageTemplateID) {
         templateIds.push(template.pageTemplateID);
@@ -239,11 +239,11 @@ export class ModelDependencyTreeBuilder {
 
     const initialContentSize = tree.content.size;
 
-    this.sourceData.pages.forEach(page => {
+    this.sourceData.pages.forEach((page) => {
       if (tree.pages.has(page.pageID)) {
         // Extract all content IDs from page zones
         const contentIds = this.extractContentIdsFromPage(page);
-        contentIds.forEach(id => tree.content.add(id));
+        contentIds.forEach((id) => tree.content.add(id));
       }
     });
 
@@ -264,11 +264,11 @@ export class ModelDependencyTreeBuilder {
     const pagesToProcess = new Set<number>();
 
     // Start with all currently discovered pages
-    tree.pages.forEach(pageId => pagesToProcess.add(pageId));
+    tree.pages.forEach((pageId) => pagesToProcess.add(pageId));
 
     // Process each page and find all its ancestors
-    pagesToProcess.forEach(pageId => {
-      const page = this.sourceData.pages!.find(p => p.pageID === pageId);
+    pagesToProcess.forEach((pageId) => {
+      const page = this.sourceData.pages!.find((p) => p.pageID === pageId);
       if (page) {
         this.findAllAncestorPages(page, tree, channel);
       }
@@ -286,7 +286,11 @@ export class ModelDependencyTreeBuilder {
     if (parentPage && !tree.pages.has(parentPage.pageID)) {
       // Add this parent to the tree
       tree.pages.add(parentPage.pageID);
-      console.log(ansiColors.gray(`    📑 [ANCESTOR] Added parent page ${parentPage.name} (ID:${parentPage.pageID}) for child ${page.name} (ID:${page.pageID})`));
+      console.log(
+        ansiColors.gray(
+          `    📑 [ANCESTOR] Added parent page ${parentPage.name} (ID:${parentPage.pageID}) for child ${page.name} (ID:${page.pageID})`
+        )
+      );
 
       // Recursively find this parent's ancestors
       this.findAllAncestorPages(parentPage, tree, channel);
@@ -303,11 +307,15 @@ export class ModelDependencyTreeBuilder {
     // Use existing SitemapHierarchy utility to find parent
     const sitemapHierarchy = new SitemapHierarchy();
 
-    const parentResult = sitemapHierarchy.findPageParentInSourceSitemap(page.pageID, page.name, channel);
+    const parentResult = sitemapHierarchy.findPageParentInSourceSitemap(
+      page.pageID,
+      page.name,
+      channel
+    );
     if (!parentResult.parentId) return null;
 
     // Find the actual page object by ID
-    const parentPage = this.sourceData.pages.find(p => p.pageID === parentResult.parentId);
+    const parentPage = this.sourceData.pages.find((p) => p.pageID === parentResult.parentId);
     return parentPage || null;
   }
 
@@ -320,7 +328,7 @@ export class ModelDependencyTreeBuilder {
     const initialModelSize = tree.models.size;
 
     // Find models for all content in the tree
-    this.sourceData.content.forEach(contentItem => {
+    this.sourceData.content.forEach((contentItem) => {
       if (tree.content.has(contentItem.contentID)) {
         // Find the model for this content item
         const modelName = contentItem.properties?.definitionName;
@@ -344,18 +352,18 @@ export class ModelDependencyTreeBuilder {
 
     // Create model reference name to ID mapping
     const modelMap = new Map<string, number>();
-    this.sourceData.models.forEach(model => {
+    this.sourceData.models.forEach((model) => {
       modelMap.set(model.referenceName, model.id);
     });
 
     // Find containers for all models in the tree
-    tree.models.forEach(modelName => {
+    tree.models.forEach((modelName) => {
       const modelId = modelMap.get(modelName);
       if (modelId) {
-        const containers = this.sourceData.containers.filter(c =>
-          c.contentDefinitionID === modelId
+        const containers = this.sourceData.containers.filter(
+          (c) => c.contentDefinitionID === modelId
         );
-        containers.forEach(container => {
+        containers.forEach((container) => {
           tree.containers.add(container.contentViewID);
         });
       }
@@ -378,7 +386,7 @@ export class ModelDependencyTreeBuilder {
 
     // Create a map of content reference names (lowercase) to content IDs
     const contentReferenceMap = new Map<string, number>();
-    this.sourceData.content.forEach(contentItem => {
+    this.sourceData.content.forEach((contentItem) => {
       if (tree.content.has(contentItem.contentID)) {
         const referenceName = contentItem.properties?.referenceName;
         if (referenceName) {
@@ -388,7 +396,7 @@ export class ModelDependencyTreeBuilder {
     });
 
     // Find containers with case-insensitive matching
-    this.sourceData.containers.forEach(container => {
+    this.sourceData.containers.forEach((container) => {
       const containerRefLower = container.referenceName?.toLowerCase();
       if (containerRefLower && contentReferenceMap.has(containerRefLower)) {
         tree.containers.add(container.contentViewID);
@@ -435,19 +443,19 @@ export class ModelDependencyTreeBuilder {
     if (!this.sourceData.content || !this.sourceData.assets) return;
 
     // Extract asset URLs from content items in the tree
-    this.sourceData.content.forEach(contentItem => {
+    this.sourceData.content.forEach((contentItem) => {
       if (tree.content.has(contentItem.contentID)) {
         const assetUrls = this.extractAssetUrlsFromContent(contentItem);
-        assetUrls.forEach(url => tree.assets.add(url));
+        assetUrls.forEach((url) => tree.assets.add(url));
       }
     });
 
     // Also check pages for asset references
     if (this.sourceData.pages) {
-      this.sourceData.pages.forEach(page => {
+      this.sourceData.pages.forEach((page) => {
         if (tree.pages.has(page.pageID)) {
           const assetUrls = this.extractAssetUrlsFromPage(page);
-          assetUrls.forEach(url => tree.assets.add(url));
+          assetUrls.forEach((url) => tree.assets.add(url));
         }
       });
     }
@@ -461,10 +469,10 @@ export class ModelDependencyTreeBuilder {
   private findGalleriesInContent(tree: ModelDependencyTree): void {
     if (!this.sourceData.content || !this.sourceData.galleries) return;
 
-    this.sourceData.content.forEach(contentItem => {
+    this.sourceData.content.forEach((contentItem) => {
       if (tree.content.has(contentItem.contentID)) {
         const galleryIds = this.extractGalleryIdsFromContent(contentItem);
-        galleryIds.forEach(id => tree.galleries.add(id));
+        galleryIds.forEach((id) => tree.galleries.add(id));
       }
     });
 
@@ -528,7 +536,7 @@ export class ModelDependencyTreeBuilder {
           this.scanObjectForAssetUrls(item, urls, `${path}[${index}]`);
         });
       } else {
-        Object.keys(obj).forEach(key => {
+        Object.keys(obj).forEach((key) => {
           this.scanObjectForAssetUrls(obj[key], urls, `${path}.${key}`);
         });
       }
@@ -556,7 +564,7 @@ export class ModelDependencyTreeBuilder {
           this.scanObjectForGalleryIds(item, galleryIds, `${path}[${index}]`);
         });
       } else {
-        Object.keys(obj).forEach(key => {
+        Object.keys(obj).forEach((key) => {
           this.scanObjectForGalleryIds(obj[key], galleryIds, `${path}.${key}`);
         });
       }
@@ -567,8 +575,14 @@ export class ModelDependencyTreeBuilder {
    * Get a summary string of the dependency tree
    */
   private getTreeSummary(tree: ModelDependencyTree): string {
-    const total = tree.models.size + tree.containers.size + tree.content.size +
-      tree.templates.size + tree.pages.size + tree.assets.size + tree.galleries.size;
+    const total =
+      tree.models.size +
+      tree.containers.size +
+      tree.content.size +
+      tree.templates.size +
+      tree.pages.size +
+      tree.assets.size +
+      tree.galleries.size;
 
     return `${total} total entities across 7 types`;
   }
@@ -584,9 +598,9 @@ export class ModelDependencyTreeBuilder {
       return { valid: [], invalid: modelNames };
     }
 
-    const availableModels = new Set(this.sourceData.models.map(m => m.referenceName));
+    const availableModels = new Set(this.sourceData.models.map((m) => m.referenceName));
 
-    modelNames.forEach(modelName => {
+    modelNames.forEach((modelName) => {
       if (availableModels.has(modelName)) {
         valid.push(modelName);
       } else {

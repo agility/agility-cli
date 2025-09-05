@@ -1,10 +1,17 @@
-import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState, state, getLoggerForGuid, startTimer, endTimer } from "../../core/state";
-import ansiColors from "ansi-colors";
-import fs from "fs";
-import path from "path";
-import { getAssetFilePath } from "../assets/asset-utils";
-import { getAllChannels } from "../shared/get-all-channels";
+import { fileOperations } from '../../core/fileOperations';
+import {
+  getApiClient,
+  getState,
+  state,
+  getLoggerForGuid,
+  startTimer,
+  endTimer,
+} from '../../core/state';
+import ansiColors from 'ansi-colors';
+import fs from 'fs';
+import path from 'path';
+import { getAssetFilePath } from '../assets/asset-utils';
+import { getAllChannels } from '../shared/get-all-channels';
 
 export async function downloadAllAssets(guid: string): Promise<void> {
   const fileOps = new fileOperations(guid);
@@ -27,7 +34,7 @@ export async function downloadAllAssets(guid: string): Promise<void> {
       if (!fs.existsSync(filePath)) {
         return { exists: false };
       }
-      const content = JSON.parse(fs.readFileSync(filePath, "utf8"));
+      const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       return {
         dateModified: content.dateModified,
         exists: true,
@@ -43,32 +50,32 @@ export async function downloadAllAssets(guid: string): Promise<void> {
     localInfo: { dateModified?: string; exists: boolean }
   ): { shouldDownload: boolean; reason: string } {
     if (state.update === false) {
-      return { shouldDownload: false, reason: "" };
+      return { shouldDownload: false, reason: '' };
     }
 
     if (!localInfo.exists) {
-      return { shouldDownload: true, reason: "new file" };
+      return { shouldDownload: true, reason: 'new file' };
     }
 
     if (!localInfo.dateModified || !apiAsset.dateModified) {
-      return { shouldDownload: true, reason: "missing date info" };
+      return { shouldDownload: true, reason: 'missing date info' };
     }
 
     const apiDate = new Date(apiAsset.dateModified);
     const localDate = new Date(localInfo.dateModified);
 
     if (apiDate > localDate) {
-      return { shouldDownload: true, reason: "content changed" };
+      return { shouldDownload: true, reason: 'content changed' };
     }
 
-    return { shouldDownload: false, reason: "unchanged" };
+    return { shouldDownload: false, reason: 'unchanged' };
   }
 
   // Helper function to format file size
   function formatFileSize(bytes: number): string {
-    if (bytes === 0) return "0B";
+    if (bytes === 0) return '0B';
     const k = 1024;
-    const sizes = ["B", "KB", "MB", "GB"];
+    const sizes = ['B', 'KB', 'MB', 'GB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + sizes[i];
   }
@@ -90,10 +97,10 @@ export async function downloadAllAssets(guid: string): Promise<void> {
 
     totalRecords = initialRecords.totalCount;
 
-    fileOps.createFolder("assets/json");
+    fileOps.createFolder('assets/json');
 
     // Export first page of JSON
-    fileOps.exportFiles("assets/json", index, initialRecords);
+    fileOps.exportFiles('assets/json', index, initialRecords);
     allAssets.push(...initialRecords.assetMedias);
     index++;
 
@@ -110,7 +117,7 @@ export async function downloadAllAssets(guid: string): Promise<void> {
 
         let assetsPage = await apiClient.assetMethods.getMediaList(pageSize, recordOffset, guid);
 
-        fileOps.exportFiles("assets/json", index, assetsPage);
+        fileOps.exportFiles('assets/json', index, assetsPage);
         allAssets.push(...assetsPage.assetMedias);
         index++;
       }
@@ -121,7 +128,7 @@ export async function downloadAllAssets(guid: string): Promise<void> {
     const skippableAssets = [];
 
     for (const asset of allAssets) {
-      const assetJsonPath = path.join(fileOps.getDataFolderPath("assets"), `${asset.mediaID}.json`);
+      const assetJsonPath = path.join(fileOps.getDataFolderPath('assets'), `${asset.mediaID}.json`);
       const localInfo = getLocalAssetInfo(assetJsonPath);
       const downloadDecision = shouldDownloadAsset(asset, localInfo);
 
@@ -134,7 +141,7 @@ export async function downloadAllAssets(guid: string): Promise<void> {
     }
 
     if (skippableAssets.length > 0) {
-      logger.changeDetectionSummary("asset", downloadableAssets.length, skippableAssets.length);
+      logger.changeDetectionSummary('asset', downloadableAssets.length, skippableAssets.length);
     }
 
     // Phase 3: Download only the assets that need updating
@@ -164,25 +171,25 @@ export async function downloadAllAssets(guid: string): Promise<void> {
           // Download actual file if it has an originUrl
           if (asset.originUrl) {
             const filePath = getAssetFilePath(asset.originUrl);
-            const assetFilesPath = path.join(fileOps.getDataFolderPath("assets"), filePath);
+            const assetFilesPath = path.join(fileOps.getDataFolderPath('assets'), filePath);
             const success = await fileOps.downloadFile(asset.originUrl, assetFilesPath);
 
             if (success) {
-              const sizeDisplay = asset.size ? formatFileSize(asset.size) : "";
+              const sizeDisplay = asset.size ? formatFileSize(asset.size) : '';
               logger.asset.downloaded(asset);
               return { success: true, asset };
             } else {
-              logger.asset.error(asset, "Download failed");
-              throw new Error("Download failed");
+              logger.asset.error(asset, 'Download failed');
+              throw new Error('Download failed');
             }
           } else {
             // Asset without downloadable file - just metadata
-            logger.warning("Asset without downloadable file", asset);
+            logger.warning('Asset without downloadable file', asset);
             // logger.asset.downloaded(asset);
             return { success: true, asset };
           }
         } catch (error: any) {
-          logger.asset.error(asset, error.message || "Unknown error");
+          logger.asset.error(asset, error.message || 'Unknown error');
           unProcessedAssets[asset.mediaID] = asset.fileName;
           return { success: false, asset, error };
         }
@@ -210,9 +217,9 @@ export async function downloadAllAssets(guid: string): Promise<void> {
     logger.endTimer();
     const unprocessedCount = Object.keys(unProcessedAssets).length;
 
-    logger.summary("pull", totalSuccessfullyDownloaded, totalSkippedAssets, unprocessedCount);
+    logger.summary('pull', totalSuccessfullyDownloaded, totalSkippedAssets, unprocessedCount);
   } catch (error: any) {
-    console.error("Error in downloadAllAssets:", error);
+    console.error('Error in downloadAllAssets:', error);
     throw error;
   }
 }

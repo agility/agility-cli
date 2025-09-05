@@ -6,11 +6,9 @@ import { fileOperations } from '../../../core';
  * Simplified - no unnecessary transformations
  * Pure function - no filesystem operations, delegates to fileOperations
  */
-export function getModelsFromFileSystem(
-    fileOps: fileOperations
-): mgmtApi.Model[] {
-    const rawModels = fileOps.readJsonFilesFromFolder('models');
-    
-    // Return models as-is - no transformation needed
-    return rawModels;
+export function getModelsFromFileSystem(fileOps: fileOperations): mgmtApi.Model[] {
+  const rawModels = fileOps.readJsonFilesFromFolder('models');
+
+  // Return models as-is - no transformation needed
+  return rawModels;
 }

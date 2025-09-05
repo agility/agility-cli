@@ -1,25 +1,25 @@
-import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
-import * as path from "path";
-import ansiColors from "ansi-colors";
+import { fileOperations } from '../../core/fileOperations';
+import { getApiClient, getLoggerForGuid, getState, state } from '../../core/state';
+import * as path from 'path';
+import ansiColors from 'ansi-colors';
 // import { ChangeDelta } from "../shared/change-delta-tracker";
-import * as fs from "fs";
-import { parse } from "date-fns";
+import * as fs from 'fs';
+import { parse } from 'date-fns';
 
 export async function downloadAllContainers(
-  guid: string,
+  guid: string
   // changeDelta: ChangeDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
   const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
   const logger = getLoggerForGuid(guid); // Use GUID-specific logger
-  
+
   if (!logger) {
     console.warn(`⚠️  No logger found for GUID ${guid}, skipping container logging`);
     return;
   }
-  
+
   logger.startTimer();
 
   const containersFolderPath = fileOps.getDataFolderPath('containers');
@@ -39,7 +39,7 @@ export async function downloadAllContainers(
       const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
       return {
         lastModifiedDate: content.lastModifiedDate,
-        exists: true
+        exists: true,
       };
     } catch (error) {
       return { exists: false };
@@ -47,7 +47,10 @@ export async function downloadAllContainers(
   }
 
   // Helper function to check if container needs download based on lastModifiedDate
-  function shouldDownloadContainer(apiContainer: any, localInfo: { lastModifiedDate?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
+  function shouldDownloadContainer(
+    apiContainer: any,
+    localInfo: { lastModifiedDate?: string; exists: boolean }
+  ): { shouldDownload: boolean; reason: string } {
     if (state.update === false) {
       return { shouldDownload: false, reason: '' };
     }
@@ -62,8 +65,8 @@ export async function downloadAllContainers(
     //the date format is: 07/23/2025 08:22PM (MM/DD/YYYY hh:mma) so we need to convert it to a Date object
     // Note: This assumes the date is in the format MM/DD/YYYY hh:mma
     // If the date format is different, you may need to adjust the parsing logic accordingly
-    const apiDateTime = parse(apiContainer.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
-    const localeDateTime = parse(localInfo.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
+    const apiDateTime = parse(apiContainer.lastModifiedDate, 'MM/dd/yyyy hh:mma', new Date());
+    const localeDateTime = parse(localInfo.lastModifiedDate, 'MM/dd/yyyy hh:mma', new Date());
 
     if (apiDateTime > localeDateTime && state.update === true) {
       return { shouldDownload: true, reason: 'content changed' };
@@ -79,7 +82,7 @@ export async function downloadAllContainers(
     totalContainers = containers.length;
 
     if (totalContainers === 0) {
-      logger.info("No containers found to download");
+      logger.info('No containers found to download');
       return;
     }
 
@@ -100,20 +103,24 @@ export async function downloadAllContainers(
           containerRef,
           containerID,
           containerName,
-          reason: downloadDecision.reason
+          reason: downloadDecision.reason,
         });
       } else {
         skippableContainers.push({
           containerRef,
           containerID,
           containerName,
-          reason: downloadDecision.reason
+          reason: downloadDecision.reason,
         });
       }
     }
 
-    if(skippableContainers.length > 0){
-      logger.changeDetectionSummary("container", downloadableContainers.length, skippableContainers.length);
+    if (skippableContainers.length > 0) {
+      logger.changeDetectionSummary(
+        'container',
+        downloadableContainers.length,
+        skippableContainers.length
+      );
     }
 
     // Phase 3: Download only the containers that need updating
@@ -146,7 +153,7 @@ export async function downloadAllContainers(
 
           // Export container JSON
           fileOps.exportFiles(`containers`, containerID.toString(), container);
-          logger.container.downloaded(container,);
+          logger.container.downloaded(container);
 
           return { success: true, container };
         } catch (error: any) {
@@ -173,8 +180,7 @@ export async function downloadAllContainers(
     // Performance and summary reporting
     logger.endTimer();
     const errorCount = downloadableContainers.length - downloadedCount;
-    logger.summary("pull", downloadedCount, skippedCount, errorCount);
-
+    logger.summary('pull', downloadedCount, skippedCount, errorCount);
   } catch (error: any) {
     logger.error(`Error in downloadAllContainers: ${error.message || error}`);
     throw error;

@@ -1,15 +1,19 @@
 // Clean utilities index
-export * from "../content";
-export * from "../assets";
-export * from "../loggers";
+export * from '../content';
+export * from '../assets';
+export * from '../loggers';
 
 // // ReferenceMapperV2 exports
-export * from "../pushers/batch-polling";
-export * from "./link-type-detector";
-export { GuidDataLoader, GuidEntities, SourceEntities } from "../pushers/guid-data-loader";
-export function prettyException(error: any): string { return error.message || error.toString(); }
-export function logBatchError(error: any, context: string): void { console.error("Batch Error:", error); }
-export { pollBatchUntilComplete, extractBatchResults } from "../pushers/batch-polling";
+export * from '../pushers/batch-polling';
+export * from './link-type-detector';
+export { GuidDataLoader, GuidEntities, SourceEntities } from '../pushers/guid-data-loader';
+export function prettyException(error: any): string {
+  return error.message || error.toString();
+}
+export function logBatchError(error: any, context: string): void {
+  console.error('Batch Error:', error);
+}
+export { pollBatchUntilComplete, extractBatchResults } from '../pushers/batch-polling';
 
 // Version utility
 import * as fs from 'fs';
@@ -30,7 +34,7 @@ export function getPackageVersion(): string {
     path.join(__dirname, '../../package.json'),
     path.join(__dirname, '../../../package.json'),
     // Try one more level up for different installation structures
-    path.join(__dirname, '../../../../package.json')
+    path.join(__dirname, '../../../../package.json'),
   ];
 
   for (const packageJsonPath of possiblePaths) {
@@ -54,10 +58,13 @@ export function getPackageVersion(): string {
 /**
  * Generate a formatted header with package version info for log files
  */
-export function generateLogHeader(operationType: string, additionalInfo: Record<string, any> = {}): string {
+export function generateLogHeader(
+  operationType: string,
+  additionalInfo: Record<string, any> = {}
+): string {
   const timestamp = new Date().toISOString();
   const version = getPackageVersion();
-  
+
   const headerLines = [
     '='.repeat(80),
     `Agility CLI ${operationType} Operation Log`,

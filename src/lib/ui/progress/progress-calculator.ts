@@ -49,8 +49,11 @@ export class ProgressCalculator {
 
     // Estimate remaining time
     const remaining = total - processed;
-    const estimatedRemainingTime = itemsPerSecond > 0 ? (remaining / itemsPerSecond) * 1000 : undefined;
-    const estimatedTotalTime = estimatedRemainingTime ? elapsedTime + estimatedRemainingTime : undefined;
+    const estimatedRemainingTime =
+      itemsPerSecond > 0 ? (remaining / itemsPerSecond) * 1000 : undefined;
+    const estimatedTotalTime = estimatedRemainingTime
+      ? elapsedTime + estimatedRemainingTime
+      : undefined;
 
     return {
       processed,
@@ -61,7 +64,7 @@ export class ProgressCalculator {
       elapsedTime,
       estimatedTotalTime,
       estimatedRemainingTime,
-      itemsPerSecond
+      itemsPerSecond,
     };
   }
 
@@ -130,13 +133,13 @@ export class ProgressCalculator {
    */
   static formatProgressSummary(stats: ProgressStats): string {
     const parts: string[] = [];
-    
+
     parts.push(`${stats.processed}/${stats.total} (${stats.percentage}%)`);
-    
+
     if (stats.itemsPerSecond !== undefined) {
       parts.push(ProgressCalculator.formatRate(stats.itemsPerSecond));
     }
-    
+
     if (stats.estimatedRemainingTime !== undefined) {
       const eta = ProgressCalculator.formatDuration(stats.estimatedRemainingTime);
       parts.push(`ETA: ${eta}`);
@@ -150,7 +153,7 @@ export class ProgressCalculator {
    */
   static calculateOverallProgress(stepProgresses: number[]): number {
     if (stepProgresses.length === 0) return 0;
-    
+
     const totalProgress = stepProgresses.reduce((sum, progress) => sum + progress, 0);
     return Math.floor(totalProgress / stepProgresses.length);
   }
@@ -160,14 +163,14 @@ export class ProgressCalculator {
    */
   static calculateWeightedProgress(stepProgresses: number[], weights: number[]): number {
     if (stepProgresses.length !== weights.length || stepProgresses.length === 0) return 0;
-    
+
     const totalWeight = weights.reduce((sum, weight) => sum + weight, 0);
     if (totalWeight === 0) return 0;
-    
+
     const weightedSum = stepProgresses.reduce((sum, progress, index) => {
-      return sum + (progress * weights[index]);
+      return sum + progress * weights[index];
     }, 0);
-    
+
     return Math.floor(weightedSum / totalWeight);
   }
 
@@ -206,7 +209,7 @@ export class ProgressCalculator {
 
     return (processed: number, total: number) => {
       const now = Date.now();
-      
+
       // Always report completion (100%)
       if (processed >= total) {
         const stats = calculator.calculateProgress(processed, total);
@@ -227,7 +230,11 @@ export class ProgressCalculator {
    * Create batch progress calculator for large operations
    */
   static createBatchProgressCalculator(batchSize: number): {
-    reportProgress: (batchIndex: number, totalBatches: number, batchProgress: number) => ProgressStats;
+    reportProgress: (
+      batchIndex: number,
+      totalBatches: number,
+      batchProgress: number
+    ) => ProgressStats;
     reset: () => void;
   } {
     const calculator = new ProgressCalculator();
@@ -242,7 +249,7 @@ export class ProgressCalculator {
 
         return calculator.calculateProgress(totalProcessed, totalItems);
       },
-      reset: () => calculator.reset()
+      reset: () => calculator.reset(),
     };
   }
 
@@ -257,13 +264,13 @@ export class ProgressCalculator {
 
     return (processed: number, total: number) => {
       const actualPercentage = ProgressCalculator.calculatePercentage(processed, total);
-      
+
       // Use exponential smoothing to reduce jitter
-      const smoothedPercentage = lastReportedPercentage + 
-        smoothingFactor * (actualPercentage - lastReportedPercentage);
-      
+      const smoothedPercentage =
+        lastReportedPercentage + smoothingFactor * (actualPercentage - lastReportedPercentage);
+
       const roundedPercentage = Math.floor(smoothedPercentage);
-      
+
       // Only update if there's a meaningful change or completion
       if (roundedPercentage !== lastReportedPercentage || actualPercentage === 100) {
         updateCallback(actualPercentage === 100 ? 100 : roundedPercentage);
@@ -291,7 +298,7 @@ export class ProgressCalculator {
     return {
       historySize: this.progressHistory.length,
       currentRate: this.calculateItemsPerSecond(),
-      elapsedTime: Date.now() - this.startTime.getTime()
+      elapsedTime: Date.now() - this.startTime.getTime(),
     };
   }
-} 
+}

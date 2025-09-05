@@ -1,0 +1,14 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+echo "🚀 Running pre-commit checks..."
+
+# Run lint-staged to check and fix staged files
+echo "🎨 Formatting and linting staged files..."
+npx lint-staged
+
+# Run type checking to catch TypeScript errors
+echo "🔍 Running TypeScript type check..."
+npm run type-check
+
+echo "✅ Pre-commit checks passed!"

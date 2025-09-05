@@ -1,4 +1,4 @@
-import { state } from "../../core/state";
+import { state } from '../../core/state';
 
 /**
  * Simple batch publisher function - mirrors apiClient.batchMethods.publish(batchID)
@@ -12,7 +12,7 @@ export async function publishBatch(
   try {
     // Get state values instead of parameters
     const { getApiClient } = await import('../../core/state');
-const apiClient = getApiClient();
+    const apiClient = getApiClient();
     const targetGuid = state.targetGuid;
 
     if (!apiClient) {
@@ -29,14 +29,13 @@ const apiClient = getApiClient();
 
     return {
       success: true,
-      batchId: batchId.toString()
+      batchId: batchId.toString(),
     };
-
   } catch (error: any) {
     return {
       success: false,
       batchId: batchId.toString(),
-      error: error.message || "Unknown batch publishing error",
+      error: error.message || 'Unknown batch publishing error',
     };
   }
 }

@@ -1,5 +1,5 @@
-import { fileOperations } from "core/fileOperations";
-import { getApiClient, getLoggerForGuid, state } from "core/state";
+import { fileOperations } from 'core/fileOperations';
+import { getApiClient, getLoggerForGuid, state } from 'core/state';
 
 export async function downloadAllTemplates(guid: string): Promise<void> {
   const fileOps = new fileOperations(guid);
@@ -9,8 +9,8 @@ export async function downloadAllTemplates(guid: string): Promise<void> {
 
   logger.startTimer();
 
-  const templatesFolderPath = fileOps.getDataFolderPath("templates");
-  fileOps.createFolder("templates");
+  const templatesFolderPath = fileOps.getDataFolderPath('templates');
+  fileOps.createFolder('templates');
 
   let totalTemplates = 0;
   try {
@@ -18,7 +18,7 @@ export async function downloadAllTemplates(guid: string): Promise<void> {
     totalTemplates = pageTemplates.length; // Assign here
 
     if (totalTemplates === 0) {
-      logger.template.skipped(null, "No page templates found to download");
+      logger.template.skipped(null, 'No page templates found to download');
       return;
     }
 
@@ -34,7 +34,7 @@ export async function downloadAllTemplates(guid: string): Promise<void> {
 
     logger.endTimer();
     const downloadedCount = processedCount - skippedCount;
-    logger.summary("pull", downloadedCount, skippedCount, 0);
+    logger.summary('pull', downloadedCount, skippedCount, 0);
   } catch (error) {
     logger.error(`Error downloading page templates: ${error}`);
     throw error;

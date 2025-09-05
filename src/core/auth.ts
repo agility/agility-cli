@@ -1,25 +1,25 @@
-import { serverUser } from "../types/serverUser";
-import { state, getState, clearApiClient } from "./state";
-import * as mgmtApi from "@agility/management-sdk";
-const open = require("open");
-const FormData = require("form-data");
-import fs from "fs";
-import path from "path";
-import https from "https";
+import { serverUser } from '../types/serverUser';
+import { state, getState, clearApiClient } from './state';
+import * as mgmtApi from '@agility/management-sdk';
+const open = require('open');
+const FormData = require('form-data');
+import fs from 'fs';
+import path from 'path';
+import https from 'https';
 
-import keytar from "keytar";
-import { exit } from "process";
-import ansiColors from "ansi-colors";
+import keytar from 'keytar';
+import { exit } from 'process';
+import ansiColors from 'ansi-colors';
 
-import { getAllChannels } from "../lib/shared/get-all-channels";
+import { getAllChannels } from '../lib/shared/get-all-channels';
 
-const SERVICE_NAME = "agility-cli";
+const SERVICE_NAME = 'agility-cli';
 
 let lastLength = 0;
 
 function logReplace(text) {
-  const clear = " ".repeat(lastLength);
-  process.stdout.write("\r" + clear + "\r" + text);
+  const clear = ' '.repeat(lastLength);
+  process.stdout.write('\r' + clear + '\r' + text);
   lastLength = text.length;
 }
 
@@ -46,15 +46,15 @@ export class Auth {
   private getFetchConfig(): RequestInit {
     const config: RequestInit = {
       headers: {
-        "Cache-Control": "no-cache",
-        "User-Agent": "agility-cli-fetch/1.0",
+        'Cache-Control': 'no-cache',
+        'User-Agent': 'agility-cli-fetch/1.0',
       },
     };
 
     if (this.insecureMode) {
       // For fetch with Node.js, we need to handle SSL differently
       // This is a simplified approach - in production, you might need more sophisticated SSL handling
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
     }
 
     return config;
@@ -62,32 +62,34 @@ export class Auth {
 
   private handleSSLError(error: any): never {
     if (
-      error.code === "UNABLE_TO_GET_ISSUER_CERT_LOCALLY" ||
-      error.code === "SELF_SIGNED_CERT_IN_CHAIN" ||
-      error.message?.includes("certificate")
+      error.code === 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY' ||
+      error.code === 'SELF_SIGNED_CERT_IN_CHAIN' ||
+      error.message?.includes('certificate')
     ) {
-      console.error("❌ SSL Certificate Error detected.");
-      console.error("This often happens in corporate environments with proxy servers.");
-      console.error("Try running with the --insecure flag to bypass SSL verification:");
-      console.error("  npx agility login --insecure");
-      console.error("  npx agility pull --insecure --sourceGuid <your-guid>");
-      console.error("  npx agility sync --insecure --sourceGuid <guid1> --targetGuid <guid2>");
+      console.error('❌ SSL Certificate Error detected.');
+      console.error('This often happens in corporate environments with proxy servers.');
+      console.error('Try running with the --insecure flag to bypass SSL verification:');
+      console.error('  npx agility login --insecure');
+      console.error('  npx agility pull --insecure --sourceGuid <your-guid>');
+      console.error('  npx agility sync --insecure --sourceGuid <guid1> --targetGuid <guid2>');
     }
     throw error;
   }
 
-  getEnv(): "dev" | "local" | "preprod" | "prod" {
-    return state.local ? "local" : state.dev ? "dev" : state.preprod ? "preprod" : "prod";
+  getEnv(): 'dev' | 'local' | 'preprod' | 'prod' {
+    return state.local ? 'local' : state.dev ? 'dev' : state.preprod ? 'preprod' : 'prod';
   }
 
   checkForEnvFile(): { hasEnvFile: boolean; guid?: string; channel?: string; locales?: string[] } {
-    const envFiles = [".env", ".env.local", ".env.development", ".env.production"];
-    const result: { hasEnvFile: boolean; guid?: string; channel?: string; locales?: string[] } = { hasEnvFile: false };
+    const envFiles = ['.env', '.env.local', '.env.development', '.env.production'];
+    const result: { hasEnvFile: boolean; guid?: string; channel?: string; locales?: string[] } = {
+      hasEnvFile: false,
+    };
 
     for (const envFile of envFiles) {
       const envPath = path.join(process.cwd(), envFile);
       if (fs.existsSync(envPath)) {
-        const envContent = fs.readFileSync(envPath, "utf8");
+        const envContent = fs.readFileSync(envPath, 'utf8');
         const guidMatch = envContent.match(/AGILITY_GUID=([^\n]+)/);
         const channelMatch = envContent.match(/AGILITY_WEBSITE=([^\n]+)/);
         const localeMatch = envContent.match(/AGILITY_LOCALES=([^\n]+)/);
@@ -102,7 +104,7 @@ export class Auth {
         }
         if (localeMatch && localeMatch[1]) {
           result.hasEnvFile = true;
-          result.locales = localeMatch[1].trim().split(",");
+          result.locales = localeMatch[1].trim().split(',');
         }
         if (result.hasEnvFile) {
           return result;
@@ -119,45 +121,45 @@ export class Auth {
 
   async logout() {
     console.log('🔍 Looking for cached Agility CLI tokens...');
-    
+
     try {
       const accounts = await keytar.findCredentials(SERVICE_NAME);
-      
+
       if (accounts.length === 0) {
         console.log('✅ No cached tokens found - you are already logged out');
         exit(0);
         return;
       }
-      
+
       console.log(`🧹 Found ${accounts.length} cached token(s), clearing...`);
-      
+
       for (const account of accounts) {
         await keytar.deletePassword(SERVICE_NAME, account.account);
         console.log(`   ✓ Cleared: ${account.account}`);
       }
-      
-      console.log(`✅ Successfully logged out - cleared ${accounts.length} authentication token(s)`);
+
+      console.log(
+        `✅ Successfully logged out - cleared ${accounts.length} authentication token(s)`
+      );
       console.log('💡 You will need to re-authenticate on your next CLI command');
-      
     } catch (error) {
       console.error('❌ Error clearing tokens:', error.message);
       console.log('💡 This might happen if keytar is not available on your system');
       exit(1);
     }
-    
+
     exit(0);
   }
 
   async generateCode() {
     let firstPart = (Math.random() * 46656) | 0;
     let secondPart = (Math.random() * 46656) | 0;
-    let firstString = ("000" + firstPart.toString(36)).slice(-3);
-    let secondString = ("000" + secondPart.toString(36)).slice(-3);
+    let firstString = ('000' + firstPart.toString(36)).slice(-3);
+    let secondString = ('000' + secondPart.toString(36)).slice(-3);
     return firstString + secondString;
   }
 
   determineBaseUrl(guid?: string): string {
-
     let baseGUID = guid;
     if (!baseGUID) {
       baseGUID = state.sourceGuid[0];
@@ -170,31 +172,31 @@ export class Auth {
 
     switch (true) {
       case state.local:
-        return "https://localhost:5050";
+        return 'https://localhost:5050';
       case state.dev:
-        return "https://mgmt-dev.aglty.io";
+        return 'https://mgmt-dev.aglty.io';
       case state.preprod:
-        return "https://management-api-us-pre-prod.azurewebsites.net";
+        return 'https://management-api-us-pre-prod.azurewebsites.net';
     }
 
     if (baseGUID) {
       switch (true) {
-        case baseGUID.endsWith("d"):
-          return "https://mgmt-dev.aglty.io";
-        case baseGUID.endsWith("u"):
-          return "https://mgmt.aglty.io";
-        case baseGUID.endsWith("c"):
-          return "https://mgmt-ca.aglty.io";
-        case baseGUID.endsWith("e"):
-          return "https://mgmt-eu.aglty.io";
-        case baseGUID.endsWith("a"):
-          return "https://mgmt-aus.aglty.io";
-        case baseGUID.endsWith("us2"):
-          return "https://mgmt-usa2.aglty.io";
+        case baseGUID.endsWith('d'):
+          return 'https://mgmt-dev.aglty.io';
+        case baseGUID.endsWith('u'):
+          return 'https://mgmt.aglty.io';
+        case baseGUID.endsWith('c'):
+          return 'https://mgmt-ca.aglty.io';
+        case baseGUID.endsWith('e'):
+          return 'https://mgmt-eu.aglty.io';
+        case baseGUID.endsWith('a'):
+          return 'https://mgmt-aus.aglty.io';
+        case baseGUID.endsWith('us2'):
+          return 'https://mgmt-usa2.aglty.io';
       }
     }
     // no guid, use default
-    return "https://mgmt.aglty.io";
+    return 'https://mgmt.aglty.io';
   }
 
   getBaseUrl(guid: string, userBaseUrl: string = null): string {
@@ -208,7 +210,7 @@ export class Auth {
   }
 
   async executeGet(apiPath: string, guid: string, userBaseUrl: string = null) {
-    const baseUrl = this.getBaseUrl(guid)
+    const baseUrl = this.getBaseUrl(guid);
     const url = `${baseUrl}${apiPath}`;
 
     try {
@@ -216,11 +218,11 @@ export class Auth {
       const token = await this.getToken();
 
       const response = await fetch(url, {
-        method: "GET",
+        method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
-          "Cache-Control": "no-cache",
-          "User-Agent": "agility-cli-fetch/1.0",
+          'Cache-Control': 'no-cache',
+          'User-Agent': 'agility-cli-fetch/1.0',
         },
       });
 
@@ -229,14 +231,16 @@ export class Auth {
       }
 
       // Try to parse as JSON first, if that fails, return as text
-      const contentType = response.headers.get("content-type");
-      if (contentType && contentType.includes("application/json")) {
+      const contentType = response.headers.get('content-type');
+      if (contentType && contentType.includes('application/json')) {
         return await response.json();
       } else {
         // For non-JSON responses (like preview/fetch keys), return the text directly
         const textResponse = await response.text();
         // Handle both quoted and unquoted string responses
-        return textResponse.startsWith('"') && textResponse.endsWith('"') ? textResponse.slice(1, -1) : textResponse;
+        return textResponse.startsWith('"') && textResponse.endsWith('"')
+          ? textResponse.slice(1, -1)
+          : textResponse;
       }
     } catch (err) {
       this.handleSSLError(err);
@@ -250,8 +254,8 @@ export class Auth {
     try {
       let body: string | FormData | URLSearchParams;
       let headers: Record<string, string> = {
-        "Cache-Control": "no-cache",
-        "User-Agent": "agility-cli-fetch/1.0",
+        'Cache-Control': 'no-cache',
+        'User-Agent': 'agility-cli-fetch/1.0',
       };
 
       if (data instanceof FormData) {
@@ -259,14 +263,14 @@ export class Auth {
         // Don't set Content-Type for FormData, let fetch set it with boundary
       } else if (data instanceof URLSearchParams) {
         body = data;
-        headers["Content-Type"] = "application/x-www-form-urlencoded";
+        headers['Content-Type'] = 'application/x-www-form-urlencoded';
       } else {
         body = JSON.stringify(data);
-        headers["Content-Type"] = "application/json";
+        headers['Content-Type'] = 'application/json';
       }
 
       const response = await fetch(url, {
-        method: "POST",
+        method: 'POST',
         body: body,
         headers: headers,
       });
@@ -285,9 +289,9 @@ export class Auth {
     let code = await this.generateCode();
 
     // Use the first sourceGuid if available for server routing, fallback to blank-d for default
-    const guid = state.sourceGuid.length > 0 ? state.sourceGuid[0] : "blank-d";
+    const guid = state.sourceGuid.length > 0 ? state.sourceGuid[0] : 'blank-d';
     const baseUrl = this.determineBaseUrl(guid);
-    
+
     const redirectUri = `${baseUrl}/oauth/CliAuth`;
     const authUrl = `${baseUrl}/oauth/Authorize?response_type=code&redirect_uri=${encodeURIComponent(
       redirectUri
@@ -303,13 +307,13 @@ export class Auth {
    */
   async init(): Promise<boolean> {
     // Step 1: Configure SSL if needed
-    const { configureSSL } = await import("./state");
+    const { configureSSL } = await import('./state');
     configureSSL();
 
     // Step 2: Authenticate (PAT or Auth0)
     const hasPAT = await this.hasPersonalAccessToken();
     if (hasPAT) {
-      console.log(ansiColors.green("🔑 Using Personal Access Token for authentication."));
+      console.log(ansiColors.green('🔑 Using Personal Access Token for authentication.'));
       // Store PAT in keytar for future sessions
       await this.storePATInKeytar();
     } else {
@@ -332,7 +336,9 @@ export class Auth {
 
           state.apiKeys.push({ guid, previewKey, fetchKey });
         } catch (error) {
-          console.log(ansiColors.yellow(`Warning: Could not get keys for GUID ${guid}: ${error.message}`));
+          console.log(
+            ansiColors.yellow(`Warning: Could not get keys for GUID ${guid}: ${error.message}`)
+          );
         }
       }
     }
@@ -346,14 +352,14 @@ export class Auth {
     const shouldSkip = this.shouldSkipPermissionCheck();
     if (shouldSkip) {
       if (state.test) {
-        console.log(ansiColors.yellow("🧪 TEST MODE: Bypassing permission checks for analysis..."));
+        console.log(ansiColors.yellow('🧪 TEST MODE: Bypassing permission checks for analysis...'));
       } else if (state.test) {
-        console.log(ansiColors.yellow("🧪 TEST MODE: Bypassing permission checks..."));
+        console.log(ansiColors.yellow('🧪 TEST MODE: Bypassing permission checks...'));
       }
     }
 
     // Step 5: Set up basic management API options
-    const mgmtApiOptions = new (await import("@agility/management-sdk")).Options();
+    const mgmtApiOptions = new (await import('@agility/management-sdk')).Options();
     mgmtApiOptions.token = await this.getToken();
 
     // // Store basic mgmt API options in state
@@ -371,7 +377,9 @@ export class Auth {
         const user = await this.getUser(primaryGuid);
         if (user) {
           state.user = user;
-          state.currentWebsite = user.websiteAccess.find((website: any) => website.guid === primaryGuid);
+          state.currentWebsite = user.websiteAccess.find(
+            (website: any) => website.guid === primaryGuid
+          );
         }
       } catch (error) {
         // Non-fatal for interactive mode - user data will be loaded when needed
@@ -385,21 +393,27 @@ export class Auth {
         //Get the locales for the SOURCE GUID
         let sourceLocales: string[] = [];
         if (state.sourceGuid.length > 0) {
-          sourceLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.sourceGuid[0])).map(
-            (locale: any) => locale.localeCode
-          );
+          sourceLocales = (
+            await state.cachedApiClient.instanceMethods.getLocales(state.sourceGuid[0])
+          ).map((locale: any) => locale.localeCode);
           state.availableLocales = sourceLocales;
         }
 
         //Get the locales for the TARGET GUID
         let targetLocales: string[] = [];
         if (state.targetGuid.length > 0) {
-          targetLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.targetGuid[0])).map((locale: any) => locale.localeCode);
+          targetLocales = (
+            await state.cachedApiClient.instanceMethods.getLocales(state.targetGuid[0])
+          ).map((locale: any) => locale.localeCode);
 
           // MAKE SURE THAT the TARGET has the same locales as the SOURCE
-          const missingLocales = sourceLocales.filter(locale => !targetLocales.includes(locale));
+          const missingLocales = sourceLocales.filter((locale) => !targetLocales.includes(locale));
           if (missingLocales.length > 0) {
-            console.log(ansiColors.yellow(`⚠️  Target instance ${state.targetGuid[0]}: Missing locales ${missingLocales.join(', ')} (available: ${targetLocales.join(', ')})`));
+            console.log(
+              ansiColors.yellow(
+                `⚠️  Target instance ${state.targetGuid[0]}: Missing locales ${missingLocales.join(', ')} (available: ${targetLocales.join(', ')})`
+              )
+            );
             return false; // Cannot proceed with missing locales
           }
         }
@@ -429,20 +443,18 @@ export class Auth {
 
         state.locale = localesToUse; // Set the state locale list to the determined locales
         state.guidLocaleMap = guidLocaleMap;
-
-
       } catch (error) {
         console.log(ansiColors.yellow(`Note: Could not auto-detect locales: ${error.message}`));
-        state.availableLocales = ["en-us"]; // Fallback to default
+        state.availableLocales = ['en-us']; // Fallback to default
 
         // Create fallback mapping for all GUIDs
-        const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ["en-us"];
+        const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ['en-us'];
         for (const guid of allGuids) {
           if (guid) {
             state.guidLocaleMap.set(guid, fallbackLocales);
           }
         }
-        console.log(`📝 Using fallback mapping: all GUIDs → ${fallbackLocales.join(", ")}`);
+        console.log(`📝 Using fallback mapping: all GUIDs → ${fallbackLocales.join(', ')}`);
       }
     }
 
@@ -463,21 +475,26 @@ export class Auth {
 
       const permission = await this.checkUserRole(guid);
       if (!permission.hasPermission) {
-        throw new Error(`You do not have the required permissions on the ${instanceType} instance ${guid}.`);
+        throw new Error(
+          `You do not have the required permissions on the ${instanceType} instance ${guid}.`
+        );
       }
 
       // Store user info for the primary instance
-      if (instanceType === "instance" || instanceType === "source") {
+      if (instanceType === 'instance' || instanceType === 'source') {
         state.user = user;
 
         // Store current website details
         if (state.sourceGuid) {
-          state.currentWebsite = user.websiteAccess.find((website: any) => website.guid === state.sourceGuid);
+          state.currentWebsite = user.websiteAccess.find(
+            (website: any) => website.guid === state.sourceGuid
+          );
         }
       }
     } catch (error) {
       throw new Error(
-        `${instanceType.charAt(0).toUpperCase() + instanceType.slice(1)} instance authentication failed: ${error.message
+        `${instanceType.charAt(0).toUpperCase() + instanceType.slice(1)} instance authentication failed: ${
+          error.message
         }`
       );
     }
@@ -497,35 +514,39 @@ export class Auth {
           const expiresAt = issuedAt + token.expires_in * 1000;
 
           if (Date.now() < expiresAt) {
-            console.log(ansiColors.green(`\r● Authenticated to ${env === "prod" ? "Agility" : env} servers.\n`));
+            console.log(
+              ansiColors.green(
+                `\r● Authenticated to ${env === 'prod' ? 'Agility' : env} servers.\n`
+              )
+            );
             return true;
           } else {
-            console.log("Existing token has expired. Starting re-authentication...");
+            console.log('Existing token has expired. Starting re-authentication...');
           }
         } else {
-          console.warn("Token is missing expiration metadata. Re-authentication required.");
+          console.warn('Token is missing expiration metadata. Re-authentication required.');
         }
       } catch (err) {
-        console.warn("Failed to parse token. Re-authentication required.");
+        console.warn('Failed to parse token. Re-authentication required.');
       }
     } else {
-      console.log(ansiColors.yellow("No token found in keychain. Starting auth flow..."));
+      console.log(ansiColors.yellow('No token found in keychain. Starting auth flow...'));
     }
 
     const cliCode = await this.authorize();
-    logReplace("\rWaiting for authentication in your browser...");
+    logReplace('\rWaiting for authentication in your browser...');
 
     return new Promise((resolve, reject) => {
       const interval = setInterval(async () => {
         try {
           const params = new URLSearchParams();
-          params.append("cliCode", cliCode);
+          params.append('cliCode', cliCode);
           const token = await this.cliPoll(params);
 
           if (token && token.access_token && token.expires_in && token.timestamp) {
             // Store token in keytar
             console.log(ansiColors.green(`\r🔑 Authenticated to ${env} servers.\n`));
-            console.log("----------------------------------\n");
+            console.log('----------------------------------\n');
 
             await keytar.setPassword(SERVICE_NAME, key, JSON.stringify(token));
             clearInterval(interval);
@@ -538,16 +559,16 @@ export class Auth {
 
       setTimeout(() => {
         clearInterval(interval);
-        reject(new Error("Authorization timed out after 60 seconds."));
+        reject(new Error('Authorization timed out after 60 seconds.'));
       }, 60000);
     });
   }
 
   async login(): Promise<boolean> {
-    console.log("🔑 Authenticating to Agility CMS...");
+    console.log('🔑 Authenticating to Agility CMS...');
 
     // Configure SSL if needed
-    const { configureSSL } = await import("./state");
+    const { configureSSL } = await import('./state');
     configureSSL();
 
     const env = this.getEnv();
@@ -563,7 +584,11 @@ export class Auth {
           const expiresAt = issuedAt + token.expires_in * 1000;
 
           if (Date.now() < expiresAt) {
-            console.log(ansiColors.green(`✅ Already authenticated to ${env === "prod" ? "Agility" : env} servers.`));
+            console.log(
+              ansiColors.green(
+                `✅ Already authenticated to ${env === 'prod' ? 'Agility' : env} servers.`
+              )
+            );
             return true;
           }
         }
@@ -573,21 +598,25 @@ export class Auth {
     }
 
     const cliCode = await this.authorize();
-    logReplace("\rWaiting for authentication in your browser...");
+    logReplace('\rWaiting for authentication in your browser...');
 
     return new Promise((resolve, reject) => {
       const interval = setInterval(async () => {
         try {
           const params = new URLSearchParams();
-          params.append("cliCode", cliCode);
-          
+          params.append('cliCode', cliCode);
+
           // For standalone login, use default server routing
-          const token = await this.cliPoll(params, "blank-d");
+          const token = await this.cliPoll(params, 'blank-d');
 
           if (token && token.access_token && token.expires_in && token.timestamp) {
             // Store token in keytar
-            console.log(ansiColors.green(`\r🔑 Authenticated to ${env === "prod" ? "Agility" : env} servers.\n`));
-            console.log("----------------------------------\n");
+            console.log(
+              ansiColors.green(
+                `\r🔑 Authenticated to ${env === 'prod' ? 'Agility' : env} servers.\n`
+              )
+            );
+            console.log('----------------------------------\n');
 
             await keytar.setPassword(SERVICE_NAME, key, JSON.stringify(token));
             clearInterval(interval);
@@ -603,9 +632,9 @@ export class Auth {
 
       setTimeout(() => {
         clearInterval(interval);
-        console.log(ansiColors.red("\r❌ Authentication timed out after 60 seconds."));
-        console.log("💡 Please try again or check your network connection.");
-        reject(new Error("Authentication timed out after 60 seconds."));
+        console.log(ansiColors.red('\r❌ Authentication timed out after 60 seconds.'));
+        console.log('💡 Please try again or check your network connection.');
+        reject(new Error('Authentication timed out after 60 seconds.'));
       }, 60000);
     });
   }
@@ -635,13 +664,15 @@ export class Auth {
     // Priority 1: Check if token came from --token flag or AGILITY_TOKEN env var
     // We need to check the ORIGINAL source, not state.token which Auth0 also populates
     const userProvidedToken = await this.getUserProvidedToken();
-    
+
     if (userProvidedToken && userProvidedToken.trim().length > 0) {
       // Validate PAT format (basic check)
       if (await this.validatePersonalAccessToken(userProvidedToken)) {
         return userProvidedToken;
       } else {
-        console.warn("⚠️  Invalid Personal Access Token format. Falling back to Auth0 authentication.");
+        console.warn(
+          '⚠️  Invalid Personal Access Token format. Falling back to Auth0 authentication.'
+        );
         return null;
       }
     }
@@ -649,10 +680,10 @@ export class Auth {
     // Priority 2: Check for PAT stored in keytar from previous session
     const env = this.getEnv();
     const patKey = `cli-pat-token:${env}`;
-    
+
     try {
       const storedPAT = await keytar.getPassword(SERVICE_NAME, patKey);
-      if (storedPAT && await this.validatePersonalAccessToken(storedPAT)) {
+      if (storedPAT && (await this.validatePersonalAccessToken(storedPAT))) {
         return storedPAT;
       }
     } catch (err) {
@@ -669,16 +700,16 @@ export class Auth {
   private async getUserProvidedToken(): Promise<string | null> {
     // Priority 1: Check if token was provided via command line argument
     const args = process.argv;
-    
+
     // Handle both --token=value and --token value formats
     for (let i = 0; i < args.length; i++) {
       const arg = args[i];
-      
+
       // Format: --token=value
       if (arg.startsWith('--token=')) {
         return arg.substring('--token='.length);
       }
-      
+
       // Format: --token value
       if (arg === '--token' && i + 1 < args.length) {
         return args[i + 1];
@@ -704,7 +735,9 @@ export class Auth {
     const tokenRaw = await keytar.getPassword(SERVICE_NAME, key);
 
     if (!tokenRaw) {
-      throw new Error(`❌ No token found in keychain for environment: ${env}. Run 'agility login' to authenticate.`);
+      throw new Error(
+        `❌ No token found in keychain for environment: ${env}. Run 'agility login' to authenticate.`
+      );
     }
 
     try {
@@ -717,13 +750,15 @@ export class Auth {
         if (Date.now() < expiresAt) {
           return token.access_token;
         } else {
-          throw new Error("❌ Token has expired. Please run `agility login` again.");
+          throw new Error('❌ Token has expired. Please run `agility login` again.');
         }
       } else {
-        throw new Error("❌ Token is missing required fields (access_token, expires_in, timestamp).");
+        throw new Error(
+          '❌ Token is missing required fields (access_token, expires_in, timestamp).'
+        );
       }
     } catch (err) {
-      throw new Error("❌ Failed to parse stored token. Please log in again.");
+      throw new Error('❌ Failed to parse stored token. Please log in again.');
     }
   }
 
@@ -758,20 +793,20 @@ export class Auth {
     if (userProvidedToken && userProvidedToken.trim().length > 0) {
       const env = this.getEnv();
       const patKey = `cli-pat-token:${env}`;
-      
+
       try {
         await keytar.setPassword(SERVICE_NAME, patKey, userProvidedToken);
       } catch (err) {
         // Non-fatal - just warn user
-        console.warn("⚠️  Could not store PAT in keychain for future sessions.");
+        console.warn('⚠️  Could not store PAT in keychain for future sessions.');
       }
     }
   }
 
-  async cliPoll(data: FormData | URLSearchParams, guid: string = "blank-d") {
+  async cliPoll(data: FormData | URLSearchParams, guid: string = 'blank-d') {
     try {
       // Just pass the data directly - both FormData and URLSearchParams should work with fetch
-      const result = await this.executePost("/CliPoll", guid, data);
+      const result = await this.executePost('/CliPoll', guid, data);
 
       // Add timestamp if it's missing
       if (result.access_token && !result.timestamp) {
@@ -786,7 +821,7 @@ export class Auth {
 
   async getPreviewKey(guid: string, userBaseUrl: string = null) {
     try {
-      const result = await this.executeGet("/GetPreviewKey?guid=" + guid, guid, userBaseUrl);
+      const result = await this.executeGet('/GetPreviewKey?guid=' + guid, guid, userBaseUrl);
       // The API returns a raw string, not a JSON object with a previewKey property
       return result;
     } catch (err) {
@@ -796,7 +831,7 @@ export class Auth {
 
   async getFetchKey(guid: string, userBaseUrl: string = null) {
     try {
-      const result = await this.executeGet("/GetFetchKey?guid=" + guid, guid, userBaseUrl);
+      const result = await this.executeGet('/GetFetchKey?guid=' + guid, guid, userBaseUrl);
       // The API returns a raw string, not a JSON object with a fetchKey property
       return result;
     } catch (err) {
@@ -820,32 +855,36 @@ export class Auth {
 
       // Check if user is owner of this instance
       if (instanceAccess.isOwner) {
-        return { hasPermission: true, role: "Owner" };
+        return { hasPermission: true, role: 'Owner' };
       } else {
         // Non-owners still have manager-level access in Agility CMS
         // For sync operations, we'll allow any user with access
-        return { hasPermission: true, role: "Manager" };
+        return { hasPermission: true, role: 'Manager' };
       }
     } catch (err) {
       console.log(ansiColors.red(`Error checking user role: ${err}`));
-      console.log(ansiColors.yellow(`You do not have the required permissions on the target instance ${guid}.`));
+      console.log(
+        ansiColors.yellow(
+          `You do not have the required permissions on the target instance ${guid}.`
+        )
+      );
       return { hasPermission: false, role: null };
     }
   }
 
   async getUser(guid?: string): Promise<serverUser> {
     let baseUrl = this.determineBaseUrl();
-    let apiPath = "/users/me";
+    let apiPath = '/users/me';
     let endpoint = `${baseUrl}/api/v1${apiPath}`;
 
     const token = await this.getToken();
 
     try {
       const response = await fetch(endpoint, {
-        method: "GET",
+        method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
-          "Cache-Control": "no-cache",
+          'Cache-Control': 'no-cache',
         },
       });
 
@@ -856,17 +895,17 @@ export class Auth {
       const data: serverUser = await response.json();
 
       if (!data || !data.websiteAccess) {
-        throw new Error("Invalid user data received");
+        throw new Error('Invalid user data received');
       }
 
       if (!data.websiteAccess || data.websiteAccess.length === 0) {
-        throw new Error("User does not have access to any instances.");
+        throw new Error('User does not have access to any instances.');
       }
 
       return data;
     } catch (error) {
-      console.error("Error fetching user:", error);
-      throw new Error("Failed to get user data. Please try logging in again.");
+      console.error('Error fetching user:', error);
+      throw new Error('Failed to get user data. Please try logging in again.');
     }
   }
 
@@ -876,11 +915,11 @@ export class Auth {
 
     try {
       const response = await fetch(`${baseUrl}/api/v1/instance/${guid}/users`, {
-        method: "GET",
+        method: 'GET',
         headers: {
           Authorization: `Bearer ${token}`,
-          "Cache-Control": "no-cache",
-          "User-Agent": "agility-cli-fetch/1.0",
+          'Cache-Control': 'no-cache',
+          'User-Agent': 'agility-cli-fetch/1.0',
         },
       });
 
@@ -901,59 +940,72 @@ export class Auth {
    * Validate command-specific requirements and set up instance access
    * This should be called by each command after auth.init()
    */
-  async validateCommand(commandType: "pull" | "sync" | "clean" | "interactive" | "push"): Promise<boolean> {
+  async validateCommand(
+    commandType: 'pull' | 'sync' | 'clean' | 'interactive' | 'push'
+  ): Promise<boolean> {
     const missingFields: string[] = [];
 
     // Validate that --publish flag is only used with sync command
-    if (state.publish && commandType !== "sync") {
+    if (state.publish && commandType !== 'sync') {
       console.log(ansiColors.red(`\n❌ The --publish flag is only available for sync commands.`));
-      console.log(ansiColors.yellow(`💡 Use: agility sync --sourceGuid="source" --targetGuid="target" --publish`));
+      console.log(
+        ansiColors.yellow(
+          `💡 Use: agility sync --sourceGuid="source" --targetGuid="target" --publish`
+        )
+      );
       return false;
     }
 
     // Check command-specific requirements
     switch (commandType) {
-      case "pull":
+      case 'pull':
         if (!state.sourceGuid || state.sourceGuid.length === 0)
-          missingFields.push("sourceGuid (use --sourceGuid or AGILITY_GUID in .env)");
+          missingFields.push('sourceGuid (use --sourceGuid or AGILITY_GUID in .env)');
 
         // Check for locales: either user-specified OR auto-detected per-GUID mappings
         const hasUserLocales = state.locale && state.locale.length > 0;
         const hasAutoDetectedLocales = state.guidLocaleMap && state.guidLocaleMap.size > 0;
         if (!hasUserLocales && !hasAutoDetectedLocales) {
-          missingFields.push("locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)");
+          missingFields.push(
+            'locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)'
+          );
         }
 
-        if (!state.channel) missingFields.push("channel (use --channel or AGILITY_WEBSITE in .env)");
+        if (!state.channel)
+          missingFields.push('channel (use --channel or AGILITY_WEBSITE in .env)');
         break;
 
-      case "sync":
+      case 'sync':
         if (!state.sourceGuid || state.sourceGuid.length === 0)
-          missingFields.push("sourceGuid (use --sourceGuid or AGILITY_GUID in .env)");
-        if (!state.targetGuid || state.targetGuid.length === 0) missingFields.push("targetGuid (use --targetGuid)");
+          missingFields.push('sourceGuid (use --sourceGuid or AGILITY_GUID in .env)');
+        if (!state.targetGuid || state.targetGuid.length === 0)
+          missingFields.push('targetGuid (use --targetGuid)');
 
         // Check for locales: either user-specified OR auto-detected per-GUID mappings
         const hasSyncUserLocales = state.locale && state.locale.length > 0;
         const hasSyncAutoDetectedLocales = state.guidLocaleMap && state.guidLocaleMap.size > 0;
         if (!hasSyncUserLocales && !hasSyncAutoDetectedLocales) {
-          missingFields.push("locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)");
+          missingFields.push(
+            'locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)'
+          );
         }
 
-        if (!state.channel) missingFields.push("channel (use --channel or AGILITY_WEBSITE in .env)");
+        if (!state.channel)
+          missingFields.push('channel (use --channel or AGILITY_WEBSITE in .env)');
         break;
 
-      case "clean":
+      case 'clean':
         // Clean needs minimal validation since it prompts for instance selection
         break;
 
-      case "interactive":
+      case 'interactive':
         // Interactive mode doesn't require upfront validation
         return true;
     }
 
     // Show missing fields if any
     if (missingFields.length > 0) {
-      console.log(ansiColors.red("\n❌ Missing required configuration:"));
+      console.log(ansiColors.red('\n❌ Missing required configuration:'));
       missingFields.forEach((field) => {
         console.log(ansiColors.red(`   • ${field}`));
       });
@@ -964,13 +1016,13 @@ export class Auth {
     const shouldSkip = this.shouldSkipPermissionCheck();
 
     try {
-      if (commandType === "sync" && state.targetGuid && state.targetGuid.length > 0) {
+      if (commandType === 'sync' && state.targetGuid && state.targetGuid.length > 0) {
         // Sync operation - validate access to both source and target (use first GUID for validation)
         if (!shouldSkip) {
           if (!state.isAgilityDev && !state.dev && !state.local) {
-            await this.validateInstanceAccess(state.sourceGuid[0], "source");
+            await this.validateInstanceAccess(state.sourceGuid[0], 'source');
           }
-          await this.validateInstanceAccess(state.targetGuid[0], "target");
+          await this.validateInstanceAccess(state.targetGuid[0], 'target');
         }
 
         // Configure for target instance (sync writes to target - use first target GUID)
@@ -994,10 +1046,10 @@ export class Auth {
           );
           return false;
         }
-      } else if (commandType === "pull" && state.sourceGuid && state.sourceGuid.length > 0) {
+      } else if (commandType === 'pull' && state.sourceGuid && state.sourceGuid.length > 0) {
         // Pull operation - validate source access and get API keys (use first source GUID for validation)
         if (!shouldSkip) {
-          await this.validateInstanceAccess(state.sourceGuid[0], "instance");
+          await this.validateInstanceAccess(state.sourceGuid[0], 'instance');
         }
 
         const baseUrl = state.baseUrl || this.determineBaseUrl(state.sourceGuid[0]);
@@ -1072,19 +1124,19 @@ export class Auth {
     for (const field of requiredFields) {
       if (!params[field as keyof typeof params]) {
         switch (field) {
-          case "sourceGuid":
+          case 'sourceGuid':
             errors.push(
-              "Please provide a sourceGuid or ensure you are in a directory with a valid .env file containing a GUID."
+              'Please provide a sourceGuid or ensure you are in a directory with a valid .env file containing a GUID.'
             );
             break;
-          case "targetGuid":
-            errors.push("Please provide a targetGuid.");
+          case 'targetGuid':
+            errors.push('Please provide a targetGuid.');
             break;
-          case "locale":
-            errors.push("Please provide a locale or ensure AGILITY_LOCALES is in your .env file.");
+          case 'locale':
+            errors.push('Please provide a locale or ensure AGILITY_LOCALES is in your .env file.');
             break;
-          case "channel":
-            errors.push("Please provide a channel name.");
+          case 'channel':
+            errors.push('Please provide a channel name.');
             break;
           default:
             errors.push(`Missing required parameter: ${field}`);
@@ -1093,7 +1145,7 @@ export class Auth {
     }
 
     if (errors.length > 0) {
-      throw new Error(errors.join("\n"));
+      throw new Error(errors.join('\n'));
     }
 
     return params;

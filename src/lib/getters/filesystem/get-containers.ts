@@ -1,15 +1,17 @@
-import * as mgmtApi from "@agility/management-sdk";
-import { fileOperations } from "../../../core";
+import * as mgmtApi from '@agility/management-sdk';
+import { fileOperations } from '../../../core';
 
 /**
  * Get lists from filesystem
  * @param fileOps - fileOperations instance
  * @returns - array of containers
  */
-export async function getListsFromFileSystem(fileOps: fileOperations): Promise<mgmtApi.Container[] | void> {
+export async function getListsFromFileSystem(
+  fileOps: fileOperations
+): Promise<mgmtApi.Container[] | void> {
   const allContainers: mgmtApi.Container[] = [];
 
-  const containerData = fileOps.readJsonFilesFromFolder("list");
+  const containerData = fileOps.readJsonFilesFromFolder('list');
   for (const container of containerData) {
     allContainers.push(container);
   }
@@ -25,7 +27,7 @@ export async function getListsFromFileSystem(fileOps: fileOperations): Promise<m
 export function getContainersFromFileSystem(fileOps: fileOperations): mgmtApi.Container[] {
   const allContainers: mgmtApi.Container[] = [];
 
-  const containerData = fileOps.readJsonFilesFromFolder("containers");
+  const containerData = fileOps.readJsonFilesFromFolder('containers');
   for (const container of containerData) {
     allContainers.push(container);
   }

@@ -1,6 +1,6 @@
 /**
  * Incremental Pull Utilities
- * 
+ *
  * Exports all utilities needed for incremental pull operations:
  * - Entity-specific modified date extractors
  * - Timestamp tracking system
@@ -18,7 +18,7 @@ export {
   extractTemplateModifiedDate,
   getDateExtractorForEntityType,
   INCREMENTAL_SUPPORTED_TYPES,
-  FULL_REFRESH_REQUIRED_TYPES
+  FULL_REFRESH_REQUIRED_TYPES,
 } from './date-extractors';
 
 // Timestamp tracking system
@@ -32,5 +32,5 @@ export {
   markPullStart,
   markPushStart,
   clearTimestamps,
-  getIncrementalPullDecision
-} from './timestamp-tracker'; 
+  getIncrementalPullDecision,
+} from './timestamp-tracker';

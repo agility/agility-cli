@@ -1,6 +1,6 @@
 /**
  * Entity-specific modified date extractors for incremental pull operations
- * 
+ *
  * Based on analysis of all 7 entity types from Task 26.3:
  * - Models: lastModifiedDate (ISO 8601)
  * - Containers: lastModifiedDate (Human-readable: "03/05/2025 08:11AM")
@@ -141,12 +141,12 @@ function parseHumanReadableDate(humanDate: string): string | null {
     // Format: "03/05/2025 08:11AM"
     // Parse using Date constructor which handles MM/DD/YYYY format
     const parsed = new Date(humanDate);
-    
+
     if (isNaN(parsed.getTime())) {
       console.warn(`Failed to parse human date format: ${humanDate}`);
       return null;
     }
-    
+
     return parsed.toISOString();
   } catch (error) {
     console.warn(`Error parsing human date format "${humanDate}":`, error);
@@ -162,12 +162,12 @@ function parseHumanReadableDate(humanDate: string): string | null {
 function normalizeToISO8601(isoDate: string): string | null {
   try {
     const parsed = new Date(isoDate);
-    
+
     if (isNaN(parsed.getTime())) {
       console.warn(`Failed to parse ISO date: ${isoDate}`);
       return null;
     }
-    
+
     return parsed.toISOString();
   } catch (error) {
     console.warn(`Error normalizing ISO date "${isoDate}":`, error);
@@ -180,7 +180,9 @@ function normalizeToISO8601(isoDate: string): string | null {
  * @param entityType The entity type name
  * @returns Date extractor function or null if no dates available
  */
-export function getDateExtractorForEntityType(entityType: string): ((entity: any) => string | null) | null {
+export function getDateExtractorForEntityType(
+  entityType: string
+): ((entity: any) => string | null) | null {
   switch (entityType.toLowerCase()) {
     case 'models':
       return extractModelModifiedDate;
@@ -208,16 +210,14 @@ export function getDateExtractorForEntityType(entityType: string): ((entity: any
  */
 export const INCREMENTAL_SUPPORTED_TYPES = [
   'models',
-  'containers', 
+  'containers',
   'content',
   'assets',
   'pages',
-  'galleries'
+  'galleries',
 ];
 
 /**
  * Entity types that require full refresh (no modified dates)
  */
-export const FULL_REFRESH_REQUIRED_TYPES = [
-  'templates'
-]; 
+export const FULL_REFRESH_REQUIRED_TYPES = ['templates'];

@@ -1,7 +1,7 @@
-import { AssetReferenceExtractor } from "../assets/asset-reference-extractor";
+import { AssetReferenceExtractor } from '../assets/asset-reference-extractor';
 import * as mgmtApi from '@agility/management-sdk';
-import { ContentItemMapper } from "lib/mappers/content-item-mapper";
-import { AssetMapper } from "lib/mappers/asset-mapper";
+import { ContentItemMapper } from 'lib/mappers/content-item-mapper';
+import { AssetMapper } from 'lib/mappers/asset-mapper';
 
 export function createContentFieldMapper() {
   return new ContentFieldMapper();
@@ -32,7 +32,7 @@ export class ContentFieldMapper {
       return {
         mappedFields: fields,
         validationWarnings: 0,
-        validationErrors: 0
+        validationErrors: 0,
       };
     }
 
@@ -57,11 +57,15 @@ export class ContentFieldMapper {
     return {
       mappedFields,
       validationWarnings,
-      validationErrors
+      validationErrors,
     };
   }
 
-  private mapSingleField(fieldName: string, fieldValue: any, context?: ContentFieldMappingContext): {
+  private mapSingleField(
+    fieldName: string,
+    fieldValue: any,
+    context?: ContentFieldMappingContext
+  ): {
     mappedValue: any;
     warnings: number;
     errors: number;
@@ -124,7 +128,7 @@ export class ContentFieldMapper {
 
     // Check for asset attachment patterns
     if (Array.isArray(fieldValue)) {
-      return fieldValue.some(item => item && typeof item === 'object' && 'url' in item);
+      return fieldValue.some((item) => item && typeof item === 'object' && 'url' in item);
     } else {
       return 'url' in fieldValue && typeof fieldValue.url === 'string';
     }
@@ -137,7 +141,10 @@ export class ContentFieldMapper {
     return 'contentid' in fieldValue || 'contentID' in fieldValue || 'sortids' in fieldValue;
   }
 
-  private mapAssetAttachmentField(fieldValue: any, context?: ContentFieldMappingContext): {
+  private mapAssetAttachmentField(
+    fieldValue: any,
+    context?: ContentFieldMappingContext
+  ): {
     mappedValue: any;
     warnings: number;
     errors: number;
@@ -151,7 +158,7 @@ export class ContentFieldMapper {
 
     if (Array.isArray(fieldValue)) {
       // AttachmentList - array of asset objects
-      const mappedArray = fieldValue.map(assetObj => {
+      const mappedArray = fieldValue.map((assetObj) => {
         if (assetObj && typeof assetObj === 'object' && assetObj.url) {
           const mappedUrl = this.mapAssetUrl(assetObj.url, context);
           if (mappedUrl !== assetObj.url) {
@@ -173,7 +180,10 @@ export class ContentFieldMapper {
     }
   }
 
-  private mapContentReferenceField(fieldValue: any, context?: ContentFieldMappingContext): {
+  private mapContentReferenceField(
+    fieldValue: any,
+    context?: ContentFieldMappingContext
+  ): {
     mappedValue: any;
     warnings: number;
     errors: number;
@@ -189,7 +199,10 @@ export class ContentFieldMapper {
     // Map contentid/contentID references
     if (fieldValue.contentid || fieldValue.contentID) {
       const sourceContentId = fieldValue.contentid || fieldValue.contentID;
-      const contentMapping = context.referenceMapper.getContentItemMappingByContentID(sourceContentId, 'source');
+      const contentMapping = context.referenceMapper.getContentItemMappingByContentID(
+        sourceContentId,
+        'source'
+      );
       if (contentMapping && (contentMapping as any).contentID) {
         if (fieldValue.contentid !== undefined) {
           mappedValue.contentid = (contentMapping as any).contentID;
@@ -204,9 +217,15 @@ export class ContentFieldMapper {
 
     // Map sortids (comma-separated content IDs)
     if (fieldValue.sortids) {
-      const sourceIds = fieldValue.sortids.toString().split(',').map(id => parseInt(id.trim()));
-      const mappedIds = sourceIds.map(sourceId => {
-        const mapping = context.referenceMapper.getContentItemMappingByContentID(sourceId, 'source');
+      const sourceIds = fieldValue.sortids
+        .toString()
+        .split(',')
+        .map((id) => parseInt(id.trim()));
+      const mappedIds = sourceIds.map((sourceId) => {
+        const mapping = context.referenceMapper.getContentItemMappingByContentID(
+          sourceId,
+          'source'
+        );
         return mapping ? (mapping as any).contentID : sourceId;
       });
       mappedValue.sortids = mappedIds.join(',');
@@ -215,7 +234,10 @@ export class ContentFieldMapper {
     return { mappedValue, warnings, errors };
   }
 
-  private mapAssetUrlString(url: string, context?: ContentFieldMappingContext): {
+  private mapAssetUrlString(
+    url: string,
+    context?: ContentFieldMappingContext
+  ): {
     mappedValue: string;
     warnings: number;
     errors: number;
@@ -224,19 +246,17 @@ export class ContentFieldMapper {
     return {
       mappedValue: mappedUrl,
       warnings: mappedUrl === url ? 1 : 0, // Warning if no mapping found
-      errors: 0
+      errors: 0,
     };
   }
 
   private mapAssetUrl(sourceUrl: string, context?: ContentFieldMappingContext): string {
-
     // Try to find the asset by URL in the asset mapper
-    const assetMapping = context.assetMapper.getAssetMappingByMediaUrl(sourceUrl, "source");
+    const assetMapping = context.assetMapper.getAssetMappingByMediaUrl(sourceUrl, 'source');
     if (assetMapping) {
       const asset = assetMapping as any;
       return asset.originUrl || asset.url || asset.edgeUrl || sourceUrl;
     }
-
 
     // Return original URL if no mapping found
     return sourceUrl;

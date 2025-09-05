@@ -1,21 +1,24 @@
-import * as mgmtApi from "@agility/management-sdk";
-import { getApiClient, state, getLoggerForGuid } from "../../core/state";
-import { PusherResult } from "../../types/sourceData";
-import { ModelMapper } from "lib/mappers/model-mapper";
-import { Logs } from "core/logs";
+import * as mgmtApi from '@agility/management-sdk';
+import { getApiClient, state, getLoggerForGuid } from '../../core/state';
+import { PusherResult } from '../../types/sourceData';
+import { ModelMapper } from 'lib/mappers/model-mapper';
+import { Logs } from 'core/logs';
 
 /**
  * Simple change detection for models
  */
 
-export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtApi.Model[]): Promise<PusherResult> {
+export async function pushModels(
+  sourceData: mgmtApi.Model[],
+  targetData: mgmtApi.Model[]
+): Promise<PusherResult> {
   const models: mgmtApi.Model[] = sourceData || [];
   const { sourceGuid, targetGuid } = state;
   const logger = getLoggerForGuid(sourceGuid[0]);
 
   if (!models || models.length === 0) {
-    logger.log("INFO", "No models found to process.");
-    return { status: "success", successful: 0, failed: 0, skipped: 0 };
+    logger.log('INFO', 'No models found to process.');
+    return { status: 'success', successful: 0, failed: 0, skipped: 0 };
   }
 
   const referenceMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
@@ -32,8 +35,9 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   let stubCreated = [];
 
   for (const model of models) {
-    const mapping = referenceMapper.getModelMapping(model, "source");
-    const targetModel = targetData.find((targetModel) => targetModel.referenceName === model.referenceName) || null;
+    const mapping = referenceMapper.getModelMapping(model, 'source');
+    const targetModel =
+      targetData.find((targetModel) => targetModel.referenceName === model.referenceName) || null;
     const modelLastModifiedDate = new Date(model.lastModifiedDate);
     const targetLastModifiedDate = targetModel ? new Date(targetModel.lastModifiedDate) : null;
     const mappingLastModifiedDate = mapping ? new Date(mapping.targetLastModifiedDate) : null;
@@ -61,14 +65,14 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       shouldSkip.push(model);
     }
 
-    if(mapping && !hasSourceChanged && !hasTargetChanged && state.overwrite){
+    if (mapping && !hasSourceChanged && !hasTargetChanged && state.overwrite) {
       shouldUpdateFields.push(model);
     }
   }
 
   for (const model of shouldCreateStub) {
     const result = await createNewModel(model, referenceMapper, apiClient, targetGuid[0], logger);
-    if (result === "created") {
+    if (result === 'created') {
       stubCreated.push(model);
     } else {
       failed++;
@@ -77,8 +81,15 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
   const modelsToUpdate = [...stubCreated, ...shouldUpdateFields];
   for (const model of modelsToUpdate) {
-    const mapping = referenceMapper.getModelMapping(model, "source");
-    const result = await updateExistingModel(model, mapping.targetID, referenceMapper, apiClient, targetGuid[0], logger);
+    const mapping = referenceMapper.getModelMapping(model, 'source');
+    const result = await updateExistingModel(
+      model,
+      mapping.targetID,
+      referenceMapper,
+      apiClient,
+      targetGuid[0],
+      logger
+    );
     if (result) {
       successful++;
     } else {
@@ -87,12 +98,12 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   }
 
   for (const model of shouldSkip) {
-    logger.model.skipped(model, "up to date, skipping", targetGuid[0])
+    logger.model.skipped(model, 'up to date, skipping', targetGuid[0]);
     skipped++;
   }
 
   return {
-    status: "success",
+    status: 'success',
     successful,
     failed,
     skipped,
@@ -108,7 +119,7 @@ const createNewModel = async (
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
   logger: Logs
-): Promise<"created" | "updated" | "skipped" | "failed"> => {
+): Promise<'created' | 'updated' | 'skipped' | 'failed'> => {
   try {
     // process the model without fields
     const createPayload = {
@@ -118,12 +129,12 @@ const createNewModel = async (
     };
 
     const newModel = await apiClient.modelMethods.saveModel(createPayload, targetGuid);
-    logger.model.created(model, "created", targetGuid)
+    logger.model.created(model, 'created', targetGuid);
     referenceMapper.addMapping(model, newModel);
-    return "created";
+    return 'created';
   } catch (error: any) {
-    logger.model.error(model, error, targetGuid)
-    return "failed";
+    logger.model.error(model, error, targetGuid);
+    return 'failed';
   }
 };
 
@@ -137,9 +148,7 @@ async function updateExistingModel(
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
   logger: Logs
-): Promise<"updated" | "failed"> {
- 
-
+): Promise<'updated' | 'failed'> {
   const fields = sourceModel?.fields || [];
 
   try {
@@ -150,7 +159,7 @@ async function updateExistingModel(
         const cleanField = { ...field };
         delete cleanField.fieldID; // Remove to prevent API issues
         // Clean up Content field settings
-        if (cleanField.type === "Content" && cleanField.settings?.ContentDefinition) {
+        if (cleanField.type === 'Content' && cleanField.settings?.ContentDefinition) {
           const { ContentDefinition, ...otherSettings } = cleanField.settings;
           cleanField.settings = otherSettings;
         }
@@ -160,11 +169,11 @@ async function updateExistingModel(
     };
 
     const updatedModel = await apiClient.modelMethods.saveModel(updatePayload, targetGuid);
-    logger.model.updated(sourceModel, "updated", targetGuid)
+    logger.model.updated(sourceModel, 'updated', targetGuid);
     referenceMapper.addMapping(sourceModel, updatedModel);
-    return "updated";
+    return 'updated';
   } catch (error: any) {
-    logger.model.error(sourceModel, error, targetGuid)
-    return "failed";
+    logger.model.error(sourceModel, error, targetGuid);
+    return 'failed';
   }
 }

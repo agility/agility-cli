@@ -5,7 +5,15 @@
 
 // Core authentication and state management
 export { Auth } from './auth';
-export { state, setState, resetState, primeFromEnv, getState, getUIMode, configureSSL } from './state';
+export {
+  state,
+  setState,
+  resetState,
+  primeFromEnv,
+  getState,
+  getUIMode,
+  configureSSL,
+} from './state';
 export { systemArgs, type SystemArgsType } from './system-args';
 
 // Main operation services
@@ -21,4 +29,4 @@ export { fileOperations } from './fileOperations';
 export { getApiClient } from './state';
 
 // File system integration
-// Note: store-interface-filesystem uses module.exports, import directly if needed 
+// Note: store-interface-filesystem uses module.exports, import directly if needed

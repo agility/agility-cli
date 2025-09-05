@@ -1,8 +1,8 @@
-import * as mgmtApi from "@agility/management-sdk";
-import ansiColors from "ansi-colors";
-import { Logs } from "core/logs";
-import { state, getState, getApiClient, getLoggerForGuid } from "core/state";
-import { GalleryMapper } from "lib/mappers/gallery-mapper";
+import * as mgmtApi from '@agility/management-sdk';
+import ansiColors from 'ansi-colors';
+import { Logs } from 'core/logs';
+import { state, getState, getApiClient, getLoggerForGuid } from 'core/state';
+import { GalleryMapper } from 'lib/mappers/gallery-mapper';
 
 /**
  * Enhanced gallery finder with proper target safety and conflict resolution
@@ -13,19 +13,18 @@ export async function pushGalleries(
   sourceData: mgmtApi.assetMediaGrouping[],
   targetData: mgmtApi.assetMediaGrouping[]
   // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
-): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
+): Promise<{ status: 'success' | 'error'; successful: number; failed: number; skipped: number }> {
   // Extract data from sourceData - unified parameter pattern
   const galleries: mgmtApi.assetMediaGrouping[] = sourceData || [];
 
   const { sourceGuid, targetGuid, overwrite } = state;
 
-  
   // Get the GUID logger from state instead of creating a new one
-  const logger = getLoggerForGuid(sourceGuid[0]) || new Logs("push", "gallery", sourceGuid[0]);
+  const logger = getLoggerForGuid(sourceGuid[0]) || new Logs('push', 'gallery', sourceGuid[0]);
 
   if (!galleries || galleries.length === 0) {
-    console.log("No galleries found to process.");
-    return { status: "success", successful: 0, failed: 0, skipped: 0 };
+    console.log('No galleries found to process.');
+    return { status: 'success', successful: 0, failed: 0, skipped: 0 };
   }
 
   // Get API client
@@ -38,15 +37,16 @@ export async function pushGalleries(
   let failed = 0;
   let skipped = 0;
   let processedCount = 0;
-  let overallStatus: "success" | "error" = "success";
+  let overallStatus: 'success' | 'error' = 'success';
 
-  
   for (const sourceGallery of galleries) {
-    let currentStatus: "success" | "error" = "success";
+    let currentStatus: 'success' | 'error' = 'success';
     try {
-      const existingMapping = referenceMapper.getGalleryMapping(sourceGallery, "source");      
-      const targetGallery =  targetData.find(targetGallery => { return targetGallery.mediaGroupingID === sourceGallery.mediaGroupingID});
-        
+      const existingMapping = referenceMapper.getGalleryMapping(sourceGallery, 'source');
+      const targetGallery = targetData.find((targetGallery) => {
+        return targetGallery.mediaGroupingID === sourceGallery.mediaGroupingID;
+      });
+
       const shouldCreate = existingMapping === null;
 
       if (shouldCreate) {
@@ -54,9 +54,10 @@ export async function pushGalleries(
         await createGallery(sourceGallery, apiClient, targetGuid[0], referenceMapper, logger);
         successful++;
       } else {
-
-        const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetGallery);
-        const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(sourceGallery);
+        const isTargetSafe =
+          existingMapping !== null && referenceMapper.hasTargetChanged(targetGallery);
+        const hasSourceChanges =
+          existingMapping !== null && referenceMapper.hasSourceChanged(sourceGallery);
         let shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
         let shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
 
@@ -67,20 +68,27 @@ export async function pushGalleries(
 
         if (shouldUpdate) {
           // Gallery exists but needs updating
-          await updateGallery(sourceGallery, existingMapping.targetMediaGroupingID, apiClient, targetGuid[0], referenceMapper, logger);
+          await updateGallery(
+            sourceGallery,
+            existingMapping.targetMediaGroupingID,
+            apiClient,
+            targetGuid[0],
+            referenceMapper,
+            logger
+          );
           successful++;
         } else if (shouldSkip) {
           // Gallery exists and is up to date - skip
-          logger.gallery.skipped(sourceGallery, "up to date, skipping", targetGuid[0]);
+          logger.gallery.skipped(sourceGallery, 'up to date, skipping', targetGuid[0]);
           // console.log(`✓ Gallery ${ansiColors.underline(sourceGallery.name)} ${ansiColors.bold.gray('up to date, skipping')}`);
           skipped++;
         }
       }
     } catch (error: any) {
-      logger.gallery.error(sourceGallery, error, targetGuid[0])
+      logger.gallery.error(sourceGallery, error, targetGuid[0]);
       failed++;
-      currentStatus = "error";
-      overallStatus = "error";
+      currentStatus = 'error';
+      overallStatus = 'error';
     } finally {
       processedCount++;
       // if (onProgress) {
@@ -111,9 +119,8 @@ async function createGallery(
   try {
     const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
     referenceMapper.addMapping(mediaGrouping, savedGallery);
-    logger.gallery.created(mediaGrouping, "created", targetGuid);
+    logger.gallery.created(mediaGrouping, 'created', targetGuid);
   } catch (error) {
-
     logger.gallery.error(mediaGrouping, error, payload, targetGuid);
   }
 }
@@ -132,5 +139,5 @@ async function updateGallery(
   const payload = { ...sourceGallery, mediaGroupingID: targetID };
   const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
   referenceMapper.addMapping(sourceGallery, savedGallery);
-  logger.gallery.updated(sourceGallery, "updated", targetGuid);
+  logger.gallery.updated(sourceGallery, 'updated', targetGuid);
 }

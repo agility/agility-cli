@@ -1,0 +1,22 @@
+# Build outputs
+dist/
+node_modules/
+coverage/
+
+# Generated files
+*.d.ts
+*.js.map
+
+# Test artifacts
+agility-files/
+test-agility-files/
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Package files
+package-lock.json
+yarn.lock

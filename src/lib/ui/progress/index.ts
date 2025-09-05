@@ -5,13 +5,8 @@ export {
   type ProgressCallbackType,
   type StepStatus,
   type ProgressSummary,
-  type ProgressCallbacks
+  type ProgressCallbacks,
 } from './progress-tracker';
 
 // Progress Calculator - Mathematical progress calculations and utilities
-export {
-  ProgressCalculator,
-  type ProgressStats,
-  type ProgressWindow
-} from './progress-calculator';
-
+export { ProgressCalculator, type ProgressStats, type ProgressWindow } from './progress-calculator';

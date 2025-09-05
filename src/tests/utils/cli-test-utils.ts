@@ -29,13 +29,15 @@ export function loadTestEnvironment(): TestEnvironment {
   if (process.env.AGILITY_GUID && process.env.AGILITY_TOKEN) {
     // Validate they're not placeholder values
     if (process.env.AGILITY_GUID.includes('your-') || process.env.AGILITY_TOKEN.includes('your-')) {
-      throw new Error('Environment variables contain placeholder values. Please set real AGILITY_GUID and AGILITY_TOKEN values.');
+      throw new Error(
+        'Environment variables contain placeholder values. Please set real AGILITY_GUID and AGILITY_TOKEN values.'
+      );
     }
     return {
       guid: process.env.AGILITY_GUID,
       token: process.env.AGILITY_TOKEN,
       website: process.env.AGILITY_WEBSITE || 'website',
-      locales: process.env.AGILITY_LOCALES || 'en-us'
+      locales: process.env.AGILITY_LOCALES || 'en-us',
     };
   }
 
@@ -44,8 +46,8 @@ export function loadTestEnvironment(): TestEnvironment {
   if (fs.existsSync(envFile)) {
     const envContent = fs.readFileSync(envFile, 'utf8');
     const envVars: Record<string, string> = {};
-    
-    envContent.split('\n').forEach(line => {
+
+    envContent.split('\n').forEach((line) => {
       const match = line.match(/^([^#=]+)=(.*)$/);
       if (match) {
         envVars[match[1].trim()] = match[2].trim();
@@ -55,29 +57,39 @@ export function loadTestEnvironment(): TestEnvironment {
     if (envVars.AGILITY_GUID && envVars.AGILITY_TOKEN) {
       // Validate they're not placeholder values
       if (envVars.AGILITY_GUID.includes('your-') || envVars.AGILITY_TOKEN.includes('your-')) {
-        throw new Error('.env.test.local file contains placeholder values. Please edit it with your real AGILITY_GUID and AGILITY_TOKEN.');
+        throw new Error(
+          '.env.test.local file contains placeholder values. Please edit it with your real AGILITY_GUID and AGILITY_TOKEN.'
+        );
       }
       return {
         guid: envVars.AGILITY_GUID,
         token: envVars.AGILITY_TOKEN,
         website: envVars.AGILITY_WEBSITE || 'website',
-        locales: envVars.AGILITY_LOCALES || 'en-us'
+        locales: envVars.AGILITY_LOCALES || 'en-us',
       };
     } else if (fs.existsSync(envFile)) {
-      throw new Error('.env.test.local file exists but is missing AGILITY_GUID or AGILITY_TOKEN values.');
+      throw new Error(
+        '.env.test.local file exists but is missing AGILITY_GUID or AGILITY_TOKEN values.'
+      );
     }
   }
 
   // Provide helpful error message based on what's missing
   const hasEnvFile = fs.existsSync(envFile);
   const hasEnvVars = !!(process.env.AGILITY_GUID || process.env.AGILITY_TOKEN);
-  
+
   if (hasEnvFile && !hasEnvVars) {
-    throw new Error('Found .env.test.local but it\'s missing valid AGILITY_GUID/AGILITY_TOKEN. Please edit the file with your credentials.');
+    throw new Error(
+      "Found .env.test.local but it's missing valid AGILITY_GUID/AGILITY_TOKEN. Please edit the file with your credentials."
+    );
   } else if (!hasEnvFile && hasEnvVars) {
-    throw new Error('Found partial environment variables. Please set both AGILITY_GUID and AGILITY_TOKEN.');
+    throw new Error(
+      'Found partial environment variables. Please set both AGILITY_GUID and AGILITY_TOKEN.'
+    );
   } else {
-    throw new Error('No test credentials found. Please set AGILITY_GUID/AGILITY_TOKEN environment variables OR create .env.test.local file.');
+    throw new Error(
+      'No test credentials found. Please set AGILITY_GUID/AGILITY_TOKEN environment variables OR create .env.test.local file.'
+    );
   }
 }
 
@@ -100,7 +112,7 @@ export async function runCLICommand(
     const spawnOptions: SpawnOptions = {
       cwd,
       env: { ...process.env, ...env },
-      stdio: ['pipe', 'pipe', 'pipe']
+      stdio: ['pipe', 'pipe', 'pipe'],
     };
 
     const child = spawn('node', ['dist/index.js', command, ...args], spawnOptions);
@@ -120,7 +132,7 @@ export async function runCLICommand(
           exitCode: code || 0,
           stdout,
           stderr,
-          duration: Date.now() - startTime
+          duration: Date.now() - startTime,
         });
       }
     });
@@ -132,7 +144,7 @@ export async function runCLICommand(
           exitCode: 1,
           stdout,
           stderr: stderr + error.message,
-          duration: Date.now() - startTime
+          duration: Date.now() - startTime,
         });
       }
     });
@@ -146,7 +158,7 @@ export async function runCLICommand(
           exitCode: -1,
           stdout,
           stderr: stderr + '\nTest timeout exceeded',
-          duration: Date.now() - startTime
+          duration: Date.now() - startTime,
         });
       }
     }, timeout);
@@ -161,13 +173,11 @@ export async function runCLICommand(
  * Clean up test artifacts (both agility-files and test-agility-files directories)
  */
 export async function cleanupTestFiles(testDir?: string): Promise<void> {
-  const dirsToClean = testDir 
-    ? [testDir] 
-    : ['agility-files', 'test-agility-files']; // Clean both by default
-  
+  const dirsToClean = testDir ? [testDir] : ['agility-files', 'test-agility-files']; // Clean both by default
+
   for (const dir of dirsToClean) {
     const fullPath = path.join(process.cwd(), dir);
-    
+
     try {
       await access(fullPath);
       // Directory exists, remove it
@@ -199,7 +209,7 @@ export async function validateDownloadedFiles(
   assetCount: number;
 }> {
   const basePath = path.join(process.cwd(), rootDir, guid);
-  
+
   const result = {
     hasModels: false,
     hasContent: false,
@@ -208,7 +218,7 @@ export async function validateDownloadedFiles(
     modelCount: 0,
     contentCount: 0,
     pageCount: 0,
-    assetCount: 0
+    assetCount: 0,
   };
 
   try {
@@ -218,7 +228,7 @@ export async function validateDownloadedFiles(
       await access(modelsPath);
       const modelFiles = await readdir(modelsPath);
       result.hasModels = modelFiles.length > 0;
-      result.modelCount = modelFiles.filter(f => f.endsWith('.json')).length;
+      result.modelCount = modelFiles.filter((f) => f.endsWith('.json')).length;
     } catch (error) {
       // Models directory doesn't exist
     }
@@ -229,7 +239,7 @@ export async function validateDownloadedFiles(
       await access(contentPath);
       const contentFiles = await readdir(contentPath);
       result.hasContent = contentFiles.length > 0;
-      result.contentCount = contentFiles.filter(f => f.endsWith('.json')).length;
+      result.contentCount = contentFiles.filter((f) => f.endsWith('.json')).length;
     } catch (error) {
       // Content directory doesn't exist
     }
@@ -240,7 +250,7 @@ export async function validateDownloadedFiles(
       await access(pagesPath);
       const pageFiles = await readdir(pagesPath);
       result.hasPages = pageFiles.length > 0;
-      result.pageCount = pageFiles.filter(f => f.endsWith('.json')).length;
+      result.pageCount = pageFiles.filter((f) => f.endsWith('.json')).length;
     } catch (error) {
       // Pages directory doesn't exist
     }
@@ -251,11 +261,10 @@ export async function validateDownloadedFiles(
       await access(assetsPath);
       const assetFiles = await readdir(assetsPath);
       result.hasAssets = assetFiles.length > 0;
-      result.assetCount = assetFiles.filter(f => f.endsWith('.json')).length;
+      result.assetCount = assetFiles.filter((f) => f.endsWith('.json')).length;
     } catch (error) {
       // Assets directory doesn't exist
     }
-
   } catch (error) {
     // Base path doesn't exist
   }
@@ -272,7 +281,7 @@ export async function waitForCondition(
   interval: number = 1000
 ): Promise<boolean> {
   const startTime = Date.now();
-  
+
   while (Date.now() - startTime < timeout) {
     try {
       const result = await condition();
@@ -282,9 +291,9 @@ export async function waitForCondition(
     } catch (error) {
       // Condition check failed, continue waiting
     }
-    
-    await new Promise(resolve => setTimeout(resolve, interval));
+
+    await new Promise((resolve) => setTimeout(resolve, interval));
   }
-  
+
   return false;
 }

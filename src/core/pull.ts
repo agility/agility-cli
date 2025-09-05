@@ -1,10 +1,10 @@
-import * as path from "path";
-import * as fs from "fs";
-import { getState, initializeLogger, finalizeLogger, getLogger } from "./state";
-import ansiColors from "ansi-colors";
-import { markPullStart, clearTimestamps } from "../lib/incremental";
+import * as path from 'path';
+import * as fs from 'fs';
+import { getState, initializeLogger, finalizeLogger, getLogger } from './state';
+import ansiColors from 'ansi-colors';
+import { markPullStart, clearTimestamps } from '../lib/incremental';
 
-import { Downloader } from "../lib/downloaders/orchestrate-downloaders";
+import { Downloader } from '../lib/downloaders/orchestrate-downloaders';
 
 export class Pull {
   private downloader: Downloader;
@@ -14,13 +14,15 @@ export class Pull {
     this.downloader = new Downloader();
   }
 
-  async pullInstances(fromPush: boolean = false): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
+  async pullInstances(
+    fromPush: boolean = false
+  ): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
     const state = getState();
-    
+
     // Initialize logger inside the method so it works correctly when called from push operations
     // But only if not called from push operation (to avoid conflicts with push logger)
     if (!fromPush) {
-      initializeLogger("pull");
+      initializeLogger('pull');
     }
 
     // TODO: Add support for multiple GUIDs, multiple locales, multiple chanels
@@ -38,7 +40,7 @@ export class Pull {
     }
 
     if (allGuids.length === 0) {
-      throw new Error("No GUIDs specified for pull operation");
+      throw new Error('No GUIDs specified for pull operation');
     }
 
     // Calculate total operations using per-GUID locale mapping
@@ -46,9 +48,9 @@ export class Pull {
     const operationDetails: string[] = [];
 
     for (const guid of allGuids) {
-      const guidLocales = state.guidLocaleMap.get(guid) || ["en-us"];
+      const guidLocales = state.guidLocaleMap.get(guid) || ['en-us'];
       totalOperations += guidLocales.length;
-      operationDetails.push(`${guid}: ${guidLocales.join(", ")}`);
+      operationDetails.push(`${guid}: ${guidLocales.join(', ')}`);
     }
 
     // operationDetails.forEach((detail) => console.log(`${detail}`));
@@ -88,15 +90,13 @@ export class Pull {
       const logger = getLogger();
       if (logger) {
         // Collect log file paths
-        const logFilePaths = results
-          .map(res => res.logFilePath)
-          .filter(path => path);
-        
+        const logFilePaths = results.map((res) => res.logFilePath).filter((path) => path);
+
         logger.orchestratorSummary(results, totalElapsedTime, success, logFilePaths);
       }
 
       finalizeLogger(); // Finalize global logger if it exists
-      
+
       // Only exit if not called from push operation
       if (!fromPush) {
         process.exit(success ? 0 : 1);
@@ -106,11 +106,10 @@ export class Pull {
       return {
         success,
         results,
-        elapsedTime: totalElapsedTime
+        elapsedTime: totalElapsedTime,
       };
-
     } catch (error: any) {
-      console.error(ansiColors.red("\n❌ An error occurred during the pull command:"), error);
+      console.error(ansiColors.red('\n❌ An error occurred during the pull command:'), error);
       throw error; // Let calling code handle error response
     }
   }
@@ -120,7 +119,11 @@ export class Pull {
     const guidFolderPath = path.join(process.cwd(), state.rootPath, guid);
 
     if (fs.existsSync(guidFolderPath)) {
-      console.log(ansiColors.red(`🔄 --reset flag detected: Deleting entire instance folder ${guidFolderPath}`));
+      console.log(
+        ansiColors.red(
+          `🔄 --reset flag detected: Deleting entire instance folder ${guidFolderPath}`
+        )
+      );
 
       try {
         fs.rmSync(guidFolderPath, { recursive: true, force: true });
@@ -130,7 +133,9 @@ export class Pull {
         throw resetError;
       }
     } else {
-      console.log(ansiColors.yellow(`⚠️ Instance folder ${guidFolderPath} does not exist (already clean)`));
+      console.log(
+        ansiColors.yellow(`⚠️ Instance folder ${guidFolderPath} does not exist (already clean)`)
+      );
     }
 
     // Clear timestamp tracking for this instance

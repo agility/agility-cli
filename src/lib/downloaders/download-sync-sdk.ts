@@ -1,28 +1,27 @@
-import * as path from "path";
-import * as fs from "fs";
-import * as agilitySync from "@agility/content-sync";
-import { state, getApiKeysForGuid, getLoggerForGuid } from "core/state";
-import { fileOperations } from "core/fileOperations";
-import { handleSyncToken } from "./sync-token-handler";
-import { getAllChannels } from "lib/shared/get-all-channels";
+import * as path from 'path';
+import * as fs from 'fs';
+import * as agilitySync from '@agility/content-sync';
+import { state, getApiKeysForGuid, getLoggerForGuid } from 'core/state';
+import { fileOperations } from 'core/fileOperations';
+import { handleSyncToken } from './sync-token-handler';
+import { getAllChannels } from 'lib/shared/get-all-channels';
 
-const storeInterfaceFileSystem = require("./store-interface-filesystem");
+const storeInterfaceFileSystem = require('./store-interface-filesystem');
 
 export async function downloadAllSyncSDK(guid: string) {
   const locales: string[] = state.guidLocaleMap.get(guid);
   const channels = await getAllChannels(guid, locales[0]);
   const downloads: Promise<any>[] = [];
 
-
-
-  channels.forEach(channel => {
-    locales.forEach(locale => {
-      downloads.push(downloadSyncSDKByLocaleAndChannel(guid, channel.channel.toLowerCase(), locale));
+  channels.forEach((channel) => {
+    locales.forEach((locale) => {
+      downloads.push(
+        downloadSyncSDKByLocaleAndChannel(guid, channel.channel.toLowerCase(), locale)
+      );
     });
   });
 
   await Promise.allSettled(downloads);
-  
 }
 
 export async function downloadSyncSDKByLocaleAndChannel(
@@ -30,7 +29,6 @@ export async function downloadSyncSDKByLocaleAndChannel(
   channel: string,
   locale: string
 ): Promise<void> {
-
   const fileOps = new fileOperations(guid, locale);
 
   // Get API keys for this specific GUID
@@ -43,7 +41,6 @@ export async function downloadSyncSDKByLocaleAndChannel(
 
   const isIncrementalSync = await handleSyncToken(syncTokenPath, state.reset);
 
-
   const logger = getLoggerForGuid(guid);
   // Configure the Agility Sync client
   const agilityConfig = {
@@ -52,20 +49,23 @@ export async function downloadSyncSDKByLocaleAndChannel(
     isPreview: true,
     languages: [locale],
     channels: [channel],
-    baseUrl: state.baseUrl.replace('mgmt','api'),
+    baseUrl: state.baseUrl.replace('mgmt', 'api'),
     store: {
       interface: storeInterfaceFileSystem,
       options: {
         rootPath: instanceSpecificPath,
         logger: logger,
         // NEW: Pass change delta tracker and mode
-        isIncrementalSync: isIncrementalSync
-      }
-    }
+        isIncrementalSync: isIncrementalSync,
+      },
+    },
   };
 
   // RACE CONDITION FIX: Initialize progress tracking for this specific instance
-  if (storeInterfaceFileSystem.initializeProgress && typeof storeInterfaceFileSystem.initializeProgress === 'function') {
+  if (
+    storeInterfaceFileSystem.initializeProgress &&
+    typeof storeInterfaceFileSystem.initializeProgress === 'function'
+  ) {
     storeInterfaceFileSystem.initializeProgress(instanceSpecificPath);
   }
 
@@ -78,18 +78,21 @@ export async function downloadSyncSDKByLocaleAndChannel(
   await syncClient.runSync();
 
   // Get enhanced sync stats (pass rootPath for instance isolation)
-  if (storeInterfaceFileSystem.getAndClearSavedItemStats && typeof storeInterfaceFileSystem.getAndClearSavedItemStats === 'function') {
+  if (
+    storeInterfaceFileSystem.getAndClearSavedItemStats &&
+    typeof storeInterfaceFileSystem.getAndClearSavedItemStats === 'function'
+  ) {
     const syncResults = storeInterfaceFileSystem.getAndClearSavedItemStats(instanceSpecificPath);
   }
 
   // After sync, count the items in the 'item' folder for verification
-  const itemsPath = path.join(instanceSpecificPath, "item");
+  const itemsPath = path.join(instanceSpecificPath, 'item');
   let itemCount = 0;
-  let itemsFoundMessage = "Content items sync attempted.";
+  let itemsFoundMessage = 'Content items sync attempted.';
   try {
     if (fs.existsSync(itemsPath)) {
       const files = fs.readdirSync(itemsPath);
-      itemCount = files.filter(file => path.extname(file).toLowerCase() === '.json').length;
+      itemCount = files.filter((file) => path.extname(file).toLowerCase() === '.json').length;
       itemsFoundMessage = `Verified ${itemCount} content item(s) on disk.`;
     }
   } catch (countError: any) {

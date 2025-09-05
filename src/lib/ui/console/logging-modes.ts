@@ -19,15 +19,15 @@ export class LoggingModes {
 
     // Priority order: useHeadless > useVerbose > default (plain)
     // Remove blessed from priority order
-    
+
     if (state.useHeadless) {
       return 'headless';
     }
-    
+
     if (state.useVerbose) {
       return 'verbose';
     }
-    
+
     return 'plain';
   }
 
@@ -43,7 +43,7 @@ export class LoggingModes {
           shouldLogToConsole: false,
           shouldRedirectToUI: false,
           shouldShowProgress: false,
-          shouldShowVerboseOutput: false
+          shouldShowVerboseOutput: false,
         };
 
       case 'verbose':
@@ -53,7 +53,7 @@ export class LoggingModes {
           shouldLogToConsole: true,
           shouldRedirectToUI: false,
           shouldShowProgress: true,
-          shouldShowVerboseOutput: true
+          shouldShowVerboseOutput: true,
         };
 
       // Remove blessed case:
@@ -75,7 +75,7 @@ export class LoggingModes {
           shouldLogToConsole: true,
           shouldRedirectToUI: false,
           shouldShowProgress: true,
-          shouldShowVerboseOutput: false
+          shouldShowVerboseOutput: false,
         };
     }
   }
@@ -158,7 +158,7 @@ export class LoggingModes {
           includeTimestamp: true,
           includeLevel: true,
           includeColors: false,
-          includeProgressBars: false
+          includeProgressBars: false,
         };
 
       case 'verbose':
@@ -166,7 +166,7 @@ export class LoggingModes {
           includeTimestamp: false,
           includeLevel: false,
           includeColors: true,
-          includeProgressBars: true
+          includeProgressBars: true,
         };
 
       // Remove blessed case:
@@ -184,7 +184,7 @@ export class LoggingModes {
           includeTimestamp: false,
           includeLevel: false,
           includeColors: true,
-          includeProgressBars: true
+          includeProgressBars: true,
         };
     }
   }
@@ -200,7 +200,9 @@ export class LoggingModes {
   /**
    * Check if we should show specific content based on mode
    */
-  static shouldShowContent(contentType: 'errors' | 'warnings' | 'info' | 'debug' | 'stats'): boolean {
+  static shouldShowContent(
+    contentType: 'errors' | 'warnings' | 'info' | 'debug' | 'stats'
+  ): boolean {
     const config = this.getCurrentConfig();
     const format = this.getCurrentLogFormat();
 
@@ -235,7 +237,7 @@ export class LoggingModes {
           redirectConsole: true,
           showInlineProgress: false,
           enableColors: false,
-          bufferedOutput: false
+          bufferedOutput: false,
         };
 
       case 'verbose':
@@ -243,7 +245,7 @@ export class LoggingModes {
           redirectConsole: false,
           showInlineProgress: true,
           enableColors: true,
-          bufferedOutput: false
+          bufferedOutput: false,
         };
 
       // Remove blessed case:
@@ -261,7 +263,7 @@ export class LoggingModes {
           redirectConsole: false,
           showInlineProgress: true,
           enableColors: true,
-          bufferedOutput: false
+          bufferedOutput: false,
         };
     }
   }
@@ -287,10 +289,7 @@ export class LoggingModes {
     const errors: string[] = [];
 
     // Check for conflicting modes
-    const modeCount = [
-      state.useHeadless,
-      state.useVerbose
-    ].filter(Boolean).length;
+    const modeCount = [state.useHeadless, state.useVerbose].filter(Boolean).length;
 
     if (modeCount > 1) {
       warnings.push('Multiple console modes specified, using priority order: headless > verbose');
@@ -312,7 +311,7 @@ export class LoggingModes {
     return {
       isValid: errors.length === 0,
       warnings,
-      errors
+      errors,
     };
   }
 
@@ -340,4 +339,4 @@ export class LoggingModes {
     const mode = this.determineMode();
     return this.getModeDescription(mode);
   }
-} 
+}

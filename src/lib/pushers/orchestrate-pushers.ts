@@ -1,10 +1,14 @@
-import { getState, initializeGuidLogger, finalizeGuidLogger } from "../../core/state";
-import { fileOperations } from "../../core/fileOperations";
-import ansiColors from "ansi-colors";
-import { GuidDataLoader, GuidEntities, ModelFilterOptions } from "./guid-data-loader";
-import { PusherResult, SourceData } from "../../types/sourceData";
-import { state } from "../../core/state";
-import { PUSH_OPERATIONS, PushOperationsRegistry, PushOperationConfig } from "./push-operations-config";
+import { getState, initializeGuidLogger, finalizeGuidLogger } from '../../core/state';
+import { fileOperations } from '../../core/fileOperations';
+import ansiColors from 'ansi-colors';
+import { GuidDataLoader, GuidEntities, ModelFilterOptions } from './guid-data-loader';
+import { PusherResult, SourceData } from '../../types/sourceData';
+import { state } from '../../core/state';
+import {
+  PUSH_OPERATIONS,
+  PushOperationsRegistry,
+  PushOperationConfig,
+} from './push-operations-config';
 
 export interface PushResults {
   successful: string[];
@@ -23,7 +27,12 @@ export interface PushResults {
 
 export interface PusherConfig {
   onOperationStart?: (operationName: string, sourceGuid: string, targetGuid: string) => void;
-  onOperationComplete?: (operationName: string, sourceGuid: string, targetGuid: string, success: boolean) => void;
+  onOperationComplete?: (
+    operationName: string,
+    sourceGuid: string,
+    targetGuid: string,
+    success: boolean
+  ) => void;
 }
 
 export class Pushers {
@@ -58,7 +67,7 @@ export class Pushers {
 
     try {
       // Initialize GUID logger for this push operation
-      initializeGuidLogger(sourceGuid, "push");
+      initializeGuidLogger(sourceGuid, 'push');
 
       // Execute all push operations for this GUID pair
       const pushResults = await this.executePushersInOrder(sourceGuid, targetGuid);
@@ -80,7 +89,9 @@ export class Pushers {
           results.logFilePath = logFilePath;
         }
       } catch (logError: any) {
-        console.error(`${sourceGuid}→${targetGuid}: Could not finalize log file - ${logError.message}`);
+        console.error(
+          `${sourceGuid}→${targetGuid}: Could not finalize log file - ${logError.message}`
+        );
       }
 
       const duration = Math.floor(results.totalDuration / 1000);
@@ -88,7 +99,7 @@ export class Pushers {
 
       return results;
     } catch (error: any) {
-      results.failed.push({ operation: "guid-orchestration", error: error.message });
+      results.failed.push({ operation: 'guid-orchestration', error: error.message });
       results.totalDuration = Date.now() - startTime;
       console.error(`${sourceGuid}→${targetGuid}: Failed - ${error.message}`);
 
@@ -99,7 +110,9 @@ export class Pushers {
           results.logFilePath = logFilePath;
         }
       } catch (logError: any) {
-        console.error(`${sourceGuid}→${targetGuid}: Could not finalize log file - ${logError.message}`);
+        console.error(
+          `${sourceGuid}→${targetGuid}: Could not finalize log file - ${logError.message}`
+        );
       }
 
       return results;
@@ -113,7 +126,7 @@ export class Pushers {
     const { sourceGuid: sourceGuids, targetGuid: targetGuids } = getState();
 
     if (sourceGuids.length === 0 || targetGuids.length === 0) {
-      throw new Error("No source or target GUIDs available for push operation");
+      throw new Error('No source or target GUIDs available for push operation');
     }
 
     // For now, handle single source to single target (most common case)
@@ -121,7 +134,7 @@ export class Pushers {
     const sourceGuid = sourceGuids[0];
     const targetGuid = targetGuids[0];
 
-    console.log("--------------------------------");
+    console.log('--------------------------------');
     // console.log(`Starting push operations from ${sourceGuid} to ${targetGuid}`);
     // console.log(`Elements: ${elements}`);
 
@@ -135,7 +148,7 @@ export class Pushers {
    */
   private async executePushersInOrder(
     sourceGuid: string,
-    targetGuid: string,
+    targetGuid: string
   ): Promise<{
     totalSuccess: number;
     totalFailures: number;
@@ -144,7 +157,7 @@ export class Pushers {
     publishablePageIds: number[];
   }> {
     const { locale: locales, elements: stateElements } = state;
-    const elements = stateElements.split(",");
+    const elements = stateElements.split(',');
 
     // Initialize results tracking
     let totalSuccess = 0;
@@ -167,22 +180,22 @@ export class Pushers {
     // Prepare model filtering options from state
     let filterOptions: ModelFilterOptions = {};
     if (state.models && state.models.trim().length > 0) {
-      filterOptions.models = state.models.split(",").map((m) => m.trim());
+      filterOptions.models = state.models.split(',').map((m) => m.trim());
     }
     if (state.modelsWithDeps && state.modelsWithDeps.trim().length > 0) {
-      filterOptions.modelsWithDeps = state.modelsWithDeps.split(",").map((m) => m.trim());
+      filterOptions.modelsWithDeps = state.modelsWithDeps.split(',').map((m) => m.trim());
     }
 
     // Load source and target data
     const sourceDataLoader = new GuidDataLoader(sourceGuid);
     const targetDataLoader = new GuidDataLoader(targetGuid);
 
-    // Do guid level ops first 
+    // Do guid level ops first
     // TODO: use locale[0] as a temp locale THIS NEEDS TO BE REFACTORED
     try {
       const sourceData = await sourceDataLoader.loadGuidEntities(
         locales[0],
-        Object.keys(filterOptions).length > 0 ? filterOptions : undefined,
+        Object.keys(filterOptions).length > 0 ? filterOptions : undefined
       );
       const targetData = await targetDataLoader.loadGuidEntities(locales[0]);
 
@@ -212,7 +225,7 @@ export class Pushers {
         for (const locale of locales) {
           const sourceData = await sourceDataLoader.loadGuidEntities(
             locale,
-            Object.keys(filterOptions).length > 0 ? filterOptions : undefined,
+            Object.keys(filterOptions).length > 0 ? filterOptions : undefined
           );
           const targetData = await targetDataLoader.loadGuidEntities(locale);
 
@@ -239,7 +252,7 @@ export class Pushers {
         publishablePageIds,
       };
     } catch (error) {
-      console.error(ansiColors.red("Error during pusher execution:"), error);
+      console.error(ansiColors.red('Error during pusher execution:'), error);
       throw error;
     }
   }
@@ -289,9 +302,9 @@ export class Pushers {
 
     // Collect publishable IDs for auto-publishing
     if (pusherResult.publishableIds && pusherResult.publishableIds.length > 0) {
-      if (config.elements.includes("Content")) {
+      if (config.elements.includes('Content')) {
         publishableContentIds.push(...pusherResult.publishableIds);
-      } else if (config.elements.includes("Pages")) {
+      } else if (config.elements.includes('Pages')) {
         publishablePageIds.push(...pusherResult.publishableIds);
       }
     }
@@ -305,14 +318,14 @@ export class Pushers {
       ansiColors.gray(`\n${config.description}: `) +
         successfulColor(`${pusherResult.successful} successful, `) +
         skippedColor(`${pusherResult.skipped} skipped, `) +
-        failedColor(`${pusherResult.failed} failed\n`),
+        failedColor(`${pusherResult.failed} failed\n`)
     );
 
     this.config.onOperationComplete?.(
       config.name,
       state.sourceGuid[0],
       state.targetGuid[0],
-      pusherResult.status === "success",
+      pusherResult.status === 'success'
     );
 
     // Save mappings after each pusher

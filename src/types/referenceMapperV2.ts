@@ -3,7 +3,14 @@
  * Canonical storage approach - each mapping stored once under lexicographically smaller GUID
  */
 
-export type EntityType = 'model' | 'container' | 'content' | 'asset' | 'gallery' | 'template' | 'page';
+export type EntityType =
+  | 'model'
+  | 'container'
+  | 'content'
+  | 'asset'
+  | 'gallery'
+  | 'template'
+  | 'page';
 
 export interface EntityReference {
   guid: string;
@@ -15,26 +22,27 @@ export interface EntityReference {
 export interface MappingEntry {
   entityA: EntityReference;
   entityB: EntityReference;
-  lastSyncDirection: string;  // "guidA→guidB"
+  lastSyncDirection: string; // "guidA→guidB"
   syncHistory: SyncHistoryEntry[];
 }
 
 export interface SyncHistoryEntry {
-  direction: string;       // "guidA→guidB" 
-  timestamp: string;       // ISO date string
-  syncType?: string;       // "create", "update", "overwrite"
+  direction: string; // "guidA→guidB"
+  timestamp: string; // ISO date string
+  syncType?: string; // "create", "update", "overwrite"
 }
 
 export interface EntityMappingFile {
   metadata: {
-    canonicalGuid: string;   // The GUID this file belongs to (lexicographically smaller)
-    lastUpdated: string;     // ISO date
-    version: string;         // "2.0"
-    entityType: EntityType;  // Type of entities in this file
+    canonicalGuid: string; // The GUID this file belongs to (lexicographically smaller)
+    lastUpdated: string; // ISO date
+    version: string; // "2.0"
+    entityType: EntityType; // Type of entities in this file
   };
   mappings: {
-    [relationshipGuid: string]: {  // Other GUID in the relationship
-      [compoundKey: string]: MappingEntry;  // "sourceId-targetId" or unique identifier
+    [relationshipGuid: string]: {
+      // Other GUID in the relationship
+      [compoundKey: string]: MappingEntry; // "sourceId-targetId" or unique identifier
     };
   };
 }
@@ -42,7 +50,7 @@ export interface EntityMappingFile {
 export interface MappingLookupResult {
   entry: MappingEntry;
   targetId: number;
-  canonicalLocation: string;  // File path where mapping is stored
+  canonicalLocation: string; // File path where mapping is stored
 }
 
 export interface MappingContext {
@@ -66,8 +74,8 @@ export interface BulkMappingResult {
 
 // Configuration interface
 export interface ReferenceMapperV2Config {
-  enableLegacyMode?: boolean;    // Use v1 format for compatibility
-  autoMigrate?: boolean;         // Automatically migrate v1 to v2
+  enableLegacyMode?: boolean; // Use v1 format for compatibility
+  autoMigrate?: boolean; // Automatically migrate v1 to v2
   enableBackupOnWrite?: boolean; // Create backups before writing
-  cacheSize?: number;           // LRU cache size for mapping files
-} 
+  cacheSize?: number; // LRU cache size for mapping files
+}

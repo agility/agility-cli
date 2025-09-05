@@ -21,7 +21,7 @@ export interface State {
   // Instance/Connection
   sourceGuid: string[]; // Array of source GUIDs
   targetGuid: string[]; // Array of target GUIDs
-  locale: string[];     // Array of locales (for backward compatibility / user-specified)
+  locale: string[]; // Array of locales (for backward compatibility / user-specified)
   availableLocales: string[]; // Detected locales from getLocales() during auth
   guidLocaleMap: Map<string, string[]>; // Per-GUID locale mapping for matrix operations
   channel: string;
@@ -107,12 +107,12 @@ export const state: State = {
   availableLocales: [],
   guidLocaleMap: new Map(),
   apiKeys: [],
-  channel: "website",
+  channel: 'website',
   preview: true,
-  elements: "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps",
+  elements: 'Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps',
 
   // File system
-  rootPath: "agility-files",
+  rootPath: 'agility-files',
   legacyFolders: false,
 
   // Network/Security
@@ -132,8 +132,8 @@ export const state: State = {
   publish: false,
 
   // Model-specific
-  models: "",
-  modelsWithDeps: "",
+  models: '',
+  modelsWithDeps: '',
 
   // Content-specific
   contentItems: undefined,
@@ -147,7 +147,7 @@ export const state: State = {
 
   // Legacy fields (for backward compatibility)
   token: null,
-  localServer: "",
+  localServer: '',
   isAgilityDev: false,
   forceNGROK: false,
   isPush: false,
@@ -172,7 +172,8 @@ export function setState(argv: any) {
   if (argv.sourceGuid !== undefined) {
     if (argv.sourceGuid.includes(',')) {
       // Multi-GUID specification
-      state.sourceGuid = argv.sourceGuid.split(',')
+      state.sourceGuid = argv.sourceGuid
+        .split(',')
         .map((g: string) => g.trim())
         .filter((g: string) => g.length > 0);
     } else {
@@ -184,7 +185,8 @@ export function setState(argv: any) {
   if (argv.targetGuid !== undefined) {
     if (argv.targetGuid.includes(',')) {
       // Multi-GUID specification
-      state.targetGuid = argv.targetGuid.split(',')
+      state.targetGuid = argv.targetGuid
+        .split(',')
         .map((g: string) => g.trim())
         .filter((g: string) => g.length > 0);
     } else {
@@ -195,12 +197,13 @@ export function setState(argv: any) {
 
   // Multi-locale parsing logic
   if (argv.locale !== undefined) {
-    if (argv.locale.trim() === "") {
+    if (argv.locale.trim() === '') {
       // Empty string = auto-detection
       state.locale = [];
     } else if (argv.locale.includes(',') || argv.locale.includes(' ')) {
       // Multi-locale specification
-      state.locale = argv.locale.split(/[,\s]+/)
+      state.locale = argv.locale
+        .split(/[,\s]+/)
         .map((l: string) => l.trim())
         .filter((l: string) => l.length > 0);
     } else {
@@ -249,8 +252,8 @@ export function setState(argv: any) {
  */
 export function configureSSL() {
   if (state.local) {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-    console.warn("\nWarning: SSL certificate verification is disabled for development/local mode");
+    process.env.NODE_TLS_REJECT_UNAUTHORIZED = '0';
+    console.warn('\nWarning: SSL certificate verification is disabled for development/local mode');
   }
 }
 
@@ -314,7 +317,11 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
         primedValues.push('test');
       }
 
-      if (envVars.AGILITY_OVERWRITE && envVars.AGILITY_OVERWRITE[1] && state.overwrite === undefined) {
+      if (
+        envVars.AGILITY_OVERWRITE &&
+        envVars.AGILITY_OVERWRITE[1] &&
+        state.overwrite === undefined
+      ) {
         state.overwrite = envVars.AGILITY_OVERWRITE[1].trim().toLowerCase() === 'true';
         primedValues.push('overwrite');
       }
@@ -350,7 +357,11 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
       }
 
       // Additional system args
-      if (envVars.AGILITY_TARGET_GUID && envVars.AGILITY_TARGET_GUID[1] && state.targetGuid.length === 0) {
+      if (
+        envVars.AGILITY_TARGET_GUID &&
+        envVars.AGILITY_TARGET_GUID[1] &&
+        state.targetGuid.length === 0
+      ) {
         state.targetGuid = [envVars.AGILITY_TARGET_GUID[1].trim()];
         primedValues.push('targetGuid');
       }
@@ -370,7 +381,11 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
         primedValues.push('preprod');
       }
 
-      if (envVars.AGILITY_LEGACY_FOLDERS && envVars.AGILITY_LEGACY_FOLDERS[1] && state.legacyFolders === undefined) {
+      if (
+        envVars.AGILITY_LEGACY_FOLDERS &&
+        envVars.AGILITY_LEGACY_FOLDERS[1] &&
+        state.legacyFolders === undefined
+      ) {
         state.legacyFolders = envVars.AGILITY_LEGACY_FOLDERS[1].trim().toLowerCase() === 'true';
         primedValues.push('legacyFolders');
       }
@@ -388,11 +403,13 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
       if (envVars.AGILITY_TOKEN && envVars.AGILITY_TOKEN[1] && !state.token) {
         // Strip quotes from token value if present
         let tokenValue = envVars.AGILITY_TOKEN[1].trim();
-        if ((tokenValue.startsWith('"') && tokenValue.endsWith('"')) || 
-            (tokenValue.startsWith("'") && tokenValue.endsWith("'"))) {
+        if (
+          (tokenValue.startsWith('"') && tokenValue.endsWith('"')) ||
+          (tokenValue.startsWith("'") && tokenValue.endsWith("'"))
+        ) {
           tokenValue = tokenValue.slice(1, -1);
         }
-        
+
         state.token = tokenValue;
         // Also set in process.env so getUserProvidedToken() can find it
         process.env.AGILITY_TOKEN = tokenValue;
@@ -429,12 +446,12 @@ export function resetState() {
   state.availableLocales = [];
   state.guidLocaleMap = new Map();
   state.apiKeys = [];
-  state.channel = "website";
+  state.channel = 'website';
   state.preview = true;
-  state.elements = "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps";
+  state.elements = 'Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps';
 
   // File system
-  state.rootPath = "agility-files";
+  state.rootPath = 'agility-files';
   state.legacyFolders = false;
 
   // Network/Security
@@ -454,7 +471,7 @@ export function resetState() {
   state.publish = false;
 
   // Model-specific
-  state.models = "";
+  state.models = '';
 
   // Content-specific
   state.contentItems = undefined;
@@ -473,7 +490,7 @@ export function resetState() {
 
   // Legacy fields
   state.token = null;
-  state.localServer = "";
+  state.localServer = '';
   state.isAgilityDev = false;
   state.forceNGROK = false;
 }
@@ -536,8 +553,10 @@ export function getUIMode() {
  * Get API keys for a specific GUID
  */
 export function getApiKeysForGuid(guid: string): { previewKey: string; fetchKey: string } | null {
-  const apiKeyEntry = state.apiKeys.find(item => item.guid === guid);
-  return apiKeyEntry ? { previewKey: apiKeyEntry.previewKey, fetchKey: apiKeyEntry.fetchKey } : null;
+  const apiKeyEntry = state.apiKeys.find((item) => item.guid === guid);
+  return apiKeyEntry
+    ? { previewKey: apiKeyEntry.previewKey, fetchKey: apiKeyEntry.fetchKey }
+    : null;
 }
 
 /**
@@ -558,7 +577,7 @@ export function validateLocaleFormat(locale: string): boolean {
 /**
  * Validate array of locales and return valid/invalid splits
  */
-export function validateLocales(locales: string[]): { valid: string[], invalid: string[] } {
+export function validateLocales(locales: string[]): { valid: string[]; invalid: string[] } {
   const valid: string[] = [];
   const invalid: string[] = [];
 
@@ -578,36 +597,40 @@ export function validateLocales(locales: string[]): { valid: string[], invalid: 
  */
 export function initializeLogger(operationType: OperationType): Logs {
   state.logger = new Logs(operationType);
-  
+
   // Configure based on current state
   state.logger.configure({
     logToConsole: !state.headless,
     logToFile: true,
     showColors: !state.headless,
-    useStructuredFormat: true
+    useStructuredFormat: true,
   });
-  
+
   return state.logger;
 }
 
 /**
  * Initialize a per-GUID logger for parallel operations
  */
-export function initializeGuidLogger(guid: string, operationType: OperationType, entityType?: EntityType): Logs {
+export function initializeGuidLogger(
+  guid: string,
+  operationType: OperationType,
+  entityType?: EntityType
+): Logs {
   if (!state.loggerRegistry) {
     state.loggerRegistry = new Map();
   }
-  
+
   const logger = new Logs(operationType, entityType, guid);
-  
+
   // Configure based on current state
   logger.configure({
     logToConsole: !state.headless,
     logToFile: true,
     showColors: !state.headless,
-    useStructuredFormat: true
+    useStructuredFormat: true,
   });
-  
+
   state.loggerRegistry.set(guid, logger);
   return logger;
 }
@@ -619,13 +642,13 @@ export function getLoggerForGuid(guid: string): Logs | null {
   if (!state.loggerRegistry) {
     return null;
   }
-  
+
   const logger = state.loggerRegistry.get(guid);
   if (logger && !logger.getGuid()) {
     // Ensure the logger has the GUID set
     logger.setGuid(guid);
   }
-  
+
   return logger || null;
 }
 
@@ -656,13 +679,13 @@ export function finalizeGuidLogger(guid: string): string | null {
  */
 export function finalizeAllGuidLoggers(): string[] {
   const results: string[] = [];
-  
+
   if (state.loggerRegistry) {
     const entries = Array.from(state.loggerRegistry.entries());
-    
+
     for (const [guid, logger] of entries) {
       const logCount = logger.getLogCount();
-      
+
       if (logCount > 0) {
         const result = logger.saveLogs();
         if (result) {
@@ -673,7 +696,7 @@ export function finalizeAllGuidLoggers(): string[] {
     }
     state.loggerRegistry.clear();
   }
-  
+
   return results;
 }
 
@@ -684,7 +707,7 @@ export function finalizeLogger(): string | null {
   if (state.logger) {
     const result = state.logger.saveLogs();
     state.logger = undefined;
-    
+
     // Return result without automatically displaying it
     // The calling code will handle display if needed
     return result;
@@ -703,7 +726,6 @@ export function endTimer(): void {
     state.logger.endTimer();
   }
 }
-
 
 /**
  * Clear the current logger from state

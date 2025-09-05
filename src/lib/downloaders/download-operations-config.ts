@@ -27,11 +27,11 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
       await downloadAllSyncSDK(guid);
     },
     elements: ['Content', 'Sitemaps'], // NOTE: Content Sync SDK doesn't download page structures - only content items
-    dependencies: ['Models', 'Containers', 'Assets', 'Galleries', 'Templates'] // Content requires Models and Containers
+    dependencies: ['Models', 'Containers', 'Assets', 'Galleries', 'Templates'], // Content requires Models and Containers
   },
   galleries: {
     name: 'downloadAllGalleries',
-    description: 'Download asset galleries and media groupings', 
+    description: 'Download asset galleries and media groupings',
     handler: async (guid) => {
       await downloadAllGalleries(guid);
     },
@@ -45,15 +45,15 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
       await downloadAllAssets(guid);
     },
     elements: ['Assets'],
-    dependencies: ['Galleries'] // Assets require Galleries to be meaningful
+    dependencies: ['Galleries'], // Assets require Galleries to be meaningful
   },
   models: {
-    name: 'downloadAllModels', 
+    name: 'downloadAllModels',
     description: 'Download content models and field definitions',
     handler: async (guid) => {
       await downloadAllModels(guid);
     },
-    elements: ['Models']
+    elements: ['Models'],
   },
   templates: {
     name: 'downloadAllTemplates',
@@ -71,7 +71,7 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
       await downloadAllContainers(guid);
     },
     elements: ['Containers'],
-    dependencies: ['Models'] // Containers require Models to be meaningful
+    dependencies: ['Models'], // Containers require Models to be meaningful
   },
   sitemaps: {
     name: 'downloadAllSitemaps',
@@ -79,8 +79,8 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
     handler: async (guid) => {
       await downloadAllSitemaps(guid);
     },
-    elements: ['Sitemaps']
-  }
+    elements: ['Sitemaps'],
+  },
 };
 
 export class DownloadOperationsRegistry {
@@ -89,49 +89,60 @@ export class DownloadOperationsRegistry {
    */
   static getOperationsForElements(): OperationConfig[] {
     const state = getState();
-    const elementList = state.elements ? state.elements.split(",") : 
-      ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages', 'Sitemaps', 'Redirections'];
-    
+    const elementList = state.elements
+      ? state.elements.split(',')
+      : [
+          'Galleries',
+          'Assets',
+          'Models',
+          'Containers',
+          'Content',
+          'Templates',
+          'Pages',
+          'Sitemaps',
+          'Redirections',
+        ];
+
     // Resolve dependencies and update state
     const { resolvedElements, autoIncluded } = this.resolveDependencies(elementList);
-    
+
     // Update state.elements with resolved dependencies if any were auto-included
     if (autoIncluded.length > 0) {
       // Update the state with resolved elements
       const { setState } = require('../../core/state');
       setState({ elements: resolvedElements.join(',') });
     }
-    
+
     // Filter operations based on resolved elements
-    const relevantOperations = Object.values(DOWNLOAD_OPERATIONS).filter(operation => {
+    const relevantOperations = Object.values(DOWNLOAD_OPERATIONS).filter((operation) => {
       // Check if any of the operation's elements are in the resolved element list
-      return operation.elements.some(element => resolvedElements.includes(element));
+      return operation.elements.some((element) => resolvedElements.includes(element));
     });
-    
+
     return relevantOperations;
   }
 
   /**
    * Resolve element dependencies
    */
-  private static resolveDependencies(requestedElements: string[]): { 
-    resolvedElements: string[], 
-    autoIncluded: string[] 
+  private static resolveDependencies(requestedElements: string[]): {
+    resolvedElements: string[];
+    autoIncluded: string[];
   } {
     const resolvedElements = new Set(requestedElements);
     const autoIncluded: string[] = [];
-    
+
     // Check each requested element for dependencies
     for (const element of requestedElements) {
       // Find operations that provide this element
-      const operations = Object.values(DOWNLOAD_OPERATIONS).filter(op => 
+      const operations = Object.values(DOWNLOAD_OPERATIONS).filter((op) =>
         op.elements.includes(element)
       );
-      
+
       // Add dependencies for each operation
-      operations.forEach(operation => {
+      operations.forEach((operation) => {
         if (operation.dependencies) {
-          operation.dependencies.forEach(dep => {
+          operation.dependencies.forEach((dep) => {
             if (!resolvedElements.has(dep)) {
               resolvedElements.add(dep);
               autoIncluded.push(dep);
@@ -140,11 +151,10 @@ export class DownloadOperationsRegistry {
         }
       });
     }
-    
+
     return {
       resolvedElements: Array.from(resolvedElements),
-      autoIncluded
+      autoIncluded,
     };
   }
-
-} 
+}

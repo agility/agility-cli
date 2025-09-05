@@ -1,1 +1,1 @@
-export * from './model-diff-logger'; 
+export * from './model-diff-logger';

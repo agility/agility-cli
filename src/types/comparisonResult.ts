@@ -1,3 +1,3 @@
 interface ComparisonResult {
-    [key: string]: any;
+  [key: string]: any;
 }

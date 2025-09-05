@@ -1,18 +1,18 @@
-import * as mgmtApi from "@agility/management-sdk";
+import * as mgmtApi from '@agility/management-sdk';
 
 /**
  * Standardized source data structure for all pusher operations
  * Replaces 'any' type usage with proper TypeScript interfaces
  */
 export interface SourceData {
-    pages: mgmtApi.PageItem[];
-    content: mgmtApi.ContentItem[];
-    models: mgmtApi.Model[];
-    templates: mgmtApi.PageModel[];
-    lists: mgmtApi.Container[];
-    containers: mgmtApi.Container[];
-    assets: mgmtApi.Media[];
-    galleries: mgmtApi.assetMediaGrouping[];
+  pages: mgmtApi.PageItem[];
+  content: mgmtApi.ContentItem[];
+  models: mgmtApi.Model[];
+  templates: mgmtApi.PageModel[];
+  lists: mgmtApi.Container[];
+  containers: mgmtApi.Container[];
+  assets: mgmtApi.Media[];
+  galleries: mgmtApi.assetMediaGrouping[];
 }
 
 /**
@@ -20,10 +20,10 @@ export interface SourceData {
  * Consolidates tracking into single callback pattern
  */
 export type PusherProgressCallback = (
-    processed: number,
-    total: number,
-    status: 'success' | 'error' | 'skipped',
-    itemName?: string
+  processed: number,
+  total: number,
+  status: 'success' | 'error' | 'skipped',
+  itemName?: string
 ) => void;
 
 /**
@@ -31,18 +31,18 @@ export type PusherProgressCallback = (
  * Replaces inline type definitions with consistent response structure
  */
 export interface PusherResult {
-    successful: number;
-    failed: number;
-    skipped: number;
-    status: 'success' | 'error';
-    publishableIds?: number[]; // Optional: target instance IDs for auto-publishing (content items and pages only)
+  successful: number;
+  failed: number;
+  skipped: number;
+  status: 'success' | 'error';
+  publishableIds?: number[]; // Optional: target instance IDs for auto-publishing (content items and pages only)
 }
 
 /**
  * Pusher function signature with standardized types
  */
 export type PusherFunction = (
-    sourceData: SourceData,
-    referenceMapper: any, // TODO: Import proper ReferenceMapper type
-    onProgress?: PusherProgressCallback
-) => Promise<PusherResult>; 
+  sourceData: SourceData,
+  referenceMapper: any, // TODO: Import proper ReferenceMapper type
+  onProgress?: PusherProgressCallback
+) => Promise<PusherResult>;

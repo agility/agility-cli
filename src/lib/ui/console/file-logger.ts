@@ -24,10 +24,7 @@ export class FileLogger {
 
   constructor(config: FileLoggerConfig) {
     this.config = config;
-    this.fileOps = new fileOperations(
-      config.guid,
-      config.locale
-    );
+    this.fileOps = new fileOperations(config.guid, config.locale);
   }
 
   /**
@@ -36,13 +33,13 @@ export class FileLogger {
   static fromState(operationType: 'pull' | 'push' | 'sync', guid?: string): FileLogger {
     const state = getState();
     const targetGuid = guid || state.sourceGuid;
-    
+
     return new FileLogger({
       rootPath: state.rootPath,
       guid: targetGuid[0],
       locale: state.locale[0],
       preview: state.preview,
-      operationType
+      operationType,
     });
   }
 
@@ -54,11 +51,11 @@ export class FileLogger {
       timestamp: new Date().toISOString(),
       level,
       message,
-      context
+      context,
     };
 
     this.logEntries.push(entry);
-    
+
     // Use existing fileOperations.appendLogFile (handles ANSI stripping)
     const formattedMessage = this.formatLogEntry(entry);
     this.fileOps.appendLogFile(formattedMessage);
@@ -126,7 +123,10 @@ export class FileLogger {
   /**
    * Log progress update
    */
-  logProgress(stepName: string, progress: { current: number; total: number; details?: string }): void {
+  logProgress(
+    stepName: string,
+    progress: { current: number; total: number; details?: string }
+  ): void {
     const percentage = Math.round((progress.current / progress.total) * 100);
     const details = progress.details ? ` - ${progress.details}` : '';
     const message = `${stepName}: ${progress.current}/${progress.total} (${percentage}%)${details}`;
@@ -136,13 +136,16 @@ export class FileLogger {
   /**
    * Log download statistics
    */
-  logDownloadStats(stepName: string, stats: { 
-    total: number; 
-    successful: number; 
-    failed: number; 
-    skipped: number; 
-    duration?: number;
-  }): void {
+  logDownloadStats(
+    stepName: string,
+    stats: {
+      total: number;
+      successful: number;
+      failed: number;
+      skipped: number;
+      duration?: number;
+    }
+  ): void {
     const { total, successful, failed, skipped, duration } = stats;
     const durationText = duration ? ` in ${(duration / 1000).toFixed(1)}s` : '';
     const message = `${stepName} completed: ${successful}/${total} successful, ${failed} failed, ${skipped} skipped${durationText}`;
@@ -152,13 +155,16 @@ export class FileLogger {
   /**
    * Log upload statistics
    */
-  logUploadStats(stepName: string, stats: {
-    total: number;
-    successful: number;
-    failed: number;
-    skipped: number;
-    duration?: number;
-  }): void {
+  logUploadStats(
+    stepName: string,
+    stats: {
+      total: number;
+      successful: number;
+      failed: number;
+      skipped: number;
+      duration?: number;
+    }
+  ): void {
     const { total, successful, failed, skipped, duration } = stats;
     const durationText = duration ? ` in ${(duration / 1000).toFixed(1)}s` : '';
     const message = `${stepName} uploaded: ${successful}/${total} successful, ${failed} failed, ${skipped} skipped${durationText}`;
@@ -168,14 +174,17 @@ export class FileLogger {
   /**
    * Log summary information
    */
-  logSummary(operation: string, summary: {
-    startTime: Date;
-    endTime: Date;
-    totalSteps: number;
-    successfulSteps: number;
-    failedSteps: number;
-    entityCounts?: Record<string, number>;
-  }): void {
+  logSummary(
+    operation: string,
+    summary: {
+      startTime: Date;
+      endTime: Date;
+      totalSteps: number;
+      successfulSteps: number;
+      failedSteps: number;
+      entityCounts?: Record<string, number>;
+    }
+  ): void {
     const duration = (summary.endTime.getTime() - summary.startTime.getTime()) / 1000;
     const message = `${operation} Summary: ${summary.successfulSteps}/${summary.totalSteps} steps completed in ${duration.toFixed(1)}s`;
     this.logInfo(message, 'SUMMARY');
@@ -191,20 +200,23 @@ export class FileLogger {
   /**
    * Log API operation
    */
-  logApiOperation(operation: string, details: {
-    method: string;
-    endpoint?: string;
-    success: boolean;
-    duration?: number;
-    error?: string;
-  }): void {
+  logApiOperation(
+    operation: string,
+    details: {
+      method: string;
+      endpoint?: string;
+      success: boolean;
+      duration?: number;
+      error?: string;
+    }
+  ): void {
     const { method, endpoint, success, duration, error } = details;
     const endpointText = endpoint ? ` ${endpoint}` : '';
     const durationText = duration ? ` (${duration}ms)` : '';
     const level = success ? 'SUCCESS' : 'ERROR';
     const statusText = success ? 'succeeded' : 'failed';
     const errorText = error ? `: ${error}` : '';
-    
+
     const message = `${operation} ${method}${endpointText} ${statusText}${durationText}${errorText}`;
     this.log(level, message, 'API');
   }
@@ -230,7 +242,7 @@ export class FileLogger {
       timestamp: new Date().toISOString(),
       guid: this.config.guid,
       locale: this.config.locale,
-      operationType: this.config.operationType
+      operationType: this.config.operationType,
     };
 
     this.logInfo('System Information:', 'SYSTEM');
@@ -250,14 +262,14 @@ export class FileLogger {
    * Get log entries by level
    */
   getLogEntriesByLevel(level: LogEntry['level']): LogEntry[] {
-    return this.logEntries.filter(entry => entry.level === level);
+    return this.logEntries.filter((entry) => entry.level === level);
   }
 
   /**
    * Get log entries by context
    */
   getLogEntriesByContext(context: string): LogEntry[] {
-    return this.logEntries.filter(entry => entry.context === context);
+    return this.logEntries.filter((entry) => entry.context === context);
   }
 
   /**
@@ -268,10 +280,10 @@ export class FileLogger {
       INFO: 0,
       ERROR: 0,
       WARNING: 0,
-      SUCCESS: 0
+      SUCCESS: 0,
     };
 
-    this.logEntries.forEach(entry => {
+    this.logEntries.forEach((entry) => {
       stats[entry.level]++;
     });
 
@@ -290,7 +302,10 @@ export class FileLogger {
    */
   finalize(): string {
     const finalStats = this.getLogStats();
-    this.logInfo(`Log finalized with ${this.logEntries.length} entries: ${JSON.stringify(finalStats)}`, 'FINALIZE');
+    this.logInfo(
+      `Log finalized with ${this.logEntries.length} entries: ${JSON.stringify(finalStats)}`,
+      'FINALIZE'
+    );
     return this.fileOps.finalizeLogFile(this.config.operationType);
   }
 
@@ -300,4 +315,4 @@ export class FileLogger {
   getFileOps(): fileOperations {
     return this.fileOps;
   }
-} 
+}

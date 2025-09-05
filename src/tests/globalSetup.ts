@@ -6,11 +6,11 @@ import { execSync } from 'child_process';
  */
 export default async function globalSetup() {
   console.log('🔨 Building CLI for integration tests...');
-  
+
   try {
-    execSync('npm run build', { 
+    execSync('npm run build', {
       cwd: process.cwd(),
-      stdio: 'pipe' 
+      stdio: 'pipe',
     });
     console.log('✅ CLI build completed successfully');
   } catch (error) {

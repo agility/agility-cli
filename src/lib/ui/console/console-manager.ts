@@ -26,14 +26,18 @@ export class ConsoleManager {
       mode: 'plain',
       originalLog: console.log,
       originalError: console.error,
-      isRedirected: false
+      isRedirected: false,
     };
   }
 
   /**
    * Setup console mode and redirection
    */
-  setupMode(mode: ConsoleMode, fileOps?: fileOperations, handlers?: ConsoleRedirectionHandlers): void {
+  setupMode(
+    mode: ConsoleMode,
+    fileOps?: fileOperations,
+    handlers?: ConsoleRedirectionHandlers
+  ): void {
     this.state.mode = mode;
     this.fileOps = fileOps;
     this.redirectionHandlers = handlers;
@@ -119,7 +123,7 @@ export class ConsoleManager {
    * Format console arguments into a single message string
    */
   private formatMessage(args: any[]): string {
-    return args.map(arg => String(arg)).join(" ");
+    return args.map((arg) => String(arg)).join(' ');
   }
 
   /**
@@ -129,7 +133,7 @@ export class ConsoleManager {
     if (!this.fileOps) return;
 
     const timestamp = new Date().toISOString();
-    const level = isError ? "ERROR" : "INFO";
+    const level = isError ? 'ERROR' : 'INFO';
     // fileOperations.appendLogFile handles ANSI stripping automatically
     this.fileOps.appendLogFile(`[${timestamp}] [${level}] ${message}\n`);
   }
@@ -207,7 +211,7 @@ export class ConsoleManager {
    * Log separator (consistent with existing patterns)
    */
   logSeparator(): void {
-    console.log("----------------------------------------------------------------------");
+    console.log('----------------------------------------------------------------------');
   }
 
   /**
@@ -240,4 +244,4 @@ export class ConsoleManager {
   getConsoleState(): ConsoleState {
     return { ...this.state };
   }
-} 
+}
