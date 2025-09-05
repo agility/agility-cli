@@ -1,4 +1,4 @@
-name: Build and Test
+name: CI/CD Pipeline
 
 on:
   push:
@@ -7,7 +7,8 @@ on:
     branches: [main, dev]
 
 jobs:
-  basic-tests:
+  build-and-test:
+    name: Build, Lint, and Test
     runs-on: ubuntu-latest
 
     steps:
@@ -22,6 +23,18 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Run linting and formatting checks
+        run: |
+          echo "🔍 Running ESLint..."
+          npm run lint
+          echo "🎨 Checking Prettier formatting..."
+          npm run format:check
+
+      - name: Run TypeScript type checking
+        run: |
+          echo "🔧 Running TypeScript type check..."
+          npm run type-check
 
       - name: Build CLI
         run: npm run build
@@ -57,13 +70,6 @@ jobs:
             echo "⏭️  Skipping integration tests: credentials not configured"
           fi
 
-      - name: Run linting and formatting checks
-        run: |
-          echo "🔍 Running ESLint..."
-          npm run lint
-          echo "🎨 Checking Prettier formatting..."
-          npm run format:check
-
       - name: Upload test results
         uses: actions/upload-artifact@v4
         if: always()
@@ -74,8 +80,10 @@ jobs:
             test-results.xml
           retention-days: 7
 
-  security:
+  security-audit:
+    name: Security Audit
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -89,12 +97,15 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Run security audit
-        run: npm audit --audit-level=moderate
+      - name: Run security audit (moderate)
+        run: |
+          echo "🔍 Running security audit for moderate+ vulnerabilities..."
+          npm audit --audit-level=moderate
         continue-on-error: true
 
-      - name: Check for vulnerabilities
+      - name: Check for high-severity vulnerabilities
         run: |
+          echo "🛡️ Checking for high-severity vulnerabilities..."
           # Run npm audit and capture the exit code
           if npm audit --audit-level=high >/dev/null 2>&1; then
             echo "✅ No high-severity vulnerabilities found"
