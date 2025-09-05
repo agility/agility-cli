@@ -55,14 +55,10 @@ jobs:
       run: |
         if [ -n "$AGILITY_GUID" ] && [ -n "$AGILITY_TOKEN" ]; then
           echo "🚀 Running essential integration tests with PAT authentication..."
-          echo "🔍 Debug: AGILITY_GUID length: ${#AGILITY_GUID}"
-          echo "🔍 Debug: AGILITY_TOKEN length: ${#AGILITY_TOKEN}"
           # Run basic tests for CI/CD (fast and lightweight)
           npm test
         else
           echo "⏭️  Skipping integration tests: credentials not configured"
-          echo "🔍 Debug: AGILITY_GUID='$AGILITY_GUID'"
-          echo "🔍 Debug: AGILITY_TOKEN='$AGILITY_TOKEN'"
         fi
       
     - name: Run linting
