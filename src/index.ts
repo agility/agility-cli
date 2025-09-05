@@ -49,13 +49,19 @@ yargs.command({
 
     setState(argv);
     auth = new Auth();
-    const isAuthorized = await auth.init();
-    if (!isAuthorized) {
-      console.log(colors.red("You are not authorized to login."));
-      return;
-    } else {
-      console.log(colors.green("You are now logged in, you can now use the CLI commands such as 'pull', 'push', 'sync', 'genenv', etc."));
-      process.exit(0);
+    
+    try {
+      const isAuthenticated = await auth.login();
+      if (isAuthenticated) {
+        console.log(colors.green("✅ You are now logged in! You can use CLI commands like 'pull', 'push', 'sync', etc."));
+        process.exit(0);
+      } else {
+        console.log(colors.red("❌ Authentication failed. Please try again."));
+        process.exit(1);
+      }
+    } catch (error) {
+      console.log(colors.red(`❌ Authentication failed: ${error.message}`));
+      process.exit(1);
     }
   },
 });

@@ -1,0 +1,19 @@
+# Agility CLI Environment Variables
+# Copy this file to .env.test.local and fill in your actual values
+# These variables work for tests, CI, and regular CLI usage
+
+# Agility Instance Configuration
+AGILITY_GUID=your-instance-guid-here
+AGILITY_TOKEN=your-personal-access-token-here
+AGILITY_WEBSITE=website
+AGILITY_LOCALES=en-us
+
+# Test Instance Details (for validation)
+TEST_EXPECTED_MODELS=3
+TEST_EXPECTED_CONTENT_ITEMS=5
+TEST_EXPECTED_PAGES=2
+
+# Usage:
+# - Local development: Copy to .env.test.local
+# - CI/CD: Set as environment variables
+# - Regular CLI: Set as environment variables or use .env file

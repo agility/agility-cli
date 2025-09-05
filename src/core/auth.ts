@@ -118,19 +118,34 @@ export class Auth {
   }
 
   async logout() {
-    const env = this.getEnv();
-    const key = this.getEnvKey(env);
+    console.log('🔍 Looking for cached Agility CLI tokens...');
+    
     try {
-      const removed = await keytar.deletePassword(SERVICE_NAME, key);
-      if (removed) {
-        console.log(`Logged out from ${env} environment.`);
-      } else {
-        console.log(`No token found in ${env} environment.`);
+      const accounts = await keytar.findCredentials(SERVICE_NAME);
+      
+      if (accounts.length === 0) {
+        console.log('✅ No cached tokens found - you are already logged out');
+        exit(0);
+        return;
       }
-    } catch (err) {
-      console.error(`❌ Failed to delete token:`, err);
+      
+      console.log(`🧹 Found ${accounts.length} cached token(s), clearing...`);
+      
+      for (const account of accounts) {
+        await keytar.deletePassword(SERVICE_NAME, account.account);
+        console.log(`   ✓ Cleared: ${account.account}`);
+      }
+      
+      console.log(`✅ Successfully logged out - cleared ${accounts.length} authentication token(s)`);
+      console.log('💡 You will need to re-authenticate on your next CLI command');
+      
+    } catch (error) {
+      console.error('❌ Error clearing tokens:', error.message);
+      console.log('💡 This might happen if keytar is not available on your system');
+      exit(1);
     }
-    exit();
+    
+    exit(0);
   }
 
   async generateCode() {
@@ -269,7 +284,9 @@ export class Auth {
   async authorize() {
     let code = await this.generateCode();
 
-    const baseUrl = this.determineBaseUrl();
+    // Use the first sourceGuid if available for server routing, fallback to blank-d for default
+    const guid = state.sourceGuid.length > 0 ? state.sourceGuid[0] : "blank-d";
+    const baseUrl = this.determineBaseUrl(guid);
     
     const redirectUri = `${baseUrl}/oauth/CliAuth`;
     const authUrl = `${baseUrl}/oauth/Authorize?response_type=code&redirect_uri=${encodeURIComponent(
@@ -526,11 +543,34 @@ export class Auth {
     });
   }
 
-  async login() {
+  async login(): Promise<boolean> {
     console.log("🔑 Authenticating to Agility CMS...");
+
+    // Configure SSL if needed
+    const { configureSSL } = await import("./state");
+    configureSSL();
 
     const env = this.getEnv();
     const key = this.getEnvKey(env);
+
+    // Check if already authenticated
+    const tokenRaw = await keytar.getPassword(SERVICE_NAME, key);
+    if (tokenRaw) {
+      try {
+        const token = JSON.parse(tokenRaw);
+        if (token.access_token && token.expires_in && token.timestamp) {
+          const issuedAt = new Date(token.timestamp).getTime();
+          const expiresAt = issuedAt + token.expires_in * 1000;
+
+          if (Date.now() < expiresAt) {
+            console.log(ansiColors.green(`✅ Already authenticated to ${env === "prod" ? "Agility" : env} servers.`));
+            return true;
+          }
+        }
+      } catch (err) {
+        // Token is invalid, continue with new authentication
+      }
+    }
 
     const cliCode = await this.authorize();
     logReplace("\rWaiting for authentication in your browser...");
@@ -538,15 +578,15 @@ export class Auth {
     return new Promise((resolve, reject) => {
       const interval = setInterval(async () => {
         try {
-          // Create URLSearchParams directly instead of FormData
           const params = new URLSearchParams();
           params.append("cliCode", cliCode);
-
+          
+          // For standalone login, use default server routing
           const token = await this.cliPoll(params, "blank-d");
 
           if (token && token.access_token && token.expires_in && token.timestamp) {
             // Store token in keytar
-            console.log(ansiColors.green(`\r🔑 Authenticated to ${env} servers.\n`));
+            console.log(ansiColors.green(`\r🔑 Authenticated to ${env === "prod" ? "Agility" : env} servers.\n`));
             console.log("----------------------------------\n");
 
             await keytar.setPassword(SERVICE_NAME, key, JSON.stringify(token));
@@ -554,12 +594,17 @@ export class Auth {
             resolve(true);
           }
         } catch (err) {
-          // Keep polling - user hasn't completed OAuth yet
+          // Keep polling, but log errors for debugging
+          if (state.verbose) {
+            console.warn(`Polling error: ${err.message}`);
+          }
         }
       }, 2000);
 
       setTimeout(() => {
         clearInterval(interval);
+        console.log(ansiColors.red("\r❌ Authentication timed out after 60 seconds."));
+        console.log("💡 Please try again or check your network connection.");
         reject(new Error("Authentication timed out after 60 seconds."));
       }, 60000);
     });
