@@ -100,8 +100,14 @@ export class PushOperationsRegistry {
    */
   static getOperationsForElements(): PushOperationConfig[] {
     const state = getState();
-    const elementList = state.elements ? state.elements.split(",") : 
-      ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages'];
+    
+    // For sync operations or models-with-deps, we need ALL elements for proper change detection
+    // Element filtering happens at the processing level, not the operation selection level
+    const needsCompleteData = state.isSync || state.modelsWithDeps;
+    const elementList = needsCompleteData ? 
+      ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages'] :
+      (state.elements ? state.elements.split(",") : 
+        ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages']);
     
     // Resolve dependencies and update state
     const { resolvedElements, autoIncluded } = this.resolveDependencies(elementList);

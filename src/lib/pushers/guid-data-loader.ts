@@ -34,9 +34,17 @@ export interface GuidEntities {
 export class GuidDataLoader {
 
     private guid: string;
+    private static hasLoggedDependencyTree = false;
 
     constructor(guid: string) {
         this.guid = guid;
+    }
+
+    /**
+     * Reset logging flags for a new operation
+     */
+    static resetLoggingFlags(): void {
+        GuidDataLoader.hasLoggedDependencyTree = false;
     }
 
     /**
@@ -44,7 +52,13 @@ export class GuidDataLoader {
      */
     async loadGuidEntities(locale: string, filterOptions?: ModelFilterOptions): Promise<GuidEntities> {
         const state = getState();
-        const elements = state.elements.split(',');
+        
+        // For sync operations or models-with-deps, we need ALL elements for proper change detection
+        // Element filtering happens at the processing level, not the loading level
+        const needsCompleteData = state.isSync || state.modelsWithDeps;
+        const elements = needsCompleteData ? 
+            ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages', 'Sitemaps'] :
+            state.elements.split(',');
 
         const guidFileOps = new fileOperations(this.guid);
         const localeFileOps = new fileOperations(this.guid, locale);
@@ -63,25 +77,25 @@ export class GuidDataLoader {
         };
 
         // Load different entity types using pure getters for consistent architecture
-        if (elements.includes('Galleries')) {
+        if (elements.includes('Galleries') || needsCompleteData) {
             const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
             const galleries = getGalleriesFromFileSystem(guidFileOps);
             guidEntities.galleries = Array.isArray(galleries) ? galleries : [];
         }
 
-        if (elements.includes('Assets')) {
+        if (elements.includes('Assets') || needsCompleteData) {
             const { getAssetsFromFileSystem } = await import('../getters/filesystem/get-assets');
             const assets = getAssetsFromFileSystem(guidFileOps);
             guidEntities.assets = Array.isArray(assets) ? assets : [];
         }
 
-        if (elements.includes('Models')) {
+        if (elements.includes('Models') || needsCompleteData) {
             const { getModelsFromFileSystem } = await import('../getters/filesystem/get-models');
             const models = getModelsFromFileSystem(guidFileOps);
             guidEntities.models = Array.isArray(models) ? models : [];
         }
 
-        if (elements.includes('Containers')) {
+        if (elements.includes('Containers') || needsCompleteData) {
             const { getListsFromFileSystem, getContainersFromFileSystem } = await import('../getters/filesystem/get-containers');
             const containers = getContainersFromFileSystem(guidFileOps);
             guidEntities.containers = Array.isArray(containers) ? containers : [];
@@ -90,19 +104,20 @@ export class GuidDataLoader {
             guidEntities.lists = Array.isArray(lists) ? lists : [];
         }
 
-        if (elements.includes('Content')) {
+        if (elements.includes('Content') || needsCompleteData) {
             const { getContentItemsFromFileSystem } = await import('../getters/filesystem/get-content-items');
             const content = getContentItemsFromFileSystem(localeFileOps);
+            console.log(ansiColors.green('content'), content);
             guidEntities.content = Array.isArray(content) ? content : [];
         }
 
-        if (elements.includes('Templates')) {
+        if (elements.includes('Templates') || needsCompleteData) {
             const { getTemplatesFromFileSystem } = await import('../getters/filesystem/get-templates');
             const templates = getTemplatesFromFileSystem(guidFileOps);
             guidEntities.templates = Array.isArray(templates) ? templates : [];
         }
 
-        if (elements.includes('Pages')) {
+        if (elements.includes('Pages') || needsCompleteData) {
             const { getPagesFromFileSystem } = await import('../getters/filesystem/get-pages');
             const pages = getPagesFromFileSystem(localeFileOps);
             guidEntities.pages = Array.isArray(pages) ? pages : [];
@@ -135,43 +150,137 @@ export class GuidDataLoader {
             return guidEntities;
         }
 
-        console.log(`🔍 ${useFullDependencyTree ? 'Model dependency tree' : 'Simple model'} filtering: ${modelNames.join(', ')}`);
-
-        // Import and use ModelDependencyTreeBuilder (reuse existing logic from sync.ts)
-        const { ModelDependencyTreeBuilder } = await import('../models/model-dependency-tree-builder');
-        const treeBuilder = new ModelDependencyTreeBuilder(guidEntities);
-
-        // Validate that specified models exist
-        const validation = treeBuilder.validateModels(modelNames);
-        if (validation.invalid.length > 0) {
-            console.log(ansiColors.red(`Invalid model names: ${validation.invalid.join(', ')}`));
-            console.log(ansiColors.gray(`Available models: ${guidEntities.models.map((m: any) => m.referenceName).join(', ')}`));
-            return guidEntities; // Return unfiltered data if validation fails
-        }
-
         if (useFullDependencyTree) {
-            // Build dependency tree and filter all related entities
+            // Only log the filtering message once per operation
+            if (!GuidDataLoader.hasLoggedDependencyTree) {
+                GuidDataLoader.hasLoggedDependencyTree = true;
+            }
+            
+            // CRITICAL FIX: For dependency tree filtering, we need to load ALL entities first
+            // to ensure the dependency tree builder has complete data to work with
+            const completeEntities = await this.loadCompleteGuidEntities(locale);
+            
+            // Import and use ModelDependencyTreeBuilder with complete data
+            const { ModelDependencyTreeBuilder } = await import('../models/model-dependency-tree-builder');
+            const treeBuilder = new ModelDependencyTreeBuilder(completeEntities);
+
+            // Validate that specified models exist
+            const validation = treeBuilder.validateModels(modelNames);
+            if (validation.invalid.length > 0) {
+                console.log(ansiColors.red(`Invalid model names: ${validation.invalid.join(', ')}`));
+                console.log(ansiColors.gray(`Available models: ${completeEntities.models.map((m: any) => m.referenceName).join(', ')}`));
+                return guidEntities; // Return unfiltered data if validation fails
+            }
+
+            // Build dependency tree and filter all related entities using complete data
             const dependencyTree = treeBuilder.buildDependencyTree(validation.valid, locale);
-            return this.filterGuidEntitiesByDependencyTree(guidEntities, dependencyTree);
+            return await this.filterGuidEntitiesByDependencyTree(completeEntities, dependencyTree, locale);
         } else {
-            // Simple filtering - just filter models and their direct content
+            console.log(`🔍 Simple model filtering: ${modelNames.join(', ')}`);
+            
+            // Simple filtering - use existing logic
+            const { ModelDependencyTreeBuilder } = await import('../models/model-dependency-tree-builder');
+            const treeBuilder = new ModelDependencyTreeBuilder(guidEntities);
+
+            // Validate that specified models exist
+            const validation = treeBuilder.validateModels(modelNames);
+            if (validation.invalid.length > 0) {
+                console.log(ansiColors.red(`Invalid model names: ${validation.invalid.join(', ')}`));
+                console.log(ansiColors.gray(`Available models: ${guidEntities.models.map((m: any) => m.referenceName).join(', ')}`));
+                return guidEntities; // Return unfiltered data if validation fails
+            }
+
             return this.filterGuidEntitiesByModels(guidEntities, validation.valid);
         }
     }
 
     /**
-     * Filter entities by dependency tree (full dependency filtering)
+     * Filter entities by dependency tree (full dependency filtering) with incremental change detection
      */
-    private filterGuidEntitiesByDependencyTree(guidEntities: GuidEntities, dependencyTree: any): GuidEntities {
+    private async filterGuidEntitiesByDependencyTree(guidEntities: GuidEntities, dependencyTree: any, locale: string): Promise<GuidEntities> {
+        // Import change detection utilities
+        const { extractContentItemModifiedDate, extractModelModifiedDate, extractContainerModifiedDate, 
+                extractAssetModifiedDate, extractPageModifiedDate, extractGalleryModifiedDate, 
+                extractTemplateModifiedDate, isEntityModifiedSinceLastPull, getLastPullTimestamp } = 
+                await import('../incremental');
+
+        const rootPath = 'agility-files';
+
+        // Filter models with change detection
+        const filteredModels = guidEntities.models.filter((m: any) => {
+            if (!dependencyTree.models.has(m.referenceName)) return false;
+            
+            const modifiedDate = extractModelModifiedDate(m);
+            const lastPull = getLastPullTimestamp(this.guid, rootPath, 'models');
+            return isEntityModifiedSinceLastPull(modifiedDate, lastPull);
+        });
+
+        // Filter containers with change detection
+        const filteredContainers = guidEntities.containers.filter((c: any) => {
+            if (!dependencyTree.containers.has(c.contentViewID)) return false;
+            
+            const modifiedDate = extractContainerModifiedDate(c);
+            const lastPull = getLastPullTimestamp(this.guid, rootPath, 'containers');
+            return isEntityModifiedSinceLastPull(modifiedDate, lastPull);
+        });
+
+        // Filter content with change detection
+        const filteredContent = guidEntities.content.filter((c: any) => {
+            if (!dependencyTree.content.has(c.contentID)) return false;
+            
+            const modifiedDate = extractContentItemModifiedDate(c);
+            const lastPull = getLastPullTimestamp(this.guid, rootPath, 'content');
+            return isEntityModifiedSinceLastPull(modifiedDate, lastPull);
+        });
+
+        // Filter assets with change detection
+        const filteredAssets = guidEntities.assets.filter((a: any) => {
+            if (!dependencyTree.assets.has(a.url || a.originUrl || a.edgeUrl)) return false;
+            
+            const modifiedDate = extractAssetModifiedDate(a);
+            const lastPull = getLastPullTimestamp(this.guid, rootPath, 'assets');
+            return isEntityModifiedSinceLastPull(modifiedDate, lastPull);
+        });
+
+        // Filter pages with change detection
+        const filteredPages = guidEntities.pages.filter((p: any) => {
+            if (!dependencyTree.pages.has(p.pageID)) return false;
+            
+            const modifiedDate = extractPageModifiedDate(p);
+            const lastPull = getLastPullTimestamp(this.guid, rootPath, 'pages');
+            return isEntityModifiedSinceLastPull(modifiedDate, lastPull);
+        });
+
+        // Filter galleries with change detection
+        const filteredGalleries = guidEntities.galleries.filter((g: any) => {
+            if (!dependencyTree.galleries.has(g.galleryID)) return false;
+            
+            const modifiedDate = extractGalleryModifiedDate(g);
+            const lastPull = getLastPullTimestamp(this.guid, rootPath, 'galleries');
+            return isEntityModifiedSinceLastPull(modifiedDate, lastPull);
+        });
+
+        // Templates always require full refresh (no change detection)
+        const filteredTemplates = guidEntities.templates.filter((t: any) => dependencyTree.templates.has(t.id));
+
+        console.log(`📊 Change detection results:`);
+        console.log(`   📋 ${filteredModels.length}/${guidEntities.models.filter((m: any) => dependencyTree.models.has(m.referenceName)).length} models changed`);
+        console.log(`   📦 ${filteredContainers.length}/${guidEntities.containers.filter((c: any) => dependencyTree.containers.has(c.contentViewID)).length} containers changed`);
+        console.log(`   📄 ${filteredContent.length}/${guidEntities.content.filter((c: any) => dependencyTree.content.has(c.contentID)).length} content items changed`);
+        console.log(`   🖼️  ${filteredAssets.length}/${guidEntities.assets.filter((a: any) => dependencyTree.assets.has(a.url || a.originUrl || a.edgeUrl)).length} assets changed`);
+        console.log(`   📑 ${filteredPages.length}/${guidEntities.pages.filter((p: any) => dependencyTree.pages.has(p.pageID)).length} pages changed`);
+        console.log(`   📸 ${filteredGalleries.length}/${guidEntities.galleries.filter((g: any) => dependencyTree.galleries.has(g.galleryID)).length} galleries changed`);
+        console.log(`   🎨 ${filteredTemplates.length} templates (always included)`);
+
         return {
-            models: guidEntities.models.filter((m: any) => dependencyTree.models.has(m.referenceName)),
-            containers: guidEntities.containers.filter((c: any) => dependencyTree.containers.has(c.contentViewID)),
+            models: filteredModels,
+            containers: filteredContainers,
             lists: guidEntities.lists.filter((l: any) => dependencyTree.lists.has(l.contentViewID)),
-            content: guidEntities.content.filter((c: any) => dependencyTree.content.has(c.contentID)),
-            templates: guidEntities.templates.filter((t: any) => dependencyTree.templates.has(t.id)),
-            pages: guidEntities.pages.filter((p: any) => dependencyTree.pages.has(p.pageID)),
-            assets: guidEntities.assets.filter((a: any) => dependencyTree.assets.has(a.url || a.originUrl || a.edgeUrl)),
-            galleries: guidEntities.galleries.filter((g: any) => dependencyTree.galleries.has(g.galleryID))
+            content: filteredContent,
+            templates: filteredTemplates,
+            pages: filteredPages,
+            assets: filteredAssets,
+            galleries: filteredGalleries
         };
     }
 
@@ -244,6 +353,60 @@ export class GuidDataLoader {
         }
 
         return true;
+    }
+
+    /**
+     * Load complete GUID entities without any filtering - needed for dependency tree building
+     */
+    private async loadCompleteGuidEntities(locale: string): Promise<GuidEntities> {
+        const guidFileOps = new fileOperations(this.guid);
+        const localeFileOps = new fileOperations(this.guid, locale);
+
+        // Initialize with empty arrays - no nulls/undefined ever
+        const guidEntities: GuidEntities = {
+            assets: [],
+            galleries: [],
+            models: [],
+            containers: [],
+            lists: [],
+            content: [],
+            pages: [],
+            templates: []
+        };
+
+        // Load ALL entity types regardless of state.elements for complete dependency analysis
+        const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
+        const galleries = getGalleriesFromFileSystem(guidFileOps);
+        guidEntities.galleries = Array.isArray(galleries) ? galleries : [];
+
+        const { getAssetsFromFileSystem } = await import('../getters/filesystem/get-assets');
+        const assets = getAssetsFromFileSystem(guidFileOps);
+        guidEntities.assets = Array.isArray(assets) ? assets : [];
+
+        const { getModelsFromFileSystem } = await import('../getters/filesystem/get-models');
+        const models = getModelsFromFileSystem(guidFileOps);
+        guidEntities.models = Array.isArray(models) ? models : [];
+
+        const { getListsFromFileSystem, getContainersFromFileSystem } = await import('../getters/filesystem/get-containers');
+        const containers = getContainersFromFileSystem(guidFileOps);
+        guidEntities.containers = Array.isArray(containers) ? containers : [];
+
+        const lists = getListsFromFileSystem(guidFileOps);
+        guidEntities.lists = Array.isArray(lists) ? lists : [];
+
+        const { getContentItemsFromFileSystem } = await import('../getters/filesystem/get-content-items');
+        const content = getContentItemsFromFileSystem(localeFileOps);
+        guidEntities.content = Array.isArray(content) ? content : [];
+
+        const { getTemplatesFromFileSystem } = await import('../getters/filesystem/get-templates');
+        const templates = getTemplatesFromFileSystem(guidFileOps);
+        guidEntities.templates = Array.isArray(templates) ? templates : [];
+
+        const { getPagesFromFileSystem } = await import('../getters/filesystem/get-pages');
+        const pages = getPagesFromFileSystem(localeFileOps);
+        guidEntities.pages = Array.isArray(pages) ? pages : [];
+
+        return guidEntities;
     }
 
     /**

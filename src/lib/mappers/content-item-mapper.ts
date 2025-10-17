@@ -48,15 +48,36 @@ export class ContentItemMapper {
 
     getMappedEntity(mapping: ContentItemMapping, type: 'source' | 'target'): mgmtApi.ContentItem | null {
         //fetch the content item from the file system based on source or target GUID
-        if (!mapping) return null;
+        if (!mapping) {
+            return null;
+        }
+        
         const guid = type === 'source' ? mapping.sourceGuid : mapping.targetGuid;
         const contentID = type === 'source' ? mapping.sourceContentID : mapping.targetContentID;
 
-        const fileOps = new fileOperations(guid, this.locale);
-        // Use the file operations to get the content item file path
-        const contentData = fileOps.readJsonFile(`item/${contentID}.json`);
-        if (!contentData) return null;
-        return contentData as mgmtApi.ContentItem;
+        if (!guid || !contentID) {
+            return null;
+        }
+
+        try {
+            const fileOps = new fileOperations(guid, this.locale);
+            
+            // Use the file operations to get the content item file path
+            const contentData = fileOps.readJsonFile(`item/${contentID}.json`);
+            if (!contentData) {
+                // This is normal for target entities that don't exist yet - not an error
+                return null;
+            }
+            
+            // Validate that the content data has the expected structure
+            if (!contentData.properties) {
+                return null;
+            }
+            
+            return contentData as mgmtApi.ContentItem;
+        } catch (error) {
+            return null;
+        }
     }
 
     addMapping(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem) {
