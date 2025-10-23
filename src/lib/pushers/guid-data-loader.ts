@@ -149,48 +149,40 @@ export class GuidDataLoader {
             return guidEntities;
         }
 
+        let completeEntities: GuidEntities | undefined;
         if (useFullDependencyTree) {
             // Only log the filtering message once per operation
             if (!GuidDataLoader.hasLoggedDependencyTree) {
                 GuidDataLoader.hasLoggedDependencyTree = true;
             }
-            
             // CRITICAL FIX: For dependency tree filtering, we need to load ALL entities first
             // to ensure the dependency tree builder has complete data to work with
-            const completeEntities = await this.loadCompleteGuidEntities(locale);
-            
-            // Import and use ModelDependencyTreeBuilder with complete data
-            const { ModelDependencyTreeBuilder } = await import('../models/model-dependency-tree-builder');
-            const treeBuilder = new ModelDependencyTreeBuilder(completeEntities);
+            completeEntities = await this.loadCompleteGuidEntities(locale);
+        }
 
-            // Validate that specified models exist
-            const validation = treeBuilder.validateModels(modelNames);
-            if (validation.invalid.length > 0) {
-                console.log(ansiColors.red(`Invalid model names: ${validation.invalid.join(', ')}`));
-                console.log(ansiColors.gray(`Available models: ${completeEntities.models.map((m: any) => m.referenceName).join(', ')}`));
-                return guidEntities; // Return unfiltered data if validation fails
-            }
+        // Import and use ModelDependencyTreeBuilder with complete data
+        const { ModelDependencyTreeBuilder } = await import('../models/model-dependency-tree-builder');
+        const treeBuilder = new ModelDependencyTreeBuilder(useFullDependencyTree ? completeEntities : guidEntities);
 
-            // Build dependency tree and filter all related entities using complete data
-            const dependencyTree = treeBuilder.buildDependencyTree(validation.valid, locale);
-            return await this.filterGuidEntitiesByDependencyTree(completeEntities, dependencyTree, locale);
-        } else {
-            console.log(`🔍 Simple model filtering: ${modelNames.join(', ')}`);
-            
-            // Simple filtering - use existing logic
-            const { ModelDependencyTreeBuilder } = await import('../models/model-dependency-tree-builder');
-            const treeBuilder = new ModelDependencyTreeBuilder(guidEntities);
+        // Validate that specified models exist
+        const validation = treeBuilder.validateModels(modelNames);
+        if (validation.invalid.length > 0) {
+            console.log(ansiColors.red(`Invalid model names: ${validation.invalid.join(', ')}`));
+            console.log(ansiColors.gray(`Available models: ${completeEntities?.models.map((m: any) => m.referenceName).join(', ')}`));
+            return guidEntities; // Return unfiltered data if validation fails
+        }
 
-            // Validate that specified models exist
-            const validation = treeBuilder.validateModels(modelNames);
-            if (validation.invalid.length > 0) {
-                console.log(ansiColors.red(`Invalid model names: ${validation.invalid.join(', ')}`));
-                console.log(ansiColors.gray(`Available models: ${guidEntities.models.map((m: any) => m.referenceName).join(', ')}`));
-                return guidEntities; // Return unfiltered data if validation fails
-            }
+        // Build dependency tree and filter all related entities using complete data
+        const dependencyTree = treeBuilder.buildDependencyTree(validation.valid, locale);
+        
 
+        if(!useFullDependencyTree) {
             return this.filterGuidEntitiesByModels(guidEntities, validation.valid);
         }
+
+        return await this.filterGuidEntitiesByDependencyTree(completeEntities, dependencyTree, locale);
+    
+       
     }
 
     /**
