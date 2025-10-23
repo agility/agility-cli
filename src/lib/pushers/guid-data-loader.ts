@@ -77,25 +77,25 @@ export class GuidDataLoader {
         };
 
         // Load different entity types using pure getters for consistent architecture
-        if (elements.includes('Galleries') || needsCompleteData) {
+        if (elements.includes('Galleries')) {
             const { getGalleriesFromFileSystem } = await import('../getters/filesystem/get-galleries');
             const galleries = getGalleriesFromFileSystem(guidFileOps);
             guidEntities.galleries = Array.isArray(galleries) ? galleries : [];
         }
 
-        if (elements.includes('Assets') || needsCompleteData) {
+        if (elements.includes('Assets')) {
             const { getAssetsFromFileSystem } = await import('../getters/filesystem/get-assets');
             const assets = getAssetsFromFileSystem(guidFileOps);
             guidEntities.assets = Array.isArray(assets) ? assets : [];
         }
 
-        if (elements.includes('Models') || needsCompleteData) {
+        if (elements.includes('Models')) {
             const { getModelsFromFileSystem } = await import('../getters/filesystem/get-models');
             const models = getModelsFromFileSystem(guidFileOps);
             guidEntities.models = Array.isArray(models) ? models : [];
         }
 
-        if (elements.includes('Containers') || needsCompleteData) {
+        if (elements.includes('Containers')) {
             const { getListsFromFileSystem, getContainersFromFileSystem } = await import('../getters/filesystem/get-containers');
             const containers = getContainersFromFileSystem(guidFileOps);
             guidEntities.containers = Array.isArray(containers) ? containers : [];
@@ -104,20 +104,19 @@ export class GuidDataLoader {
             guidEntities.lists = Array.isArray(lists) ? lists : [];
         }
 
-        if (elements.includes('Content') || needsCompleteData) {
+        if (elements.includes('Content')) {
             const { getContentItemsFromFileSystem } = await import('../getters/filesystem/get-content-items');
             const content = getContentItemsFromFileSystem(localeFileOps);
-            console.log(ansiColors.green('content'), content);
             guidEntities.content = Array.isArray(content) ? content : [];
         }
 
-        if (elements.includes('Templates') || needsCompleteData) {
+        if (elements.includes('Templates')) {
             const { getTemplatesFromFileSystem } = await import('../getters/filesystem/get-templates');
             const templates = getTemplatesFromFileSystem(guidFileOps);
             guidEntities.templates = Array.isArray(templates) ? templates : [];
         }
 
-        if (elements.includes('Pages') || needsCompleteData) {
+        if (elements.includes('Pages')) {
             const { getPagesFromFileSystem } = await import('../getters/filesystem/get-pages');
             const pages = getPagesFromFileSystem(localeFileOps);
             guidEntities.pages = Array.isArray(pages) ? pages : [];
