@@ -251,22 +251,15 @@ export class GuidDataLoader {
             return isEntityModifiedSinceLastPull(modifiedDate, lastPull);
         });
 
+        const filteredLists = guidEntities.lists.filter((l: any) => dependencyTree.lists.has(l.contentViewID));
+
         // Templates always require full refresh (no change detection)
         const filteredTemplates = guidEntities.templates.filter((t: any) => dependencyTree.templates.has(t.id));
-
-        console.log(`📊 Change detection results:`);
-        console.log(`   📋 ${filteredModels.length}/${guidEntities.models.filter((m: any) => dependencyTree.models.has(m.referenceName)).length} models changed`);
-        console.log(`   📦 ${filteredContainers.length}/${guidEntities.containers.filter((c: any) => dependencyTree.containers.has(c.contentViewID)).length} containers changed`);
-        console.log(`   📄 ${filteredContent.length}/${guidEntities.content.filter((c: any) => dependencyTree.content.has(c.contentID)).length} content items changed`);
-        console.log(`   🖼️  ${filteredAssets.length}/${guidEntities.assets.filter((a: any) => dependencyTree.assets.has(a.url || a.originUrl || a.edgeUrl)).length} assets changed`);
-        console.log(`   📑 ${filteredPages.length}/${guidEntities.pages.filter((p: any) => dependencyTree.pages.has(p.pageID)).length} pages changed`);
-        console.log(`   📸 ${filteredGalleries.length}/${guidEntities.galleries.filter((g: any) => dependencyTree.galleries.has(g.galleryID)).length} galleries changed`);
-        console.log(`   🎨 ${filteredTemplates.length} templates (always included)`);
 
         return {
             models: filteredModels,
             containers: filteredContainers,
-            lists: guidEntities.lists.filter((l: any) => dependencyTree.lists.has(l.contentViewID)),
+            lists: filteredLists,
             content: filteredContent,
             templates: filteredTemplates,
             pages: filteredPages,
