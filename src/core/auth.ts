@@ -382,8 +382,10 @@ export class Auth {
           // Determine which locales to validate based on user input
           let localesToValidate: string[];
           if (state.locale.length > 0) {
-            // User specified --locales: only validate those specific locales exist in target
-            localesToValidate = state.locale.filter((l) => sourceLocales.includes(l)); // Only validate locales that exist in source
+            // User specified --locales: only validate those specific locales that exist in both source AND target
+            // First filter to only locales that exist in source (same logic as localesToUse below)
+            const validSourceLocales = state.locale.filter((l) => sourceLocales.includes(l));
+            localesToValidate = validSourceLocales;
           } else {
             // No --locales specified: validate all source locales exist in target (original behavior)
             localesToValidate = sourceLocales;
