@@ -379,10 +379,20 @@ export class Auth {
         if (state.targetGuid.length > 0) {
           targetLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.targetGuid[0])).map((locale: any) => locale.localeCode);
 
-          // MAKE SURE THAT the TARGET has the same locales as the SOURCE
-          const missingLocales = sourceLocales.filter(locale => !targetLocales.includes(locale));
+          // Determine which locales to validate based on user input
+          let localesToValidate: string[];
+          if (state.locale.length > 0) {
+            // User specified --locales: only validate those specific locales exist in target
+            localesToValidate = state.locale.filter((l) => sourceLocales.includes(l)); // Only validate locales that exist in source
+          } else {
+            // No --locales specified: validate all source locales exist in target (original behavior)
+            localesToValidate = sourceLocales;
+          }
+
+          const missingLocales = localesToValidate.filter(locale => !targetLocales.includes(locale));
           if (missingLocales.length > 0) {
-            console.log(ansiColors.yellow(`⚠️  Target instance ${state.targetGuid[0]}: Missing locales ${missingLocales.join(', ')} (available: ${targetLocales.join(', ')})`));
+            const validationScope = state.locale.length > 0 ? 'specified' : 'source';
+            console.log(ansiColors.yellow(`⚠️  Target instance ${state.targetGuid[0]}: Missing ${validationScope} locales ${missingLocales.join(', ')} (available: ${targetLocales.join(', ')})`));
             return false; // Cannot proceed with missing locales
           }
         }
