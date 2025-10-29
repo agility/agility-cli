@@ -1,3 +1,4 @@
+import ansiColors from "ansi-colors";
 import { DownloadOperationsRegistry } from "./download-operations-config";
 import { getState, initializeGuidLogger, finalizeGuidLogger } from "core/state";
 
@@ -25,7 +26,7 @@ export class Downloader {
   /**
    * Execute all operations for a single GUID
    */
-  async guidDownloader(guid: string): Promise<DownloadResults> {
+  async guidDownloader(guid: string, fromPush: boolean): Promise<DownloadResults> {
     const startTime = Date.now();
     
     // Initialize per-GUID logger for true parallel logging (no specific entity type since operations vary)
@@ -47,7 +48,7 @@ export class Downloader {
     try {
 
       // Execute all data elements for this GUID
-      await this.downloadDataElements(guid, results);
+      await this.downloadDataElements(guid, results, fromPush);
 
       // Calculate final duration
       results.totalDuration = Date.now() - startTime;
@@ -89,7 +90,7 @@ export class Downloader {
   /**
    * Orchestrate multiple GUIDs concurrently (DEFAULT METHOD)
    */
-  async instanceOrchestrator(): Promise<DownloadResults[]> {
+  async instanceOrchestrator(fromPush: boolean): Promise<DownloadResults[]> {
     const state = getState();
     const allGuids = [...state.sourceGuid, ...state.targetGuid];
     
@@ -98,7 +99,7 @@ export class Downloader {
     }
      
     // Start ALL downloads simultaneously (true parallel execution)
-    const downloadTasks = allGuids.map(guid => this.guidDownloader(guid));
+    const downloadTasks = allGuids.map(guid => this.guidDownloader(guid, fromPush));
     
     const results = await Promise.allSettled(downloadTasks);
     
@@ -128,10 +129,11 @@ export class Downloader {
    */
   private async downloadDataElements(
     guid: string, 
-    results: DownloadResults
+    results: DownloadResults,
+    fromPush: boolean
   ): Promise<void> {
     // Get operations based on elements filter
-    const operations = DownloadOperationsRegistry.getOperationsForElements();
+    const operations = DownloadOperationsRegistry.getOperationsForElements(fromPush);
 
     // console.log(`${guid}: Processing ${operations.length} data element(s)...`);
 

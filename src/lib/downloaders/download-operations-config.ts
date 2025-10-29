@@ -7,6 +7,7 @@ import { downloadAllContainers } from './download-containers';
 import { downloadAllSyncSDK } from './download-sync-sdk';
 import { downloadAllSitemaps } from './download-sitemaps';
 import { getState } from '../../core/state';
+import ansiColors from 'ansi-colors';
 
 // Central configuration for all download operations
 export interface OperationConfig {
@@ -87,7 +88,7 @@ export class DownloadOperationsRegistry {
   /*
    * Get operations based on elements filter with dependency resolution
    */
-  static getOperationsForElements(): OperationConfig[] {
+  static getOperationsForElements(fromPush: boolean): OperationConfig[] {
     const state = getState();
     const elementList = state.elements ? state.elements.split(",") : 
       ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages', 'Sitemaps', 'Redirections'];
@@ -102,6 +103,10 @@ export class DownloadOperationsRegistry {
       setState({ elements: resolvedElements.join(',') });
     }
     
+    if (fromPush) {
+      return Object.values(DOWNLOAD_OPERATIONS);
+    }
+
     // Filter operations based on resolved elements
     const relevantOperations = Object.values(DOWNLOAD_OPERATIONS).filter(operation => {
       // Check if any of the operation's elements are in the resolved element list

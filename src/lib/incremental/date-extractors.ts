@@ -132,15 +132,17 @@ export function extractTemplateModifiedDate(template: any): string | null {
 
 /**
  * Parse human-readable date format to ISO 8601
- * Handles format: "03/05/2025 08:11AM"
+ * Handles format: "03/05/2025 08:11AM" or "08/25/2025 02:01AM"
  * @param humanDate Human-readable date string
  * @returns ISO 8601 date string or null if parsing fails
  */
 function parseHumanReadableDate(humanDate: string): string | null {
   try {
-    // Format: "03/05/2025 08:11AM"
-    // Parse using Date constructor which handles MM/DD/YYYY format
-    const parsed = new Date(humanDate);
+    // Import date-fns parse function for proper date parsing
+    const { parse } = require('date-fns');
+    
+    // Format: "MM/dd/yyyy hh:mma" (e.g., "08/25/2025 02:01AM")
+    const parsed = parse(humanDate, "MM/dd/yyyy hh:mma", new Date());
     
     if (isNaN(parsed.getTime())) {
       console.warn(`Failed to parse human date format: ${humanDate}`);

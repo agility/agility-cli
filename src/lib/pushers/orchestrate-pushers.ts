@@ -173,6 +173,12 @@ export class Pushers {
       filterOptions.modelsWithDeps = state.modelsWithDeps.split(",").map((m) => m.trim());
     }
 
+    // Reset logging flags for new operation
+    const { GuidDataLoader } = await import('./guid-data-loader');
+    const { ModelDependencyTreeBuilder } = await import('../models/model-dependency-tree-builder');
+    GuidDataLoader.resetLoggingFlags();
+    ModelDependencyTreeBuilder.resetLoggingFlags();
+
     // Load source and target data
     const sourceDataLoader = new GuidDataLoader(sourceGuid);
     const targetDataLoader = new GuidDataLoader(targetGuid);

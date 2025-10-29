@@ -20,6 +20,19 @@ export function changeDetection(
 	mapping: ContentItemMapping,
 	locale: string
 ): ChangeDetection {
+	// Validate source entity structure
+	if (!sourceEntity || !sourceEntity.properties) {
+		console.error(`[ChangeDetection] Invalid source entity structure:`, sourceEntity);
+		return {
+			entity: null,
+			shouldUpdate: false,
+			shouldCreate: false,
+			shouldSkip: true,
+			isConflict: false,
+			reason: 'Invalid source entity structure'
+		};
+	}
+
 	if (!mapping && !targetEntity) {
 		//if we have no target content and no mapping
 		return {
@@ -34,7 +47,7 @@ export function changeDetection(
 
 	// Check if update is needed based on version or modification date
 	const sourceVersion = sourceEntity.properties?.versionID || 0;
-	const targetVersion = targetEntity.properties?.versionID || 0;
+	const targetVersion = targetEntity?.properties?.versionID || 0;
 
 	const mappedSourceVersion = (mapping?.sourceVersionID || 0) as number;
 	const mappedTargetVersion = (mapping?.targetVersionID || 0) as number;
