@@ -24,7 +24,16 @@ export interface ModelDependencyTree {
 }
 
 export class ModelDependencyTreeBuilder {
+  private static hasLoggedBreakdown = false;
+  
   constructor(private sourceData: SourceData) { }
+
+  /**
+   * Reset logging flags for a new operation
+   */
+  static resetLoggingFlags(): void {
+    ModelDependencyTreeBuilder.hasLoggedBreakdown = false;
+  }
 
   /**
    * Build comprehensive dependency tree from specified model names
@@ -69,7 +78,11 @@ export class ModelDependencyTreeBuilder {
     this.findAssetsInContent(tree);
     this.findGalleriesInContent(tree);
 
-    // console.log(ansiColors.green(`✅ Dependency tree built - ${this.getTreeSummary(tree)}`));
+    // Only log the breakdown once per operation
+    if (!ModelDependencyTreeBuilder.hasLoggedBreakdown) {
+      this.logDependencyBreakdown(tree);
+      ModelDependencyTreeBuilder.hasLoggedBreakdown = true;
+    }
 
     return tree;
   }
@@ -99,7 +112,6 @@ export class ModelDependencyTreeBuilder {
       }
     });
 
-    // console.log(ansiColors.gray(`  📦 Found ${tree.containers.size} containers using specified models`));
   }
 
   /**
@@ -117,7 +129,6 @@ export class ModelDependencyTreeBuilder {
       });
     });
 
-    // console.log(ansiColors.gray(`  📄 Found ${tree.content.size} content items of specified models`));
   }
 
   /**
@@ -595,5 +606,38 @@ export class ModelDependencyTreeBuilder {
     });
 
     return { valid, invalid };
+  }
+
+  /**
+   * Log a detailed breakdown of the dependency tree
+   */
+  private logDependencyBreakdown(tree: ModelDependencyTree): void {
+    const breakdown = [
+      `   📋 ${tree.models.size} models`,
+      `   📦 ${tree.containers.size} containers`,
+      `   📄 ${tree.content.size} content items`,
+      `   🎨 ${tree.templates.size} templates`,
+      `   📑 ${tree.pages.size} pages`,
+      `   🖼️  ${tree.assets.size} assets`,
+      `   🗂️  ${tree.galleries.size} galleries`
+    ].filter(line => {
+      // Only show non-zero counts
+      const count = parseInt(line.match(/\d+/)?.[0] || '0');
+      return count > 0;
+    });
+
+    if (breakdown.length > 0) {
+      console.log(ansiColors.gray(breakdown.join('\n')));
+      
+      // Add explanatory notes for missing dependencies
+      if (tree.templates.size === 0 && tree.containers.size > 0) {
+        console.log(ansiColors.yellow('   ℹ️  No templates found that use these containers'));
+      }
+      if (tree.pages.size === 0 && (tree.templates.size > 0 || tree.content.size > 0)) {
+        console.log(ansiColors.yellow('   ℹ️  No pages found that use these templates/content'));
+      }
+    } else {
+      console.log(ansiColors.yellow('   ⚠️  No dependencies found'));
+    }
   }
 }

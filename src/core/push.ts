@@ -32,12 +32,17 @@ export class Push {
       throw new Error("No GUIDs specified for push operation");
     }
 
-    // IMPORTANT: Apply model filtering before downloads to prevent unwanted elements
+    // IMPORTANT: For sync operations, we need ALL elements downloaded to enable proper change detection
+    // Model filtering happens at the processing level, not the download level
     const {  } = state;
     if (models && models.trim().length > 0 && (!modelsWithDeps || modelsWithDeps.trim().length === 0)) {
-      // Override state.elements to prevent dependency forcing from downloading unwanted elements
-      const { setState } = await import("./state");
-      setState({ elements: 'Models' });
+      // For simple --models flag (not --models-with-deps), we can restrict downloads to save time
+      // But for sync operations, we still need all elements for change detection
+      if (!isSync) {
+        const { setState } = await import("./state");
+        setState({ elements: 'Models' });
+      }
+      // For sync operations, leave elements as default to download everything
     }
 
 

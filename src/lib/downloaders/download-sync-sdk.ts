@@ -5,6 +5,8 @@ import { state, getApiKeysForGuid, getLoggerForGuid } from "core/state";
 import { fileOperations } from "core/fileOperations";
 import { handleSyncToken } from "./sync-token-handler";
 import { getAllChannels } from "lib/shared/get-all-channels";
+import ansiColors from "ansi-colors";
+import { Auth } from "core/auth";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
@@ -46,13 +48,15 @@ export async function downloadSyncSDKByLocaleAndChannel(
 
   const logger = getLoggerForGuid(guid);
   // Configure the Agility Sync client
+  const auth = new Auth();
+  const baseUrl = auth.determineBaseUrl(guid);
   const agilityConfig = {
     guid: guid,
     apiKey: apiKey,
     isPreview: true,
     languages: [locale],
     channels: [channel],
-    baseUrl: state.baseUrl.replace('mgmt','api'),
+    baseUrl: baseUrl.replace('mgmt','api'),
     store: {
       interface: storeInterfaceFileSystem,
       options: {
