@@ -2,15 +2,18 @@ import { ContentItem } from "@agility/management-sdk";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
-import ansiColors from "ansi-colors";
+import { hasValidMappings } from "./has-valid-mappings";
+import { collectListReferenceNames } from "./collect-list-reference-names";
 
-type ContentPushLogger = {
-    info: (...args: any[]) => void,
-    warn?: (...args: any[]) => void,
-    error: (...args: any[]) => void,
-    debug?: (...args: any[]) => void
-}
 
+
+/**
+ * Classifies content items into normal, linked, and skipped categories.
+ * 
+ * Normal items: Top-level items that are not referenced by other items
+ * Linked items: Items that are referenced via fullList=true in other items' fields
+ * Skipped items: Items without valid container/model mappings
+ */
 export function getContentItemTypes(
     contentItems: ContentItem[],
     opts: {
@@ -24,110 +27,133 @@ export function getContentItemTypes(
     linkedContentItems: ContentItem[],
     skippedItems: ContentItem[]
 } {
-    const { containerMapper, modelMapper, logger } = opts;
+    const { containerMapper, modelMapper } = opts;
 
+    // Build lookup maps for efficient access
+    const { allItemsById, itemsByReferenceName } = buildItemMaps(contentItems);
+
+    // Track classification state
+    const normalSet = new Set<number>();
+    const linkedSet = new Set<number>();
+    const skipped: ContentItem[] = [];
+
+    // Process each content item
+    for (const item of contentItems) {
+        if (!hasValidMappings(item, containerMapper, modelMapper)) {
+            skipped.push(item);
+            continue;
+        }
+
+        // Items start as normal; referenced items get moved to linked
+        normalSet.add(item.contentID);
+
+        // Find all list references in this item's fields
+        const referenceNames = collectListReferenceNames(item.fields || {});
+        if (referenceNames.length > 0) {
+            markReferencedItems(
+                referenceNames,
+                itemsByReferenceName,
+                normalSet,
+                linkedSet,
+                skipped,
+                containerMapper,
+                modelMapper
+            );
+        }
+    }
+
+    // Build final result arrays
+    const { normalContentItems, linkedContentItems } = buildResultArrays(
+        normalSet,
+        linkedSet,
+        allItemsById
+    );
+
+    return { normalContentItems, linkedContentItems, skippedItems: skipped };
+}
+
+
+
+
+/**
+ * Builds lookup maps for content items:
+ * - allItemsById: O(1) lookup by contentID (used when building final arrays from ID sets)
+ * - itemsByReferenceName: Groups items by referenceName (used for recursive reference traversal)
+ */
+function buildItemMaps(contentItems: ContentItem[]): {
+    allItemsById: Map<number, ContentItem>;
+    itemsByReferenceName: Map<string, ContentItem[]>;
+} {
     const allItemsById = new Map<number, ContentItem>();
     const itemsByReferenceName = new Map<string, ContentItem[]>();
 
     for (const item of contentItems) {
         allItemsById.set(item.contentID, item);
-        const rn = item.properties?.referenceName;
-        if (rn) {
-            const arr = itemsByReferenceName.get(rn) || [];
-            arr.push(item);
-            itemsByReferenceName.set(rn, arr);
+        
+        const referenceName = item.properties?.referenceName;
+        if (referenceName) {
+            const existing = itemsByReferenceName.get(referenceName) || [];
+            existing.push(item);
+            itemsByReferenceName.set(referenceName, existing);
         }
     }
 
-    const normalSet = new Set<number>();
-    const linkedSet = new Set<number>();
-    const skipped: ContentItem[] = [];
+    return { allItemsById, itemsByReferenceName };
+}
 
-    function hasValidMappings(item: ContentItem): boolean {
-        const mappedContainer = containerMapper.getContainerMappingByReferenceName(item.properties.referenceName.toLowerCase(), "source");
-        const sourceContainer = containerMapper.getMappedEntity(mappedContainer, "source");
-       
-        // we actually need to get the model by the definitionName not the referenceName
-       
-        // const modelID = sourceContainer?.contentDefinitionID || 0;
-        // const sourceModelMapping = modelMapper.getModelMappingByID(modelID, "source");
-        const sourceModelMapping = modelMapper.getModelMappingByReferenceName(item.properties.definitionName.toLowerCase(), "source");
-        const sourceModel = modelMapper.getMappedEntity(sourceModelMapping, "source");
-
-        if (!sourceContainer || !sourceModel) {
-            return false;
-        }
-        return true;
-    }
-
-    function collectListReferenceNames(fields: any): string[] {
-        const found: string[] = [];
-        function walk(node: any) {
-            if (!node) return;
-            if (Array.isArray(node)) {
-                for (const v of node) walk(v);
-                return;
-            }
-            if (typeof node === "object") {
-                const rn = (node as any).referencename || (node as any).referenceName;
-                const full = (node as any).fulllist === true || (node as any).fullList === true;
-                if (typeof rn === "string" && full) {
-                    found.push(rn);
-                }
-                for (const key of Object.keys(node)) {
-                    walk((node as any)[key]);
-                }
-            }
-        }
-        walk(fields);
-        return found;
-    }
-
+/**
+ * Recursively marks all items referenced by the given reference names as linked.
+ * Uses a stack-based approach to avoid recursion limits.
+ */
+function markReferencedItems(
+    referenceNames: string[],
+    itemsByReferenceName: Map<string, ContentItem[]>,
+    normalSet: Set<number>,
+    linkedSet: Set<number>,
+    skipped: ContentItem[],
+    containerMapper: ContainerMapper,
+    modelMapper: ModelMapper
+): void {
     const visitedRefNames = new Set<string>();
+    const stack = [...referenceNames];
 
-    function markReferencedRecursively(referenceNames: string[]) {
-        const stack = [...referenceNames];
-        while (stack.length) {
-            const rn = stack.pop() as string;
-            if (visitedRefNames.has(rn)) continue;
-            visitedRefNames.add(rn);
+    while (stack.length > 0) {
+        const refName = stack.pop()!;
+        
+        if (visitedRefNames.has(refName)) continue;
+        visitedRefNames.add(refName);
 
-            const items = itemsByReferenceName.get(rn) || [];
-            for (const child of items) {
-                if (!hasValidMappings(child)) {
-                    skipped.push(child);
-                    continue;
-                }
-                linkedSet.add(child.contentID);
-                // If referenced, it should not be considered normal
-                if (normalSet.has(child.contentID)) normalSet.delete(child.contentID);
-                const moreRefs = collectListReferenceNames(child.fields || {});
-                for (const mr of moreRefs) stack.push(mr);
+        const items = itemsByReferenceName.get(refName) || [];
+        
+        for (const item of items) {
+            if (!hasValidMappings(item, containerMapper, modelMapper)) {
+                skipped.push(item);
+                continue;
+            }
+
+            linkedSet.add(item.contentID);
+            normalSet.delete(item.contentID); // Remove from normal if it was added there
+
+            // Recursively process nested references
+            const nestedRefs = collectListReferenceNames(item.fields || {});
+            for (const nestedRef of nestedRefs) {
+                stack.push(nestedRef);
             }
         }
     }
+}
 
-    for (const item of contentItems) {
-        if (!hasValidMappings(item)) {
-            skipped.push(item);
-            continue;
-        }
-
-        // Parent defaults to normal; referenced children become linked
-        normalSet.add(item.contentID);
-
-        const refs = collectListReferenceNames(item.fields || {});
-        if (refs.length > 0) {
-            markReferencedRecursively(refs);
-        }
-    }
-
-    // Ensure no overlap: any referenced item should not be in normal
-    linkedSet.forEach((id) => {
-        if (normalSet.has(id)) normalSet.delete(id);
-    });
-
-    // Build arrays from sets with natural order de-duped
+/**
+ * Builds final arrays from ID sets, using the allItemsById map for lookup
+ */
+function buildResultArrays(
+    normalSet: Set<number>,
+    linkedSet: Set<number>,
+    allItemsById: Map<number, ContentItem>
+): {
+    normalContentItems: ContentItem[];
+    linkedContentItems: ContentItem[];
+} {
     const normalContentItems: ContentItem[] = [];
     const linkedContentItems: ContentItem[] = [];
 
@@ -137,12 +163,9 @@ export function getContentItemTypes(
     });
 
     linkedSet.forEach((id) => {
-        if (normalSet.has(id)) return; // prefer parentness
         const item = allItemsById.get(id);
         if (item) linkedContentItems.push(item);
     });
 
-    return { normalContentItems, linkedContentItems, skippedItems: skipped };
+    return { normalContentItems, linkedContentItems };
 }
-
-
