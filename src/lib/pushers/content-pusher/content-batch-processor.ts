@@ -63,7 +63,7 @@ export class ContentBatchProcessor {
 
 			const progress = Math.round((batchNumber / contentBatches.length) * 100);
 			console.log(
-				`[${progress}%] Bulk batch ${batchNumber}/${contentBatches.length}: Processing ${contentBatch.length} content items (ETA: ${etaMinutes}m)...`
+				`[${progress}%] Bulk batch ${batchNumber}/${contentBatches.length}: Processing ${contentBatch.length} ${batchType} content items (ETA: ${etaMinutes}m)...`
 			);
 
 			// if (onProgress) {
@@ -141,7 +141,7 @@ export class ContentBatchProcessor {
 					batchResult.successfulItems.forEach((item) => {
 
 						// const modelName = item.originalContent.properties.definitionName || "Unknown";
-						logger.content.created(item.originalContent, "created", this.config.locale, state.targetGuid[0]);
+						logger.content.created(item.originalContent, `Type: ${batchType} -  created`, this.config.locale, state.targetGuid[0]);
 					});
 				}
 

@@ -5,7 +5,7 @@ import ansiColors from "ansi-colors";
 import { getLoggerForGuid, state } from 'core/state';
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { filterContentItemsForProcessing } from './util/filter-content-items-for-processing';
-import { areContentDependenciesResolved } from "./util/are-content-dependencies-resolved";
+import { getContentItemTypes } from './util/get-content-item-types';
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContentItem, Model } from "@agility/management-sdk";
 import { ContainerMapper } from "lib/mappers/container-mapper";
@@ -38,31 +38,15 @@ export async function pushContent(
         return { status: "success" as const, successful: 0, failed: 0, skipped: 0, publishableIds: [] };
     }
 
-    // Separate content items into normal and linked batches
-    const normalContentItems: ContentItem[] = [];
-    const linkedContentItems: ContentItem[] = [];
+    // Deterministically classify content items based on list references (fulllist=true)
+    const { normalContentItems, linkedContentItems, skippedItems } = getContentItemTypes(contentItems, {
+        containerMapper,
+        modelMapper,
+        referenceMapper,
+        logger: logger as any
+    });
 
-    for (const contentItem of contentItems) {
-        // Find source model for this content item - NOTE: we HAVE to use the contentDefinitionID here (not the reference name)
-        const mappedContainer = containerMapper.getContainerMappingByReferenceName(contentItem.properties.referenceName, "source");
-        const sourceContainer = containerMapper.getMappedEntity(mappedContainer, "source");
-        const modelID = sourceContainer?.contentDefinitionID || 0
-        const sourceModelMapping = modelMapper.getModelMappingByID(modelID, "source");
-        const sourceModel = modelMapper.getMappedEntity(sourceModelMapping, "source");
 
-        if (!sourceModel && modelID !== 1) {
-            // No model found (and it's not the special case for RichTextArea)- treat as linked content for dependency resolution
-            linkedContentItems.push(contentItem);
-            continue;
-        }
-
-        // Check if content has unresolved dependencies
-        if (modelID === 1 || areContentDependenciesResolved(contentItem, referenceMapper, [sourceModel])) {
-            normalContentItems.push(contentItem);
-        } else {
-            linkedContentItems.push(contentItem);
-        }
-    }
 
     let totalSuccessful = 0;
     let totalFailed = 0;
@@ -73,15 +57,61 @@ export async function pushContent(
         // Import getApiClient for both batch configurations
 
 
-        // Process normal content items first (no dependencies)
-        if (normalContentItems.length > 0) {
-            const normalBatchConfig = {
+        // Account for pre-classification skips (missing mappings)
+        if (skippedItems && skippedItems.length > 0) {
+            totalSkipped += skippedItems.length;
+        }
+
+        // Process linked content items second (with dependencies)
+        if (linkedContentItems.length > 0) {
+            const linkedBatchConfig = {
                 apiClient: getApiClient(),
                 targetGuid: targetGuidStr,
                 sourceGuid: sourceGuidStr,
                 locale,
                 referenceMapper,
                 batchSize: 250,
+                useContentFieldMapper: true,
+                defaultAssetUrl: "",
+            };
+
+            const filteredLinkedContentItems = await filterContentItemsForProcessing({
+                contentItems: linkedContentItems,
+                apiClient: getApiClient(),
+                targetGuid: targetGuidStr,
+                locale,
+                referenceMapper,
+                targetData,
+                logger
+            });
+
+
+
+
+            const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
+            const linkedResult = await linkedBatchProcessor.processBatches(
+                filteredLinkedContentItems.itemsToProcess.reverse(),
+                logger,
+                "Linked Content"
+            );
+
+
+            totalSuccessful += linkedResult.successCount;
+            totalFailed += linkedResult.failureCount;
+            totalSkipped += filteredLinkedContentItems.skippedCount;
+            totalSkipped += linkedResult.skippedCount;
+            allPublishableIds.push(...linkedResult.publishableIds);
+        }
+
+          // Process normal content items first (no dependencies)
+          if (normalContentItems.length > 0) {
+            const normalBatchConfig = {
+                apiClient: getApiClient(),
+                targetGuid: targetGuidStr,
+                sourceGuid: sourceGuidStr,
+                locale,
+                referenceMapper,
+                batchSize: 100, // Smaller batches for linked content due to complexity
                 useContentFieldMapper: true,
                 defaultAssetUrl: "",
             };
@@ -109,42 +139,6 @@ export async function pushContent(
             totalSkipped += filteredNormalContentItems.skippedCount;
             totalSkipped += normalResult.skippedCount;
             allPublishableIds.push(...normalResult.publishableIds);
-        }
-
-        // Process linked content items second (with dependencies)
-        if (linkedContentItems.length > 0) {
-            const linkedBatchConfig = {
-                apiClient: getApiClient(),
-                targetGuid: targetGuidStr,
-                sourceGuid: sourceGuidStr,
-                locale,
-                referenceMapper,
-                batchSize: 100, // Smaller batches for linked content due to complexity
-                useContentFieldMapper: true,
-                defaultAssetUrl: "",
-            };
-
-            const filteredLinkedContentItems = await filterContentItemsForProcessing({
-                contentItems: linkedContentItems,
-                apiClient: getApiClient(),
-                targetGuid: targetGuidStr,
-                locale,
-                referenceMapper,
-                targetData,
-                logger
-            });
-            const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
-            const linkedResult = await linkedBatchProcessor.processBatches(
-                filteredLinkedContentItems.itemsToProcess,
-                logger,
-                "Linked Content"
-            );
-
-            totalSuccessful += linkedResult.successCount;
-            totalFailed += linkedResult.failureCount;
-            totalSkipped += filteredLinkedContentItems.skippedCount;
-            totalSkipped += linkedResult.skippedCount;
-            allPublishableIds.push(...linkedResult.publishableIds);
         }
 
         // Convert batch result to expected PusherResult format
