@@ -75,8 +75,14 @@ export class ContentFieldMapper {
       return { mappedValue, warnings, errors };
     }
 
+    // Handle list reference fields (referencename + fulllist) - preserve unchanged
+    // These are list references by name, not content ID references that need mapping
+    if (this.isListReferenceField(fieldValue)) {
+      // List references by name should pass through unchanged
+      return { mappedValue: fieldValue, warnings: 0, errors: 0 };
+    }
     // Handle asset attachment fields (ImageAttachment, FileAttachment, AttachmentList)
-    if (this.isAssetAttachmentField(fieldValue)) {
+    else if (this.isAssetAttachmentField(fieldValue)) {
       const assetMappingResult = this.mapAssetAttachmentField(fieldValue, context);
       mappedValue = assetMappingResult.mappedValue;
       warnings += assetMappingResult.warnings;
@@ -135,6 +141,15 @@ export class ContentFieldMapper {
 
     // Check for content reference patterns
     return 'contentid' in fieldValue || 'contentID' in fieldValue || 'sortids' in fieldValue;
+  }
+
+  private isListReferenceField(fieldValue: any): boolean {
+    if (!fieldValue || typeof fieldValue !== 'object') return false;
+
+    // Check for list reference patterns (referencename with fulllist)
+    const hasReferencename = 'referencename' in fieldValue || 'referenceName' in fieldValue;
+    const hasFulllist = fieldValue.fulllist === true || fieldValue.fullList === true;
+    return hasReferencename && hasFulllist;
   }
 
   private mapAssetAttachmentField(fieldValue: any, context?: ContentFieldMappingContext): {
