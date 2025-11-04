@@ -54,20 +54,7 @@ export function getContentItemTypes(
         const sourceModelMapping = modelMapper.getModelMappingByReferenceName(item.properties.definitionName.toLowerCase(), "source");
         const sourceModel = modelMapper.getMappedEntity(sourceModelMapping, "source");
 
-        
-        // if(item.properties.referenceName.toLowerCase().includes('jackpotcarouselbannercontent')){
-        //     console.log(ansiColors.bgRed('HAS VALID MAPPINGS - CONTENT ITEM:'), item.properties.referenceName);
-        //     console.log(ansiColors.bgRed('SOURCE CONTAINER:'), sourceContainer);
-        //     console.log(ansiColors.bgRed('SOURCE MODEL:'), sourceModel);
-        //     console.log('--------------------------------');
-        // }
-
         if (!sourceContainer || !sourceModel) {
-         if(item.properties.referenceName.toLowerCase().includes('jackpotcarouselbannercontent')){
-        
-            console.log(ansiColors.bgRed('SKIPPING CONTENT ITEM (no container or model):'), item.properties.referenceName);
-         }
-            // logger.error(`Skipping contentID=${item.contentID} referenceName=${item.properties.referenceName} due to missing container/model mapping.`);
             return false;
         }
         return true;
