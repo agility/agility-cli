@@ -139,24 +139,10 @@ async function updateExistingModel(
   logger: Logs
 ): Promise<"updated" | "failed"> {
  
-
-  const fields = sourceModel?.fields || [];
-
   try {
     const updatePayload = {
       ...sourceModel,
-      id: targetID,
-      fields: (fields || sourceModel.fields || []).map((field) => {
-        const cleanField = { ...field };
-        delete cleanField.fieldID; // Remove to prevent API issues
-        // Clean up Content field settings
-        if (cleanField.type === "Content" && cleanField.settings?.ContentDefinition) {
-          const { ContentDefinition, ...otherSettings } = cleanField.settings;
-          cleanField.settings = otherSettings;
-        }
-
-        return cleanField;
-      }),
+      id: targetID
     };
 
     const updatedModel = await apiClient.modelMethods.saveModel(updatePayload, targetGuid);
