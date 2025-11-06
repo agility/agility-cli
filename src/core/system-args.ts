@@ -131,13 +131,13 @@ export const systemArgs = {
   // Instance identification args
   sourceGuid: {
     describe: "Provide the source instance GUID(s). Comma-separated for multiple instances (e.g., 'guid1,guid2,guid3'). If not provided, will use AGILITY_GUID from .env file if available.",
-    alias: ["source-guid", "sourceguid", "source", "SourceGuid", "SourceGUID", "SOURCE", "SOURCEGUID", "sourceGuids", "source-guids", "SourceGuids", "SOURCEGUIDS"],
+    alias: ["source-guid","sourceGuid","sourceguid", "source", "SourceGuid", "SourceGUID", "SOURCE", "SOURCEGUID", "sourceGuids", "source-guids", "SourceGuids", "SOURCEGUIDS"],
     demandOption: false,
     type: "string" as const,
   },
   targetGuid: {
     describe: "Provide the target instance GUID(s) for sync operations. Comma-separated for multiple instances (e.g., 'guid1,guid2,guid3').",
-    alias: ["target-guid", "targetguid", "target", "TargetGuid", "TargetGUID", "TARGET", "TARGETGUID", "targetGuids", "target-guids", "TargetGuids", "TARGETGUIDS"],
+    alias: ["target-guid","targetGuid","targetguid", "target", "TargetGuid", "TargetGUID", "TARGET", "TARGETGUID", "targetGuids", "target-guids", "TargetGuids", "TARGETGUIDS"],
     demandOption: false,
     type: "string" as const,
   },

@@ -11,6 +11,7 @@
 import { SourceData } from '../../types/sourceData';
 import ansiColors from 'ansi-colors';
 import { SitemapHierarchy } from '../pushers/page-pusher/sitemap-hierarchy';
+import { AssetReferenceExtractor } from '../assets/asset-reference-extractor';
 
 export interface ModelDependencyTree {
   models: Set<string>;        // Model reference names
@@ -25,8 +26,11 @@ export interface ModelDependencyTree {
 
 export class ModelDependencyTreeBuilder {
   private static hasLoggedBreakdown = false;
+  private assetExtractor: AssetReferenceExtractor;
   
-  constructor(private sourceData: SourceData) { }
+  constructor(private sourceData: SourceData) {
+    this.assetExtractor = new AssetReferenceExtractor();
+  }
 
   /**
    * Reset logging flags for a new operation
@@ -443,27 +447,107 @@ export class ModelDependencyTreeBuilder {
    * Find assets referenced in discovered content and pages
    */
   private findAssetsInContent(tree: ModelDependencyTree): void {
-    if (!this.sourceData.content || !this.sourceData.assets) return;
+    if (!this.sourceData.content) return;
+    
+    // Note: We don't require assets to exist in sourceData to extract URLs from content
+    // The assets might not be loaded yet, but we should still extract the URLs
+
+    let totalUrlsFound = 0;
+    let contentItemsScanned = 0;
 
     // Extract asset URLs from content items in the tree
     this.sourceData.content.forEach(contentItem => {
       if (tree.content.has(contentItem.contentID)) {
+        contentItemsScanned++;
         const assetUrls = this.extractAssetUrlsFromContent(contentItem);
-        assetUrls.forEach(url => tree.assets.add(url));
+        if (assetUrls.length > 0) {
+          totalUrlsFound += assetUrls.length;
+          assetUrls.forEach(url => {
+            tree.assets.add(url);
+            // Also try to find matching asset and add all its URL variations
+            // This ensures we match assets even if content has different URL format
+            if (this.sourceData.assets) {
+              const matchingAsset = this.findMatchingAsset(url);
+              if (matchingAsset) {
+                if (matchingAsset.url) tree.assets.add(matchingAsset.url);
+                if (matchingAsset.originUrl) tree.assets.add(matchingAsset.originUrl);
+                if (matchingAsset.edgeUrl) tree.assets.add(matchingAsset.edgeUrl);
+              }
+            }
+          });
+        }
       }
     });
+
+    // // Debug output
+    // if (contentItemsScanned > 0) {
+    //   console.log(ansiColors.gray(`  🔍 [DEBUG] Scanned ${contentItemsScanned} content item(s), found ${totalUrlsFound} asset URL(s), ${tree.assets.size} unique asset(s) in tree`));
+    // }
 
     // Also check pages for asset references
     if (this.sourceData.pages) {
       this.sourceData.pages.forEach(page => {
         if (tree.pages.has(page.pageID)) {
           const assetUrls = this.extractAssetUrlsFromPage(page);
-          assetUrls.forEach(url => tree.assets.add(url));
+          assetUrls.forEach(url => {
+            tree.assets.add(url);
+            // Also try to find matching asset and add all its URL variations
+            const matchingAsset = this.findMatchingAsset(url);
+            if (matchingAsset) {
+              if (matchingAsset.url) tree.assets.add(matchingAsset.url);
+              if (matchingAsset.originUrl) tree.assets.add(matchingAsset.originUrl);
+              if (matchingAsset.edgeUrl) tree.assets.add(matchingAsset.edgeUrl);
+            }
+          });
         }
       });
     }
 
     // console.log(ansiColors.gray(`  🖼️  Found ${tree.assets.size} assets referenced in content/pages`));
+  }
+
+  /**
+   * Find an asset that matches the given URL (by checking all URL variations)
+   * Also tries to match by extracting the file path from URLs
+   */
+  private findMatchingAsset(url: string): any | null {
+    if (!this.sourceData.assets || !url) return null;
+    
+    // First try exact URL match
+    let matchingAsset = this.sourceData.assets.find((asset: any) => {
+      return asset.url === url || 
+             asset.originUrl === url || 
+             asset.edgeUrl === url;
+    });
+    
+    if (matchingAsset) return matchingAsset;
+    
+    // If no exact match, try to match by file path
+    // Extract the file path from the URL (everything after the last /)
+    const urlPath = this.extractFilePathFromUrl(url);
+    if (!urlPath) return null;
+    
+    // Try to find asset by matching file path in any of its URLs
+    return this.sourceData.assets.find((asset: any) => {
+      const assetUrlPath = this.extractFilePathFromUrl(asset.url || asset.originUrl || asset.edgeUrl || '');
+      return assetUrlPath && assetUrlPath === urlPath;
+    }) || null;
+  }
+
+  /**
+   * Extract file path from a URL (the path portion after the domain)
+   */
+  private extractFilePathFromUrl(url: string): string | null {
+    if (!url || typeof url !== 'string') return null;
+    
+    try {
+      const urlObj = new URL(url);
+      return urlObj.pathname;
+    } catch (e) {
+      // If not a valid URL, try to extract path manually
+      const match = url.match(/\/[^?]*/);
+      return match ? match[0] : null;
+    }
   }
 
   /**
@@ -484,12 +568,26 @@ export class ModelDependencyTreeBuilder {
 
   /**
    * Extract asset URLs from content item fields
+   * Uses AssetReferenceExtractor to ensure consistent extraction logic
    */
   private extractAssetUrlsFromContent(contentItem: any): string[] {
     const urls: string[] = [];
 
     if (contentItem.fields) {
-      this.scanObjectForAssetUrls(contentItem.fields, urls);
+      const assetReferences = this.assetExtractor.extractAssetReferences(contentItem.fields);
+      assetReferences.forEach(ref => {
+        if (ref.url) {
+          urls.push(ref.url);
+        }
+      });
+      
+      // Debug: Log if we found any asset references
+      // if (assetReferences.length > 0) {
+      //   console.log(ansiColors.gray(`    🔍 [DEBUG] Found ${assetReferences.length} asset reference(s) in content item ${contentItem.contentID} (${contentItem.properties?.referenceName || 'unknown'})`));
+      //   assetReferences.forEach(ref => {
+      //     console.log(ansiColors.gray(`      - ${ref.fieldPath}: ${ref.url}`));
+      //   });
+      // }
     }
 
     return urls;
@@ -497,18 +595,29 @@ export class ModelDependencyTreeBuilder {
 
   /**
    * Extract asset URLs from page content
+   * Uses AssetReferenceExtractor to ensure consistent extraction logic
    */
   private extractAssetUrlsFromPage(page: any): string[] {
     const urls: string[] = [];
 
     // Scan page zones for asset references
     if (page.zones) {
-      this.scanObjectForAssetUrls(page.zones, urls);
+      const zoneReferences = this.assetExtractor.extractAssetReferences(page.zones);
+      zoneReferences.forEach(ref => {
+        if (ref.url) {
+          urls.push(ref.url);
+        }
+      });
     }
 
     // Scan page content if it exists
     if (page.content) {
-      this.scanObjectForAssetUrls(page.content, urls);
+      const contentReferences = this.assetExtractor.extractAssetReferences(page.content);
+      contentReferences.forEach(ref => {
+        if (ref.url) {
+          urls.push(ref.url);
+        }
+      });
     }
 
     return urls;
@@ -527,24 +636,6 @@ export class ModelDependencyTreeBuilder {
     return galleryIds;
   }
 
-  /**
-   * Recursively scan object for asset URLs (cdn.aglty.io references)
-   */
-  private scanObjectForAssetUrls(obj: any, urls: string[], path: string = ''): void {
-    if (typeof obj === 'string' && obj.includes('cdn.aglty.io')) {
-      urls.push(obj);
-    } else if (obj && typeof obj === 'object') {
-      if (Array.isArray(obj)) {
-        obj.forEach((item, index) => {
-          this.scanObjectForAssetUrls(item, urls, `${path}[${index}]`);
-        });
-      } else {
-        Object.keys(obj).forEach(key => {
-          this.scanObjectForAssetUrls(obj[key], urls, `${path}.${key}`);
-        });
-      }
-    }
-  }
 
   /**
    * Recursively scan object for gallery ID references
@@ -587,18 +678,19 @@ export class ModelDependencyTreeBuilder {
   /**
    * Validate that specified models exist in source data
    */
-  validateModels(modelNames: string[]): { valid: string[]; invalid: string[] } {
+  validateModels(modelNames: string[], models: any[]): { valid: string[]; invalid: string[] } {
     const valid: string[] = [];
     const invalid: string[] = [];
 
-    if (!this.sourceData.models || this.sourceData.models.length === 0) {
+    if (!models || models.length === 0) {
+      console.log(ansiColors.red(`❌ No models loaded by the dependency tree builder`));
       return { valid: [], invalid: modelNames };
     }
 
-    const availableModels = new Set(this.sourceData.models.map(m => m.referenceName));
+    const availableModels = new Set(models.map((m: any) => m.referenceName.toLowerCase().trim()));
 
     modelNames.forEach(modelName => {
-      if (availableModels.has(modelName)) {
+      if (availableModels.has(modelName.toLowerCase().trim())) {
         valid.push(modelName);
       } else {
         invalid.push(modelName);
