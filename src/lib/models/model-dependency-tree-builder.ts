@@ -581,13 +581,6 @@ export class ModelDependencyTreeBuilder {
         }
       });
       
-      // Debug: Log if we found any asset references
-      // if (assetReferences.length > 0) {
-      //   console.log(ansiColors.gray(`    🔍 [DEBUG] Found ${assetReferences.length} asset reference(s) in content item ${contentItem.contentID} (${contentItem.properties?.referenceName || 'unknown'})`));
-      //   assetReferences.forEach(ref => {
-      //     console.log(ansiColors.gray(`      - ${ref.fieldPath}: ${ref.url}`));
-      //   });
-      // }
     }
 
     return urls;
