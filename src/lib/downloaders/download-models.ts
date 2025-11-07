@@ -63,7 +63,7 @@ export async function downloadAllModels(
   try {
     // Phase 1: Collect all model metadata
     const contentModules = await apiClient.modelMethods.getContentModules(false, guid, false);
-    const pageModules = await apiClient.modelMethods.getPageModules(false, guid);
+    const pageModules = await apiClient.modelMethods.getPageModules(true, guid);
 
     const allModels = [...contentModules, ...pageModules];
     totalModels = allModels.length;
