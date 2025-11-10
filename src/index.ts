@@ -19,7 +19,7 @@ import inquirer from "inquirer";
 import searchList from "inquirer-search-list";
 inquirer.registerPrompt("search-list", searchList);
 
-import { Auth, state, setState, resetState, primeFromEnv, systemArgs } from "./core";
+import { Auth, state, setState, resetState, primeFromEnv, systemArgs, normalizeProcessArgs, normalizeArgv } from "./core";
 import { Pull } from "./core/pull";
 import { Push } from "./core/push";
 
@@ -40,6 +40,9 @@ yargs.command({
   },
   handler: async function (argv) {
     resetState(); // Clear any previous command state
+
+    // Normalize argv to handle rich text editor character conversions
+    argv = normalizeArgv(argv);
 
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
@@ -70,6 +73,9 @@ yargs.command({
   handler: async function (argv) {
     resetState(); // Clear any previous command state
 
+    // Normalize argv to handle rich text editor character conversions
+    argv = normalizeArgv(argv);
+
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
@@ -92,6 +98,9 @@ yargs.command({
   },
   handler: async function (argv) {
     resetState(); // Clear any previous command state
+
+    // Normalize argv to handle rich text editor character conversions
+    argv = normalizeArgv(argv);
 
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
@@ -145,6 +154,9 @@ yargs.command({
 
     resetState(); // Clear any previous command state
 
+    // Normalize argv to handle rich text editor character conversions
+    argv = normalizeArgv(argv);
+
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
@@ -178,6 +190,10 @@ yargs.command({
 
   }
 })
+
+// Normalize process.argv to handle rich text editor character conversions
+// (e.g., em dashes, curly quotes from Word/Notepad)
+normalizeProcessArgs();
 
 yargs.parse();
 
