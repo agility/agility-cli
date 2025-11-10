@@ -45,15 +45,26 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
     // TODO: we only care about the field count if the target model has NO fields and the source model has fields
 
-    if (!mapping && !targetModel) {
+
+     // special case for the default RichTextArea model
+    const defaultRichTextArea = model.referenceName === 'RichTextArea' && hasSourceChanged && hasTargetChanged;
+    if(defaultRichTextArea){
+      // force create the mapping for the default RichTextArea model
+      referenceMapper.addMapping(model, targetModel);
+    }
+
+
+    if ((!mapping && !targetModel)) {
       shouldCreateStub.push(model);
     }
     // if the mapping exists, and the source has changed, we need to update the fields
+    // Added a special case for RichTextArea to handle the conflict scenario where the source has changed and the target has changed (first sync).
+    // This will attempt to update the model, and write the mappings
     if ((mapping && hasSourceChanged) || (mapping && fieldCountChanged)) {
       shouldUpdateFields.push(model);
     }
     // if the mapping exists, and the target has changed, we need to skip the model, not safe to update
-    if (mapping && hasTargetChanged) {
+    if ((mapping && hasTargetChanged) || defaultRichTextArea) {
       shouldSkip.push(model);
     }
     // if the mapping exists, and the source and target have not changed, we need to skip the model
