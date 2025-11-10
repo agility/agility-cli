@@ -355,7 +355,8 @@ export async function processPage({
 			placeBeforeIDArg,
 			true,
 			pageIDInOtherLocale,
-			otherLocale
+			otherLocale,
+			true
 		);
 
 		// Process the response - with returnBatchID=true, we should always get a batch ID

@@ -1,6 +1,6 @@
 {
   "name": "@agility/cli",
-  "version": "1.0.0-beta.9.14",
+  "version": "1.0.0-beta.9.17",
   "description": "Agility CLI for working with your content. (Public Beta)",
   "repository": {
     "type": "git",
@@ -45,7 +45,7 @@
   "dependencies": {
     "@agility/content-fetch": "^2.0.10",
     "@agility/content-sync": "^1.2.0",
-    "@agility/management-sdk": "^0.1.33",
+    "@agility/management-sdk": "^0.1.35",
     "ansi-colors": "^4.1.3",
     "blessed": "^0.1.81",
     "blessed-contrib": "^4.11.0",
