@@ -40,28 +40,45 @@ export class AssetReferenceExtractor implements ReferenceExtractionService {
             return references;
         }
         
+        // Helper to check if a string is an asset URL
+        // Matches any subdomain of aglty.io or agilitycms.com (e.g., cdn-usa2.aglty.io, cdn-eu.aglty.io, etc.)
+        const isAssetUrl = (url: string): boolean => {
+            if (typeof url !== 'string') return false;
+            // Check for Agility CMS asset URL patterns - match any subdomain
+            // Examples: cdn-usa2.aglty.io, cdn-eu.aglty.io, cdn.aglty.io, origin.aglty.io, etc.
+            return url.includes('.aglty.io') || url.includes('.agilitycms.com');
+        };
+
         const scanForAssets = (obj: any, path: string) => {
-            if (typeof obj !== 'object' || obj === null) return;
+            // Handle primitive values (strings, numbers, etc.)
+            if (obj === null || obj === undefined) return;
+            
+            // Check for asset URL references in strings
+            if (typeof obj === 'string' && isAssetUrl(obj)) {
+                references.push({
+                    url: obj,
+                    fieldPath: path
+                });
+                return; // Don't recurse into strings
+            }
+            
+            // Only process objects and arrays
+            if (typeof obj !== 'object') return;
             
             if (Array.isArray(obj)) {
                 obj.forEach((item, index) => {
                     scanForAssets(item, `${path}[${index}]`);
                 });
             } else {
-                // Check for asset URL references
-                if (typeof obj === 'string' && obj.includes('cdn.aglty.io')) {
-                    references.push({
-                        url: obj,
-                        fieldPath: path
-                    });
-                }
-                
-                // Check common asset fields
-                if (obj.url && typeof obj.url === 'string' && obj.url.includes('cdn.aglty.io')) {
-                    references.push({
-                        url: obj.url,
-                        fieldPath: `${path}.url`
-                    });
+                // Check common asset fields in objects (url, originUrl, edgeUrl)
+                const urlFields = ['url', 'originUrl', 'edgeUrl'];
+                for (const fieldName of urlFields) {
+                    if (obj[fieldName] && typeof obj[fieldName] === 'string' && isAssetUrl(obj[fieldName])) {
+                        references.push({
+                            url: obj[fieldName],
+                            fieldPath: `${path}.${fieldName}`
+                        });
+                    }
                 }
                 
                 // Recursively scan nested objects

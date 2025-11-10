@@ -208,7 +208,14 @@ export class Pushers {
           elements,
         });
       }
-    } catch (error) {}
+    } catch (error: any) {
+      // Re-throw validation errors immediately to stop sync
+      if (error?.message?.includes('Model validation failed')) {
+        throw error;
+      }
+      // For other errors, log but don't stop (legacy behavior for guid-level ops)
+      console.error(ansiColors.yellow(`Warning during guid-level operations: ${error?.message || error}`));
+    }
 
     // Do the locale level ops
     try {

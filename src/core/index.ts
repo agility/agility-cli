@@ -7,6 +7,7 @@
 export { Auth } from './auth';
 export { state, setState, resetState, primeFromEnv, getState, getUIMode, configureSSL } from './state';
 export { systemArgs, type SystemArgsType } from './system-args';
+export { normalizeProcessArgs, normalizeArgv } from './arg-normalizer';
 
 // Main operation services
 // export { Sync } from './sync_bak';

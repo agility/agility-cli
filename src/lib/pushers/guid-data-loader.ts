@@ -149,7 +149,7 @@ export class GuidDataLoader {
             return guidEntities;
         }
 
-        let completeEntities: GuidEntities | undefined;
+        let completeEntities: GuidEntities | null = null;
         if (useFullDependencyTree) {
             // Only log the filtering message once per operation
             if (!GuidDataLoader.hasLoggedDependencyTree) {
@@ -158,18 +158,47 @@ export class GuidDataLoader {
             // CRITICAL FIX: For dependency tree filtering, we need to load ALL entities first
             // to ensure the dependency tree builder has complete data to work with
             completeEntities = await this.loadCompleteGuidEntities(locale);
+            
+            // Safety check: ensure completeEntities has models loaded
+            if (!completeEntities || !completeEntities.models || completeEntities.models.length === 0) {
+                throw new Error(
+                    `Failed to load models for dependency tree filtering. ` +
+                    `Please ensure you have pulled data first: ` +
+                    `agility pull --guid ${this.guid} --locale ${locale}`
+                );
+            }
         }
 
         // Import and use ModelDependencyTreeBuilder with complete data
         const { ModelDependencyTreeBuilder } = await import('../models/model-dependency-tree-builder');
-        const treeBuilder = new ModelDependencyTreeBuilder(useFullDependencyTree ? completeEntities : guidEntities);
+        const treeBuilder = new ModelDependencyTreeBuilder(useFullDependencyTree ? completeEntities! : guidEntities);
+
 
         // Validate that specified models exist
-        const validation = treeBuilder.validateModels(modelNames);
+        const validation = treeBuilder.validateModels(modelNames, completeEntities.models);
         if (validation.invalid.length > 0) {
-            console.log(ansiColors.red(`Invalid model names: ${validation.invalid.join(', ')}`));
-            console.log(ansiColors.gray(`Available models: ${completeEntities?.models.map((m: any) => m.referenceName).join(', ')}`));
-            return guidEntities; // Return unfiltered data if validation fails
+            // Use the correct source for available models (same as validation)
+            const sourceForValidation = useFullDependencyTree ? completeEntities : guidEntities;
+            const availableModels = sourceForValidation?.models?.map((m: any) => m.referenceName) || [];
+            
+            // Check for case-insensitive matches to help debug
+            const invalidWithSuggestions = validation.invalid.map(invalidName => {
+                const caseInsensitiveMatch = availableModels.find((available: string) => 
+                    available.toLowerCase() === invalidName.toLowerCase()
+                );
+                return caseInsensitiveMatch 
+                    ? `${invalidName} (did you mean "${caseInsensitiveMatch}"?)`
+                    : invalidName;
+            });
+            
+            console.log(ansiColors.red(`❌ Invalid model names: ${invalidWithSuggestions.join(', ')}`));
+            console.log(ansiColors.gray(`Available models (${availableModels.length}): ${availableModels.join(', ')}`));
+            
+            // Throw error to stop sync instead of returning unfiltered data
+            throw new Error(
+                `Model validation failed. Invalid model(s): ${validation.invalid.join(', ')}. ` +
+                `Please check the model name(s) and try again.`
+            );
         }
 
         // Build dependency tree and filter all related entities using complete data
