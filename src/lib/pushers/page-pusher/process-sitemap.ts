@@ -32,6 +32,10 @@ interface Props {
  * We need to process each page in the sitemap nodes recursively IN REVERSE ORDER to get the hierarchy and the ordering correct.
  * @param param0
  */
+// Track pages processed in the current sitemap processing session to prevent duplicate processing
+// This is separate from pagesInProgress which tracks concurrent processing
+const processedPageIDs = new Set<number>();
+
 export async function processSitemap({
 	channel,
 	pageMapper,
@@ -69,6 +73,17 @@ export async function processSitemap({
 			returnData.failed++;
 			continue; // Skip if source page is missing
 		}
+
+		// CRITICAL: Check if we've already processed this pageID in this sitemap session
+		// Dynamic pages can appear multiple times in the sitemap with the same pageID but different contentIDs
+		// We only want to process the page definition once, not create it multiple times
+		if (processedPageIDs.has(sourcePage.pageID)) {
+			// Silently skip - don't count as skipped, just continue
+			continue;
+		}
+
+		// Mark this pageID as processed
+		processedPageIDs.add(sourcePage.pageID);
 
 		const pageRes = await processPage({
 			apiClient,
