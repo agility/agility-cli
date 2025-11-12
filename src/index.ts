@@ -28,9 +28,24 @@ import { initializeLogger, getLogger, finalizeLogger, finalizeAllGuidLoggers } f
 let auth: Auth;
 
 // TODO: Do not hardcode this
-yargs.version("1.0.0-beta.9.0").demand(1).exitProcess(false);
+yargs.exitProcess(false);
 
 console.log(colors.yellow("Welcome to Agility CLI."));
+
+// Default command - shows instructions when no command is provided
+yargs.command({
+  command: "$0",
+  describe: "Default command - shows available commands",
+  handler: function () {
+    console.log(colors.cyan("\nAvailable commands:"));
+    console.log(colors.white("  pull  - Pull your Agility instance locally"));
+    console.log(colors.white("  push  - Push your instance to a target instance"));
+    console.log(colors.white("  sync  - Sync your instance (alias for push with updates enabled)"));
+    console.log(colors.white("\nFor more information, use: --help"));
+    console.log("");
+  },
+});
+
 yargs.command({
   command: "login",
   describe: "Login to Agility.",
