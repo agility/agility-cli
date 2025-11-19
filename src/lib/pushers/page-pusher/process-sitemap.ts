@@ -36,6 +36,13 @@ interface Props {
 // This is separate from pagesInProgress which tracks concurrent processing
 const processedPageIDs = new Set<number>();
 
+/**
+ * Reset the processed page IDs tracking - should be called at the start of each pushPages operation
+ */
+export function resetProcessedPageIDs(): void {
+	processedPageIDs.clear();
+}
+
 export async function processSitemap({
 	channel,
 	pageMapper,

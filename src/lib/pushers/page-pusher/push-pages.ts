@@ -3,7 +3,7 @@ import { state, getApiClient, getLoggerForGuid } from "core/state";
 import { PusherResult } from "../../../types/sourceData";
 import { SitemapHierarchy } from "lib/pushers/page-pusher/sitemap-hierarchy";
 import { PageMapper } from "lib/mappers/page-mapper";
-import { processSitemap } from "./process-sitemap";
+import { processSitemap, resetProcessedPageIDs } from "./process-sitemap";
 import ansiColors from "ansi-colors";
 
 export async function pushPages(
@@ -24,6 +24,9 @@ export async function pushPages(
 
 	const sitemapHierarchy = new SitemapHierarchy();
 
+	// Reset processed page IDs tracking for this locale
+	resetProcessedPageIDs();
+
 	const sitemaps = sitemapHierarchy.loadAllSitemaps(sourceGuid[0], locale);
 	const channels = Object.keys(sitemaps);
 
@@ -39,6 +42,12 @@ export async function pushPages(
 	//loop all the channels
 	for (const channel of channels) {
 		const sitemap = sitemaps[channel];
+
+		// Skip if sitemap is null or empty
+		if (!sitemap || sitemap.length === 0) {
+			console.log(ansiColors.yellow(`⚠️  Skipping channel ${channel} - no sitemap data found for locale ${locale}`));
+			continue;
+		}
 
 		const { sourceGuid, targetGuid, overwrite } = state;
 		const apiClient = getApiClient();
@@ -59,12 +68,14 @@ export async function pushPages(
 				logger
 			})
 
-			successful = res.successful;
-			failed = res.failed;
-			skipped = res.skipped;
-			publishableIds = res.publishableIds;
+			successful += res.successful;
+			failed += res.failed;
+			skipped += res.skipped;
+			if (res.publishableIds && res.publishableIds.length > 0) {
+				publishableIds.push(...res.publishableIds);
+			}
 
-			if (failed > 0) {
+			if (res.failed > 0) {
 				status = "error";
 			}
 

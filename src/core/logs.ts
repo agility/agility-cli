@@ -922,10 +922,6 @@ export class Logs {
     // Log to file using logger summary
     this.summary(this.operationType, totalSuccessful, totalFailed, 0);
 
-    // Console output
-    console.log(ansiColors.cyan("\nSummary:"));
-    console.log(`Processed ${results.length} GUID/locale combinations`);
-    console.log(`${totalSuccessful} successful, ${totalFailed} failed`);
     console.log(`Total time: ${timeDisplay}`);
 
     // Success/failure message

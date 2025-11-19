@@ -24,13 +24,24 @@ export class SitemapHierarchy {
 
         const sitemaps: { [key: string]: SitemapNode[] | null } = {};
 
-        fs.readdirSync(sitemapDir).forEach(fileName => {
-            if (!fileName.endsWith('.json')) {
-                return; // Skip non-JSON files
-            }
-            const channel = path.basename(fileName, '.json');
-            sitemaps[channel] = this.loadNestedSitemap(path.join(sitemapDir, fileName));
-        });
+        // Check if directory exists before trying to read it
+        if (!fs.existsSync(sitemapDir)) {
+            console.warn(`⚠️  Nested sitemap directory not found for locale ${locale}: ${sitemapDir}`);
+            return sitemaps; // Return empty object if directory doesn't exist
+        }
+
+        try {
+            fs.readdirSync(sitemapDir).forEach(fileName => {
+                if (!fileName.endsWith('.json')) {
+                    return; // Skip non-JSON files
+                }
+                const channel = path.basename(fileName, '.json');
+                sitemaps[channel] = this.loadNestedSitemap(path.join(sitemapDir, fileName));
+            });
+        } catch (error: any) {
+            console.error(`Error reading sitemap directory ${sitemapDir}: ${error.message}`);
+            return sitemaps; // Return empty object on error
+        }
 
         return sitemaps;
     }
