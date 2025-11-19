@@ -287,7 +287,7 @@ export class Pushers {
       (Array.isArray(elementData) && elementData.length === 0) ||
       !elements.some((element) => config.elements.includes(element))
     ) {
-      console.log(ansiColors.gray(`Skipping ${config.description} - no data or not requested`));
+      console.log(ansiColors.yellow(`⚠️ Skipping ${config.description} for locale ${locale} - no data or filtered by --locales`));
       return;
     }
 
