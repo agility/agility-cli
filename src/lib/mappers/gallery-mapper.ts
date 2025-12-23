@@ -29,7 +29,6 @@ export class GalleryMapper {
     }
 
     getGalleryMapping(gallery: mgmtApi.assetMediaGrouping, type: 'source' | 'target'): GalleryMapping | null {
-        debugger;
         const mapping = this.mappings.find((m: GalleryMapping) =>
             type === 'source' ? m.sourceMediaGroupingID === gallery.mediaGroupingID : m.targetMediaGroupingID === gallery.mediaGroupingID
         );
