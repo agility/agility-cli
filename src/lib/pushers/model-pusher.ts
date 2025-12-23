@@ -47,7 +47,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
 
      // special case for the default RichTextArea model
-    const defaultRichTextArea = model.referenceName === 'RichTextArea' && hasSourceChanged && hasTargetChanged;
+    const defaultRichTextArea = model.referenceName === 'RichTextArea' && !mapping && targetModel;
     if(defaultRichTextArea){
       // force create the mapping for the default RichTextArea model
       referenceMapper.addMapping(model, targetModel);
