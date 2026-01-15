@@ -46,13 +46,16 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     // TODO: we only care about the field count if the target model has NO fields and the source model has fields
 
 
-     // special case for the default RichTextArea model
-    const defaultRichTextArea = model.referenceName === 'RichTextArea' && !mapping && targetModel;
-    if(defaultRichTextArea){
-      // force create the mapping for the default RichTextArea model
+    // Handle models that exist in target but have no mapping
+    // This ensures downstream containers can find their model mappings
+    const existsInTargetWithoutMapping = !mapping && targetModel;
+    if (existsInTargetWithoutMapping) {
+      // Create the mapping for existing target models (ensures containers can reference them)
       referenceMapper.addMapping(model, targetModel);
+      // Add to skip list since model already exists and is up to date
+      shouldSkip.push(model);
+      continue; // Skip remaining conditions - mapping is now created, no further action needed
     }
-
 
     if ((!mapping && !targetModel)) {
       shouldCreateStub.push(model);
@@ -64,7 +67,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       shouldUpdateFields.push(model);
     }
     // if the mapping exists, and the target has changed, we need to skip the model, not safe to update
-    if ((mapping && hasTargetChanged) || defaultRichTextArea) {
+    if (mapping && hasTargetChanged) {
       shouldSkip.push(model);
     }
     // if the mapping exists, and the source and target have not changed, we need to skip the model

@@ -138,5 +138,33 @@ export class ContentItemMapper {
         return targetContentItem.properties.versionID > mapping.targetVersionID;
     }
 
+    /**
+     * Update only the target versionID in a mapping (used after publishing)
+     * Does NOT update sourceVersionID - that should only change during sync operations
+     * 
+     * @returns Object with success status and old/new version IDs
+     */
+    updateTargetVersionID(targetContentID: number, newVersionID: number): { 
+        success: boolean; 
+        oldVersionID?: number; 
+        newVersionID?: number;
+    } {
+        const mapping = this.getContentItemMappingByContentID(targetContentID, 'target');
+        if (!mapping) return { success: false };
+        
+        const oldVersionID = mapping.targetVersionID;
+        
+        // Only update if version actually changed
+        if (oldVersionID !== newVersionID) {
+            mapping.targetVersionID = newVersionID;
+            this.saveMapping();
+        }
+        
+        return { 
+            success: true, 
+            oldVersionID, 
+            newVersionID
+        };
+    }
 
 }

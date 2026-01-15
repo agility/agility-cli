@@ -1,6 +1,6 @@
 import * as path from "path";
 import * as fs from "fs";
-import { getState, initializeLogger, finalizeLogger, getLogger, state } from "./state";
+import { getState, initializeLogger, finalizeLogger, getLogger, state, setState } from "./state";
 import ansiColors from "ansi-colors";
 import { markPushStart, clearTimestamps } from "../lib/incremental";
 
@@ -16,7 +16,7 @@ export class Push {
   }
 
   async pushInstances(fromSync: boolean = false): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
-    const { isSync, sourceGuid, targetGuid, models, modelsWithDeps } = state;
+    const { isSync, sourceGuid, targetGuid, models, modelsWithDeps, autoPublish } = state;
     
     // Initialize logger for push operation
     // Determine if this is a sync operation by checking if both source and target GUIDs exist
@@ -107,6 +107,11 @@ export class Push {
       }
 
       finalizeLogger(); // Finalize global logger if it exists
+
+      // Auto-publish if enabled and sync was successful
+      if (isSync && autoPublish && success) {
+        await this.executeAutoPublish(results, autoPublish);
+      }
       
       // Only exit if not called from another operation
     
@@ -124,6 +129,61 @@ export class Push {
       // process.exit(1);
       
       throw error; // Let calling code handle error response
+    }
+  }
+
+  /**
+   * Execute auto-publish after sync completes
+   */
+  private async executeAutoPublish(results: PushResults[], autoPublishMode: string): Promise<void> {
+    // Collect all publishable IDs from sync results
+    const allContentIds: number[] = [];
+    const allPageIds: number[] = [];
+
+    for (const result of results) {
+      if (result.publishableContentIds && result.publishableContentIds.length > 0) {
+        allContentIds.push(...result.publishableContentIds);
+      }
+      if (result.publishablePageIds && result.publishablePageIds.length > 0) {
+        allPageIds.push(...result.publishablePageIds);
+      }
+    }
+
+    // Determine what to publish based on mode
+    const publishContent = autoPublishMode === 'content' || autoPublishMode === 'both';
+    const publishPages = autoPublishMode === 'pages' || autoPublishMode === 'both';
+
+    const contentIdsToPublish = publishContent ? allContentIds : [];
+    const pageIdsToPublish = publishPages ? allPageIds : [];
+
+    // Check if there's anything to publish
+    if (contentIdsToPublish.length === 0 && pageIdsToPublish.length === 0) {
+      console.log(ansiColors.yellow('\n⚠️ Auto-publish: No items to publish from sync operation'));
+      return;
+    }
+
+    console.log(ansiColors.cyan('\n' + '═'.repeat(50)));
+    console.log(ansiColors.cyan('🚀 AUTO-PUBLISH'));
+    console.log(ansiColors.cyan('═'.repeat(50)));
+    console.log(ansiColors.gray(`Mode: ${autoPublishMode}`));
+    console.log(ansiColors.gray(`Content items to publish: ${contentIdsToPublish.length}`));
+    console.log(ansiColors.gray(`Pages to publish: ${pageIdsToPublish.length}`));
+
+    try {
+      // Set explicit IDs in state for the workflow operation
+      setState({
+        explicitContentIDs: contentIdsToPublish,
+        explicitPageIDs: pageIdsToPublish,
+        operationType: 'publish'
+      });
+
+      // Import and execute workflow operation
+      const { WorkflowOperation } = await import('../lib/workflows');
+      const workflowOp = new WorkflowOperation();
+      await workflowOp.executeFromMappings();
+
+    } catch (error: any) {
+      console.error(ansiColors.red(`\n❌ Auto-publish failed: ${error.message}`));
     }
   }
 

@@ -300,7 +300,7 @@ export class Pushers {
     totalSkipped += pusherResult.skipped || 0;
     totalFailures += pusherResult.failed || 0;
 
-    // Collect publishable IDs for auto-publishing
+    // Collect publishable IDs for workflow operations
     if (pusherResult.publishableIds && pusherResult.publishableIds.length > 0) {
       if (config.elements.includes("Content")) {
         publishableContentIds.push(...pusherResult.publishableIds);

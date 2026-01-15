@@ -7,6 +7,7 @@ import * as mgmtApi from '@agility/management-sdk';
 import fs from 'fs';
 import path from 'path';
 import { Logs, OperationType, EntityType } from './logs';
+import { Options } from '@agility/management-sdk';
 
 export interface State {
   // Environment modes
@@ -45,8 +46,14 @@ export interface State {
   reset: boolean;
   update: boolean;
 
-  // Publishing control
-  publish: boolean;
+  // Workflow operation control
+  operationType?: string; // Workflow operation: publish, unpublish, approve, decline, requestApproval
+  dryRun: boolean; // Preview mode - show what would be processed without executing
+  autoPublish: string; // Auto-publish after sync: 'content', 'pages', 'both', or '' (disabled)
+
+  // Explicit ID overrides (bypass mappings lookup)
+  explicitContentIDs: number[]; // Target content IDs to process directly
+  explicitPageIDs: number[]; // Target page IDs to process directly
 
   // Model-specific
   models: string;
@@ -127,9 +134,12 @@ export const state: State = {
   force: false,
   reset: false,
   update: true,
+  dryRun: false,
+  autoPublish: '', // Empty string = disabled
 
-  // Publishing control
-  publish: false,
+  // Explicit ID overrides (bypass mappings lookup)
+  explicitContentIDs: [],
+  explicitPageIDs: [],
 
   // Model-specific
   models: "",
@@ -230,8 +240,23 @@ export function setState(argv: any) {
   if (argv.reset !== undefined) state.reset = argv.reset;
   if (argv.update !== undefined) state.update = argv.update;
 
-  // Publishing control
-  if (argv.publish !== undefined) state.publish = argv.publish;
+  // Workflow operation control
+  if (argv.operationType !== undefined) state.operationType = argv.operationType;
+  if (argv.dryRun !== undefined) state.dryRun = argv.dryRun;
+
+  // Explicit ID overrides - parse comma-separated strings into number arrays
+  if (argv.contentIDs !== undefined && argv.contentIDs !== "") {
+    state.explicitContentIDs = String(argv.contentIDs)
+      .split(',')
+      .map((id: string) => parseInt(id.trim(), 10))
+      .filter((id: number) => !isNaN(id) && id > 0);
+  }
+  if (argv.pageIDs !== undefined && argv.pageIDs !== "") {
+    state.explicitPageIDs = String(argv.pageIDs)
+      .split(',')
+      .map((id: string) => parseInt(id.trim(), 10))
+      .filter((id: number) => !isNaN(id) && id > 0);
+  }
 
   // Model-specific
   if (argv.models !== undefined) state.models = argv.models;
@@ -450,8 +475,13 @@ export function resetState() {
   state.reset = false;
   state.update = true;
 
-  // Publishing control
-  state.publish = false;
+  // Workflow operation control
+  state.operationType = undefined;
+  state.dryRun = false;
+
+  // Explicit ID overrides
+  state.explicitContentIDs = [];
+  state.explicitPageIDs = [];
 
   // Model-specific
   state.models = "";
@@ -497,9 +527,15 @@ export function getApiClient(): mgmtApi.ApiClient {
 
   // Create new client using current auth state
   if (!state.mgmtApiOptions) {
-    throw new Error('Management API options not initialized. Call auth.init() first.');
+    // throw new Error('Management API options not initialized. Call auth.init() first.');
   }
 
+  if(!state.mgmtApiOptions && !state.token) {
+    throw new Error('Management API options not initialized. Call auth.init() first.');
+  } else if (!state.mgmtApiOptions && state.token) {
+    state.mgmtApiOptions = new Options();
+    state.mgmtApiOptions.token = state.token;
+  }
   // Create and cache the client
   state.cachedApiClient = new mgmtApi.ApiClient(state.mgmtApiOptions);
   return state.cachedApiClient;

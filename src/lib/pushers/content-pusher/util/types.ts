@@ -26,7 +26,7 @@ export interface BatchProcessingResult {
 	skippedCount: number; // Number of items skipped due to existing content
 	successfulItems: BatchSuccessItem[];
 	failedItems: BatchFailedItem[];
-	publishableIds: number[]; // Target content IDs for auto-publishing
+	publishableIds: number[]; // Target content IDs for workflow operations
 }
 
 /**

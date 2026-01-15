@@ -119,16 +119,33 @@ export class Auth {
 
   async logout() {
     const env = this.getEnv();
-    const key = this.getEnvKey(env);
+    const auth0Key = this.getEnvKey(env);
+    const patKey = `cli-pat-token:${env}`;
+    
+    let removedAny = false;
+    
     try {
-      const removed = await keytar.deletePassword(SERVICE_NAME, key);
-      if (removed) {
-        console.log(`Logged out from ${env} environment.`);
+      // Remove Auth0 token
+      const removedAuth0 = await keytar.deletePassword(SERVICE_NAME, auth0Key);
+      if (removedAuth0) {
+        console.log(`✓ Removed Auth0 token for ${env} environment.`);
+        removedAny = true;
+      }
+      
+      // Remove PAT token
+      const removedPAT = await keytar.deletePassword(SERVICE_NAME, patKey);
+      if (removedPAT) {
+        console.log(`✓ Removed Personal Access Token for ${env} environment.`);
+        removedAny = true;
+      }
+      
+      if (removedAny) {
+        console.log(ansiColors.green(`\n🔓 Successfully logged out from ${env} environment.`));
       } else {
-        console.log(`No token found in ${env} environment.`);
+        console.log(ansiColors.yellow(`No tokens found in ${env} environment.`));
       }
     } catch (err) {
-      console.error(`❌ Failed to delete token:`, err);
+      console.error(`❌ Failed to delete tokens:`, err);
     }
     exit();
   }
@@ -870,13 +887,6 @@ export class Auth {
    */
   async validateCommand(commandType: "pull" | "sync" | "clean" | "interactive" | "push"): Promise<boolean> {
     const missingFields: string[] = [];
-
-    // Validate that --publish flag is only used with sync command
-    if (state.publish && commandType !== "sync") {
-      console.log(ansiColors.red(`\n❌ The --publish flag is only available for sync commands.`));
-      console.log(ansiColors.yellow(`💡 Use: agility sync --sourceGuid="source" --targetGuid="target" --publish`));
-      return false;
-    }
 
     // Check command-specific requirements
     switch (commandType) {

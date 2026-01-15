@@ -3,6 +3,7 @@ import * as fs from "fs";
 import { getState, initializeLogger, finalizeLogger, getLogger } from "./state";
 import ansiColors from "ansi-colors";
 import { markPullStart, clearTimestamps } from "../lib/incremental";
+import { waitForFetchApiSync } from "../lib/shared/get-fetch-api-status";
 
 import { Downloader } from "../lib/downloaders/orchestrate-downloaders";
 
@@ -65,6 +66,20 @@ export class Pull {
     const totalStartTime = Date.now();
 
     try {
+      // Wait for Fetch API sync to complete before pulling (only for standalone pull operations)
+      // This ensures we're pulling the latest data from the CDN
+      // Skip when called from push - the refresh-mappings workflow handles this separately
+      if (!fromPush) {
+        for (const guid of allGuids) {
+          try {
+            await waitForFetchApiSync(guid, 'fetch', false);
+          } catch (error: any) {
+            // Log warning but don't fail the pull - the API might not support this endpoint yet
+            console.log(ansiColors.yellow(`⚠️ Could not check Fetch API status for ${guid}: ${error.message}`));
+          }
+        }
+      }
+
       // Execute concurrent downloads for all GUIDs, locales and channels (sitemaps)
       const results = await this.downloader.instanceOrchestrator(fromPush);
 
@@ -84,21 +99,20 @@ export class Pull {
 
       const success = totalFailed === 0;
 
-      // Use the orchestrator summary function to handle all completion logic
-      const logger = getLogger();
-      if (logger) {
-        // Collect log file paths
-        const logFilePaths = results
-          .map(res => res.logFilePath)
-          .filter(path => path);
-        
-        logger.orchestratorSummary(results, totalElapsedTime, success, logFilePaths);
-      }
-
-      finalizeLogger(); // Finalize global logger if it exists
-      
-      // Only exit if not called from push operation
+      // Only show completion summary and finalize logger for standalone pull operations
+      // When called from push/sync, the parent operation handles its own summary
       if (!fromPush) {
+        const logger = getLogger();
+        if (logger) {
+          // Collect log file paths
+          const logFilePaths = results
+            .map(res => res.logFilePath)
+            .filter(path => path);
+          
+          logger.orchestratorSummary(results, totalElapsedTime, success, logFilePaths);
+        }
+
+        finalizeLogger(); // Finalize global logger if it exists
         process.exit(success ? 0 : 1);
       }
 

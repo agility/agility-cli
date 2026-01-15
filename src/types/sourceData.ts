@@ -35,7 +35,7 @@ export interface PusherResult {
     failed: number;
     skipped: number;
     status: 'success' | 'error';
-    publishableIds?: number[]; // Optional: target instance IDs for auto-publishing (content items and pages only)
+    publishableIds?: number[]; // Optional: target instance IDs for workflow operations (content items and pages only)
 }
 
 /**

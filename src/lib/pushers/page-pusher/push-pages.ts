@@ -36,7 +36,7 @@ export async function pushPages(
 	let failed = 0;
 	let skipped = 0; // No duplicates to skip since API prevents true duplicates at same hierarchy level
 	let status: "success" | "error" = "success";
-	let publishableIds: number[] = []; // Track target page IDs for auto-publishing
+	let publishableIds: number[] = []; // Track target page IDs for workflow operations
 
 
 	//loop all the channels

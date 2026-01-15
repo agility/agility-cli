@@ -22,6 +22,7 @@ inquirer.registerPrompt("search-list", searchList);
 import { Auth, state, setState, resetState, primeFromEnv, systemArgs, normalizeProcessArgs, normalizeArgv } from "./core";
 import { Pull } from "./core/pull";
 import { Push } from "./core/push";
+import { WorkflowOperation } from "./lib/workflows";
 
 import { initializeLogger, getLogger, finalizeLogger, finalizeAllGuidLoggers } from "./core/state";
 
@@ -38,9 +39,10 @@ yargs.command({
   describe: "Default command - shows available commands",
   handler: function () {
     console.log(colors.cyan("\nAvailable commands:"));
-    console.log(colors.white("  pull  - Pull your Agility instance locally"));
-    console.log(colors.white("  push  - Push your instance to a target instance"));
-    console.log(colors.white("  sync  - Sync your instance (alias for push with updates enabled)"));
+    console.log(colors.white("  pull              - Pull your Agility instance locally"));
+    console.log(colors.white("  push              - Push your instance to a target instance"));
+    console.log(colors.white("  sync              - Sync your instance (alias for push with updates enabled)"));
+    console.log(colors.white("  workflowOperation - Perform workflow operations (publish, unpublish, approve, decline)"));
     console.log(colors.white("\nFor more information, use: --help"));
     console.log("");
   },
@@ -203,6 +205,106 @@ yargs.command({
     const push = new Push();
     await push.pushInstances();
 
+  }
+})
+
+// Workflow operation command - performs workflow operations on content/pages from existing mappings
+yargs.command({
+  command: "workflows",
+  aliases: ["workflow"],
+  describe: "Perform workflow operations (publish, unpublish, approve, decline, requestApproval) on content and pages from existing mappings.",
+  builder: {
+    sourceGuid: {
+      describe: "Source instance GUID (from the original sync).",
+      demandOption: true,
+      type: "string",
+    },
+    targetGuid: {
+      describe: "Target instance GUID to perform workflow operation on.",
+      demandOption: true,
+      type: "string",
+    },
+    list: {
+      describe: "List available mapping pairs instead of running operation.",
+      type: "boolean",
+      default: false,
+    },
+     // Workflow operation type for batch workflow operations
+    operationType: {
+      describe: "Workflow operation to perform: publish, unpublish, approve, decline, or requestApproval. Used with workflowOperation command.",
+      type: "string" as const,
+      alias: ["operation-type", "operationType", "OperationType", "OPERATION_TYPE", "op","type"],
+      choices: ["publish", "unpublish", "approve", "decline", "requestApproval"],
+      // default: "publish",
+      coerce: (value: string) => {
+        if (!value) return "publish";
+        const lower = String(value).toLowerCase();
+        // Normalize various input formats
+        switch (lower) {
+          case "publish":
+          case "pub":
+            return "publish";
+          case "unpublish":
+          case "unpub":
+            return "unpublish";
+          case "approve":
+          case "app":
+            return "approve";
+          case "decline":
+          case "dec":
+            return "decline";
+          case "requestapproval":
+          case "request-approval":
+          case "request_approval":
+          case "req":
+            return "requestApproval";
+          default:
+            return "publish";
+        }
+      }
+    },
+    // System args (commonly repeated across commands)
+    ...systemArgs
+  },
+  handler: async function (argv) {
+    resetState(); // Clear any previous command state
+
+    // Normalize argv to handle rich text editor character conversions
+    argv = normalizeArgv(argv);
+
+    // Prime state from .env file before applying command line args
+    const envPriming = primeFromEnv();
+    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+    }
+
+    setState(argv);
+
+    // If --list flag, just list available mappings
+    if (argv.list) {
+      const workflowOp = new WorkflowOperation();
+      workflowOp.listMappings();
+      return;
+    }
+
+    auth = new Auth();
+    const isAuthorized = await auth.init();
+    if (!isAuthorized) {
+      return;
+    }
+
+    // Validate command requirements
+    const isValidCommand = await auth.validateCommand('push');
+    if (!isValidCommand) {
+      return;
+    }
+
+    const workflowOp = new WorkflowOperation();
+    const result = await workflowOp.executeFromMappings();
+
+    if (!result.success) {
+      process.exit(1);
+    }
   }
 })
 
