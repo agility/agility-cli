@@ -9,6 +9,35 @@ import { fileOperations } from "../../core/fileOperations";
 import path from "path";
 import { GalleryMapper } from "lib/mappers/gallery-mapper";
 
+/**
+ * Extract meaningful error message from API errors
+ */
+function extractErrorMessage(error: any): string {
+  // Check for direct axios response data first (our direct axios calls)
+  if (error?.response?.data) {
+    const data = error.response.data;
+    if (typeof data === 'string') return data;
+    if (data.exceptionMessage) return data.exceptionMessage; // Agility API format
+    if (data.message) return data.message;
+    if (data.error) return data.error;
+    if (data.Message) return data.Message;
+    if (data.Error) return data.Error;
+    if (data.title) return data.title;
+  }
+  // Check for SDK-wrapped axios response data
+  if (error?.innerError?.response?.data) {
+    const data = error.innerError.response.data;
+    if (typeof data === 'string') return data;
+    if (data.exceptionMessage) return data.exceptionMessage;
+    if (data.message) return data.message;
+    if (data.error) return data.error;
+    if (data.Message) return data.Message;
+    if (data.Error) return data.Error;
+  }
+  // Fall back to error message
+  return error?.message || error?.innerError?.message || String(error);
+}
+
 export async function pushAssets(
   sourceData: mgmtApi.Media[], // TODO: Type these
   targetData: mgmtApi.Media[], // TODO: Type these
@@ -65,10 +94,27 @@ export async function pushAssets(
       let folderPath = containerFolderPath === "." ? "/" : containerFolderPath;
 
 
-      // TODO: this is where we need to check if the asset is a gallery asset and if so, we need to check if the gallery is up to date
       // Use simplified change detection pattern
       const existingMapping = referenceMapper.getAssetMapping(media, "source");
-      const shouldCreate = existingMapping === null;
+      
+      // Also check if asset already exists in target by originKey (path+filename)
+      const targetAssetByOriginKey = targetData.find(t => t.originKey === media.originKey);
+      
+      // Debug logging for asset matching (verbose mode)
+      if (state.verbose && !existingMapping && !targetAssetByOriginKey) {
+        // Show first few target originKeys for comparison
+        const sampleTargetKeys = targetData.slice(0, 3).map(t => t.originKey);
+      }
+      
+      // If no mapping but asset exists by originKey in target, create mapping and skip
+      if (!existingMapping && targetAssetByOriginKey) {
+        referenceMapper.addMapping(media, targetAssetByOriginKey);
+        logger.asset.skipped(media, "already exists in target by path", targetGuid[0]);
+        skipped++;
+        continue;
+      }
+      
+      const shouldCreate = existingMapping === null && !targetAssetByOriginKey;
 
       // get the target asset, check if the source and targets need updates
       const targetAsset: mgmtApi.Media = targetData.find(targetAsset => targetAsset.mediaID === existingMapping?.targetMediaID) || null;
@@ -112,7 +158,10 @@ export async function pushAssets(
         skipped++;
       }
     } catch (error: any) {
-      logger.asset.error(media, error, targetGuid[0]);
+      const errorMsg = extractErrorMessage(error);
+      logger.asset.error(media, errorMsg, targetGuid[0]);
+      
+      
       failed++;
       currentStatus = "error";
       overallStatus = "error";
@@ -133,6 +182,7 @@ export async function pushAssets(
 
 /**
  * Create a new asset in the target instance
+ * Note: We make direct axios call instead of SDK because SDK doesn't include form-data headers
  */
 async function createAsset(
   media: mgmtApi.Media,
@@ -147,16 +197,51 @@ async function createAsset(
   // Handle gallery if present
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, sourceGuid, targetGuid);
 
-  const fileOps = new fileOperations(targetGuid);
-  // Upload the asset
-  const form = new FormData();
-  if (!fileOps.checkFileExists(absoluteLocalFilePath)) {
-    throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
+  const fs = require('fs');
+  const pathModule = require('path');
+  
+  // Resolve to absolute path from workspace root
+  const resolvedPath = pathModule.resolve(process.cwd(), absoluteLocalFilePath);
+  
+  // Check file exists and has content
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`Local asset file not found: ${resolvedPath}`);
   }
-  const fileBuffer = fileOps.createReadStream(absoluteLocalFilePath);
-  form.append("files", fileBuffer, media.fileName);
+  
+  const fileStats = fs.statSync(resolvedPath);
+  if (fileStats.size === 0) {
+    throw new Error(`Local asset file is empty (0 bytes): ${resolvedPath}`);
+  }
 
-  const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
+  
+  // Build form data with file stream using resolved absolute path
+  const form = new FormData();
+  const fileStream = fs.createReadStream(resolvedPath);
+  form.append("files", fileStream, media.fileName);
+
+  // Make direct axios call with form-data headers (SDK bug workaround)
+  // The SDK's executePost doesn't include form.getHeaders() which is required for multipart uploads
+  const axios = require('axios');
+  
+  // Get the base URL from the API client's options
+  const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
+  const token = (apiClient as any)._options?.token;
+  
+  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}`;
+  const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
+  
+  const response = await axios.post(url, form, {
+    headers: {
+      ...form.getHeaders(), // Critical: include multipart boundary
+      'Authorization': `Bearer ${token}`,
+      'Cache-Control': 'no-cache'
+    },
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+    httpsAgent: state.local ? new (require('https').Agent)({ rejectUnauthorized: false }) : undefined
+  });
+
+  const uploadedMediaArray = response.data as mgmtApi.Media[];
 
   if (!uploadedMediaArray || uploadedMediaArray.length === 0) {
     throw new Error(`API did not return uploaded media details for ${media.fileName}`);
@@ -170,7 +255,22 @@ async function createAsset(
 }
 
 /**
+ * Determine base URL for a GUID (fallback if not available from SDK)
+ */
+function determineBaseUrl(guid: string): string {
+  const separator = guid.split('-');
+  if (separator[1] === 'd') return "https://mgmt-dev.aglty.io";
+  if (separator[1] === 'u') return "https://mgmt.aglty.io";
+  if (separator[1] === 'us2') return "https://mgmt-usa2.aglty.io";
+  if (separator[1] === 'c') return "https://mgmt-ca.aglty.io";
+  if (separator[1] === 'e') return "https://mgmt-eu.aglty.io";
+  if (separator[1] === 'a') return "https://mgmt-aus.aglty.io";
+  return "https://mgmt.aglty.io";
+}
+
+/**
  * Update an existing asset in the target instance
+ * Note: We make direct axios call instead of SDK because SDK doesn't include form-data headers
  */
 async function updateAsset(
   media: mgmtApi.Media,
@@ -183,26 +283,58 @@ async function updateAsset(
   logger: Logs
 ): Promise<mgmtApi.Media> {
   // Handle gallery if present
-
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, sourceGuid, targetGuid);
-  const fileOps = new fileOperations(targetGuid);
-  // Upload the asset (this will replace the existing one)
-  const form = new FormData();
-  if (!fileOps.checkFileExists(absoluteLocalFilePath)) {
-    throw new Error(`Local asset file not found: ${absoluteLocalFilePath}`);
+  
+  const fs = require('fs');
+  const pathModule = require('path');
+  
+  // Resolve to absolute path from workspace root
+  const resolvedPath = pathModule.resolve(process.cwd(), absoluteLocalFilePath);
+  
+  // Check file exists and has content
+  if (!fs.existsSync(resolvedPath)) {
+    throw new Error(`Local asset file not found: ${resolvedPath}`);
   }
-  const fileBuffer = fileOps.createReadStream(absoluteLocalFilePath);
-  form.append("files", fileBuffer, media.fileName);
+  
+  const fileStats = fs.statSync(resolvedPath);
+  if (fileStats.size === 0) {
+    throw new Error(`Local asset file is empty (0 bytes): ${resolvedPath}`);
+  }
+  
+  // Build form data with file stream using resolved absolute path
+  const form = new FormData();
+  const fileStream = fs.createReadStream(resolvedPath);
+  form.append("files", fileStream, media.fileName);
 
-  const uploadedMediaArray = await apiClient.assetMethods.upload(form, folderPath, targetGuid, targetMediaGroupingID);
+  // Make direct axios call with form-data headers (SDK bug workaround)
+  const axios = require('axios');
+  
+  const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
+  const token = (apiClient as any)._options?.token;
+  
+  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}`;
+  const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
+  
+  const response = await axios.post(url, form, {
+    headers: {
+      ...form.getHeaders(),
+      'Authorization': `Bearer ${token}`,
+      'Cache-Control': 'no-cache'
+    },
+    maxContentLength: Infinity,
+    maxBodyLength: Infinity,
+    httpsAgent: state.local ? new (require('https').Agent)({ rejectUnauthorized: false }) : undefined
+  });
+
+  const uploadedMediaArray = response.data as mgmtApi.Media[];
 
   if (!uploadedMediaArray || uploadedMediaArray.length === 0) {
     throw new Error(`API did not return uploaded media details for ${media.fileName}`);
   }
+  
   const uploadedMedia = uploadedMediaArray[0];
 
   logger.asset.uploaded(media, "uploaded", targetGuid);
-
 
   return uploadedMedia;
 }

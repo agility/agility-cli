@@ -92,19 +92,71 @@ export class WorkflowOperation {
             let pageIds: number[];
 
             if (useExplicitIDs) {
-                // Explicit IDs mode - bypass mappings lookup
+                // Explicit IDs mode - bypass mappings lookup but still check source publish status
                 console.log(ansiColors.cyan('\n🔧 Using explicit IDs (bypassing mappings lookup)'));
                 
-                contentIds = hasExplicitContentIDs ? state.explicitContentIDs : [];
-                pageIds = hasExplicitPageIDs ? state.explicitPageIDs : [];
+                let explicitContentIds = hasExplicitContentIDs ? state.explicitContentIDs : [];
+                let explicitPageIds = hasExplicitPageIDs ? state.explicitPageIDs : [];
 
-                console.log(ansiColors.gray(`  Explicit content IDs: ${contentIds.length > 0 ? contentIds.join(', ') : '(none)'}`));
-                console.log(ansiColors.gray(`  Explicit page IDs: ${pageIds.length > 0 ? pageIds.join(', ') : '(none)'}`));
+                console.log(ansiColors.gray(`  Explicit content IDs: ${explicitContentIds.length > 0 ? explicitContentIds.join(', ') : '(none)'}`));
+                console.log(ansiColors.gray(`  Explicit page IDs: ${explicitPageIds.length > 0 ? explicitPageIds.join(', ') : '(none)'}`));
 
-                if (contentIds.length === 0 && pageIds.length === 0) {
+                if (explicitContentIds.length === 0 && explicitPageIds.length === 0) {
                     console.log(ansiColors.yellow('\n⚠️ No valid IDs provided.'));
                     result.elapsedTime = Date.now() - startTime;
                     return result;
+                }
+
+                // For publish operations, check source publish status even with explicit IDs
+                if (operationType === WorkflowOperationType.Publish) {
+                    console.log(ansiColors.cyan('\nChecking source instance publish status for explicit IDs...'));
+                    
+                    // Read mappings to get source→target relationships (needed for reverse lookup)
+                    const mappingResult = readMappingsForGuidPair(source, target, locales);
+                    
+                    // Create reverse lookup maps (target ID → source mapping)
+                    const targetToSourceContent = new Map<number, any>();
+                    const targetToSourcePage = new Map<number, any>();
+                    
+                    for (const mapping of mappingResult.contentMappings) {
+                        targetToSourceContent.set(mapping.targetContentID, mapping);
+                    }
+                    for (const mapping of mappingResult.pageMappings) {
+                        targetToSourcePage.set(mapping.targetPageID, mapping);
+                    }
+                    
+                    // Filter explicit IDs to only those that have mappings
+                    const contentMappingsForExplicit = explicitContentIds
+                        .filter(id => targetToSourceContent.has(id))
+                        .map(id => targetToSourceContent.get(id));
+                    const pageMappingsForExplicit = explicitPageIds
+                        .filter(id => targetToSourcePage.has(id))
+                        .map(id => targetToSourcePage.get(id));
+                    
+                    // Check source publish status
+                    const publishStatus = checkSourcePublishStatus(
+                        contentMappingsForExplicit,
+                        pageMappingsForExplicit,
+                        source,
+                        locales
+                    );
+                    
+                    // Report filtering results
+                    const contentPublishedInSource = publishStatus.publishedContentIds.length;
+                    const pagesPublishedInSource = publishStatus.publishedPageIds.length;
+                    const contentSkipped = publishStatus.unpublishedContentIds.length;
+                    const pagesSkipped = publishStatus.unpublishedPageIds.length;
+                    
+                    console.log(ansiColors.gray(`Content: ${contentPublishedInSource}/${explicitContentIds.length} published in source (${contentSkipped} staging/unpublished skipped)`));
+                    console.log(ansiColors.gray(`Pages: ${pagesPublishedInSource}/${explicitPageIds.length} published in source (${pagesSkipped} staging/unpublished skipped)`));
+                    
+                    // Use only IDs that are published in source
+                    contentIds = publishStatus.publishedContentIds;
+                    pageIds = publishStatus.publishedPageIds;
+                } else {
+                    // For non-publish operations, use all explicit IDs
+                    contentIds = explicitContentIds;
+                    pageIds = explicitPageIds;
                 }
             } else {
                 // Standard mode - use mappings files

@@ -109,6 +109,18 @@ export class ContentBatchProcessor {
 				const { successfulItems, failedItems } = extractBatchResults(completedBatch, contentBatch);
 
 				// Convert to expected format
+				// Filter publishableIds to only include items that are Published (state === 2) in source
+				const publishableSuccessItems = successfulItems.filter((item) => {
+					const sourceState = item.originalItem?.properties?.state;
+					return sourceState === 2; // Only published items
+				});
+				
+				// Log staging items being skipped from auto-publish
+				const stagingItems = successfulItems.filter((item) => item.originalItem?.properties?.state !== 2);
+				if (stagingItems.length > 0) {
+					console.log(ansiColors.gray(`    📋 Skipping auto-publish for ${stagingItems.length} content item(s) (not published in source)`));
+				}
+				
 				const batchResult = {
 					successCount: successfulItems.length,
 					failureCount: failedItems.length,
@@ -122,7 +134,7 @@ export class ContentBatchProcessor {
 						originalContent: item.originalItem,
 						error: item.error,
 					})),
-					publishableIds: successfulItems.map((item) => item.newId),
+					publishableIds: publishableSuccessItems.map((item) => item.newId),
 				};
 
 				totalSuccessCount += batchResult.successCount;
@@ -204,13 +216,19 @@ export class ContentBatchProcessor {
 
 		// console.log(`🎯 Content batch processing complete: ${totalSuccessCount} success, ${totalFailureCount} failed`);
 
+		// Filter final publishableIds to only include items Published (state === 2) in source
+		const publishableItems = allSuccessfulItems.filter((item) => {
+			const sourceState = item.originalContent?.properties?.state;
+			return sourceState === 2; // Only published items
+		});
+
 		return {
 			successCount: totalSuccessCount,
 			failureCount: totalFailureCount,
 			skippedCount: totalSkippedCount,
 			successfulItems: allSuccessfulItems,
 			failedItems: allFailedItems,
-			publishableIds: allSuccessfulItems.map((item) => item.newContentId),
+			publishableIds: publishableItems.map((item) => item.newContentId),
 		};
 	}
 

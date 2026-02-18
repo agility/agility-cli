@@ -133,6 +133,7 @@ export function filterPublishedPages(
 /**
  * Check publish status for all content and page mappings
  * Returns filtered lists of target IDs that should be published
+ * CRITICAL: All ID arrays are deduplicated to prevent "item already in batch" errors
  */
 export function checkSourcePublishStatus(
     contentMappings: ContentMapping[],
@@ -143,11 +144,14 @@ export function checkSourcePublishStatus(
     const contentResult = filterPublishedContent(contentMappings, sourceGuid, locales);
     const pageResult = filterPublishedPages(pageMappings, sourceGuid, locales);
 
+    // CRITICAL: Deduplicate all ID arrays to prevent "item already in batch" API errors
+    // Duplicate IDs can occur when the same source→target mapping appears multiple times
+    // (e.g., from multiple locales or duplicate entries in mapping files)
     return {
-        publishedContentIds: contentResult.publishedContentIds,
-        unpublishedContentIds: contentResult.unpublishedContentIds,
-        publishedPageIds: pageResult.publishedPageIds,
-        unpublishedPageIds: pageResult.unpublishedPageIds,
+        publishedContentIds: Array.from(new Set(contentResult.publishedContentIds)),
+        unpublishedContentIds: Array.from(new Set(contentResult.unpublishedContentIds)),
+        publishedPageIds: Array.from(new Set(pageResult.publishedPageIds)),
+        unpublishedPageIds: Array.from(new Set(pageResult.unpublishedPageIds)),
         errors: [...contentResult.errors, ...pageResult.errors]
     };
 }

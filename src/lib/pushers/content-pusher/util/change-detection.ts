@@ -22,7 +22,7 @@ export function changeDetection(
 ): ChangeDetection {
 	// Validate source entity structure
 	if (!sourceEntity || !sourceEntity.properties) {
-		console.error(`[ChangeDetection] Invalid source entity structure:`, sourceEntity);
+		// console.error(`[ChangeDetection] Invalid source entity structure:`, sourceEntity);
 		return {
 			entity: null,
 			shouldUpdate: false,
@@ -33,8 +33,13 @@ export function changeDetection(
 		};
 	}
 
+	const itemName = sourceEntity.properties?.referenceName || `ID:${sourceEntity.contentID}`;
+
 	if (!mapping && !targetEntity) {
 		//if we have no target content and no mapping
+		// if (state.verbose) {
+		// 	console.log(`[ChangeDetection] ${itemName}: No mapping and no target entity → CREATE`);
+		// }
 		return {
 			entity: null,
 			shouldUpdate: false,
@@ -52,9 +57,13 @@ export function changeDetection(
 	const mappedSourceVersion = (mapping?.sourceVersionID || 0) as number;
 	const mappedTargetVersion = (mapping?.targetVersionID || 0) as number;
 
-	if (sourceVersion > 0 && targetVersion > 0)
-		//both the source and the target exist
+	// Verbose logging for version comparison debugging
+	// if (state.verbose) {
+	// 	console.log(`[ChangeDetection] ${itemName}: sourceV=${sourceVersion} (mapped=${mappedSourceVersion}), targetV=${targetVersion} (mapped=${mappedTargetVersion})`);
+	// }
 
+	if (sourceVersion > 0 && targetVersion > 0) {
+		//both the source and the target exist
 
 		if (sourceVersion > mappedSourceVersion && targetVersion > mappedTargetVersion) {
 			//CONFLICT DETECTION
@@ -67,6 +76,10 @@ export function changeDetection(
 			const sourceUrl = `https://app.agilitycms.com/instance/${state.sourceGuid[0]}/${locale}/content/listitem-${sourceEntity.contentID}`;
 			const targetUrl = `https://app.agilitycms.com/instance/${state.targetGuid[0]}/${locale}/content/listitem-${targetEntity.contentID}`;
 
+			// if (state.verbose) {
+			// 	console.log(`[ChangeDetection] ${itemName}: CONFLICT - both versions changed`);
+			// }
+
 			return {
 				entity: targetEntity,
 				shouldUpdate: false,
@@ -75,13 +88,16 @@ export function changeDetection(
 				isConflict: true,
 				reason: `Both source and target versions have been updated. Please resolve manually.\n   - source: ${sourceUrl} \n   - target: ${targetUrl}.`
 			};
-
 		}
+	}
 
 	if (sourceVersion > mappedSourceVersion && targetVersion <= mappedTargetVersion) {
 		//SOURCE UPDATE ONLY
 		// Source version is newer the mapped source version
 		// and target version is NOT newer than mapped target version
+		// if (state.verbose) {
+		// 	console.log(`[ChangeDetection] ${itemName}: UPDATE - source version newer (${sourceVersion} > ${mappedSourceVersion})`);
+		// }
 		return {
 			entity: targetEntity,
 			shouldUpdate: true,
@@ -94,6 +110,9 @@ export function changeDetection(
 
 	const { overwrite } = state;
 	if (overwrite) {
+		// if (state.verbose) {
+		// 	console.log(`[ChangeDetection] ${itemName}: UPDATE - overwrite mode enabled`);
+		// }
 		return {
 			entity: targetEntity,
 			shouldUpdate: true,
@@ -104,6 +123,9 @@ export function changeDetection(
 		};
 	}
 
+	// if (state.verbose) {
+	// 	console.log(`[ChangeDetection] ${itemName}: SKIP - up to date`);
+	// }
 	return {
 		entity: targetEntity,
 		shouldUpdate: false,

@@ -1,4 +1,5 @@
 import * as mgmtApi from "@agility/management-sdk";
+import ansiColors from "ansi-colors";
 import { state, getApiClient } from "../../../core/state";
 import { PusherResult } from "../../../types/sourceData";
 import { SitemapHierarchy } from "./sitemap-hierarchy";
@@ -11,7 +12,8 @@ interface ReturnType {
 	successful: number;
 	failed: number;
 	skipped: number;
-	publishableIds: number[]
+	publishableIds: number[];
+	failureDetails: Array<{ name: string; error: string; type?: 'content' | 'page'; pageID?: number; contentID?: number; guid?: string; locale?: string }>;
 }
 
 interface Props {
@@ -61,7 +63,8 @@ export async function processSitemap({
 		successful: 0,
 		failed: 0,
 		skipped: 0,
-		publishableIds: []
+		publishableIds: [],
+		failureDetails: []
 	};
 
 	// Reverse the sitemap nodes to process them in the correct order
@@ -76,8 +79,17 @@ export async function processSitemap({
 		const sourcePage = sourcePages.find(page => page.pageID === node.pageID);
 
 		if (!sourcePage) {
-			logger.page.error(node, `source page with ID ${node.pageID} not found in source data.`, locale, channel, targetGuid);
+			const errorMsg = `source page with ID ${node.pageID} not found in source data.`;
+			logger.page.error(node, errorMsg, locale, channel, targetGuid);
 			returnData.failed++;
+			returnData.failureDetails.push({ 
+				name: `PageID ${node.pageID}`, 
+				error: errorMsg,
+				type: 'page',
+				pageID: node.pageID,
+				guid: sourceGuid,
+				locale
+			});
 			continue; // Skip if source page is missing
 		}
 
@@ -106,18 +118,35 @@ export async function processSitemap({
 			logger
 		})
 
-		if (pageRes === "success") {
+		if (pageRes.status === "success") {
 			returnData.successful++;
 
-			const mapping = pageMapper.getPageMappingByPageID(sourcePage.pageID, 'source');
-			if (mapping) {
-				returnData.publishableIds.push(mapping.targetPageID);
+			// Only add to publishableIds if source page is in Published state (state === 2)
+			// Staging pages (state === 1) should not be auto-published
+			const isSourcePublished = sourcePage.properties?.state === 2;
+			if (isSourcePublished) {
+				const mapping = pageMapper.getPageMappingByPageID(sourcePage.pageID, 'source');
+				if (mapping) {
+					returnData.publishableIds.push(mapping.targetPageID);
+				}
+			} else {
+				console.log(ansiColors.gray(`    📋 Skipping auto-publish for page "${sourcePage.name}" (state: ${sourcePage.properties?.state} - not published in source)`));
 			}
 
-		} else if (pageRes === "skip") {
+		} else if (pageRes.status === "skip") {
 			returnData.skipped++;
 		} else {
+			// pageRes.status is "failure"
 			returnData.failed++;
+			returnData.failureDetails.push({ 
+				name: sourcePage.name || `Page ${sourcePage.pageID}`, 
+				error: pageRes.error || 'Unknown error',
+				type: 'page',
+				pageID: sourcePage.pageID,
+				contentID: pageRes.contentID,  // Include contentID for linking to the missing content
+				guid: sourceGuid,
+				locale
+			});
 		}
 
 
@@ -141,11 +170,17 @@ export async function processSitemap({
 		returnData.successful += childRes.successful;
 		returnData.failed += childRes.failed;
 		returnData.skipped += childRes.skipped;
+		returnData.publishableIds.push(...childRes.publishableIds);
+		returnData.failureDetails.push(...childRes.failureDetails);
 
 		// Update previousPageID for next iteration
 		previousPageID = node.pageID;
 
 
 	}
+	
+	// Deduplicate publishableIds at the sitemap level to prevent duplicates from recursive calls
+	returnData.publishableIds = Array.from(new Set(returnData.publishableIds));
+	
 	return returnData;
 }

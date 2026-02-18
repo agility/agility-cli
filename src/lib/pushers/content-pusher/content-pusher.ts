@@ -2,7 +2,7 @@
 // Removed finder imports - using mapper directly
 import ansiColors from "ansi-colors";
 // Removed ContentBatchProcessor import - individual pusher only handles individual processing
-import { getLoggerForGuid, state } from 'core/state';
+import { getLoggerForGuid, state, registerFailedContent } from 'core/state';
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { filterContentItemsForProcessing } from './util/filter-content-items-for-processing';
 import { getContentItemTypes } from './util/get-content-item-types';
@@ -35,7 +35,7 @@ export async function pushContent(
     const contentItems = sourceData || [];
 
     if (contentItems.length === 0) {
-        return { status: "success" as const, successful: 0, failed: 0, skipped: 0, publishableIds: [] };
+        return { status: "success" as const, successful: 0, failed: 0, skipped: 0, publishableIds: [], failureDetails: [] };
     }
 
     // Deterministically classify content items based on list references (fulllist=true)
@@ -52,6 +52,7 @@ export async function pushContent(
     let totalFailed = 0;
     let totalSkipped = 0;
     const allPublishableIds: number[] = [];
+    const allFailureDetails: Array<{ name: string; error: string; type?: 'content' | 'page'; contentID?: number; guid?: string; locale?: string }> = [];
 
     try {
         // Import getApiClient for both batch configurations
@@ -101,6 +102,25 @@ export async function pushContent(
             totalSkipped += filteredLinkedContentItems.skippedCount;
             totalSkipped += linkedResult.skippedCount;
             allPublishableIds.push(...linkedResult.publishableIds);
+            // Collect failure details for error summary and register in failed content registry
+            if (linkedResult.failedItems && linkedResult.failedItems.length > 0) {
+                linkedResult.failedItems.forEach(item => {
+                    const name = item.originalContent?.properties?.referenceName || 'Unknown';
+                    const contentID = item.originalContent?.contentID;
+                    allFailureDetails.push({ 
+                        name, 
+                        error: item.error,
+                        type: 'content',
+                        contentID,
+                        guid: sourceGuidStr,
+                        locale
+                    });
+                    // Register in global registry so page pusher can provide better error messages
+                    if (contentID) {
+                        registerFailedContent(contentID, name, item.error, locale);
+                    }
+                });
+            }
         }
 
           // Process normal content items first (no dependencies)
@@ -139,6 +159,25 @@ export async function pushContent(
             totalSkipped += filteredNormalContentItems.skippedCount;
             totalSkipped += normalResult.skippedCount;
             allPublishableIds.push(...normalResult.publishableIds);
+            // Collect failure details for error summary and register in failed content registry
+            if (normalResult.failedItems && normalResult.failedItems.length > 0) {
+                normalResult.failedItems.forEach(item => {
+                    const name = item.originalContent?.properties?.referenceName || 'Unknown';
+                    const contentID = item.originalContent?.contentID;
+                    allFailureDetails.push({ 
+                        name, 
+                        error: item.error,
+                        type: 'content',
+                        contentID,
+                        guid: sourceGuidStr,
+                        locale
+                    });
+                    // Register in global registry so page pusher can provide better error messages
+                    if (contentID) {
+                        registerFailedContent(contentID, name, item.error, locale);
+                    }
+                });
+            }
         }
 
         // Convert batch result to expected PusherResult format
@@ -148,9 +187,18 @@ export async function pushContent(
             failed: totalFailed,
             skipped: totalSkipped,
             publishableIds: allPublishableIds,
+            failureDetails: allFailureDetails,
         };
     } catch (batchError: any) {
         console.error(ansiColors.red(`❌ Batch processing failed: ${batchError.message}`));
+        return {
+            status: "error" as const,
+            successful: totalSuccessful,
+            failed: totalFailed + 1,
+            skipped: totalSkipped,
+            publishableIds: allPublishableIds,
+            failureDetails: [...allFailureDetails, { name: 'Batch processing', error: batchError.message }],
+        };
     }
 
 }

@@ -247,11 +247,8 @@ const saveItem = async ({ options, item, itemType, languageCode, itemID }) => {
 		}
 
 		let json = JSON.stringify(item);
-        // Add specific debug logs around file write
-        // console.log(`[Debug saveItem] About to write: ${itemType} (ID: ${itemID}) to ${absoluteFilePath}`);
-		fs.writeFileSync(absoluteFilePath, json);
-        // console.log(`[Debug saveItem] Write successful for: ${absoluteFilePath}`);
-		
+     	fs.writeFileSync(absoluteFilePath, json);
+
 		// Use structured logging instead of basic console.log
 		if (logger) {
 

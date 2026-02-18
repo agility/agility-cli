@@ -20,7 +20,14 @@ export interface BatchWorkflowResult {
     success: boolean;
     processedIds: number[];
     failedCount: number;
+    batchId?: number; // The batch ID from the API
     error?: string;
+    /** Partial success details when some items succeed and some fail */
+    partialSuccess?: {
+        successCount: number;
+        failureCount: number;
+        batchId: number;
+    };
 }
 
 /**

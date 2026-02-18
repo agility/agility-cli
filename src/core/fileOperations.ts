@@ -89,6 +89,68 @@ export class fileOperations {
     return cleaned;
   }
 
+  /**
+   * Sanitize an object by removing non-serializable properties (like HTTPS Agents)
+   * This prevents "Converting circular structure to JSON" errors when saving SDK responses
+   */
+  private sanitizeForJson(obj: any): any {
+    if (obj === null || obj === undefined) {
+      return obj;
+    }
+    
+    if (typeof obj !== 'object') {
+      return obj;
+    }
+    
+    // Handle arrays
+    if (Array.isArray(obj)) {
+      return obj.map(item => this.sanitizeForJson(item));
+    }
+    
+    // Skip known non-serializable types
+    const constructorName = obj.constructor?.name;
+    if (constructorName === 'Agent' || 
+        constructorName === 'ClientRequest' || 
+        constructorName === 'IncomingMessage' ||
+        constructorName === 'Socket' ||
+        constructorName === 'TLSSocket') {
+      return undefined;
+    }
+    
+    // Create a clean copy of the object
+    const cleanObj: any = {};
+    for (const key of Object.keys(obj)) {
+      // Skip properties that are likely to contain circular references
+      if (key === 'agent' || 
+          key === '_httpMessage' || 
+          key === 'socket' || 
+          key === 'connection' ||
+          key === 'request' ||
+          key === 'response' ||
+          key === '_events' ||
+          key === '_eventsCount' ||
+          key === 'httpsAgent' ||
+          key === 'httpAgent') {
+        continue;
+      }
+      
+      const value = obj[key];
+      
+      // Skip functions
+      if (typeof value === 'function') {
+        continue;
+      }
+      
+      // Recursively sanitize nested objects
+      const sanitizedValue = this.sanitizeForJson(value);
+      if (sanitizedValue !== undefined) {
+        cleanObj[key] = sanitizedValue;
+      }
+    }
+    
+    return cleanObj;
+  }
+
   exportFiles(folder: string, fileIdentifier: any, extractedObject: any, baseFolder?: string) {
     let effectiveBase: string;
     if (baseFolder) {
@@ -116,7 +178,11 @@ export class fileOperations {
     }
 
     const fileName = path.join(directoryForFile, `${fileIdentifier}.json`);
-    fs.writeFileSync(fileName, JSON.stringify(extractedObject));
+    
+    // Sanitize the object to remove non-serializable properties (like HTTPS Agents)
+    // This prevents "Converting circular structure to JSON" errors with --local mode
+    const sanitizedObject = this.sanitizeForJson(extractedObject);
+    fs.writeFileSync(fileName, JSON.stringify(sanitizedObject));
   }
 
   appendFiles(folder: string, fileIdentifier: any, extractedObject: any) {

@@ -199,6 +199,73 @@ export class Auth {
     return "https://mgmt.aglty.io";
   }
 
+  /**
+   * Determine the Content Fetch API URL based on GUID suffix.
+   * NOTE: This is separate from the Management API URL.
+   * The Fetch API is always cloud-based, even when running --local for management.
+   * --local only affects the Management API, not the Content Fetch/Sync API.
+   */
+  determineFetchUrl(guid?: string): string {
+    let baseGUID = guid;
+    if (!baseGUID) {
+      baseGUID = state.sourceGuid[0];
+    }
+
+    // Content Fetch API URLs are determined by GUID suffix only
+    // --local, --dev, --preprod flags do NOT affect the fetch URL
+    if (baseGUID) {
+      switch (true) {
+        case baseGUID.endsWith("d"):
+          return "https://api-dev.aglty.io";
+        case baseGUID.endsWith("u"):
+          return "https://api.aglty.io";
+        case baseGUID.endsWith("c"):
+          return "https://api-ca.aglty.io";
+        case baseGUID.endsWith("e"):
+          return "https://api-eu.aglty.io";
+        case baseGUID.endsWith("a"):
+          return "https://api-aus.aglty.io";
+        case baseGUID.endsWith("us2"):
+          return "https://api-usa2.aglty.io";
+      }
+    }
+    // Default to US
+    return "https://api.aglty.io";
+  }
+
+  /**
+   * Determine the cloud Management API URL based on GUID suffix.
+   * This IGNORES --local flag and always returns the cloud URL.
+   * Used for operations that must hit the cloud (e.g., getting API keys).
+   */
+  determineCloudMgmtUrl(guid?: string): string {
+    let baseGUID = guid;
+    if (!baseGUID) {
+      baseGUID = state.sourceGuid[0];
+    }
+
+    // Cloud Management API URLs are determined by GUID suffix only
+    // --local flag is ignored - these endpoints must hit the cloud
+    if (baseGUID) {
+      switch (true) {
+        case baseGUID.endsWith("d"):
+          return "https://mgmt-dev.aglty.io";
+        case baseGUID.endsWith("u"):
+          return "https://mgmt.aglty.io";
+        case baseGUID.endsWith("c"):
+          return "https://mgmt-ca.aglty.io";
+        case baseGUID.endsWith("e"):
+          return "https://mgmt-eu.aglty.io";
+        case baseGUID.endsWith("a"):
+          return "https://mgmt-aus.aglty.io";
+        case baseGUID.endsWith("us2"):
+          return "https://mgmt-usa2.aglty.io";
+      }
+    }
+    // Default to US
+    return "https://mgmt.aglty.io";
+  }
+
   getBaseUrl(guid: string, userBaseUrl: string = null): string {
     let baseUrl = this.determineBaseUrl(guid);
     return `${baseUrl}/oauth`;
@@ -293,6 +360,15 @@ export class Auth {
       redirectUri
     )}&state=cli-code%2e${code}`;
 
+    // Debug logging for local development
+    if (state.local || state.dev) {
+      console.log("\n🔍 OAuth Debug Info:");
+      console.log(`   Base URL: ${baseUrl}`);
+      console.log(`   Redirect URI: ${redirectUri}`);
+      console.log(`   Full Auth URL: ${authUrl}`);
+      console.log("");
+    }
+
     await open(authUrl);
     return code;
   }
@@ -356,12 +432,16 @@ export class Auth {
     const mgmtApiOptions = new (await import("@agility/management-sdk")).Options();
     mgmtApiOptions.token = await this.getToken();
 
-    // // Store basic mgmt API options in state
-    state.mgmtApiOptions = mgmtApiOptions;
+    // CRITICAL: Set baseUrl for local/dev/preprod modes BEFORE creating the client
+    // This ensures getLocales() and other SDK calls use the correct endpoint
+    const baseUrl = this.determineBaseUrl();
+    mgmtApiOptions.baseUrl = baseUrl;
 
-    // Clear cached API client to ensure fresh connection with new auth state
-    // const { clearApiClient } = await import('./state');
-    // clearApiClient();
+    // Store basic mgmt API options in state
+    state.mgmtApiOptions = mgmtApiOptions;
+    state.baseUrl = baseUrl;
+
+    // Create the cached API client with proper configuration
     state.cachedApiClient = new mgmtApi.ApiClient(state.mgmtApiOptions);
 
     // Load user data for interactive prompts and general use
@@ -770,9 +850,28 @@ export class Auth {
 
   async getPreviewKey(guid: string, userBaseUrl: string = null) {
     try {
-      const result = await this.executeGet("/GetPreviewKey?guid=" + guid, guid, userBaseUrl);
-      // The API returns a raw string, not a JSON object with a previewKey property
-      return result;
+      // Use determineBaseUrl to respect --local flag (localhost:5050)
+      const baseUrl = this.determineBaseUrl(guid);
+      const url = `${baseUrl}/oauth/GetPreviewKey?guid=${guid}`;
+      const token = await this.getToken();
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+          "User-Agent": "agility-cli-fetch/1.0",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText} for ${url}`);
+      }
+
+      const textResponse = await response.text();
+      return textResponse.startsWith('"') && textResponse.endsWith('"') 
+        ? textResponse.slice(1, -1) 
+        : textResponse;
     } catch (err) {
       throw err;
     }
@@ -780,9 +879,28 @@ export class Auth {
 
   async getFetchKey(guid: string, userBaseUrl: string = null) {
     try {
-      const result = await this.executeGet("/GetFetchKey?guid=" + guid, guid, userBaseUrl);
-      // The API returns a raw string, not a JSON object with a fetchKey property
-      return result;
+      // Use determineBaseUrl to respect --local flag (localhost:5050)
+      const baseUrl = this.determineBaseUrl(guid);
+      const url = `${baseUrl}/oauth/GetFetchKey?guid=${guid}`;
+      const token = await this.getToken();
+
+      const response = await fetch(url, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+          "User-Agent": "agility-cli-fetch/1.0",
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText} for ${url}`);
+      }
+
+      const textResponse = await response.text();
+      return textResponse.startsWith('"') && textResponse.endsWith('"') 
+        ? textResponse.slice(1, -1) 
+        : textResponse;
     } catch (err) {
       throw err;
     }
@@ -904,10 +1022,12 @@ export class Auth {
         if (!state.channel) missingFields.push("channel (use --channel or AGILITY_WEBSITE in .env)");
         break;
 
+      case "push":
       case "sync":
+        // Both push and sync require source and target GUIDs
         if (!state.sourceGuid || state.sourceGuid.length === 0)
           missingFields.push("sourceGuid (use --sourceGuid or AGILITY_GUID in .env)");
-        if (!state.targetGuid || state.targetGuid.length === 0) missingFields.push("targetGuid (use --targetGuid)");
+        if (!state.targetGuid || state.targetGuid.length === 0) missingFields.push("targetGuid (use --targetGuid or AGILITY_TARGET_GUID in .env)");
 
         // Check for locales: either user-specified OR auto-detected per-GUID mappings
         const hasSyncUserLocales = state.locale && state.locale.length > 0;

@@ -27,6 +27,19 @@ export type PusherProgressCallback = (
 ) => void;
 
 /**
+ * Individual failure detail with optional link metadata
+ */
+export interface FailureDetail {
+    name: string;
+    error: string;
+    type?: 'content' | 'page';  // For generating appropriate link
+    pageID?: number;            // Source page ID for page links
+    contentID?: number;         // Source content ID for content links
+    guid?: string;              // Source instance GUID
+    locale?: string;            // Locale code
+}
+
+/**
  * Standardized pusher result interface for all pusher operations
  * Replaces inline type definitions with consistent response structure
  */
@@ -36,6 +49,7 @@ export interface PusherResult {
     skipped: number;
     status: 'success' | 'error';
     publishableIds?: number[]; // Optional: target instance IDs for workflow operations (content items and pages only)
+    failureDetails?: FailureDetail[]; // Individual failure details for error summary
 }
 
 /**

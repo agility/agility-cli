@@ -88,7 +88,8 @@ export class Downloader {
   }
 
   /**
-   * Orchestrate multiple GUIDs concurrently (DEFAULT METHOD)
+   * Orchestrate multiple GUIDs (DEFAULT METHOD)
+   * Uses sequential mode when --local flag is set to prevent overwhelming local API
    */
   async instanceOrchestrator(fromPush: boolean): Promise<DownloadResults[]> {
     const state = getState();
@@ -97,8 +98,26 @@ export class Downloader {
     if (allGuids.length === 0) {
       throw new Error('No GUIDs available for download operation');
     }
+
+    // Use sequential mode when running against local API to prevent crashes
+    // Local debugging sessions can't handle as many concurrent requests
+    if (state.local) {
+      console.log(ansiColors.gray('Using sequential download mode for local API...'));
+      const successfulResults: DownloadResults[] = [];
+      
+      for (const guid of allGuids) {
+        try {
+          const result = await this.guidDownloader(guid, fromPush);
+          successfulResults.push(result);
+        } catch (error: any) {
+          console.error(`Failed download: ${guid} - ${error?.message || 'Unknown error'}`);
+        }
+      }
+      
+      return successfulResults;
+    }
      
-    // Start ALL downloads simultaneously (true parallel execution)
+    // Start ALL downloads simultaneously (true parallel execution) for cloud APIs
     const downloadTasks = allGuids.map(guid => this.guidDownloader(guid, fromPush));
     
     const results = await Promise.allSettled(downloadTasks);

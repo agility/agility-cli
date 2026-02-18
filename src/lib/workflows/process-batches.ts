@@ -155,8 +155,14 @@ export async function processBatches(
     errors: string[]
 ): Promise<BatchProcessingResult> {
     const logLines: string[] = [];
+    
+    // CRITICAL: Deduplicate IDs to prevent "item already in batch" API errors
+    // This is a defensive measure in case upstream code doesn't dedupe properly
+    const uniqueIds = Array.from(new Set(ids));
+    const duplicatesRemoved = ids.length - uniqueIds.length;
+    
     const results: BatchProcessingResult = { 
-        total: ids.length, 
+        total: uniqueIds.length, 
         processed: 0, 
         failed: 0, 
         batches: 0, 
@@ -164,27 +170,32 @@ export async function processBatches(
         logLines: []
     };
     
-    if (ids.length === 0) return results;
+    if (uniqueIds.length === 0) return results;
 
     const label = type === 'content' ? 'Content' : 'Page';
     const operationName = getOperationName(operation);
     const operationVerb = getOperationVerb(operation);
     
-    logLine(ansiColors.cyan(`\n${operationName}ing ${ids.length} ${label.toLowerCase()} items...`), logLines);
+    // Log deduplication if any duplicates were removed
+    if (duplicatesRemoved > 0) {
+        logLine(ansiColors.gray(`    📋 Deduplicated ${label.toLowerCase()} IDs: ${ids.length} → ${uniqueIds.length} (${duplicatesRemoved} duplicates removed)`), logLines);
+    }
+    
+    logLine(ansiColors.cyan(`\n${operationName}ing ${uniqueIds.length} ${label.toLowerCase()} items...`), logLines);
     
     // Get item display info and show breakdown (ALL items, no truncation)
     const targetGuid = state.targetGuid?.[0];
     if (targetGuid) {
         const displayMap = type === 'content' 
-            ? getContentDisplayInfo(ids, targetGuid, locale)
-            : getPageDisplayInfo(ids, targetGuid, locale);
+            ? getContentDisplayInfo(uniqueIds, targetGuid, locale)
+            : getPageDisplayInfo(uniqueIds, targetGuid, locale);
         
         if (displayMap.size > 0) {
-            displayItemBreakdown(ids, type, targetGuid, locale, operationName, displayMap, logLines);
+            displayItemBreakdown(uniqueIds, type, targetGuid, locale, operationName, displayMap, logLines);
         }
     }
     
-    const batches = createBatches(ids);
+    const batches = createBatches(uniqueIds);
     results.batches = batches.length;
 
     for (let i = 0; i < batches.length; i++) {
@@ -192,17 +203,28 @@ export async function processBatches(
         const batchNum = i + 1;
         const progress = Math.round((batchNum / batches.length) * 100);
         
+        // Initial log - batch ID will be shown in the progress display from batchWorkflow
         logLine(ansiColors.gray(`[${progress}%] ${label} batch ${batchNum}/${batches.length}: ${operationName}ing ${batch.length} items...`), logLines);
 
         try {
             const batchResult = await batchWorkflow(batch, locale, operation, type);
+            const batchIdStr = batchResult.batchId ? ` (batch ID: ${batchResult.batchId})` : '';
             
             if (batchResult.success) {
                 results.processed += batchResult.processedIds.length;
                 results.processedIds.push(...batchResult.processedIds);
+                
+                // Handle partial success - some items succeeded, some failed
+                if (batchResult.partialSuccess) {
+                    const { successCount, failureCount, batchId } = batchResult.partialSuccess;
+                    results.failed += failureCount;
+                    
+                    // Add a "completed with errors" message instead of failure message
+                    errors.push(`${label} batch ${batchNum} (ID: ${batchId}): Completed with errors - ${successCount} succeeded, ${failureCount} failed`);
+                }
             } else {
                 results.failed += batch.length;
-                errors.push(`${label} batch ${batchNum}: ${batchResult.error}`);
+                errors.push(`${label} batch ${batchNum}${batchIdStr}: ${batchResult.error}`);
             }
         } catch (error: any) {
             results.failed += batch.length;
