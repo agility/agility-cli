@@ -849,29 +849,27 @@ export function contentExistsInSourceData(guid: string, locale: string, contentI
 }
 
 /**
- * Check if a content item exists in another locale but not the current one
- * Returns the locale where it exists, or null if not found anywhere
+ * Check if a content item exists in another locale but not the current one.
+ * Only considers API-known locales (state.availableLocales) so deleted locales
+ * with leftover folders (e.g. DONOTUSE) are not treated as valid "other locale".
+ * Returns the locale where it exists, or null if not found anywhere.
  */
 export function contentExistsInOtherLocale(guid: string, currentLocale: string, contentID: number): string | null {
   const fs = require('fs');
   const path = require('path');
-  
-  // Get the guid folder and find all locale folders
+
+  const validLocales = (state.availableLocales || []).filter((l) => l !== currentLocale);
+  if (validLocales.length === 0) return null;
+
   const guidPath = path.join(process.cwd(), state.rootPath, guid);
   if (!fs.existsSync(guidPath)) return null;
-  
-  const entries = fs.readdirSync(guidPath, { withFileTypes: true });
-  const localeFolders = entries
-    .filter((entry: any) => entry.isDirectory() && entry.name !== 'models' && entry.name !== currentLocale)
-    .map((entry: any) => entry.name);
-  
-  // Check each locale for the content item
-  for (const locale of localeFolders) {
+
+  for (const locale of validLocales) {
     const contentPath = path.join(guidPath, locale, 'item', `${contentID}.json`);
     if (fs.existsSync(contentPath)) {
       return locale;
     }
   }
-  
+
   return null;
 }
