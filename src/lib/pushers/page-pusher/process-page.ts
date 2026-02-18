@@ -333,7 +333,9 @@ export async function processPage({
 
 		const payload: any = {
 			...pageCopy,
-			pageID: existingPage ? existingPage.pageID : -1, // Use existing page ID if available
+			// If local target file is missing but mapping exists, use the known target container ID
+			// to force an UPDATE instead of INSERT (prevents duplicate name server errors)
+			pageID: existingPage ? existingPage.pageID : (pageMapping?.targetPageID ?? -1),
 			title: pageTitle, // CRITICAL: Ensure title is always present
 			channelID: channelID, // CRITICAL: Always use target instance channel ID to avoid FK constraint errors
 			zones: formattedZones,
