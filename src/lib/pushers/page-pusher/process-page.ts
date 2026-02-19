@@ -85,10 +85,13 @@ export async function processPage({
 			channelID = sitemap?.[0]?.digitalChannelID || 1; // Fallback to first channel or default
 		}
 
-		const hasTargetChanged = pageMapper.hasTargetChanged(existingPage);
 		const hasSourceChanged = pageMapper.hasSourceChanged(page);
+		const hasTargetChanged = pageMapper.hasTargetChanged(page);
 
-		const isConflict = hasTargetChanged && hasSourceChanged;
+		// A conflict exists whenever the target has changed independently — regardless of whether
+		// the source also changed. Even if source is unchanged today, a future source push would
+		// silently overwrite the target's independent changes without this guard.
+		const isConflict = hasTargetChanged;
 		const updateRequired = (hasSourceChanged && !isConflict) || overwrite;
 		const createRequired = !existingPage;
 
@@ -100,14 +103,18 @@ export async function processPage({
 			}[page.pageType] || page.pageType;
 
 		if (isConflict) {
-			// CONFLICT: Target has changes, source has changes, and we're not in overwrite mode
-			// Skip processing - do NOT push to target or add to publishable IDs
-
+			// CONFLICT: Target has independent changes — skip to prevent overwriting them.
+			// Use mapping's targetPageID as fallback in case existingPage wasn't loaded.
+			const targetPageID = existingPage?.pageID ?? pageMapping?.targetPageID;
 			const sourceUrl = `https://app.agilitycms.com/instance/${sourceGuid}/${locale}/pages/${page.pageID}`;
-			const targetUrl = `https://app.agilitycms.com/instance/${targetGuid}/${locale}/pages/${existingPage.pageID}`;
+			const targetUrl = `https://app.agilitycms.com/instance/${targetGuid}/${locale}/pages/${targetPageID}`;
+
+			const reason = hasSourceChanged
+				? "changes detected in both source and target"
+				: "target has been changed independently";
 
 			console.warn(
-				`⚠️  Conflict detected ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.grey("changes detected in both source and target")}. Please resolve manually.`
+				`⚠️  Conflict detected ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.grey(reason)}. Please resolve manually.`
 			);
 			console.warn(`   - Source: ${sourceUrl}`);
 			console.warn(`   - Target: ${targetUrl}`);
@@ -116,7 +123,6 @@ export async function processPage({
 		} else if (createRequired) {
 			//CREATE NEW PAGE - nothing to do here yet...
 		} else if (!updateRequired) {
-			// Add to reference mapper for future lookups
 			if (existingPage) {
 				pageMapper.addMapping(page, existingPage);
 			}

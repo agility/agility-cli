@@ -121,10 +121,12 @@ export class PageMapper {
         return sourcePage.properties.versionID > mapping.sourceVersionID;
     }
 
-    hasTargetChanged(targetPage: mgmtApi.PageItem) {
-        if (!targetPage) return false;
-        const mapping = this.getPageMapping(targetPage, 'target');
+    hasTargetChanged(sourcePage: mgmtApi.PageItem) {
+        if (!sourcePage) return false;
+        const mapping = this.getPageMapping(sourcePage, 'source');
         if (!mapping) return false;
+        const targetPage = this.getMappedEntity(mapping, 'target');
+        if (!targetPage) return false; // no downloaded target file yet (e.g. first sync) — can't detect change
         return targetPage.properties.versionID > mapping.targetVersionID;
     }
 
