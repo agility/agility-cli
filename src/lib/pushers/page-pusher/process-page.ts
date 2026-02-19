@@ -86,12 +86,12 @@ export async function processPage({
 		}
 
 		const hasSourceChanged = pageMapper.hasSourceChanged(page);
-		const hasTargetChanged = pageMapper.hasTargetChanged(page);
+		const targetChangeResult = pageMapper.hasTargetChanged(page);
 
 		// A conflict exists whenever the target has changed independently — regardless of whether
 		// the source also changed. Even if source is unchanged today, a future source push would
 		// silently overwrite the target's independent changes without this guard.
-		const isConflict = hasTargetChanged;
+		const isConflict = targetChangeResult !== null;
 		const updateRequired = (hasSourceChanged && !isConflict) || overwrite;
 		const createRequired = !existingPage;
 
@@ -103,23 +103,31 @@ export async function processPage({
 			}[page.pageType] || page.pageType;
 
 		if (isConflict) {
-			// CONFLICT: Target has independent changes — skip to prevent overwriting them.
+			// CONFLICT: Target has independent changes.
 			// Use mapping's targetPageID as fallback in case existingPage wasn't loaded.
 			const targetPageID = existingPage?.pageID ?? pageMapping?.targetPageID;
 			const sourceUrl = `https://app.agilitycms.com/instance/${sourceGuid}/${locale}/pages/${page.pageID}`;
 			const targetUrl = `https://app.agilitycms.com/instance/${targetGuid}/${locale}/pages/${targetPageID}`;
 
-			const reason = hasSourceChanged
-				? "changes detected in both source and target"
-				: "target has been changed independently";
+			let reason: string;
+			if (targetChangeResult === 'file_missing') {
+				reason = "target page may have been unpublished or deleted — cannot verify its current state";
+			} else if (hasSourceChanged) {
+				reason = "changes detected in both source and target";
+			} else {
+				reason = "target has been changed independently";
+			}
 
 			console.warn(
-				`⚠️  Conflict detected ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.grey(reason)}. Please resolve manually.`
+				`⚠️  Conflict detected ${pageTypeDisplay} ${ansiColors.underline(page.name)} — ${ansiColors.bold.grey(reason)}. Use --overwrite to force.`
 			);
 			console.warn(`   - Source: ${sourceUrl}`);
 			console.warn(`   - Target: ${targetUrl}`);
 
-			return { status: "skip" }; // Prevent conflicting pages from being processed and auto-published
+			if (!overwrite) {
+				return { status: "skip" }; // Prevent conflicting pages from being processed and auto-published
+			}
+			// overwrite mode: warn but continue processing
 		} else if (createRequired) {
 			//CREATE NEW PAGE - nothing to do here yet...
 		} else if (!updateRequired) {
@@ -465,13 +473,8 @@ export async function processPage({
 						folder: "Folder",
 					}[page.pageType] || page.pageType;
 
-				if (existingPage) {
-					if (overwrite) {
-						logger.page.updated(page, "updated", locale, channel, targetGuid);
-
-					} else {
-						logger.page.updated(page, "updated", locale, channel, targetGuid);
-					}
+				if (existingPage || pageMapping) {
+					logger.page.updated(page, "updated", locale, channel, targetGuid);
 				} else {
 					logger.page.created(page, "created", locale, channel, targetGuid);
 				}

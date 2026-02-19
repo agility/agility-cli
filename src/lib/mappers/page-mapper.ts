@@ -121,13 +121,16 @@ export class PageMapper {
         return sourcePage.properties.versionID > mapping.sourceVersionID;
     }
 
-    hasTargetChanged(sourcePage: mgmtApi.PageItem) {
-        if (!sourcePage) return false;
+    hasTargetChanged(sourcePage: mgmtApi.PageItem): 'version_changed' | 'file_missing' | null {
+        if (!sourcePage) return null;
         const mapping = this.getPageMapping(sourcePage, 'source');
-        if (!mapping) return false;
+        if (!mapping) return null;
         const targetPage = this.getMappedEntity(mapping, 'target');
-        if (!targetPage) return false; // no downloaded target file yet (e.g. first sync) — can't detect change
-        return targetPage.properties.versionID > mapping.targetVersionID;
+        // Mapping exists but no downloaded file — page was previously synced and its file has
+        // since been removed (e.g. unpublished or deleted in the target instance).
+        if (!targetPage) return 'file_missing';
+        if (targetPage.properties.versionID > mapping.targetVersionID) return 'version_changed';
+        return null;
     }
 
     /**
