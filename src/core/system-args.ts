@@ -194,7 +194,7 @@ export const systemArgs = {
   autoPublish: {
     describe: "Automatically publish content and/or pages after sync completes. Options: 'content' (publish only content), 'pages' (publish only pages), 'both' (publish content and pages). Default: both when flag is provided.",
     demandOption: false,
-    alias: ["auto-publish", "autoPublish", "AutoPublish", "AUTO_PUBLISH"],
+    alias: ["auto-publish", "autoPublish", "AutoPublish", "AUTO_PUBLISH", "autopublish"],
     type: "string" as const,
     coerce: (value: string | boolean) => {
       // Handle --autoPublish without value (defaults to 'both')

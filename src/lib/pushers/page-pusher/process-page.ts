@@ -86,7 +86,7 @@ export async function processPage({
 		}
 
 		const hasSourceChanged = pageMapper.hasSourceChanged(page);
-		const targetChangeResult = pageMapper.hasTargetChanged(page);
+		const targetChangeResult = pageMapper.hasTargetChanged(existingPage, pageMapping);
 
 		// A conflict exists whenever the target has changed independently — regardless of whether
 		// the source also changed. Even if source is unchanged today, a future source push would
