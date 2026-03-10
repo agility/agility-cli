@@ -410,14 +410,13 @@ export class Auth {
           state.apiKeys.push({ guid, previewKey, fetchKey });
         } catch (error) {
           failedGuids.push(guid);
-          console.log(ansiColors.yellow(`Warning: Could not get keys for GUID ${guid}: ${error.message}`));
         }
       }
     }
 
     // If any GUIDs failed key retrieval, this is almost certainly an auth or GUID problem
     if (failedGuids.length > 0) {
-      console.log(ansiColors.red(`\nError: Failed to retrieve API keys for all specified GUIDs.`));
+      console.log(ansiColors.red(`\nError: Failed to retrieve API keys for one or more specified GUIDs.`));
       console.log(ansiColors.red(`This usually means either:`));
       console.log(ansiColors.red(`  1. Your authentication has expired — run 'agility login' to re-authenticate`));
       console.log(ansiColors.red(`  2. The GUID(s) are incorrect — verify your --sourceGuid / --targetGuid values`));
@@ -539,7 +538,7 @@ export class Auth {
         // If we also failed to get keys for any GUIDs, this is likely an auth/GUID problem — fail fast
         // This should never happen, but just in case
         if (failedGuids.length > 0) {
-          console.log(ansiColors.red(`\nError: Unable to retrieve locales, and API key retrieval also failed.`));
+          console.log(ansiColors.red(`Error: Unable to retrieve locales, and API key retrieval also failed.`));
           console.log(ansiColors.red(`This strongly indicates an authentication or GUID configuration problem.`));
           console.log(ansiColors.red(`  - Run 'agility login' to re-authenticate`));
           console.log(ansiColors.red(`  - Verify your --sourceGuid / --targetGuid values are correct\n`));
