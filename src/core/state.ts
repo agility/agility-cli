@@ -7,6 +7,7 @@ import * as mgmtApi from '@agility/management-sdk';
 import fs from 'fs';
 import path from 'path';
 import { Logs, OperationType, EntityType } from './logs';
+import { Options } from '@agility/management-sdk';
 
 export interface State {
   // Environment modes
@@ -45,8 +46,14 @@ export interface State {
   reset: boolean;
   update: boolean;
 
-  // Publishing control
-  publish: boolean;
+  // Workflow operation control
+  operationType?: string; // Workflow operation: publish, unpublish, approve, decline, requestApproval
+  dryRun: boolean; // Preview mode - show what would be processed without executing
+  autoPublish: string; // Auto-publish after sync: 'content', 'pages', 'both', or '' (disabled)
+
+  // Explicit ID overrides (bypass mappings lookup)
+  explicitContentIDs: number[]; // Target content IDs to process directly
+  explicitPageIDs: number[]; // Target page IDs to process directly
 
   // Model-specific
   models: string;
@@ -87,6 +94,10 @@ export interface State {
   isPush: boolean;
   isPull: boolean;
   isSync: boolean;
+
+  // Failed content registry - tracks content items that failed during sync
+  // Used by page pusher to provide better error messages when content mappings are missing
+  failedContentRegistry: Map<number, { referenceName: string; error: string; locale: string }>;
 }
 
 // Global state - populated from argv and referenced throughout the app
@@ -127,9 +138,12 @@ export const state: State = {
   force: false,
   reset: false,
   update: true,
+  dryRun: false,
+  autoPublish: '', // Empty string = disabled
 
-  // Publishing control
-  publish: false,
+  // Explicit ID overrides (bypass mappings lookup)
+  explicitContentIDs: [],
+  explicitPageIDs: [],
 
   // Model-specific
   models: "",
@@ -153,6 +167,9 @@ export const state: State = {
   isPush: false,
   isPull: false,
   isSync: false,
+
+  // Failed content registry - tracks content items that failed during sync
+  failedContentRegistry: new Map(),
 };
 
 /**
@@ -230,8 +247,32 @@ export function setState(argv: any) {
   if (argv.reset !== undefined) state.reset = argv.reset;
   if (argv.update !== undefined) state.update = argv.update;
 
-  // Publishing control
-  if (argv.publish !== undefined) state.publish = argv.publish;
+  // Workflow operation control
+  if (argv.operationType !== undefined) state.operationType = argv.operationType;
+  if (argv.dryRun !== undefined) state.dryRun = argv.dryRun;
+  if (argv.autoPublish !== undefined) state.autoPublish = argv.autoPublish;
+
+  // Explicit ID overrides - parse comma-separated strings into number arrays
+  if (argv.contentIDs !== undefined && argv.contentIDs !== "") {
+    state.explicitContentIDs = String(argv.contentIDs)
+      .split(',')
+      .map((id: string) => parseInt(id.trim(), 10))
+      .filter((id: number) => !isNaN(id) && id > 0);
+  }
+  if (argv.pageIDs !== undefined && argv.pageIDs !== "") {
+    state.explicitPageIDs = String(argv.pageIDs)
+      .split(',')
+      .map((id: string) => parseInt(id.trim(), 10))
+      .filter((id: number) => !isNaN(id) && id > 0);
+  }
+  
+  // Direct array assignment for programmatic use (e.g., auto-publish)
+  if (argv.explicitContentIDs !== undefined && Array.isArray(argv.explicitContentIDs)) {
+    state.explicitContentIDs = argv.explicitContentIDs;
+  }
+  if (argv.explicitPageIDs !== undefined && Array.isArray(argv.explicitPageIDs)) {
+    state.explicitPageIDs = argv.explicitPageIDs;
+  }
 
   // Model-specific
   if (argv.models !== undefined) state.models = argv.models;
@@ -262,34 +303,37 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
   const envFiles = ['.env', '.env.local', '.env.development', '.env.production'];
   const primedValues: string[] = [];
 
+  // Match KEY=value only on uncommented lines (line start or after newline, optional whitespace, no #)
+  const uncommentedLine = (key: string) => new RegExp(`(?:^|\\n)\\s*${key}=([^\\n]+)`, 'm');
+
   for (const envFile of envFiles) {
     const envPath = path.join(process.cwd(), envFile);
     if (fs.existsSync(envPath)) {
       const envContent = fs.readFileSync(envPath, 'utf8');
 
-      // Parse all relevant environment variables
+      // Parse all relevant environment variables (uncommented lines only)
       const envVars = {
-        AGILITY_GUID: envContent.match(/AGILITY_GUID=([^\n]+)/),
-        AGILITY_TARGET_GUID: envContent.match(/AGILITY_TARGET_GUID=([^\n]+)/),
-        AGILITY_WEBSITE: envContent.match(/AGILITY_WEBSITE=([^\n]+)/),
-        AGILITY_LOCALES: envContent.match(/AGILITY_LOCALES=([^\n]+)/),
-        AGILITY_TEST: envContent.match(/AGILITY_TEST=([^\n]+)/),
-        AGILITY_OVERWRITE: envContent.match(/AGILITY_OVERWRITE=([^\n]+)/),
+        AGILITY_GUID: envContent.match(uncommentedLine('AGILITY_GUID')),
+        AGILITY_TARGET_GUID: envContent.match(uncommentedLine('AGILITY_TARGET_GUID')),
+        AGILITY_WEBSITE: envContent.match(uncommentedLine('AGILITY_WEBSITE')),
+        AGILITY_LOCALES: envContent.match(uncommentedLine('AGILITY_LOCALES')),
+        AGILITY_TEST: envContent.match(uncommentedLine('AGILITY_TEST')),
+        AGILITY_OVERWRITE: envContent.match(uncommentedLine('AGILITY_OVERWRITE')),
 
-        AGILITY_PREVIEW: envContent.match(/AGILITY_PREVIEW=([^\n]+)/),
-        AGILITY_VERBOSE: envContent.match(/AGILITY_VERBOSE=([^\n]+)/),
-        AGILITY_HEADLESS: envContent.match(/AGILITY_HEADLESS=([^\n]+)/),
-        AGILITY_ELEMENTS: envContent.match(/AGILITY_ELEMENTS=([^\n]+)/),
-        AGILITY_ROOT_PATH: envContent.match(/AGILITY_ROOT_PATH=([^\n]+)/),
-        AGILITY_BASE_URL: envContent.match(/AGILITY_BASE_URL=([^\n]+)/),
-        AGILITY_DEV: envContent.match(/AGILITY_DEV=([^\n]+)/),
-        AGILITY_LOCAL: envContent.match(/AGILITY_LOCAL=([^\n]+)/),
-        AGILITY_PREPROD: envContent.match(/AGILITY_PREPROD=([^\n]+)/),
-        AGILITY_LEGACY_FOLDERS: envContent.match(/AGILITY_LEGACY_FOLDERS=([^\n]+)/),
-        AGILITY_INSECURE: envContent.match(/AGILITY_INSECURE=([^\n]+)/),
+        AGILITY_PREVIEW: envContent.match(uncommentedLine('AGILITY_PREVIEW')),
+        AGILITY_VERBOSE: envContent.match(uncommentedLine('AGILITY_VERBOSE')),
+        AGILITY_HEADLESS: envContent.match(uncommentedLine('AGILITY_HEADLESS')),
+        AGILITY_ELEMENTS: envContent.match(uncommentedLine('AGILITY_ELEMENTS')),
+        AGILITY_ROOT_PATH: envContent.match(uncommentedLine('AGILITY_ROOT_PATH')),
+        AGILITY_BASE_URL: envContent.match(uncommentedLine('AGILITY_BASE_URL')),
+        AGILITY_DEV: envContent.match(uncommentedLine('AGILITY_DEV')),
+        AGILITY_LOCAL: envContent.match(uncommentedLine('AGILITY_LOCAL')),
+        AGILITY_PREPROD: envContent.match(uncommentedLine('AGILITY_PREPROD')),
+        AGILITY_LEGACY_FOLDERS: envContent.match(uncommentedLine('AGILITY_LEGACY_FOLDERS')),
+        AGILITY_INSECURE: envContent.match(uncommentedLine('AGILITY_INSECURE')),
 
-        AGILITY_MODELS: envContent.match(/AGILITY_MODELS=([^\n]+)/),
-        AGILITY_TOKEN: envContent.match(/AGILITY_TOKEN=([^\n]+)/),
+        AGILITY_MODELS: envContent.match(uncommentedLine('AGILITY_MODELS')),
+        AGILITY_TOKEN: envContent.match(uncommentedLine('AGILITY_TOKEN')),
       };
 
       // Only prime state values that aren't already set from command line
@@ -388,15 +432,16 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
       if (envVars.AGILITY_TOKEN && envVars.AGILITY_TOKEN[1] && !state.token) {
         // Strip quotes from token value if present
         let tokenValue = envVars.AGILITY_TOKEN[1].trim();
-        if ((tokenValue.startsWith('"') && tokenValue.endsWith('"')) || 
+        if ((tokenValue.startsWith('"') && tokenValue.endsWith('"')) ||
             (tokenValue.startsWith("'") && tokenValue.endsWith("'"))) {
-          tokenValue = tokenValue.slice(1, -1);
+          tokenValue = tokenValue.slice(1, -1).trim();
         }
-        
-        state.token = tokenValue;
-        // Also set in process.env so getUserProvidedToken() can find it
-        process.env.AGILITY_TOKEN = tokenValue;
-        primedValues.push('token');
+        // Only prime token when we actually have a non-empty value
+        if (tokenValue.length > 0) {
+          state.token = tokenValue;
+          process.env.AGILITY_TOKEN = tokenValue;
+          primedValues.push('token');
+        }
       }
 
       if (primedValues.length > 0) {
@@ -450,8 +495,13 @@ export function resetState() {
   state.reset = false;
   state.update = true;
 
-  // Publishing control
-  state.publish = false;
+  // Workflow operation control
+  state.operationType = undefined;
+  state.dryRun = false;
+
+  // Explicit ID overrides
+  state.explicitContentIDs = [];
+  state.explicitPageIDs = [];
 
   // Model-specific
   state.models = "";
@@ -497,9 +547,19 @@ export function getApiClient(): mgmtApi.ApiClient {
 
   // Create new client using current auth state
   if (!state.mgmtApiOptions) {
-    throw new Error('Management API options not initialized. Call auth.init() first.');
+    // throw new Error('Management API options not initialized. Call auth.init() first.');
   }
 
+  if(!state.mgmtApiOptions && !state.token) {
+    throw new Error('Management API options not initialized. Call auth.init() first.');
+  } else if (!state.mgmtApiOptions && state.token) {
+    state.mgmtApiOptions = new Options();
+    state.mgmtApiOptions.token = state.token;
+    // Ensure baseUrl is set for local/dev/preprod modes
+    if (state.baseUrl) {
+      state.mgmtApiOptions.baseUrl = state.baseUrl;
+    }
+  }
   // Create and cache the client
   state.cachedApiClient = new mgmtApi.ApiClient(state.mgmtApiOptions);
   return state.cachedApiClient;
@@ -710,4 +770,106 @@ export function endTimer(): void {
  */
 export function clearLogger(): void {
   state.logger = undefined;
+}
+
+// ============================================================================
+// Failed Content Registry
+// Tracks content items that failed during sync so page pusher can provide
+// better error messages when content mappings are missing
+// ============================================================================
+
+/**
+ * Register a failed content item
+ * @param contentID - The source content ID that failed
+ * @param referenceName - The reference name of the content item
+ * @param error - The error message
+ * @param locale - The locale being processed
+ */
+export function registerFailedContent(
+  contentID: number,
+  referenceName: string,
+  error: string,
+  locale: string
+): void {
+  state.failedContentRegistry.set(contentID, { referenceName, error, locale });
+}
+
+/**
+ * Look up a failed content item by its source content ID
+ * @param contentID - The source content ID to look up
+ * @returns The failure info if found, or undefined
+ */
+export function getFailedContent(contentID: number): { referenceName: string; error: string; locale: string } | undefined {
+  return state.failedContentRegistry.get(contentID);
+}
+
+/**
+ * Clear the failed content registry (should be called at start of each sync)
+ */
+export function clearFailedContentRegistry(): void {
+  state.failedContentRegistry.clear();
+}
+
+/**
+ * Get the CMS app URL based on environment
+ * - dev/local/preprod: app-qa.publishwithagility.com
+ * - prod: app.agilitycms.com
+ */
+export function getCmsAppUrl(): string {
+  if (state.dev || state.local || state.preprod) {
+    return 'https://app-qa.publishwithagility.com';
+  }
+  return 'https://app.agilitycms.com';
+}
+
+/**
+ * Generate a link to a page in the CMS app
+ */
+export function getPageCmsLink(guid: string, locale: string, pageID: number): string {
+  return `${getCmsAppUrl()}/instance/${guid}/${locale}/pages/page-${pageID}`;
+}
+
+/**
+ * Generate a link to a content item in the CMS app
+ * URL format: /content/item-{containerID}/listitem-{contentID}
+ * The containerID can be arbitrary (using 0) - only the listitem ID matters for navigation
+ */
+export function getContentCmsLink(guid: string, locale: string, contentID: number): string {
+  return `${getCmsAppUrl()}/instance/${guid}/${locale}/content/item-0/listitem-${contentID}`;
+}
+
+/**
+ * Check if a content item file exists in source data
+ */
+export function contentExistsInSourceData(guid: string, locale: string, contentID: number): boolean {
+  const fs = require('fs');
+  const path = require('path');
+  const contentPath = path.join(process.cwd(), state.rootPath, guid, locale, 'item', `${contentID}.json`);
+  return fs.existsSync(contentPath);
+}
+
+/**
+ * Check if a content item exists in another locale but not the current one.
+ * Only considers API-known locales (state.availableLocales) so deleted locales
+ * with leftover folders (e.g. DONOTUSE) are not treated as valid "other locale".
+ * Returns the locale where it exists, or null if not found anywhere.
+ */
+export function contentExistsInOtherLocale(guid: string, currentLocale: string, contentID: number): string | null {
+  const fs = require('fs');
+  const path = require('path');
+
+  const validLocales = (state.availableLocales || []).filter((l) => l !== currentLocale);
+  if (validLocales.length === 0) return null;
+
+  const guidPath = path.join(process.cwd(), state.rootPath, guid);
+  if (!fs.existsSync(guidPath)) return null;
+
+  for (const locale of validLocales) {
+    const contentPath = path.join(guidPath, locale, 'item', `${contentID}.json`);
+    if (fs.existsSync(contentPath)) {
+      return locale;
+    }
+  }
+
+  return null;
 }

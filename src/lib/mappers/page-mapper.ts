@@ -1,7 +1,7 @@
 import { fileOperations } from "../../core";
 import * as mgmtApi from "@agility/management-sdk";
 
-interface PageMapping {
+export interface PageMapping {
     sourceGuid: string;
     targetGuid: string;
     sourcePageID: number;
@@ -121,12 +121,42 @@ export class PageMapper {
         return sourcePage.properties.versionID > mapping.sourceVersionID;
     }
 
-    hasTargetChanged(targetPage: mgmtApi.PageItem) {
-        if (!targetPage) return false;
-        const mapping = this.getPageMapping(targetPage, 'target');
-        if (!mapping) return false;
-        return targetPage.properties.versionID > mapping.targetVersionID;
+    hasTargetChanged(targetPage: mgmtApi.PageItem | null, mapping: PageMapping | null): 'version_changed' | 'file_missing' | null {
+        if (!mapping) return null;
+        // Mapping exists but no downloaded file — page was previously synced and its file has
+        // since been removed (e.g. unpublished or deleted in the target instance).
+        if (!targetPage) return 'file_missing';
+        if (targetPage.properties.versionID > mapping.targetVersionID) return 'version_changed';
+        return null;
     }
 
+    /**
+     * Update only the target versionID in a mapping (used after publishing)
+     * Does NOT update sourceVersionID - that should only change during sync operations
+     * 
+     * @returns Object with success status and old/new version IDs
+     */
+    updateTargetVersionID(targetPageID: number, newVersionID: number): { 
+        success: boolean; 
+        oldVersionID?: number; 
+        newVersionID?: number;
+    } {
+        const mapping = this.getPageMappingByPageID(targetPageID, 'target');
+        if (!mapping) return { success: false };
+        
+        const oldVersionID = mapping.targetVersionID;
+        
+        // Only update if version actually changed
+        if (oldVersionID !== newVersionID) {
+            mapping.targetVersionID = newVersionID;
+            this.saveMapping();
+        }
+        
+        return { 
+            success: true, 
+            oldVersionID, 
+            newVersionID
+        };
+    }
 
 }

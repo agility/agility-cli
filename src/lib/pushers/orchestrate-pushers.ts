@@ -2,7 +2,7 @@ import { getState, initializeGuidLogger, finalizeGuidLogger } from "../../core/s
 import { fileOperations } from "../../core/fileOperations";
 import ansiColors from "ansi-colors";
 import { GuidDataLoader, GuidEntities, ModelFilterOptions } from "./guid-data-loader";
-import { PusherResult, SourceData } from "../../types/sourceData";
+import { PusherResult, SourceData, FailureDetail } from "../../types/sourceData";
 import { state } from "../../core/state";
 import { PUSH_OPERATIONS, PushOperationsRegistry, PushOperationConfig } from "./push-operations-config";
 
@@ -19,6 +19,11 @@ export interface PushResults {
   totalSkipped: number;
   publishableContentIds: number[];
   publishablePageIds: number[];
+  // Per-locale tracking for proper batch workflow locale handling
+  publishableContentIdsByLocale: Map<string, number[]>;
+  publishablePageIdsByLocale: Map<string, number[]>;
+  // Individual failure details for error summary
+  failureDetails: FailureDetail[];
 }
 
 export interface PusherConfig {
@@ -29,11 +34,15 @@ export interface PusherConfig {
 export class Pushers {
   private config: PusherConfig;
   private startTime: Date = new Date();
-  private fileOps: fileOperations;
+  private fileOps: fileOperations | null = null;
 
   constructor(config: PusherConfig = {}) {
     this.config = config;
-    this.fileOps = new fileOperations(state.sourceGuid[0], null);
+    // Defer fileOps creation until we have a valid sourceGuid
+    // This allows validation to provide a helpful error message first
+    if (state.sourceGuid && state.sourceGuid.length > 0 && state.sourceGuid[0]) {
+      this.fileOps = new fileOperations(state.sourceGuid[0], null);
+    }
   }
 
   /**
@@ -54,6 +63,9 @@ export class Pushers {
       totalSkipped: 0,
       publishableContentIds: [],
       publishablePageIds: [],
+      publishableContentIdsByLocale: new Map(),
+      publishablePageIdsByLocale: new Map(),
+      failureDetails: [],
     };
 
     try {
@@ -69,6 +81,9 @@ export class Pushers {
       results.totalSkipped = pushResults.totalSkipped;
       results.publishableContentIds = pushResults.publishableContentIds;
       results.publishablePageIds = pushResults.publishablePageIds;
+      results.publishableContentIdsByLocale = pushResults.publishableContentIdsByLocale;
+      results.publishablePageIdsByLocale = pushResults.publishablePageIdsByLocale;
+      results.failureDetails = pushResults.failureDetails;
 
       // Calculate final duration
       results.totalDuration = Date.now() - startTime;
@@ -142,6 +157,9 @@ export class Pushers {
     totalSkipped: number;
     publishableContentIds: number[];
     publishablePageIds: number[];
+    publishableContentIdsByLocale: Map<string, number[]>;
+    publishablePageIdsByLocale: Map<string, number[]>;
+    failureDetails: FailureDetail[];
   }> {
     const { locale: locales, elements: stateElements } = state;
     const elements = stateElements.split(",");
@@ -152,6 +170,11 @@ export class Pushers {
     let totalSkipped = 0;
     const publishableContentIds: number[] = [];
     const publishablePageIds: number[] = [];
+    // Per-locale tracking for proper batch workflow locale handling
+    const publishableContentIdsByLocale = new Map<string, number[]>();
+    const publishablePageIdsByLocale = new Map<string, number[]>();
+    // Collect individual failure details
+    const failureDetails: FailureDetail[] = [];
 
     // DEPENDENCY-OPTIMIZED ORDER: Galleries → Assets → Models → Containers → Content → Templates → Pages
     const pusherConfig = [
@@ -195,18 +218,22 @@ export class Pushers {
       for (const config of pusherConfig) {
         if (config === PUSH_OPERATIONS.pages || config === PUSH_OPERATIONS.content) continue;
         // Execute guid level op
-        await this.executePushOperation({
+        const result = await this.executePushOperation({
           config,
           sourceData,
           targetData,
           locale: locales[0],
-          totalSuccess,
-          totalFailures,
-          totalSkipped,
           publishableContentIds,
           publishablePageIds,
           elements,
         });
+        // Accumulate results from returned values
+        totalSuccess += result.success;
+        totalFailures += result.failures;
+        totalSkipped += result.skipped;
+        if (result.failureDetails) {
+          failureDetails.push(...result.failureDetails);
+        }
       }
     } catch (error: any) {
       // Re-throw validation errors immediately to stop sync
@@ -229,18 +256,38 @@ export class Pushers {
           );
           const targetData = await targetDataLoader.loadGuidEntities(locale);
 
-          await this.executePushOperation({
+          // Track IDs for this specific locale
+          const localeContentIds: number[] = [];
+          const localePageIds: number[] = [];
+
+          const result = await this.executePushOperation({
             config,
             sourceData,
             targetData,
             locale,
-            totalSuccess,
-            totalFailures,
-            totalSkipped,
-            publishableContentIds,
-            publishablePageIds,
+            publishableContentIds: config === PUSH_OPERATIONS.content ? localeContentIds : publishableContentIds,
+            publishablePageIds: config === PUSH_OPERATIONS.pages ? localePageIds : publishablePageIds,
             elements,
           });
+          // Accumulate results from returned values
+          totalSuccess += result.success;
+          totalFailures += result.failures;
+          totalSkipped += result.skipped;
+          if (result.failureDetails) {
+            failureDetails.push(...result.failureDetails);
+          }
+
+          // Store per-locale IDs and also add to combined list
+          if (config === PUSH_OPERATIONS.content && localeContentIds.length > 0) {
+            const existing = publishableContentIdsByLocale.get(locale) || [];
+            publishableContentIdsByLocale.set(locale, [...existing, ...localeContentIds]);
+            publishableContentIds.push(...localeContentIds);
+          }
+          if (config === PUSH_OPERATIONS.pages && localePageIds.length > 0) {
+            const existing = publishablePageIdsByLocale.get(locale) || [];
+            publishablePageIdsByLocale.set(locale, [...existing, ...localePageIds]);
+            publishablePageIds.push(...localePageIds);
+          }
         }
       }
 
@@ -250,6 +297,9 @@ export class Pushers {
         totalSkipped,
         publishableContentIds,
         publishablePageIds,
+        publishableContentIdsByLocale,
+        publishablePageIdsByLocale,
+        failureDetails,
       };
     } catch (error) {
       console.error(ansiColors.red("Error during pusher execution:"), error);
@@ -262,9 +312,6 @@ export class Pushers {
     sourceData,
     targetData,
     locale,
-    totalSuccess,
-    totalFailures,
-    totalSkipped,
     publishableContentIds,
     publishablePageIds,
     elements,
@@ -273,13 +320,10 @@ export class Pushers {
     sourceData: GuidEntities;
     targetData: GuidEntities;
     locale: string;
-    totalSuccess: number;
-    totalSkipped: number;
-    totalFailures: number;
     publishableContentIds?: number[];
     publishablePageIds?: number[];
     elements: string[];
-  }) {
+  }): Promise<{ success: number; failures: number; skipped: number; failureDetails?: FailureDetail[] }> {
     const elementData = sourceData[config.dataKey as keyof GuidEntities] || [];
 
     // Skip if no data for this element type or element not requested
@@ -288,23 +332,18 @@ export class Pushers {
       !elements.some((element) => config.elements.includes(element))
     ) {
       console.log(ansiColors.yellow(`⚠️ Skipping ${config.description} for locale ${locale} - no data or filtered by --locales`));
-      return;
+      return { success: 0, failures: 0, skipped: 0, failureDetails: [] };
     }
 
     this.config.onOperationStart?.(config.name, state.sourceGuid[0], state.targetGuid[0]);
 
     const pusherResult: PusherResult = await config.handler(sourceData, targetData, locale);
 
-    // Accumulate results using standardized pattern
-    totalSuccess += pusherResult.successful || 0;
-    totalSkipped += pusherResult.skipped || 0;
-    totalFailures += pusherResult.failed || 0;
-
-    // Collect publishable IDs for auto-publishing
+    // Collect publishable IDs for workflow operations
     if (pusherResult.publishableIds && pusherResult.publishableIds.length > 0) {
-      if (config.elements.includes("Content")) {
+      if (config.elements.includes("Content") && publishableContentIds) {
         publishableContentIds.push(...pusherResult.publishableIds);
-      } else if (config.elements.includes("Pages")) {
+      } else if (config.elements.includes("Pages") && publishablePageIds) {
         publishablePageIds.push(...pusherResult.publishableIds);
       }
     }
@@ -328,8 +367,13 @@ export class Pushers {
       pusherResult.status === "success",
     );
 
-    // Save mappings after each pusher
-    // await referenceMapper.saveAllMappings();
+    // Return the counts so they can be accumulated by the caller
+    return {
+      success: pusherResult.successful || 0,
+      failures: pusherResult.failed || 0,
+      skipped: pusherResult.skipped || 0,
+      failureDetails: pusherResult.failureDetails || [],
+    };
   }
 
   /**

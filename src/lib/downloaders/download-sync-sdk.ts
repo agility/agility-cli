@@ -5,7 +5,6 @@ import { state, getApiKeysForGuid, getLoggerForGuid } from "core/state";
 import { fileOperations } from "core/fileOperations";
 import { handleSyncToken } from "./sync-token-handler";
 import { getAllChannels } from "lib/shared/get-all-channels";
-import ansiColors from "ansi-colors";
 import { Auth } from "core/auth";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
@@ -48,15 +47,21 @@ export async function downloadSyncSDKByLocaleAndChannel(
 
   const logger = getLoggerForGuid(guid);
   // Configure the Agility Sync client
+  // NOTE: Use determineFetchUrl (not determineBaseUrl) because:
+  // - Management API uses localhost:5050 when --local is set
+  // - Content Fetch/Sync API is always cloud-based (based on GUID suffix)
+  // The baseUrl must include the GUID path segment for the SDK to construct correct URLs:
+  // e.g., https://api-dev.aglty.io/{guid} → https://api-dev.aglty.io/{guid}/preview/{locale}/sync/items
   const auth = new Auth();
-  const baseUrl = auth.determineBaseUrl(guid);
+  const fetchUrl = auth.determineFetchUrl(guid);
+  const baseUrlWithGuid = `${fetchUrl}/${guid}`;
   const agilityConfig = {
     guid: guid,
     apiKey: apiKey,
     isPreview: true,
     languages: [locale],
     channels: [channel],
-    baseUrl: baseUrl.replace('mgmt','api'),
+    baseUrl: baseUrlWithGuid,
     store: {
       interface: storeInterfaceFileSystem,
       options: {

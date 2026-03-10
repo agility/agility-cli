@@ -1,6 +1,6 @@
 {
   "name": "@agility/cli",
-  "version": "1.0.0-beta.12",
+  "version": "1.0.0-beta.13.4",
   "description": "Agility CLI for working with your content. (Public Beta)",
   "repository": {
     "type": "git",
@@ -17,6 +17,8 @@
     "postbuild": "chmod +x dist/index.js",
     "refresh": "rm -rf ./node_modules ./package-lock.json && npm install",
     "test": "jest",
+    "test:unit": "jest",
+    "test:integration": "jest --testMatch=\"**/*.integration.test.ts\" --testPathIgnorePatterns=\"/node_modules/|/dist/|/src/index.ts\"",
     "debug": "node --inspect-brk -r ts-node/register src/index.ts"
   },
   "keywords": [
@@ -45,12 +47,13 @@
   "dependencies": {
     "@agility/content-fetch": "^2.0.10",
     "@agility/content-sync": "^1.2.0",
-    "@agility/management-sdk": "^0.1.35",
+    "@agility/management-sdk": "^0.1.38",
     "ansi-colors": "^4.1.3",
     "blessed": "^0.1.81",
     "blessed-contrib": "^4.11.0",
     "cli-progress": "^3.11.2",
     "date-fns": "^4.1.0",
+    "form-data": "^4.0.5",
     "fuzzy": "^0.1.3",
     "inquirer": "^8.0.0",
     "inquirer-checkbox-plus-prompt": "^1.4.2",

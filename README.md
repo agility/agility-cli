@@ -108,10 +108,11 @@ agility sync [options]
 
 **Operation Control Options:**
 
-| Option        | Type    | Default | Description                                                                                                                                    |
-| ------------- | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--update`    | boolean | `false` | Download fresh data from source instance before operations, if left false, incremental sync is performed to only get changed data.           |
-| `--overwrite` | boolean | `false` | Force update existing items in target instance instead of creating new items with -1 IDs. Default: false (Warning: may cause duplicate items in lists, overwriting existing content) |
+| Option           | Type    | Default | Description                                                                                                                                    |
+| ---------------- | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--update`       | boolean | `false` | Download fresh data from source instance before operations, if left false, incremental sync is performed to only get changed data.           |
+| `--overwrite`    | boolean | `false` | Force update existing items in target instance instead of creating new items with -1 IDs. Default: false (Warning: may cause duplicate items in lists, overwriting existing content) |
+| `--autoPublish`  | string  | _(disabled)_ | Automatically publish synced items that were published in the source instance. Values: `content`, `pages`, `both`. If flag is provided without a value, defaults to `both`. Items that are only in staging (not published) in the source are skipped. |
 
 **UI & Output Options:**
 
@@ -141,9 +142,58 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,Blog
 
 # Sync models with dependencies (includes content, assets, galleries, containers, lists, but not pages)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="BlogPost,BlogCategory"
+
+# Sync and auto-publish everything that was published in source
+agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish
+
+# Sync and auto-publish only content (not pages)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish=content
+
+# Sync and auto-publish only pages
+agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish=pages
 ```
 ---
 ## Advanced Topics
+
+### Auto-Publish
+
+The `--autoPublish` flag lets you automatically publish synced content and/or pages in the target instance immediately after a sync completes. Only items that are **published in the source instance** will be published in the target — staging-only items are skipped.
+
+#### Modes
+
+| Value     | Behavior                                      |
+| --------- | --------------------------------------------- |
+| `both`    | Publish both content items and pages (default when flag is provided without a value) |
+| `content` | Publish only content items                    |
+| `pages`   | Publish only pages                            |
+
+#### How It Works
+
+1. During sync, the CLI tracks which content items and pages were successfully pushed to the target instance
+2. It also checks the publish state of each item in the source — only items with a published state are eligible
+3. After all sync operations complete, the CLI publishes the eligible items in the target using the batch workflow API
+4. Publishing is done per-locale to match the workflow API requirements
+5. After publishing, reference mappings are updated to reflect the new published versions
+
+#### Examples
+
+```bash
+# Auto-publish everything (content + pages) — flag without value defaults to 'both'
+agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish
+
+# Explicitly publish both
+agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish=both
+
+# Publish only content items (skip pages)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish=content
+
+# Publish only pages (skip content)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish=pages
+```
+
+> **Note:** Auto-publish only works with `sync` operations (not `pull`). Items that fail to sync will not be published. Any publish errors are reported in the final summary alongside sync errors.
+
+---
 
 ### Model-Specific Sync
 

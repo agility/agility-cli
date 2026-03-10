@@ -49,13 +49,26 @@ export async function pushTemplates(
         const { sourceGuid, targetGuid } = state;
         const referenceMapper = new TemplateMapper(sourceGuid[0], targetGuid[0]);
 
-        const existingMapping = referenceMapper.getTemplateMapping(template, "source");
+        let existingMapping = referenceMapper.getTemplateMapping(template, "source");
         let targetTemplate = targetData.find(targetTemplate => targetTemplate.pageTemplateID === existingMapping?.targetPageTemplateID) || null;
         if (!targetTemplate) {
             // Try to get the template via the mapper
             targetTemplate = referenceMapper.getMappedEntity(existingMapping, "target");
         }
 
+        // Handle templates that exist in target but have no mapping (match by name)
+        // This ensures downstream pages can find their template mappings
+        if (!existingMapping && !targetTemplate) {
+            targetTemplate = targetData.find(t => t.pageTemplateName === template.pageTemplateName) || null;
+            if (targetTemplate) {
+                // Create the mapping for existing target template
+                referenceMapper.addMapping(template, targetTemplate);
+                logger.template.skipped(template, "exists in target, mapping created", targetGuid[0]);
+                skipped++;
+                processedCount++;
+                continue; // Skip to next template - mapping is now created
+            }
+        }
 
         const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetTemplate);
         const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(template);
@@ -86,12 +99,12 @@ export async function pushTemplates(
 
                 if (def.contentDefinitionID) {
                     const modelMappers = new ModelMapper(sourceGuid[0], targetGuid[0]);
-                    const modelMapping = modelMappers.getModelMappingByID(def.contentDefinitionID, 'target');
+                    const modelMapping = modelMappers.getModelMappingByID(def.contentDefinitionID, 'source');
                     if (modelMapping?.targetID) mappedDef.contentDefinitionID = modelMapping.targetID;
                 }
                 if (def.itemContainerID) {
                     const containerMappers = new ContainerMapper(sourceGuid[0], targetGuid[0]);
-                    const containerMapping = containerMappers.getContainerMappingByContentViewID(def.itemContainerID, 'target');
+                    const containerMapping = containerMappers.getContainerMappingByContentViewID(def.itemContainerID, 'source');
                     if (containerMapping?.targetContentViewID) mappedDef.itemContainerID = containerMapping.targetContentViewID;
                 }
                 // if (def.publishContentItemID) {

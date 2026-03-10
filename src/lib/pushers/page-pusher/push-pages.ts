@@ -19,7 +19,7 @@ export async function pushPages(
 
 	if (!pages || pages.length === 0) {
 		console.log("No pages found to process.");
-		return { status: "success", successful: 0, failed: 0, skipped: 0 };
+		return { status: "success", successful: 0, failed: 0, skipped: 0, failureDetails: [] };
 	}
 
 	const sitemapHierarchy = new SitemapHierarchy();
@@ -36,7 +36,8 @@ export async function pushPages(
 	let failed = 0;
 	let skipped = 0; // No duplicates to skip since API prevents true duplicates at same hierarchy level
 	let status: "success" | "error" = "success";
-	let publishableIds: number[] = []; // Track target page IDs for auto-publishing
+	let publishableIds: number[] = []; // Track target page IDs for workflow operations
+	let failureDetails: Array<{ name: string; error: string; type?: 'content' | 'page'; pageID?: number; contentID?: number; guid?: string; locale?: string }> = [];
 
 
 	//loop all the channels
@@ -74,17 +75,30 @@ export async function pushPages(
 			if (res.publishableIds && res.publishableIds.length > 0) {
 				publishableIds.push(...res.publishableIds);
 			}
+			if (res.failureDetails && res.failureDetails.length > 0) {
+				failureDetails.push(...res.failureDetails);
+			}
 
 			if (res.failed > 0) {
 				status = "error";
 			}
 
-		} catch (error) {
-			logger.page.error(null, `⚠️ Error in page processing for channel: ${channel}: ${JSON.stringify(error, null, 2)}`, locale, channel, targetGuid[0]);
+		} catch (error: any) {
+			// Use error.message instead of JSON.stringify to avoid circular reference issues with SDK errors
+			const errorMessage = error?.message || String(error);
+			logger.page.error(null, `⚠️ Error in page processing for channel: ${channel}: ${errorMessage}`, locale, channel, targetGuid[0]);
 			status = "error";
 		}
 
 	}
 
-	return { status, successful, failed, skipped, publishableIds };
+	// Deduplicate publishableIds to prevent "item already in batch" errors during workflow
+	const uniquePublishableIds = Array.from(new Set(publishableIds));
+	
+	if (publishableIds.length !== uniquePublishableIds.length && state.verbose) {
+		console.log(ansiColors.gray(`    📋 Deduplicated publishable page IDs: ${publishableIds.length} → ${uniquePublishableIds.length}`));
+	}
+	
+	return { status, successful, failed, skipped, publishableIds: uniquePublishableIds, failureDetails };
 }
+

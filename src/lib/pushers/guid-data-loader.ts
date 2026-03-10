@@ -175,7 +175,7 @@ export class GuidDataLoader {
 
 
         // Validate that specified models exist
-        const validation = treeBuilder.validateModels(modelNames, completeEntities.models);
+        const validation = treeBuilder.validateModels(modelNames, (completeEntities ?? guidEntities).models);
         if (validation.invalid.length > 0) {
             // Use the correct source for available models (same as validation)
             const sourceForValidation = useFullDependencyTree ? completeEntities : guidEntities;
@@ -305,21 +305,9 @@ export class GuidDataLoader {
 
         return {
             models: guidEntities.models.filter((m: any) => modelSet.has(m.referenceName)),
-            containers: guidEntities.containers.filter((c: any) => {
-                // Include containers that use the specified models
-                const model = guidEntities.models.find((m: any) => m.id === c.contentDefinitionID);
-                return model && modelSet.has(model.referenceName);
-            }),
-            lists: guidEntities.lists.filter((l: any) => {
-                // Include lists that use the specified models
-                const model = guidEntities.models.find((m: any) => m.id === l.contentDefinitionID);
-                return model && modelSet.has(model.referenceName);
-            }),
-            content: guidEntities.content.filter((c: any) => {
-                // Include content that uses the specified models
-                return modelSet.has(c.properties?.definitionName);
-            }),
-            // For simple filtering, don't include templates, pages, assets, galleries unless they're directly related
+            containers: [],
+            lists: [],
+            content: [],
             templates: [],
             pages: [],
             assets: [],

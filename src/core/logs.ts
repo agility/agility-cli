@@ -4,6 +4,67 @@ import * as fs from "fs";
 import * as path from "path";
 import { generateLogHeader } from "../lib/shared";
 
+/**
+ * Safe JSON stringify that handles circular references and non-serializable objects
+ * Prevents "Converting circular structure to JSON" errors when logging SDK responses
+ */
+function safeStringify(obj: any, indent?: number): string {
+  const seen = new WeakSet();
+  
+  const replacer = (key: string, value: any) => {
+    // Skip known non-serializable properties
+    if (key === 'agent' || 
+        key === '_httpMessage' || 
+        key === 'socket' || 
+        key === 'connection' ||
+        key === 'request' ||
+        key === 'response' ||
+        key === '_events' ||
+        key === '_eventsCount' ||
+        key === 'httpsAgent' ||
+        key === 'httpAgent' ||
+        key === 'sockets' ||
+        key === 'freeSockets' ||
+        key === '_currentRequest') {
+      return undefined;
+    }
+    
+    // Skip functions
+    if (typeof value === 'function') {
+      return undefined;
+    }
+    
+    // Handle circular references
+    if (typeof value === 'object' && value !== null) {
+      // Skip known non-serializable types
+      const constructorName = value.constructor?.name;
+      if (constructorName === 'Agent' || 
+          constructorName === 'ClientRequest' || 
+          constructorName === 'IncomingMessage' ||
+          constructorName === 'Socket' ||
+          constructorName === 'TLSSocket' ||
+          constructorName === 'Writable' ||
+          constructorName === 'ReadableState' ||
+          constructorName === 'WritableState') {
+        return `[${constructorName}]`;
+      }
+      
+      if (seen.has(value)) {
+        return '[Circular]';
+      }
+      seen.add(value);
+    }
+    
+    return value;
+  };
+  
+  try {
+    return JSON.stringify(obj, replacer, indent);
+  } catch (e) {
+    return `[Unable to stringify: ${e.message}]`;
+  }
+}
+
 export type OperationType = "pull" | "push" | "sync";
 
 export type EntityType =
@@ -604,12 +665,56 @@ export class Logs {
 
     error: (payload: any, apiError: any, targetGuid?: string) => {
       const itemName = payload?.fileName || payload?.name || `Asset ${payload?.mediaID || "Unknown"}`;
-      const errorDetails = apiError?.message || apiError || "Unknown error";
-      // we need a better error logger for data elements
+      
+      // Extract the actual API error message from nested SDK exception structure
+      let errorDetails = "Unknown error";
+      let apiUrl = "";
+      let httpStatus = "";
+      let responseData = "";
+      
+      if (typeof apiError === 'string') {
+        errorDetails = apiError;
+      } else {
+        // Try multiple paths to find the actual error
+        const innerErr = apiError?.innerError;
+        
+        // Get URL from config
+        if (innerErr?.config) {
+          apiUrl = `${innerErr.config.baseURL || ''}${innerErr.config.url || ''}`;
+        }
+        
+        // Get status code
+        if (innerErr?.response?.status) {
+          httpStatus = String(innerErr.response.status);
+        } else if (innerErr?.code) {
+          httpStatus = innerErr.code; // e.g., ECONNREFUSED, ENOTFOUND
+        }
+        
+        // Get response data (the actual server error message)
+        if (innerErr?.response?.data) {
+          const data = innerErr.response.data;
+          responseData = typeof data === 'string' ? data : JSON.stringify(data);
+          errorDetails = typeof data === 'string' ? data : (data.message || data.error || data.Message || data.title || JSON.stringify(data));
+        } else if (innerErr?.message) {
+          errorDetails = innerErr.message;
+        } else if (apiError?.message) {
+          errorDetails = apiError.message;
+        }
+      }
+      
       this.logDataElement("asset", "failed", "failed", itemName, targetGuid || this.guid, errorDetails);
-
-      const asset = payload?.asset || payload;
-      console.log("error", asset);
+      
+      // Log comprehensive error details for debugging
+      console.log(ansiColors.red(`  API Error: ${errorDetails}`));
+      if (apiUrl) {
+        console.log(ansiColors.gray(`  URL: ${apiUrl}`));
+      }
+      if (httpStatus) {
+        console.log(ansiColors.gray(`  Status: ${httpStatus}`));
+      }
+      if (responseData && responseData !== errorDetails) {
+        console.log(ansiColors.gray(`  Response: ${responseData.substring(0, 500)}`));
+      }
     },
   };
 
@@ -641,8 +746,11 @@ export class Logs {
 
     error: (payload: any, apiError: any, targetGuid?: string) => {
       const itemName = payload?.referenceName || payload?.displayName || `Model ${payload?.id || "Unknown"}`;
-      const errorDetails = apiError?.message || apiError || "Unknown error";
-      // we need a better error logger for data elements
+      const baseMessage = apiError?.message || "Unknown error";
+      const responseData = apiError?.response?.data ?? apiError?.response?.body ?? apiError?.data;
+      const responseStatus = apiError?.response?.status ?? apiError?.status;
+      const serverDetail = responseData ? ` | Server response (${responseStatus ?? "?"}): ${typeof responseData === "string" ? responseData : safeStringify(responseData)}` : "";
+      const errorDetails = `${baseMessage}${serverDetail}`;
       this.logDataElement("model", "error", "failed", itemName, targetGuid || this.guid, errorDetails);
     },
   };
@@ -686,52 +794,57 @@ export class Logs {
   // Content Item logging methods
   content = {
     downloaded: (entity: any, details?: string, locale?: string) => {
-      const itemName = entity?.properties?.referenceName || `${entity?.contentID || "Unknown"}`;
+      const referenceName = entity?.properties?.referenceName;
+      const contentID = entity?.contentID;
+      // Show both referenceName and contentID for debugging: "referenceName (contentID: 123)"
+      const itemName = referenceName 
+        ? (contentID ? `${referenceName} (contentID: ${contentID})` : referenceName)
+        : `Content ${contentID || "Unknown"}`;
       this.logDataElement("content", "downloaded", "success", itemName, this.guid, details, locale);
     },
 
     uploaded: (entity: any, details?: string, locale?: string, targetGuid?: string) => {
-      const itemName =
-        entity?.properties?.referenceName ||
-        entity?.fields?.title ||
-        entity?.fields?.name ||
-        `Content ${entity?.contentID || "Unknown"}`;
+      const referenceName = entity?.properties?.referenceName || entity?.fields?.title || entity?.fields?.name;
+      const contentID = entity?.contentID;
+      const itemName = referenceName 
+        ? (contentID ? `${referenceName} (contentID: ${contentID})` : referenceName)
+        : `Content ${contentID || "Unknown"}`;
       this.logDataElement("content", "uploaded", "success", itemName, targetGuid || this.guid, details, locale);
     },
 
     created: (entity: any, details?: string, locale?: string, targetGuid?: string) => {
-      const itemName =
-        entity?.properties?.referenceName ||
-        entity?.fields?.title ||
-        entity?.fields?.name ||
-        `Content ${entity?.contentID || "Unknown"}`;
+      const referenceName = entity?.properties?.referenceName || entity?.fields?.title || entity?.fields?.name;
+      const contentID = entity?.contentID;
+      const itemName = referenceName 
+        ? (contentID ? `${referenceName} (contentID: ${contentID})` : referenceName)
+        : `Content ${contentID || "Unknown"}`;
       this.logDataElement("content", "created", "success", itemName, targetGuid || this.guid, details, locale);
     },
 
     updated: (entity: any, details?: string, locale?: string, targetGuid?: string) => {
-      const itemName =
-        entity?.properties?.referenceName ||
-        entity?.fields?.title ||
-        entity?.fields?.name ||
-        `Content ${entity?.contentID || "Unknown"}`;
+      const referenceName = entity?.properties?.referenceName || entity?.fields?.title || entity?.fields?.name;
+      const contentID = entity?.contentID;
+      const itemName = referenceName 
+        ? (contentID ? `${referenceName} (contentID: ${contentID})` : referenceName)
+        : `Content ${contentID || "Unknown"}`;
       this.logDataElement("content", "updated", "success", itemName, targetGuid || this.guid, details, locale);
     },
 
     skipped: (entity: any, details?: string, locale?: string, targetGuid?: string) => {
-      const itemName =
-        entity?.properties?.referenceName ||
-        entity?.fields?.title ||
-        entity?.fields?.name ||
-        `Content ${entity?.contentID || "Unknown"}`;
+      const referenceName = entity?.properties?.referenceName || entity?.fields?.title || entity?.fields?.name;
+      const contentID = entity?.contentID;
+      const itemName = referenceName 
+        ? (contentID ? `${referenceName} (contentID: ${contentID})` : referenceName)
+        : `Content ${contentID || "Unknown"}`;
       this.logDataElement("content", "skipped", "skipped", itemName, targetGuid || this.guid, details, locale);
     },
 
     error: (payload: any, apiError: any, locale?: string, targetGuid?: string) => {
-      const itemName =
-        payload?.properties?.referenceName ||
-        payload?.fields?.title ||
-        payload?.fields?.name ||
-        `Content ${payload?.contentID || "Unknown"}`;
+      const referenceName = payload?.properties?.referenceName || payload?.fields?.title || payload?.fields?.name;
+      const contentID = payload?.contentID;
+      const itemName = referenceName 
+        ? (contentID ? `${referenceName} (contentID: ${contentID})` : referenceName)
+        : `Content ${contentID || "Unknown"}`;
       const errorDetails = apiError?.message || apiError || "Unknown error";
       // we need a better error logger for data elements
       this.logDataElement("content", "error", "failed", itemName, targetGuid || this.guid, errorDetails, locale);
@@ -840,8 +953,9 @@ export class Logs {
       this.logDataElement("gallery", "failed", "failed", itemName, targetGuid || this.guid, errorDetails);
 
       console.log(gallery.mediaGroupingID, gallery.name);
-      console.log(ansiColors.red(JSON.stringify(apiError, null, 2)));
-      console.log(ansiColors.red(JSON.stringify(payload, null, 2)));
+      // Use safeStringify to handle circular references in SDK responses (e.g., HTTPS Agents)
+      console.log(ansiColors.red(safeStringify(apiError, 2)));
+      console.log(ansiColors.red(safeStringify(payload, 2)));
     },
   };
 

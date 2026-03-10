@@ -12,4 +12,7 @@ export * from './cliToken';
 // Note: comparisonResult.ts doesn't export anything, skipping 
 
 // ReferenceMapperV2 types
-export * from './referenceMapperV2'; 
+export * from './referenceMapperV2';
+
+// Workflow types (batch workflows, mappings, publish status)
+export * from './workflows';

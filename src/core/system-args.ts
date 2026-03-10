@@ -127,6 +127,29 @@ export const systemArgs = {
     type: "boolean" as const,
     default: false,
   },
+  dryRun: {
+    describe: "Dry run mode: show what items would be processed without executing the operation. Useful for previewing workflow operations.",
+    demandOption: false,
+    type: "boolean" as const,
+    alias: ["dry-run", "dryrun", "DryRun", "DRY_RUN"],
+    default: false,
+  },
+
+  // **Explicit ID Override for Workflow Operations**
+  contentIDs: {
+    describe: "Comma-separated list of target content IDs to process. Bypasses mappings lookup when provided (e.g., --contentIDs=121,1221,345).",
+    demandOption: false,
+    alias: ["content-ids", "contentIds", "ContentIDs", "CONTENTIDS"],
+    type: "string" as const,
+    default: "",
+  },
+  pageIDs: {
+    describe: "Comma-separated list of target page IDs to process. Bypasses mappings lookup when provided (e.g., --pageIDs=12,11,45).",
+    demandOption: false,
+    alias: ["page-ids", "pageIds", "PageIDs", "PAGEIDS"],
+    type: "string" as const,
+    default: "",
+  },
 
   // Instance identification args
   sourceGuid: {
@@ -167,12 +190,20 @@ export const systemArgs = {
     default: false
   },
 
-  // Publishing args
-  publish: {
-    describe: "For sync commands only: automatically publish synced content items and pages after successful sync operation. Enables batch publishing for streamlined deployment workflow. Default: false.",
-    type: "boolean" as const,
-    alias: ["publish", "Publish", "PUBLISH"],
-    default: false
+  // Auto-publish after sync
+  autoPublish: {
+    describe: "Automatically publish content and/or pages after sync completes. Options: 'content' (publish only content), 'pages' (publish only pages), 'both' (publish content and pages). Default: both when flag is provided.",
+    demandOption: false,
+    alias: ["auto-publish", "autoPublish", "AutoPublish", "AUTO_PUBLISH", "autopublish"],
+    type: "string" as const,
+    coerce: (value: string | boolean) => {
+      // Handle --autoPublish without value (defaults to 'both')
+      if (value === true || value === '') return 'both';
+      if (value === false) return '';
+      const lower = String(value).toLowerCase();
+      if (['content', 'pages', 'both'].includes(lower)) return lower;
+      return 'both'; // Default to 'both' for any other value
+    }
   },
 
 };
@@ -190,11 +221,12 @@ export interface SystemArgs {
   sync?: boolean;
   clean?: boolean;
   generate?: boolean;
-  publish?: boolean;
+  operationType?: string; // Workflow operation: publish, unpublish, approve, decline, requestApproval
   test?: boolean;
+  dryRun?: boolean; // Preview mode - show what would be processed without executing
   verbose?: boolean;
   overwrite?: boolean;
-  force?: boolean; // New: Override target safety conflicts
+  force?: boolean; // Override target safety conflicts
   update?: boolean;
   legacyFolders?: boolean;
   elements?: string;
@@ -205,4 +237,6 @@ export interface SystemArgs {
   channel?: string;
   preview?: boolean;
   rootPath?: string;
+  contentIDs?: string; // Explicit content IDs (bypasses mappings)
+  pageIDs?: string; // Explicit page IDs (bypasses mappings)
 }

@@ -479,11 +479,7 @@ export class ModelDependencyTreeBuilder {
       }
     });
 
-    // // Debug output
-    // if (contentItemsScanned > 0) {
-    //   console.log(ansiColors.gray(`  🔍 [DEBUG] Scanned ${contentItemsScanned} content item(s), found ${totalUrlsFound} asset URL(s), ${tree.assets.size} unique asset(s) in tree`));
-    // }
-
+   
     // Also check pages for asset references
     if (this.sourceData.pages) {
       this.sourceData.pages.forEach(page => {

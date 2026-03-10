@@ -6,7 +6,7 @@ import { TemplateMapper } from "lib/mappers/template-mapper";// Internal helper 
 import { translateZoneNames } from "./translate-zone-names";
 import { findPageInOtherLocale, OtherLocaleMapping } from "./find-page-in-other-locale";
 import { Logs } from "core/logs";
-import { state } from "core";
+import { state, getFailedContent, contentExistsInSourceData, contentExistsInOtherLocale } from "core/state";
 
 interface Props {
 	channel: string,
@@ -22,6 +22,8 @@ interface Props {
 	logger: Logs
 }
 
+export type PageProcessResult = { status: "success" | "skip" | "failure"; error?: string; contentID?: number };
+
 export async function processPage({
 	channel,
 	page,
@@ -34,8 +36,8 @@ export async function processPage({
 	pageMapper,
 	parentPageID,
 	logger
-}: Props): Promise<"success" | "skip" | "failure"> {
-	// Returns 'success', 'skip', or 'failure'
+}: Props): Promise<PageProcessResult> {
+	// Returns object with status and optional error message
 
 	let existingPage: mgmtApi.PageItem | null = null;
 	let channelID = -1;
@@ -50,7 +52,7 @@ export async function processPage({
 			let templateRef = templateMapper.getTemplateMappingByPageTemplateName(page.templateName, 'source');
 			if (!templateRef) {
 				logger.page.error(page, `Missing page template ${page.templateName} in source data, skipping`, locale, channel, targetGuid);
-				return "skip";
+				return { status: "skip" };
 			}
 			targetTemplate = templateMapper.getMappedEntity(templateRef, 'target') as mgmtApi.PageModel;
 		}
@@ -83,10 +85,13 @@ export async function processPage({
 			channelID = sitemap?.[0]?.digitalChannelID || 1; // Fallback to first channel or default
 		}
 
-		const hasTargetChanged = pageMapper.hasTargetChanged(existingPage);
 		const hasSourceChanged = pageMapper.hasSourceChanged(page);
+		const targetChangeResult = pageMapper.hasTargetChanged(existingPage, pageMapping);
 
-		const isConflict = hasTargetChanged && hasSourceChanged;
+		// A conflict exists whenever the target has changed independently — regardless of whether
+		// the source also changed. Even if source is unchanged today, a future source push would
+		// silently overwrite the target's independent changes without this guard.
+		const isConflict = targetChangeResult !== null;
 		const updateRequired = (hasSourceChanged && !isConflict) || overwrite;
 		const createRequired = !existingPage;
 
@@ -98,26 +103,40 @@ export async function processPage({
 			}[page.pageType] || page.pageType;
 
 		if (isConflict) {
-			// CONFLICT: Target has changes, source has changes, and we're not in overwrite mode
-
+			// CONFLICT: Target has independent changes.
+			// Use mapping's targetPageID as fallback in case existingPage wasn't loaded.
+			const targetPageID = existingPage?.pageID ?? pageMapping?.targetPageID;
 			const sourceUrl = `https://app.agilitycms.com/instance/${sourceGuid}/${locale}/pages/${page.pageID}`;
-			const targetUrl = `https://app.agilitycms.com/instance/${targetGuid}/${locale}/pages/${existingPage.pageID}`;
+			const targetUrl = `https://app.agilitycms.com/instance/${targetGuid}/${locale}/pages/${targetPageID}`;
+
+			let reason: string;
+			if (targetChangeResult === 'file_missing') {
+				reason = "target page may have been unpublished or deleted — cannot verify its current state";
+			} else if (hasSourceChanged) {
+				reason = "changes detected in both source and target";
+			} else {
+				reason = "target has been changed independently";
+			}
 
 			console.warn(
-				`⚠️  Conflict detected ${pageTypeDisplay} ${ansiColors.underline(page.name)} ${ansiColors.bold.grey("changes detected in both source and target")}. Please resolve manually.`
+				`⚠️  Conflict detected ${pageTypeDisplay} ${ansiColors.underline(page.name)} — ${ansiColors.bold.grey(reason)}. Use --overwrite to force.`
 			);
 			console.warn(`   - Source: ${sourceUrl}`);
 			console.warn(`   - Target: ${targetUrl}`);
+
+			if (!overwrite) {
+				return { status: "skip" }; // Prevent conflicting pages from being processed and auto-published
+			}
+			// overwrite mode: warn but continue processing
 		} else if (createRequired) {
 			//CREATE NEW PAGE - nothing to do here yet...
 		} else if (!updateRequired) {
-			// Add to reference mapper for future lookups
 			if (existingPage) {
 				pageMapper.addMapping(page, existingPage);
 			}
 
 			logger.page.skipped(page, "up to date, skipping", locale, channel, targetGuid);
-			return "skip"; // Skip processing - page already exists
+			return { status: "skip" }; // Skip processing - page already exists
 		}
 
 		// Map Content IDs in Zones
@@ -145,6 +164,9 @@ export async function processPage({
 		// Content mapping validation (silent unless errors)
 
 		const contentMapper = new ContentItemMapper(sourceGuid, targetGuid, locale);
+		// Track first missing content mapping for error summary
+		let firstMissingContentError: string | null = null;
+		let firstMissingContentID: number | null = null;
 
 		for (const [zoneName, zoneModules] of Object.entries(mappedZones)) {
 			const newZoneContent = [];
@@ -160,7 +182,8 @@ export async function processPage({
 						const sourceContentId = module.item.contentid || module.item.contentId;
 
 						if (sourceContentId && sourceContentId > 0) {
-							const { targetContentID } = contentMapper.getContentItemMappingByContentID(sourceContentId, 'source');
+							const contentMapping = contentMapper.getContentItemMappingByContentID(sourceContentId, 'source');
+							const targetContentID = contentMapping?.targetContentID;
 							if (targetContentID) {
 								// CRITICAL FIX: Map to target content ID and remove duplicate fields
 								const targetContentId = targetContentID;
@@ -173,25 +196,36 @@ export async function processPage({
 								delete newModule.item.contentId;
 								newZoneContent.push(newModule);
 							} else {
-								// Content mapping failed - log detailed debug info for troubleshooting
-								console.error(
-									`❌ No content mapping found for ${module.module}: contentID ${sourceContentId} in page ${page.name}`
-								);
-								// const contentMappings = contentMapper.getRecordsByType("content");
-
-								// console.log("Page", JSON.stringify(page, null, 2));
-								// console.error(`Total content mappings available: ${contentMappings.length}`);
-								// const allContentRecords = pageMapper.getRecordsByType("content");
-								// const matchingRecord = allContentRecords.find((r) => r.source.contentID === sourceContentId);
-								// if (matchingRecord) {
-								//   console.error(`Found matching source record but issue with target:`, {
-								//     sourceID: matchingRecord.source.contentID,
-								//     targetID: matchingRecord.target?.contentID,
-								//     hasTarget: !!matchingRecord.target,
-								//   });
-								// } else {
-								//   console.error(`No record found with source contentID: ${sourceContentId}`);
-								// }
+								// Content mapping failed - check why (in priority order)
+								const failedContent = getFailedContent(sourceContentId);
+								const isPageUnpublished = page.properties?.state !== 2;
+								const existsInSource = contentExistsInSourceData(sourceGuid, locale, sourceContentId);
+								const otherLocale = !existsInSource ? contentExistsInOtherLocale(sourceGuid, locale, sourceContentId) : null;
+								let mappingError: string;
+								
+								if (failedContent) {
+									// Content failed earlier - show the upstream error
+									mappingError = `No content mapping for ${module.module} (contentID ${sourceContentId}) - content '${failedContent.referenceName}' failed earlier: ${failedContent.error}`;
+								} else if (isPageUnpublished) {
+									// Page is unpublished - explains why content isn't in source (it wasn't pulled)
+									mappingError = `No content mapping for ${module.module} (contentID ${sourceContentId}) - page is unpublished and referenced content may not have been pulled`;
+								} else if (otherLocale) {
+									// Content exists in another locale but not this one - not initialized for this locale
+									mappingError = `No content mapping for ${module.module} (contentID ${sourceContentId}) - content not initialized in ${locale} (exists in ${otherLocale})`;
+								} else if (!existsInSource) {
+									// Published page but content file doesn't exist anywhere - needs re-pull
+									mappingError = `No content mapping for ${module.module} (contentID ${sourceContentId}) - content item not found in source data (may need to re-pull)`;
+								} else {
+									// Content exists but wasn't synced - may be model issue
+									mappingError = `No content mapping for ${module.module} (contentID ${sourceContentId}) - content has never been synced or model may have changed`;
+								}
+								
+								// Don't log individual errors inline - they'll appear in the final summary
+								// Capture first error and contentID for summary
+								if (!firstMissingContentError) {
+									firstMissingContentError = mappingError;
+									firstMissingContentID = sourceContentId;
+								}
 							}
 						} else {
 							// Module without content reference - keep it
@@ -213,7 +247,8 @@ export async function processPage({
 			let missingMappings = 0;
 
 			contentIdsToValidate.forEach((sourceContentId) => {
-				const { targetContentID } = contentMapper.getContentItemMappingByContentID(sourceContentId, 'source');
+				const contentMapping = contentMapper.getContentItemMappingByContentID(sourceContentId, 'source');
+				const targetContentID = contentMapping?.targetContentID;
 				if (targetContentID) {
 					mappingResults[sourceContentId] = {
 						found: true,
@@ -235,7 +270,11 @@ export async function processPage({
 						`✗ Page "${page.name}" failed - ${missingMappings}/${contentIdsToValidate.length} missing content mappings`
 					)
 				);
-				return "failure";
+				return { 
+					status: "failure", 
+					error: firstMissingContentError || `${missingMappings} missing content mappings`,
+					contentID: firstMissingContentID || undefined
+				};
 			}
 		}
 
@@ -289,8 +328,9 @@ export async function processPage({
 			// If the page originally had modules but now has none, that's a problem
 			// If it never had modules, that's fine (folder pages, etc.)
 			if (originalModuleCount > 0 && !existingPage && !isLegitimateEmptyPage(page)) {
-				console.error(`✗ Page "${page.name}" lost all ${originalModuleCount} modules during content mapping`);
-				return "failure";
+				const lostModulesError = `Lost all ${originalModuleCount} modules during content mapping`;
+				console.error(`✗ Page "${page.name}" ${lostModulesError}`);
+				return { status: "failure", error: lostModulesError };
 			}
 		}
 
@@ -307,7 +347,9 @@ export async function processPage({
 
 		const payload: any = {
 			...pageCopy,
-			pageID: existingPage ? existingPage.pageID : -1, // Use existing page ID if available
+			// If local target file is missing but mapping exists, use the known target container ID
+			// to force an UPDATE instead of INSERT (prevents duplicate name server errors)
+			pageID: existingPage ? existingPage.pageID : (pageMapping?.targetPageID ?? -1),
 			title: pageTitle, // CRITICAL: Ensure title is always present
 			channelID: channelID, // CRITICAL: Always use target instance channel ID to avoid FK constraint errors
 			zones: formattedZones,
@@ -334,13 +376,15 @@ export async function processPage({
 		}
 
 		let placeBeforeIDArg = -1;
-		if (insertBeforePageId && insertBeforePageId > 0) {
+		// Only set placeBeforeIDArg for NEW pages, not updates
+		// For updates, we preserve the existing position unless explicitly moving
+		if (!existingPage && insertBeforePageId && insertBeforePageId > 0) {
 			//map the insertBeforePageId to the correct target page ID
 			const mapping = pageMapper.getPageMappingByPageID(insertBeforePageId, 'source');
 			if ((mapping?.targetPageID || 0) > 0) {
 				placeBeforeIDArg = mapping.targetPageID;
 			}
-		}
+		} 
 
 		const pageIDInOtherLocale = mappingToOtherLocale ? mappingToOtherLocale.PageIDOtherLanguage : -1;
 		const otherLocale = mappingToOtherLocale ? mappingToOtherLocale.OtherLanguageCode : null;
@@ -429,32 +473,37 @@ export async function processPage({
 						folder: "Folder",
 					}[page.pageType] || page.pageType;
 
-				if (existingPage) {
-					if (overwrite) {
-						logger.page.updated(page, "updated", locale, channel, targetGuid);
-
-					} else {
-						logger.page.updated(page, "updated", locale, channel, targetGuid);
-					}
+				if (existingPage || pageMapping) {
+					logger.page.updated(page, "updated", locale, channel, targetGuid);
 				} else {
 					logger.page.created(page, "created", locale, channel, targetGuid);
 				}
-				return "success"; // Success
+				return { status: "success" }; // Success
 			} else {
-				// Show errorData if available, otherwise generic failure
-				if (completedBatch.errorData && completedBatch.errorData.trim()) {
-					logger.page.error(page, `✗ Page "${page.name}" failed  - ${completedBatch.errorData}, locale:${locale}`, locale, channel, targetGuid);
+				// Extract error message - prefer structured failedItems from new API
+				let errorMsg: string;
+				if (Array.isArray(completedBatch.failedItems) && completedBatch.failedItems.length > 0) {
+					// Use structured error from new API
+					errorMsg = completedBatch.failedItems[0].errorMessage || 'Unknown batch error';
+				} else if (batchFailedItems.length > 0 && batchFailedItems[0].error) {
+					// Use error from extractBatchResults
+					errorMsg = batchFailedItems[0].error;
+				} else if (completedBatch.errorData && typeof completedBatch.errorData === 'string' && !completedBatch.errorData.startsWith('{')) {
+					// Use errorData only if it's a simple string (not JSON)
+					errorMsg = completedBatch.errorData.trim();
 				} else {
-					logger.page.error(page, `✗ Page "${page.name}" failed - invalid page ID: ${actualPageID}, locale:${locale}`, locale, channel, targetGuid);
+					errorMsg = `Invalid page ID: ${actualPageID}`;
 				}
-				return "failure";
+				logger.page.error(page, `✗ Page "${page.name}" failed - ${errorMsg}, locale:${locale}`, locale, channel, targetGuid);
+				return { status: "failure", error: errorMsg };
 			}
 		} else {
-			logger.page.error(page, `✗ Page "${page.name}" failed in locale:${locale} - unexpected response format`, locale, channel, targetGuid);
-			return "failure"; // Failure
+			const errorMsg = "Unexpected response format";
+			logger.page.error(page, `✗ Page "${page.name}" failed in locale:${locale} - ${errorMsg}`, locale, channel, targetGuid);
+			return { status: "failure", error: errorMsg };
 		}
 	} catch (error: any) {
 		logger.page.error(page, `✗ Page "${page.name}" failed in locale:${locale} - ${error.message}`, locale, channel, targetGuid);
-		return "failure"; // Failure
+		return { status: "failure", error: error.message };
 	}
 }

@@ -28,6 +28,7 @@ export function findContentInTargetInstance({
 	referenceMapper
 }: Props): FindResult {
 	const state = getState();
+	const itemName = sourceContent.properties?.referenceName || `ID:${sourceContent.contentID}`;
 
 	// STEP 1: Find existing mapping
 
@@ -37,9 +38,15 @@ export function findContentInTargetInstance({
 	let targetContent: mgmtApi.ContentItem | null = null;
 
 	if (mapping) {
-
 		// STEP 2: Find target content item using mapping
 		targetContent = referenceMapper.getMappedEntity(mapping, "target");
+		
+		// Diagnostic: mapping exists but target entity file is missing
+		if (!targetContent && state.verbose) {
+			// console.log(`[FindContent] ${itemName}: Mapping exists (target ID: ${mapping.targetContentID}) but target entity file not found`);
+		}
+	} else if (state.verbose) {
+		// console.log(`[FindContent] ${itemName}: No mapping found for source content ID ${sourceContent.contentID}`);
 	}
 
 	// STEP 3: Use change detection for conflict resolution

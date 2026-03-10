@@ -11,6 +11,29 @@ export function prettyException(error: any): string { return error.message || er
 export function logBatchError(error: any, context: string): void { console.error("Batch Error:", error); }
 export { pollBatchUntilComplete, extractBatchResults } from "../pushers/batch-polling";
 
+// Source publish status checker - checks source instance publish status
+export {
+    checkSourcePublishStatus,
+    filterPublishedContent,
+    filterPublishedPages,
+    isPublished
+} from './source-publish-status-checker';
+
+// Fetch API status checker - checks if CDN sync is complete
+export {
+    getFetchApiStatus,
+    waitForFetchApiSync,
+    type FetchApiStatus,
+    type FetchApiSyncMode
+} from './get-fetch-api-status';
+
+// Re-export types from central types folder
+export {
+    ItemState,
+    type SourceItemData,
+    type PublishStatusResult
+} from '../../types';
+
 // Version utility
 import * as fs from 'fs';
 import * as path from 'path';

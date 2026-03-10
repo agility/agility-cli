@@ -15,6 +15,42 @@ export { normalizeProcessArgs, normalizeArgv } from './arg-normalizer';
 // Publishing service
 export { PublishService, type PublishResult, type PublishOptions } from './publish';
 
+// Workflow operation standalone module
+export { WorkflowOperation } from '../lib/workflows';
+
+// Batch workflows service - core batch operations
+export {
+    batchWorkflow,
+    type BatchItemType,
+    createBatches
+} from './batch-workflows';
+
+// Workflow module - orchestration, options, helpers
+export {
+    workflowOrchestrator,
+    parseWorkflowOptions,
+    parseOperationType,
+    getOperationName,
+    getOperationVerb,
+    getOperationIcon
+} from '../lib/workflows';
+
+// Re-export all workflow types from central types folder
+export {
+    WorkflowOperationType,
+    BatchWorkflowResult,
+    WorkflowOrchestratorResult,
+    WorkflowOptions,
+    WorkflowOperationResult,
+    ContentMapping,
+    PageMapping,
+    MappingReadResult,
+    MappingUpdateResult,
+    ItemState,
+    SourceItemData,
+    PublishStatusResult
+} from '../types';
+
 // Content and data services
 export { content } from './content';
 export { assets } from './assets';
@@ -22,4 +58,4 @@ export { fileOperations } from './fileOperations';
 export { getApiClient } from './state';
 
 // File system integration
-// Note: store-interface-filesystem uses module.exports, import directly if needed 
+// Note: store-interface-filesystem uses module.exports, import directly if needed
