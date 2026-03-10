@@ -420,7 +420,7 @@ export class Auth {
     if (validGuids.length > 0 && failedGuids.length === validGuids.length) {
       console.log(ansiColors.red(`\nError: Failed to retrieve API keys for all specified GUIDs.`));
       console.log(ansiColors.red(`This usually means either:`));
-      console.log(ansiColors.red(`  1. Your authentication has expired — run 'agility auth' to re-authenticate`));
+      console.log(ansiColors.red(`  1. Your authentication has expired — run 'agility login' to re-authenticate`));
       console.log(ansiColors.red(`  2. The GUID(s) are incorrect — verify your --sourceGuid / --targetGuid values`));
       console.log(ansiColors.red(`  3. Your account does not have access to these instances\n`));
       return false;
@@ -541,7 +541,7 @@ export class Auth {
         if (failedGuids.length > 0) {
           console.log(ansiColors.red(`\nError: Unable to retrieve locales, and API key retrieval also failed.`));
           console.log(ansiColors.red(`This strongly indicates an authentication or GUID configuration problem.`));
-          console.log(ansiColors.red(`  - Run 'agility auth' to re-authenticate`));
+          console.log(ansiColors.red(`  - Run 'agility login' to re-authenticate`));
           console.log(ansiColors.red(`  - Verify your --sourceGuid / --targetGuid values are correct\n`));
           return false;
         }
