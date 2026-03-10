@@ -164,6 +164,11 @@ async function updateExistingModel(
     referenceMapper.addMapping(sourceModel, updatedModel);
     return "updated";
   } catch (error: any) {
+    const axiosErr = error?.innerError;
+    console.error(`[model-pusher] SAVE FAILED for ${sourceModel?.referenceName}:`);
+    console.error(`  message: ${error?.message}`);
+    console.error(`  status:  ${axiosErr?.response?.status ?? axiosErr?.status ?? "n/a"}`);
+    console.error(`  responseData: ${JSON.stringify(axiosErr?.response?.data ?? axiosErr?.data ?? null, null, 2)}`);
     logger.model.error(sourceModel, error, targetGuid)
     return "failed";
   }

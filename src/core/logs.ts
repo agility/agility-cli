@@ -746,8 +746,11 @@ export class Logs {
 
     error: (payload: any, apiError: any, targetGuid?: string) => {
       const itemName = payload?.referenceName || payload?.displayName || `Model ${payload?.id || "Unknown"}`;
-      const errorDetails = apiError?.message || apiError || "Unknown error";
-      // we need a better error logger for data elements
+      const baseMessage = apiError?.message || "Unknown error";
+      const responseData = apiError?.response?.data ?? apiError?.response?.body ?? apiError?.data;
+      const responseStatus = apiError?.response?.status ?? apiError?.status;
+      const serverDetail = responseData ? ` | Server response (${responseStatus ?? "?"}): ${typeof responseData === "string" ? responseData : safeStringify(responseData)}` : "";
+      const errorDetails = `${baseMessage}${serverDetail}`;
       this.logDataElement("model", "error", "failed", itemName, targetGuid || this.guid, errorDetails);
     },
   };
