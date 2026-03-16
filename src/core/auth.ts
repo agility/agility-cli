@@ -399,6 +399,7 @@ export class Auth {
     // Step 3: Get API keys for all GUIDs
     const allGuids = [...state.sourceGuid, ...state.targetGuid];
     state.apiKeys = [];
+    const failedGuids: string[] = [];
 
     for (const guid of allGuids) {
       if (guid) {
@@ -408,9 +409,19 @@ export class Auth {
 
           state.apiKeys.push({ guid, previewKey, fetchKey });
         } catch (error) {
-          console.log(ansiColors.yellow(`Warning: Could not get keys for GUID ${guid}: ${error.message}`));
+          failedGuids.push(guid);
         }
       }
+    }
+
+    // If any GUIDs failed key retrieval, this is almost certainly an auth or GUID problem
+    if (failedGuids.length > 0) {
+      console.log(ansiColors.red(`\nError: Failed to retrieve API keys for one or more specified GUIDs.`));
+      console.log(ansiColors.red(`This usually means either:`));
+      console.log(ansiColors.red(`  1. Your authentication has expired — run 'agility login' to re-authenticate`));
+      console.log(ansiColors.red(`  2. The GUID(s) are incorrect — verify your --sourceGuid / --targetGuid values`));
+      console.log(ansiColors.red(`  3. Your account does not have access to these instances\n`));
+      return false;
     }
 
     // Step 4: Set up UI mode in state
@@ -524,17 +535,35 @@ export class Auth {
 
 
       } catch (error) {
-        console.log(ansiColors.yellow(`Note: Could not auto-detect locales: ${error.message}`));
-        state.availableLocales = ["en-us"]; // Fallback to default
-
-        // Create fallback mapping for all GUIDs
-        const fallbackLocales = state.locale.length > 0 ? [state.locale[0]] : ["en-us"];
-        for (const guid of allGuids) {
-          if (guid) {
-            state.guidLocaleMap.set(guid, fallbackLocales);
-          }
+        // If we also failed to get keys for any GUIDs, this is likely an auth/GUID problem — fail fast
+        // This should never happen, but just in case
+        if (failedGuids.length > 0) {
+          console.log(ansiColors.red(`Error: Unable to retrieve locales, and API key retrieval also failed.`));
+          console.log(ansiColors.red(`This strongly indicates an authentication or GUID configuration problem.`));
+          console.log(ansiColors.red(`  - Run 'agility login' to re-authenticate`));
+          console.log(ansiColors.red(`  - Verify your --sourceGuid / --targetGuid values are correct\n`));
+          return false;
         }
-        console.log(`📝 Using fallback mapping: all GUIDs → ${fallbackLocales.join(", ")}`);
+
+        // Keys succeeded but locales failed — could be a transient issue, fall back gracefully
+        console.log(ansiColors.yellow(`Warning: Could not auto-detect locales: ${error.message}`));
+        if (state.locale.length > 0) {
+          // User specified locales explicitly, use those
+          const guidLocaleMap = new Map<string, string[]>();
+          for (const guid of allGuids) {
+            if (guid) {
+              guidLocaleMap.set(guid, state.locale);
+            }
+          }
+          state.guidLocaleMap = guidLocaleMap;
+          state.availableLocales = state.locale;
+          console.log(`📝 Using user-specified locales: ${state.locale.join(", ")}`);
+        } else {
+          // No explicit locales and auto-detect failed — can't safely assume en-us
+          console.log(ansiColors.red(`Error: Could not detect available locales and no --locale flag was provided.`));
+          console.log(ansiColors.red(`Please specify locales explicitly with --locale (e.g., --locale en-us)\n`));
+          return false;
+        }
       }
     }
 
