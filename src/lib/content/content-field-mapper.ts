@@ -248,10 +248,8 @@ export class ContentFieldMapper {
     // Try to find the asset by URL in the asset mapper
     const assetMapping = context.assetMapper.getAssetMappingByMediaUrl(sourceUrl, "source");
     if (assetMapping) {
-      const asset = assetMapping as any;
-      return asset.originUrl || asset.url || asset.edgeUrl || sourceUrl;
+      return assetMapping.targetUrl || sourceUrl;
     }
-
 
     // Return original URL if no mapping found
     return sourceUrl;
