@@ -10,6 +10,10 @@ interface AssetMapping {
     targetMediaID: number;
     sourceUrl?: string;
     targetUrl?: string;
+    sourceContainerEdgeUrl?: string;
+    targetContainerEdgeUrl?: string;
+    sourceContainerOriginUrl?: string;
+    targetContainerOriginUrl?: string;
 }
 
 
@@ -44,9 +48,48 @@ export class AssetMapper {
     }
 
     getAssetMappingByMediaUrl(url: string, type: 'source' | 'target'): AssetMapping | null {
-        const mapping = this.mappings.find((m: AssetMapping) => type === 'source' ? m.sourceUrl === url : m.targetUrl === url);
+        // Try exact match first
+        const exact = this.mappings.find((m: AssetMapping) => type === 'source' ? m.sourceUrl === url : m.targetUrl === url);
+        if (exact) return exact;
+
+        // Fallback: match by container prefix (handles subfolder paths like /mobile/feature-carousel/)
+        return this.findMappingByContainerPrefix(url, type);
+    }
+
+    /**
+     * Remap a URL from source container to target container, preserving any subfolder path.
+     * e.g. "cdn-usa2.aglty.io/brightstar-tns-cat/mobile/feature-carousel/file.png"
+     *    → "cdn-usa2.aglty.io/2151a7f2/mobile/feature-carousel/file.png"
+     *
+     * Returns null if the URL doesn't match any mapping's container prefix.
+     */
+    remapUrlByContainer(url: string, type: 'source' | 'target'): string | null {
+        const mapping = this.findMappingByContainerPrefix(url, type);
         if (!mapping) return null;
-        return mapping;
+
+        // Determine which container URLs to use based on whether this is an edge or origin URL
+        const sourceEdge = type === 'source' ? mapping.sourceContainerEdgeUrl : mapping.targetContainerEdgeUrl;
+        const targetEdge = type === 'source' ? mapping.targetContainerEdgeUrl : mapping.sourceContainerEdgeUrl;
+        const sourceOrigin = type === 'source' ? mapping.sourceContainerOriginUrl : mapping.targetContainerOriginUrl;
+        const targetOrigin = type === 'source' ? mapping.targetContainerOriginUrl : mapping.sourceContainerOriginUrl;
+
+        // Try edge URL swap first, then origin URL swap
+        if (sourceEdge && targetEdge && url.startsWith(sourceEdge)) {
+            return url.replace(sourceEdge, targetEdge);
+        }
+        if (sourceOrigin && targetOrigin && url.startsWith(sourceOrigin)) {
+            return url.replace(sourceOrigin, targetOrigin);
+        }
+
+        return null;
+    }
+
+    private findMappingByContainerPrefix(url: string, type: 'source' | 'target'): AssetMapping | null {
+        return this.mappings.find((m: AssetMapping) => {
+            const edgeUrl = type === 'source' ? m.sourceContainerEdgeUrl : m.targetContainerEdgeUrl;
+            const originUrl = type === 'source' ? m.sourceContainerOriginUrl : m.targetContainerOriginUrl;
+            return (edgeUrl && url.startsWith(edgeUrl + '/')) || (originUrl && url.startsWith(originUrl + '/'));
+        }) || null;
     }
 
     getMappedEntity(mapping: AssetMapping, type: 'source' | 'target'): mgmtApi.Media | null {
@@ -75,7 +118,10 @@ export class AssetMapper {
                 targetMediaID: targetAsset.mediaID,
                 sourceUrl: sourceAsset.edgeUrl,
                 targetUrl: targetAsset.edgeUrl,
-
+                sourceContainerEdgeUrl: sourceAsset.containerEdgeUrl,
+                targetContainerEdgeUrl: targetAsset.containerEdgeUrl,
+                sourceContainerOriginUrl: sourceAsset.containerOriginUrl,
+                targetContainerOriginUrl: targetAsset.containerOriginUrl,
             }
 
             this.mappings.push(newMapping);
@@ -95,6 +141,10 @@ export class AssetMapper {
             mapping.targetMediaID = targetAsset.mediaID;
             mapping.sourceUrl = sourceAsset.edgeUrl;
             mapping.targetUrl = targetAsset.edgeUrl;
+            mapping.sourceContainerEdgeUrl = sourceAsset.containerEdgeUrl;
+            mapping.targetContainerEdgeUrl = targetAsset.containerEdgeUrl;
+            mapping.sourceContainerOriginUrl = sourceAsset.containerOriginUrl;
+            mapping.targetContainerOriginUrl = targetAsset.containerOriginUrl;
         }
         this.saveMapping();
     }
