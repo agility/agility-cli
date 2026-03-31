@@ -245,13 +245,20 @@ export class ContentFieldMapper {
 
   private mapAssetUrl(sourceUrl: string, context?: ContentFieldMappingContext): string {
 
-    // Try to find the asset by URL in the asset mapper
+    // Try exact URL match first
     const assetMapping = context.assetMapper.getAssetMappingByMediaUrl(sourceUrl, "source");
     if (assetMapping) {
-      const asset = assetMapping as any;
-      return asset.originUrl || asset.url || asset.edgeUrl || sourceUrl;
-    }
+      // If exact match, use the target URL directly
+      if (assetMapping.sourceUrl === sourceUrl) {
+        return assetMapping.targetUrl || sourceUrl;
+      }
 
+      // Container prefix match — swap source container for target, preserving subfolder path
+      const remapped = context.assetMapper.remapUrlByContainer(sourceUrl, "source");
+      if (remapped) return remapped;
+
+      return assetMapping.targetUrl || sourceUrl;
+    }
 
     // Return original URL if no mapping found
     return sourceUrl;
