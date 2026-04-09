@@ -14,9 +14,11 @@ export function getAssetFilePath(originUrl: string): string {
 
         let pathname: string;
         try {
-            // Try parsing as a full URL first
-            const url = new URL(originUrl);
-            pathname = url.pathname;
+            // Try parsing as a full URL first, encoding any spaces/special chars that make URL() throw
+            const safeUrl = originUrl.replace(/\s+/g, '%20');
+            const url = new URL(safeUrl);
+            // Decode back so the returned path uses the original filename (with spaces)
+            pathname = decodeURIComponent(url.pathname);
         } catch (e) {
             // If not a full URL, assume it's a path like /instance-name/folder/file.jpg
              if (typeof originUrl === 'string' && originUrl.startsWith('/')) {
