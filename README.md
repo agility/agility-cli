@@ -343,6 +343,113 @@ For CI/CD pipelines and automation, you can configure the CLI using environment 
 | `AGILITY_HEADLESS`       | `--headless`      | Default headless mode setting                   |
 | `AGILITY_UPDATE`         | `--update`        | Default fresh data setting (both pull and sync) |
 | `AGILITY_OVERWRITE`      | `--overwrite`     | Default overwrite setting (sync only)           |
+| `AGILITY_TOKEN`          | `--token`         | Personal Access Token for headless/CI authentication (see below) |
+
+### Personal Access Token (PAT) Authentication
+
+The CLI supports two authentication methods:
+
+- **Browser-based (default):** OAuth login opens automatically when you run `pull` or `sync`. Best for interactive use.
+- **Personal Access Token:** A long-lived token you provide directly. Best for CI/CD pipelines, automation, and headless environments where a browser cannot open.
+
+#### Getting a Personal Access Token
+
+There is no UI for token management yet. PATs must be created by calling the Management API directly with an OAuth bearer token.
+
+**Step 1 — Log in via the CLI to get an OAuth token**
+
+```bash
+agility login
+```
+
+This opens a browser window to authenticate and stores your OAuth token in the system keychain.
+
+**Step 2 — Extract your OAuth token from the keychain**
+
+On macOS:
+```bash
+security find-generic-password -s "agility-cli" -a "cli-auth-token:prod" -w | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['access_token'])"
+```
+
+On Linux (GNOME keyring):
+```bash
+secret-tool lookup service agility-cli account cli-auth-token:prod | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['access_token'])"
+```
+
+**Step 3 — Determine your Management API base URL**
+
+The URL is determined by the last character(s) of your instance GUID:
+
+| GUID suffix | Base URL |
+|---|---|
+| `u` | `https://mgmt.aglty.io` |
+| `c` | `https://mgmt-ca.aglty.io` |
+| `e` | `https://mgmt-eu.aglty.io` |
+| `a` | `https://mgmt-aus.aglty.io` |
+| `us2` | `https://mgmt-usa2.aglty.io` |
+
+**Step 4 — Create the PAT**
+
+```bash
+curl -X POST "https://mgmt.aglty.io/api/v1/tokens/create" \
+  -H "Authorization: Bearer <your-oauth-token>" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "Name": "my-ci-token",
+    "ExpiryDate": "2027-12-31T00:00:00Z"
+  }'
+```
+
+- `Name` is required (1–100 characters, unique per user)
+- `ExpiryDate` is optional — defaults to 2 years from now if omitted (maximum allowed)
+
+**Step 5 — Copy the token from the response**
+
+A successful `201` response looks like:
+
+```json
+{
+  "tokenID": "550e8400-...",
+  "name": "my-ci-token",
+  "expiryDate": "2027-12-31T00:00:00Z",
+  "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+}
+```
+
+**Copy the `token` value immediately — it is only returned at creation time and cannot be retrieved again.**
+
+**Constraints:**
+- Maximum **10 active tokens** per user
+- Maximum **2-year expiry** per token
+- Tokens **cannot** be used to create or manage other tokens — OAuth login is required for token management
+- Rate limited to **5 creation requests per hour**
+
+#### Using a PAT with the CLI
+
+Pass the token via the `--token` flag or the `AGILITY_TOKEN` environment variable:
+
+```bash
+# Pass as a flag
+agility pull --sourceGuid="abc123" --token="your-pat-here"
+
+# Or set as an environment variable
+export AGILITY_TOKEN="your-pat-here"
+agility pull --sourceGuid="abc123"
+
+# Or add it to your .env file
+echo 'AGILITY_TOKEN=your-pat-here' >> .env
+```
+
+Once provided, the CLI stores the PAT securely in your system keychain. Subsequent commands in the same environment will use the stored token automatically.
+
+For CI/CD pipelines, combine `AGILITY_TOKEN` with `--headless` to suppress interactive output:
+
+```bash
+AGILITY_TOKEN="your-pat-here" agility sync \
+  --sourceGuid="abc123" \
+  --targetGuid="def456" \
+  --headless
+```
 
 ## Troubleshooting
 
@@ -366,6 +473,43 @@ All operations create detailed logs. Check the following locations:
 
 - Operation logs: `agility-files/{instance-guid}/{locale}/preview/logs/` or `agility-files/{instance-guid}/{locale}/live/logs/`
 - General logs: `agility-files/logs/` (if applicable)
+
+## Contributing
+
+### Branching and Development
+
+All work happens on feature branches off `main`. When your change is ready, open a pull request and squash-merge it into `main`. This keeps the commit history on `main` linear and easy to read.
+
+```bash
+# Start a feature
+git checkout main && git pull
+git checkout -b feat/my-feature
+
+# ... make changes ...
+
+# Push and open a PR, then squash-merge via GitHub
+```
+
+### Releasing to npm
+
+Releases are published to npm automatically via GitHub Actions when a version tag is pushed to a commit on `main`.
+
+**Steps:**
+
+1. Bump the version in `package.json` on `main` (directly or via a PR)
+2. Pull the latest `main` locally, then tag and push:
+
+```bash
+git checkout main && git pull
+git tag v1.0.0-beta.14.0
+git push origin v1.0.0-beta.14.0
+```
+
+The workflow will verify the tag is on `main`, build the project, and publish to npm. Tags pushed on non-`main` commits are ignored.
+
+> **Required secret:** The repo must have an `NPM_TOKEN` secret (Settings → Secrets → Actions) set to an npm Automation token with publish access to `@agility/cli`.
+
+---
 
 ## Support
 
