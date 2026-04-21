@@ -1,0 +1,114 @@
+name: Agility CMS Sync
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_guid:
+        description: "Source instance GUID"
+        required: false
+        default: ""
+      target_guid:
+        description: "Target instance GUID"
+        required: false
+        default: ""
+      locales:
+        description: "Comma-separated locales (leave blank for auto-detect)"
+        required: false
+        default: ""
+      auto_publish:
+        description: "Auto-publish after sync"
+        required: false
+        default: "both"
+        type: choice
+        options:
+          - both
+          - content
+          - pages
+          - ""
+
+jobs:
+  sync:
+    name: Pull & Sync Agility CMS Instances
+    runs-on: ubuntu-latest
+
+    steps:
+      # ── 1. Set up Node.js ──────────────────────────────────────────────────
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      # ── 2. Install latest agility-cli from npm ─────────────────────────────
+      - name: Install agility-cli
+        run: npm install -g @agility/cli@latest
+
+      # ── 3. Checkout the mappings repo into agility-files/mappings ──────────
+      #       Uses a deploy key (MAPPINGS_REPO_SSH_KEY) with read/write access
+      #       to agility/agility-cli-cicd-mappings.
+      - name: Checkout mappings repo
+        uses: actions/checkout@v4
+        with:
+          repository: agility/agility-cli-cicd-mappings
+          ssh-key: ${{ secrets.MAPPINGS_REPO_SSH_KEY }}
+          path: agility-files/mappings
+          fetch-depth: 0
+
+      # ── 4. Resolve effective GUIDs (input → secret fallback) ───────────────
+      - name: Resolve GUIDs
+        id: guids
+        run: |
+          SOURCE="${{ github.event.inputs.source_guid }}"
+          TARGET="${{ github.event.inputs.target_guid }}"
+          LOCALES="${{ github.event.inputs.locales }}"
+
+          if [ -z "$SOURCE" ]; then SOURCE="${{ secrets.AGILITY_SOURCE_GUID }}"; fi
+          if [ -z "$TARGET" ]; then TARGET="${{ secrets.AGILITY_TARGET_GUID }}"; fi
+          if [ -z "$LOCALES" ]; then LOCALES="${{ secrets.AGILITY_LOCALES }}"; fi
+
+          echo "source=$SOURCE"   >> "$GITHUB_OUTPUT"
+          echo "target=$TARGET"   >> "$GITHUB_OUTPUT"
+          echo "locales=$LOCALES" >> "$GITHUB_OUTPUT"
+
+      # ── 5. Run the sync ────────────────────────────────────────────────────
+      #       --headless   → no interactive UI (required in CI)
+      #       --token      → Personal Access Token via env var
+      #       --rootPath   → keep instance data alongside mappings under agility-files
+      - name: Sync Agility instances
+        env:
+          MAPPINGS_AGILITY_TOKEN: ${{ secrets.MAPPINGS_AGILITY_TOKEN }}
+        run: |
+          AUTO_PUBLISH="${{ github.event.inputs.auto_publish || 'both' }}"
+          LOCALES_ARG=""
+          if [ -n "${{ steps.guids.outputs.locales }}" ]; then
+            LOCALES_ARG="--locales=${{ steps.guids.outputs.locales }}"
+          fi
+
+          agility-cli sync \
+            --sourceGuid="${{ steps.guids.outputs.source }}" \
+            --targetGuid="${{ steps.guids.outputs.target }}" \
+            $LOCALES_ARG \
+            --autoPublish="$AUTO_PUBLISH" \
+            --headless=true \
+            --rootPath="agility-files"
+
+      # ── 6. Commit updated mappings back to the mappings repo ───────────────
+      - name: Commit mappings
+        working-directory: agility-files/mappings
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+
+          if git diff --cached --quiet; then
+            echo "No mapping changes to commit."
+          else
+            TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+            git commit -m "chore: update mappings from sync run ${TIMESTAMP}
+
+          Source: ${{ steps.guids.outputs.source }}
+          Target: ${{ steps.guids.outputs.target }}
+          Triggered by: ${{ github.event_name }} / ${{ github.actor }}"
+
+            git push
+          fi
