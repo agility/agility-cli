@@ -41,4 +41,11 @@ jobs:
         run: npm run build
 
       - name: Publish
-        run: npm publish 
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          PRERELEASE_TAG=$(echo "$PKG_VERSION" | grep -oP '(?<=-)\w+' | head -1 || true)
+          if [ -n "$PRERELEASE_TAG" ]; then
+            npm publish --access public --tag "$PRERELEASE_TAG"
+          else
+            npm publish --access public
+          fi 
