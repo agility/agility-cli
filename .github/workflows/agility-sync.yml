@@ -44,7 +44,7 @@ jobs:
 
       # ── 3. Print Agility version ─────────────────────────────
       - name: Print version
-        run: agility --version
+        run: npm list -g @agility/cli --depth=0
       # ── 4. Checkout the mappings repo into agility-files/mappings ──────────
       #       Uses a deploy key (MAPPINGS_REPO_SSH_KEY) with read/write access
       #       to agility/agility-cli-cicd-mappings.
