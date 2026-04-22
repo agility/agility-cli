@@ -42,7 +42,10 @@ jobs:
       - name: Install agility-cli
         run: npm install -g @agility/cli@latest
 
-      # ── 3. Checkout the mappings repo into agility-files/mappings ──────────
+      # ── 3. Print Agility version ─────────────────────────────
+      - name: Print version
+        run: agility --version
+      # ── 4. Checkout the mappings repo into agility-files/mappings ──────────
       #       Uses a deploy key (MAPPINGS_REPO_SSH_KEY) with read/write access
       #       to agility/agility-cli-cicd-mappings.
       - name: Checkout mappings repo
@@ -53,7 +56,7 @@ jobs:
           path: agility-files/mappings
           fetch-depth: 0
 
-      # ── 4. Resolve effective GUIDs (input → secret fallback) ───────────────
+      # ── 5. Resolve effective GUIDs (input → secret fallback) ───────────────
       - name: Resolve GUIDs
         id: guids
         run: |
@@ -69,7 +72,7 @@ jobs:
           echo "target=$TARGET"   >> "$GITHUB_OUTPUT"
           echo "locales=$LOCALES" >> "$GITHUB_OUTPUT"
 
-      # ── 5. Run the sync ────────────────────────────────────────────────────
+      # ── 6. Run the sync ────────────────────────────────────────────────────
       #       --headless   → no interactive UI (required in CI)
       #       --token      → Personal Access Token via env var
       #       --rootPath   → keep instance data alongside mappings under agility-files
