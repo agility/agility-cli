@@ -78,7 +78,7 @@ jobs:
       #       --rootPath   → keep instance data alongside mappings under agility-files
       - name: Sync Agility instances
         env:
-          MAPPINGS_AGILITY_TOKEN: ${{ secrets.MAPPINGS_AGILITY_TOKEN }}
+          AGILITY_TOKEN: ${{ secrets.MAPPINGS_AGILITY_TOKEN }}
         run: |
           AUTO_PUBLISH="${{ github.event.inputs.auto_publish || 'both' }}"
           LOCALES_ARG=""
