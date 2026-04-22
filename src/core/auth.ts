@@ -7,7 +7,17 @@ import fs from "fs";
 import path from "path";
 import https from "https";
 
-import keytar from "keytar";
+let _keytar: typeof import("keytar") | null | undefined;
+function getKeytar() {
+  if (_keytar === undefined) {
+    try {
+      _keytar = require("keytar");
+    } catch {
+      _keytar = null;
+    }
+  }
+  return _keytar;
+}
 import { exit } from "process";
 import ansiColors from "ansi-colors";
 
@@ -124,28 +134,31 @@ export class Auth {
     
     let removedAny = false;
     
-    try {
-      // Remove Auth0 token
-      const removedAuth0 = await keytar.deletePassword(SERVICE_NAME, auth0Key);
-      if (removedAuth0) {
-        console.log(`✓ Removed Auth0 token for ${env} environment.`);
-        removedAny = true;
+    const kt = getKeytar();
+    if (!kt) {
+      console.log(ansiColors.yellow("Keychain not available on this system. Nothing to log out."));
+    } else {
+      try {
+        const removedAuth0 = await kt.deletePassword(SERVICE_NAME, auth0Key);
+        if (removedAuth0) {
+          console.log(`✓ Removed Auth0 token for ${env} environment.`);
+          removedAny = true;
+        }
+
+        const removedPAT = await kt.deletePassword(SERVICE_NAME, patKey);
+        if (removedPAT) {
+          console.log(`✓ Removed Personal Access Token for ${env} environment.`);
+          removedAny = true;
+        }
+
+        if (removedAny) {
+          console.log(ansiColors.green(`\n🔓 Successfully logged out from ${env} environment.`));
+        } else {
+          console.log(ansiColors.yellow(`No tokens found in ${env} environment.`));
+        }
+      } catch (err) {
+        console.error(`❌ Failed to delete tokens:`, err);
       }
-      
-      // Remove PAT token
-      const removedPAT = await keytar.deletePassword(SERVICE_NAME, patKey);
-      if (removedPAT) {
-        console.log(`✓ Removed Personal Access Token for ${env} environment.`);
-        removedAny = true;
-      }
-      
-      if (removedAny) {
-        console.log(ansiColors.green(`\n🔓 Successfully logged out from ${env} environment.`));
-      } else {
-        console.log(ansiColors.yellow(`No tokens found in ${env} environment.`));
-      }
-    } catch (err) {
-      console.error(`❌ Failed to delete tokens:`, err);
     }
     exit();
   }
@@ -607,7 +620,8 @@ export class Auth {
   async checkAuthorization(): Promise<boolean> {
     const env = this.getEnv();
     const key = this.getEnvKey(env);
-    const tokenRaw = await keytar.getPassword(SERVICE_NAME, key);
+    const kt = getKeytar();
+    const tokenRaw = kt ? await kt.getPassword(SERVICE_NAME, key) : null;
 
     if (tokenRaw) {
       try {
@@ -644,11 +658,11 @@ export class Auth {
           const token = await this.cliPoll(params);
 
           if (token && token.access_token && token.expires_in && token.timestamp) {
-            // Store token in keytar
             console.log(ansiColors.green(`\r🔑 Authenticated to ${env} servers.\n`));
             console.log("----------------------------------\n");
 
-            await keytar.setPassword(SERVICE_NAME, key, JSON.stringify(token));
+            const kt = getKeytar();
+            if (kt) await kt.setPassword(SERVICE_NAME, key, JSON.stringify(token));
             clearInterval(interval);
             resolve(true);
           }
@@ -683,11 +697,11 @@ export class Auth {
           const token = await this.cliPoll(params, "blank-d");
 
           if (token && token.access_token && token.expires_in && token.timestamp) {
-            // Store token in keytar
             console.log(ansiColors.green(`\r🔑 Authenticated to ${env} servers.\n`));
             console.log("----------------------------------\n");
 
-            await keytar.setPassword(SERVICE_NAME, key, JSON.stringify(token));
+            const kt = getKeytar();
+            if (kt) await kt.setPassword(SERVICE_NAME, key, JSON.stringify(token));
             clearInterval(interval);
             resolve(true);
           }
@@ -744,9 +758,12 @@ export class Auth {
     const patKey = `cli-pat-token:${env}`;
     
     try {
-      const storedPAT = await keytar.getPassword(SERVICE_NAME, patKey);
-      if (storedPAT && await this.validatePersonalAccessToken(storedPAT)) {
-        return storedPAT;
+      const kt = getKeytar();
+      if (kt) {
+        const storedPAT = await kt.getPassword(SERVICE_NAME, patKey);
+        if (storedPAT && await this.validatePersonalAccessToken(storedPAT)) {
+          return storedPAT;
+        }
       }
     } catch (err) {
       // Silent fail - continue to Auth0 fallback
@@ -794,7 +811,11 @@ export class Auth {
     const env = this.getEnv();
     const key = this.getEnvKey(env);
 
-    const tokenRaw = await keytar.getPassword(SERVICE_NAME, key);
+    const kt = getKeytar();
+    if (!kt) {
+      throw new Error(`❌ Keychain not available on this system. Use --token or set the AGILITY_TOKEN environment variable.`);
+    }
+    const tokenRaw = await kt.getPassword(SERVICE_NAME, key);
 
     if (!tokenRaw) {
       throw new Error(`❌ No token found in keychain for environment: ${env}. Run 'agility login' to authenticate.`);
@@ -853,7 +874,8 @@ export class Auth {
       const patKey = `cli-pat-token:${env}`;
       
       try {
-        await keytar.setPassword(SERVICE_NAME, patKey, userProvidedToken);
+        const kt = getKeytar();
+        if (kt) await kt.setPassword(SERVICE_NAME, patKey, userProvidedToken);
       } catch (err) {
         // Non-fatal - just warn user
         console.warn("⚠️  Could not store PAT in keychain for future sessions.");
