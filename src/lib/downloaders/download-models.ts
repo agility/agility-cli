@@ -67,7 +67,20 @@ export async function downloadAllModels(
 
     const allModels = [...contentModules, ...pageModules];
     totalModels = allModels.length;
-    
+
+    // Remove local model files that no longer exist in the source instance
+    const apiModelIds = new Set(allModels.map((m) => m.id.toString()));
+    if (fs.existsSync(modelsFolderPath)) {
+      for (const file of fs.readdirSync(modelsFolderPath)) {
+        if (!file.endsWith('.json')) continue;
+        const modelId = file.replace('.json', '');
+        if (!apiModelIds.has(modelId)) {
+          fs.unlinkSync(path.join(modelsFolderPath, file));
+          logger.info(`Removed deleted model file: ${file}`);
+        }
+      }
+    }
+
     const downloadableModels = [];
     const skippableModels = [];
 
