@@ -78,6 +78,19 @@ export async function downloadAllContainers(
 
     totalContainers = containers.length;
 
+    // Remove local container files that no longer exist in the source instance
+    const apiContainerIds = new Set(containers.map((c) => c.contentViewID.toString()));
+    if (fs.existsSync(containersFolderPath)) {
+      for (const file of fs.readdirSync(containersFolderPath)) {
+        if (!file.endsWith('.json')) continue;
+        const containerId = file.replace('.json', '');
+        if (!apiContainerIds.has(containerId)) {
+          fs.unlinkSync(path.join(containersFolderPath, file));
+          logger.info(`Removed deleted container file: ${file}`);
+        }
+      }
+    }
+
     if (totalContainers === 0) {
       logger.info("No containers found to download");
       return;
