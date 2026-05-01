@@ -73,7 +73,7 @@ export class ContentBatchProcessor {
 			try {
 				// Prepare content payloads for bulk upload
 
-				const { payloads: contentPayloads, skippedCount: batchSkippedCount } = await this.prepareContentPayloads(
+				const { payloads: contentPayloads, skippedCount: batchSkippedCount, includedItems } = await this.prepareContentPayloads(
 					contentBatch,
 					this.config.sourceGuid,
 					this.config.targetGuid
@@ -105,8 +105,11 @@ export class ContentBatchProcessor {
 					batchType || "Content" // Use provided batch type or default to 'Content'
 				);
 
-				// Extract results from completed batch
-				const { successfulItems, failedItems } = extractBatchResults(completedBatch, contentBatch);
+				// Extract results from completed batch using only items that were actually sent to the API.
+				// contentBatch may include skipped items (orphaned content, missing model, etc.) that were
+				// never added to contentPayloads; using it here would shift every result after a skip onto
+				// the wrong source item, corrupting the source→target ID mappings.
+				const { successfulItems, failedItems } = extractBatchResults(completedBatch, includedItems);
 
 				// Convert to expected format
 				// Filter publishableIds to only include items that are Published (state === 2) in source
@@ -252,8 +255,9 @@ export class ContentBatchProcessor {
 		sourceGuid: string,
 		targetGuid: string
 
-	): Promise<{ payloads: any[]; skippedCount: number }> {
+	): Promise<{ payloads: any[]; skippedCount: number; includedItems: mgmtApi.ContentItem[] }> {
 		const payloads: any[] = [];
+		const includedItems: mgmtApi.ContentItem[] = [];
 		let skippedCount = 0;
 
 		// No imports needed - using reference mapper directly
@@ -277,6 +281,7 @@ export class ContentBatchProcessor {
 				};
 
 				payloads.push(payload);
+				includedItems.push(contentItem);
 			} else {
 				//map the content item to the target instance
 				const modelMapping = modelMapper.getModelMappingByReferenceName(contentItem.properties.definitionName, 'source');
@@ -409,6 +414,7 @@ export class ContentBatchProcessor {
 					};
 
 					payloads.push(payload);
+					includedItems.push(contentItem);
 				} catch (error: any) {
 					console.error(
 						ansiColors.yellow(
@@ -423,7 +429,7 @@ export class ContentBatchProcessor {
 			}
 		}
 
-		return { payloads, skippedCount };
+		return { payloads, skippedCount, includedItems };
 	}
 
 	/**
