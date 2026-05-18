@@ -73,7 +73,7 @@ export class ContentBatchProcessor {
 			try {
 				// Prepare content payloads for bulk upload
 
-				const { payloads: contentPayloads, skippedCount: batchSkippedCount, includedItems } = await this.prepareContentPayloads(
+				const { payloads: contentPayloads, skippedCount: batchSkippedCount, includedItems, operationsBySourceId } = await this.prepareContentPayloads(
 					contentBatch,
 					this.config.sourceGuid,
 					this.config.targetGuid
@@ -154,9 +154,12 @@ export class ContentBatchProcessor {
 				// Display individual item results for better visibility
 				if (batchResult.successfulItems.length > 0) {
 					batchResult.successfulItems.forEach((item) => {
-
-						// const modelName = item.originalContent.properties.definitionName || "Unknown";
-						logger.content.created(item.originalContent, `Type: ${batchType} -  created`, this.config.locale, state.targetGuid[0]);
+						const operation = operationsBySourceId.get(item.originalContent?.contentID) ?? "insert";
+						if (operation === "update") {
+							logger.content.updated(item.originalContent, `Type: ${batchType} - updated`, this.config.locale, state.targetGuid[0]);
+						} else {
+							logger.content.created(item.originalContent, `Type: ${batchType} - created`, this.config.locale, state.targetGuid[0]);
+						}
 					});
 				}
 
@@ -255,9 +258,10 @@ export class ContentBatchProcessor {
 		sourceGuid: string,
 		targetGuid: string
 
-	): Promise<{ payloads: any[]; skippedCount: number; includedItems: mgmtApi.ContentItem[] }> {
+	): Promise<{ payloads: any[]; skippedCount: number; includedItems: mgmtApi.ContentItem[]; operationsBySourceId: Map<number, "insert" | "update"> }> {
 		const payloads: any[] = [];
 		const includedItems: mgmtApi.ContentItem[] = [];
+		const operationsBySourceId = new Map<number, "insert" | "update">();
 		let skippedCount = 0;
 
 		// No imports needed - using reference mapper directly
@@ -282,6 +286,7 @@ export class ContentBatchProcessor {
 
 				payloads.push(payload);
 				includedItems.push(contentItem);
+				operationsBySourceId.set(contentItem.contentID, payload.contentID > 0 ? "update" : "insert");
 			} else {
 				//map the content item to the target instance
 				const modelMapping = modelMapper.getModelMappingByReferenceName(contentItem.properties.definitionName, 'source');
@@ -336,10 +341,19 @@ export class ContentBatchProcessor {
 					const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(contentItem.contentID, 'source');
 					const existingTargetContentItem = this.config.referenceMapper.getMappedEntity(existingMapping, 'target');
 
-					let existingContentID = existingTargetContentItem ? existingTargetContentItem.contentID : -1;
-
-					if (!existingTargetContentItem) {
-						//see if this content item has been mapped in another locale
+					// Resolve target contentID in priority order:
+					//   1. local target file (most authoritative — just pulled)
+					//   2. mapping's targetContentID (target file missing locally but mapping knows the ID;
+					//      send it and let the API tell us if the target was actually deleted — without this
+					//      the payload would default to -1 and INSERT a duplicate on every sync)
+					//   3. cross-locale mapping fallback
+					//   4. -1 (true insert)
+					let existingContentID = -1;
+					if (existingTargetContentItem) {
+						existingContentID = existingTargetContentItem.contentID;
+					} else if (existingMapping?.targetContentID && existingMapping.targetContentID > 0) {
+						existingContentID = existingMapping.targetContentID;
+					} else {
 						existingContentID = await findContentInOtherLocale({
 							sourceGuid,
 							targetGuid,
@@ -415,6 +429,7 @@ export class ContentBatchProcessor {
 
 					payloads.push(payload);
 					includedItems.push(contentItem);
+					operationsBySourceId.set(contentItem.contentID, existingContentID > 0 ? "update" : "insert");
 				} catch (error: any) {
 					console.error(
 						ansiColors.yellow(
@@ -429,7 +444,7 @@ export class ContentBatchProcessor {
 			}
 		}
 
-		return { payloads, skippedCount, includedItems };
+		return { payloads, skippedCount, includedItems, operationsBySourceId };
 	}
 
 	/**

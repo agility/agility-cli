@@ -86,6 +86,11 @@ export class ContentItemMapper {
         if (mapping) {
             this.updateMapping(sourceContentItem, targetContentItem);
         } else {
+            // A source contentID can only legitimately map to one target item per locale.
+            // Drop any prior rows for this source — they're stale (e.g. previous target was
+            // deleted and the API just inserted a replacement). Leaving them in would let
+            // .find() return the broken row first and re-trigger the duplicate-create path.
+            this.mappings = this.mappings.filter(m => m.sourceContentID !== sourceContentItem.contentID);
 
             const newMapping: ContentItemMapping = {
                 sourceGuid: this.sourceGuid,
@@ -112,6 +117,14 @@ export class ContentItemMapper {
             mapping.targetContentID = targetContentItem.contentID;
             mapping.sourceVersionID = sourceContentItem.properties.versionID;
             mapping.targetVersionID = targetContentItem.properties.versionID;
+
+            // Drop any other rows for this same source — only one target per source per locale.
+            // Without this, legacy duplicate rows accumulated by past buggy syncs never get
+            // cleaned up because addMapping routes here whenever the new target ID matches an
+            // existing row.
+            this.mappings = this.mappings.filter(m =>
+                m === mapping || m.sourceContentID !== sourceContentItem.contentID
+            );
         }
         this.saveMapping();
     }
