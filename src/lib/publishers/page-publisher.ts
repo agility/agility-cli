@@ -19,7 +19,7 @@ const apiClient = getApiClient();
         if (!apiClient) {
             throw new Error('API client not available in state');
         }
-        if (!targetGuid) {
+        if (!targetGuid?.length) {
             throw new Error('Target GUID not available in state');
         }
         if (!locale) {

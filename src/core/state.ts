@@ -498,6 +498,7 @@ export function resetState() {
   // Workflow operation control
   state.operationType = undefined;
   state.dryRun = false;
+  state.autoPublish = '';
 
   // Explicit ID overrides
   state.explicitContentIDs = [];
@@ -844,7 +845,7 @@ export function getContentCmsLink(guid: string, locale: string, contentID: numbe
 export function contentExistsInSourceData(guid: string, locale: string, contentID: number): boolean {
   const fs = require('fs');
   const path = require('path');
-  const contentPath = path.join(process.cwd(), state.rootPath, guid, locale, 'item', `${contentID}.json`);
+  const contentPath = path.resolve(state.rootPath, guid, locale, 'item', `${contentID}.json`);
   return fs.existsSync(contentPath);
 }
 
@@ -861,7 +862,7 @@ export function contentExistsInOtherLocale(guid: string, currentLocale: string, 
   const validLocales = (state.availableLocales || []).filter((l) => l !== currentLocale);
   if (validLocales.length === 0) return null;
 
-  const guidPath = path.join(process.cwd(), state.rootPath, guid);
+  const guidPath = path.resolve(state.rootPath, guid);
   if (!fs.existsSync(guidPath)) return null;
 
   for (const locale of validLocales) {

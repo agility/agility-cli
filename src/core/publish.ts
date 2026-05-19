@@ -43,7 +43,7 @@ export class PublishService {
   constructor(options: PublishOptions = {}) {
     const state = getState();
     
-    if (!state.targetGuid) {
+    if (!state.targetGuid?.length) {
       throw new Error('PublishService requires targetGuid to be set in state');
     }
     

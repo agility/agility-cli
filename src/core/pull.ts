@@ -131,7 +131,7 @@ export class Pull {
 
   private async handleResetFlag(guid: string): Promise<void> {
     const state = getState();
-    const guidFolderPath = path.join(process.cwd(), state.rootPath, guid);
+    const guidFolderPath = path.resolve(state.rootPath, guid);
 
     if (fs.existsSync(guidFolderPath)) {
       console.log(ansiColors.red(`🔄 --reset flag detected: Deleting entire instance folder ${guidFolderPath}`));
