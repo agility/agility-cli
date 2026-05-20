@@ -25,7 +25,7 @@ export interface LastPullTimestamps {
  * @returns Path to the .last-pull-timestamps.json file
  */
 function getTimestampFilePath(guid: string, rootPath: string): string {
-  return path.join(process.cwd(), rootPath, guid, '.last-pull-timestamps.json');
+  return path.resolve(rootPath, guid, '.last-pull-timestamps.json');
 }
 
 /**

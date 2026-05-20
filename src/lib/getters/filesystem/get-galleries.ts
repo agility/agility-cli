@@ -18,7 +18,7 @@ export function getGalleriesFromFileSystem(
     const galleries = [];
     for(const galleryFile of galleryFiles){
         const gallery = fileOps.readJsonFile(`galleries/${galleryFile}`);
-        galleries.push(gallery);
+        if (gallery) galleries.push(gallery);
     }
 
     

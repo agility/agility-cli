@@ -301,11 +301,11 @@ export class LoggingModes {
       errors.push('rootPath is required for file logging');
     }
 
-    if (!state.sourceGuid) {
+    if (!state.sourceGuid?.length) {
       errors.push('sourceGuid is required for logging operations');
     }
 
-    if (!state.locale) {
+    if (!state.locale?.length) {
       errors.push('locale is required for logging operations');
     }
 

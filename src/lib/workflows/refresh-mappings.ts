@@ -27,7 +27,7 @@ function hasValidTargetKeys(targetGuid: string): boolean {
 function writeLogFile(logLines: string[], targetGuid: string, locale: string): string | null {
     try {
         const state = getState();
-        const logDir = path.join(process.cwd(), state.rootPath, targetGuid, 'logs');
+        const logDir = path.resolve(state.rootPath, targetGuid, 'logs');
         
         // Create logs directory if it doesn't exist
         if (!fs.existsSync(logDir)) {
