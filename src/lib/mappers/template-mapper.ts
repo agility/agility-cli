@@ -66,22 +66,29 @@ export class TemplateMapper {
     }
 
     addMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
-        const mapping = this.getTemplateMapping(targetTemplate, 'target');
+        const mappingByTarget = this.getTemplateMapping(targetTemplate, 'target');
 
-        if (mapping) {
+        if (mappingByTarget) {
             this.updateMapping(sourceTemplate, targetTemplate);
         } else {
+            // Guard against duplicates when the same source template re-maps to a new target ID
+            const mappingBySource = this.getTemplateMapping(sourceTemplate, 'source');
 
-            const newMapping: TemplateMapping = {
-                sourceGuid: this.sourceGuid,
-                targetGuid: this.targetGuid,
-                sourcePageTemplateID: sourceTemplate.pageTemplateID,
-                targetPageTemplateID: targetTemplate.pageTemplateID,
-                sourcePageTemplateName: sourceTemplate.pageTemplateName,
-                targetPageTemplateName: targetTemplate.pageTemplateName,
+            if (mappingBySource) {
+                mappingBySource.targetPageTemplateID = targetTemplate.pageTemplateID;
+                mappingBySource.sourcePageTemplateName = sourceTemplate.pageTemplateName;
+                mappingBySource.targetPageTemplateName = targetTemplate.pageTemplateName;
+            } else {
+                const newMapping: TemplateMapping = {
+                    sourceGuid: this.sourceGuid,
+                    targetGuid: this.targetGuid,
+                    sourcePageTemplateID: sourceTemplate.pageTemplateID,
+                    targetPageTemplateID: targetTemplate.pageTemplateID,
+                    sourcePageTemplateName: sourceTemplate.pageTemplateName,
+                    targetPageTemplateName: targetTemplate.pageTemplateName,
+                }
+                this.mappings.push(newMapping);
             }
-
-            this.mappings.push(newMapping);
         }
 
         this.saveMapping();

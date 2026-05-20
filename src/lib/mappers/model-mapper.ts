@@ -72,25 +72,33 @@ export class ModelMapper {
     }
 
     addMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model) {
-        const mapping = this.getModelMapping(targetModel, 'target');
+        const mappingByTarget = this.getModelMapping(targetModel, 'target');
 
-        if (mapping) {
+        if (mappingByTarget) {
             this.updateMapping(sourceModel, targetModel);
         } else {
+            // Guard against duplicates when the same source model re-maps to a new target ID
+            const mappingBySource = this.getModelMapping(sourceModel, 'source');
 
-            const newMapping: ModelMapping = {
-                sourceGuid: this.sourceGuid,
-                targetGuid: this.targetGuid,
-                sourceID: sourceModel.id,
-                targetID: targetModel.id,
-                sourceReferenceName: sourceModel.referenceName,
-                targetReferenceName: targetModel.referenceName,
-                sourceLastModifiedDate: sourceModel.lastModifiedDate,
-                targetLastModifiedDate: targetModel.lastModifiedDate,
-
+            if (mappingBySource) {
+                mappingBySource.targetID = targetModel.id;
+                mappingBySource.sourceReferenceName = sourceModel.referenceName;
+                mappingBySource.targetReferenceName = targetModel.referenceName;
+                mappingBySource.sourceLastModifiedDate = sourceModel.lastModifiedDate;
+                mappingBySource.targetLastModifiedDate = targetModel.lastModifiedDate;
+            } else {
+                const newMapping: ModelMapping = {
+                    sourceGuid: this.sourceGuid,
+                    targetGuid: this.targetGuid,
+                    sourceID: sourceModel.id,
+                    targetID: targetModel.id,
+                    sourceReferenceName: sourceModel.referenceName,
+                    targetReferenceName: targetModel.referenceName,
+                    sourceLastModifiedDate: sourceModel.lastModifiedDate,
+                    targetLastModifiedDate: targetModel.lastModifiedDate,
+                }
+                this.mappings.push(newMapping);
             }
-
-            this.mappings.push(newMapping);
         }
 
         this.saveMapping();

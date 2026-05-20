@@ -67,24 +67,33 @@ export class PageMapper {
     }
 
     addMapping(sourcePage: mgmtApi.PageItem, targetPage: mgmtApi.PageItem) {
-        const mapping = this.getPageMapping(targetPage, 'target');
+        const mappingByTarget = this.getPageMapping(targetPage, 'target');
 
-        if (mapping) {
+        if (mappingByTarget) {
             this.updateMapping(sourcePage, targetPage);
         } else {
+            // Guard against duplicates when the same source page re-maps to a new target ID
+            const mappingBySource = this.getPageMapping(sourcePage, 'source');
 
-            const newMapping: PageMapping = {
-                sourceGuid: this.sourceGuid,
-                targetGuid: this.targetGuid,
-                sourcePageID: sourcePage.pageID,
-                targetPageID: targetPage.pageID,
-                sourceVersionID: sourcePage.properties.versionID,
-                targetVersionID: targetPage.properties.versionID,
-                sourcePageTemplateName: sourcePage.templateName,
-                targetPageTemplateName: targetPage.templateName,
+            if (mappingBySource) {
+                mappingBySource.targetPageID = targetPage.pageID;
+                mappingBySource.sourceVersionID = sourcePage.properties.versionID;
+                mappingBySource.targetVersionID = targetPage.properties.versionID;
+                mappingBySource.sourcePageTemplateName = sourcePage.templateName;
+                mappingBySource.targetPageTemplateName = targetPage.templateName;
+            } else {
+                const newMapping: PageMapping = {
+                    sourceGuid: this.sourceGuid,
+                    targetGuid: this.targetGuid,
+                    sourcePageID: sourcePage.pageID,
+                    targetPageID: targetPage.pageID,
+                    sourceVersionID: sourcePage.properties.versionID,
+                    targetVersionID: targetPage.properties.versionID,
+                    sourcePageTemplateName: sourcePage.templateName,
+                    targetPageTemplateName: targetPage.templateName,
+                }
+                this.mappings.push(newMapping);
             }
-
-            this.mappings.push(newMapping);
         }
 
         this.saveMapping();

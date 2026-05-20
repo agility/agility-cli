@@ -98,25 +98,33 @@ export class ContainerMapper {
     }
 
     addMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container) {
-        const mapping = this.getContainerMapping(targetContainer, 'target');
+        const mappingByTarget = this.getContainerMapping(targetContainer, 'target');
 
-        if (mapping) {
+        if (mappingByTarget) {
             this.updateMapping(sourceContainer, targetContainer);
         } else {
+            // Guard against duplicates when the same source container re-maps to a new target ID
+            const mappingBySource = this.getContainerMapping(sourceContainer, 'source');
 
-            const newMapping: ContainerMapping = {
-                sourceGuid: this.sourceGuid,
-                targetGuid: this.targetGuid,
-                sourceContentViewID: sourceContainer.contentViewID,
-                targetContentViewID: targetContainer.contentViewID,
-                sourceLastModifiedDate: sourceContainer.lastModifiedDate,
-                targetLastModifiedDate: targetContainer.lastModifiedDate,
-                sourceReferenceName: sourceContainer.referenceName,
-                targetReferenceName: targetContainer.referenceName
-
+            if (mappingBySource) {
+                mappingBySource.targetContentViewID = targetContainer.contentViewID;
+                mappingBySource.sourceLastModifiedDate = sourceContainer.lastModifiedDate;
+                mappingBySource.targetLastModifiedDate = targetContainer.lastModifiedDate;
+                mappingBySource.sourceReferenceName = sourceContainer.referenceName;
+                mappingBySource.targetReferenceName = targetContainer.referenceName;
+            } else {
+                const newMapping: ContainerMapping = {
+                    sourceGuid: this.sourceGuid,
+                    targetGuid: this.targetGuid,
+                    sourceContentViewID: sourceContainer.contentViewID,
+                    targetContentViewID: targetContainer.contentViewID,
+                    sourceLastModifiedDate: sourceContainer.lastModifiedDate,
+                    targetLastModifiedDate: targetContainer.lastModifiedDate,
+                    sourceReferenceName: sourceContainer.referenceName,
+                    targetReferenceName: targetContainer.referenceName,
+                }
+                this.mappings.push(newMapping);
             }
-
-            this.mappings.push(newMapping);
         }
 
         this.saveMapping();

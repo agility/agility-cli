@@ -63,23 +63,29 @@ export class GalleryMapper {
     }
 
     addMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping) {
-        const mapping = this.getGalleryMapping(targetGallery, 'target');
+        const mappingByTarget = this.getGalleryMapping(targetGallery, 'target');
 
-        if (mapping) {
+        if (mappingByTarget) {
             this.updateMapping(sourceGallery, targetGallery);
         } else {
+            // Guard against duplicates when the same source gallery re-maps to a new target ID
+            const mappingBySource = this.getGalleryMapping(sourceGallery, 'source');
 
-            const newMapping: GalleryMapping = {
-                sourceGuid: this.sourceGuid,
-                targetGuid: this.targetGuid,
-                sourceMediaGroupingID: sourceGallery.mediaGroupingID,
-                targetMediaGroupingID: targetGallery.mediaGroupingID,
-                sourceModifiedOn: sourceGallery.modifiedOn,
-                targetModifiedOn: targetGallery.modifiedOn,
-
+            if (mappingBySource) {
+                mappingBySource.targetMediaGroupingID = targetGallery.mediaGroupingID;
+                mappingBySource.sourceModifiedOn = sourceGallery.modifiedOn;
+                mappingBySource.targetModifiedOn = targetGallery.modifiedOn;
+            } else {
+                const newMapping: GalleryMapping = {
+                    sourceGuid: this.sourceGuid,
+                    targetGuid: this.targetGuid,
+                    sourceMediaGroupingID: sourceGallery.mediaGroupingID,
+                    targetMediaGroupingID: targetGallery.mediaGroupingID,
+                    sourceModifiedOn: sourceGallery.modifiedOn,
+                    targetModifiedOn: targetGallery.modifiedOn,
+                }
+                this.mappings.push(newMapping);
             }
-
-            this.mappings.push(newMapping);
         }
 
         this.saveMapping();

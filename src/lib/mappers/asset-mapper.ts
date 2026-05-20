@@ -103,28 +103,41 @@ export class AssetMapper {
     }
 
     addMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media) {
-        const mapping = this.getAssetMapping(targetAsset, 'target');
+        const mappingByTarget = this.getAssetMapping(targetAsset, 'target');
 
-        if (mapping) {
+        if (mappingByTarget) {
             this.updateMapping(sourceAsset, targetAsset);
         } else {
+            // Guard against duplicates when the same source asset re-maps to a new target ID
+            const mappingBySource = this.getAssetMapping(sourceAsset, 'source');
 
-            const newMapping: AssetMapping = {
-                sourceGuid: this.sourceGuid,
-                targetGuid: this.targetGuid,
-                sourceDateModified: sourceAsset.dateModified,
-                targetDateModified: targetAsset.dateModified,
-                sourceMediaID: sourceAsset.mediaID,
-                targetMediaID: targetAsset.mediaID,
-                sourceUrl: sourceAsset.edgeUrl,
-                targetUrl: targetAsset.edgeUrl,
-                sourceContainerEdgeUrl: sourceAsset.containerEdgeUrl,
-                targetContainerEdgeUrl: targetAsset.containerEdgeUrl,
-                sourceContainerOriginUrl: sourceAsset.containerOriginUrl,
-                targetContainerOriginUrl: targetAsset.containerOriginUrl,
+            if (mappingBySource) {
+                mappingBySource.targetMediaID = targetAsset.mediaID;
+                mappingBySource.sourceDateModified = sourceAsset.dateModified;
+                mappingBySource.targetDateModified = targetAsset.dateModified;
+                mappingBySource.sourceUrl = sourceAsset.edgeUrl;
+                mappingBySource.targetUrl = targetAsset.edgeUrl;
+                mappingBySource.sourceContainerEdgeUrl = sourceAsset.containerEdgeUrl;
+                mappingBySource.targetContainerEdgeUrl = targetAsset.containerEdgeUrl;
+                mappingBySource.sourceContainerOriginUrl = sourceAsset.containerOriginUrl;
+                mappingBySource.targetContainerOriginUrl = targetAsset.containerOriginUrl;
+            } else {
+                const newMapping: AssetMapping = {
+                    sourceGuid: this.sourceGuid,
+                    targetGuid: this.targetGuid,
+                    sourceDateModified: sourceAsset.dateModified,
+                    targetDateModified: targetAsset.dateModified,
+                    sourceMediaID: sourceAsset.mediaID,
+                    targetMediaID: targetAsset.mediaID,
+                    sourceUrl: sourceAsset.edgeUrl,
+                    targetUrl: targetAsset.edgeUrl,
+                    sourceContainerEdgeUrl: sourceAsset.containerEdgeUrl,
+                    targetContainerEdgeUrl: targetAsset.containerEdgeUrl,
+                    sourceContainerOriginUrl: sourceAsset.containerOriginUrl,
+                    targetContainerOriginUrl: targetAsset.containerOriginUrl,
+                }
+                this.mappings.push(newMapping);
             }
-
-            this.mappings.push(newMapping);
         }
 
         this.saveMapping();

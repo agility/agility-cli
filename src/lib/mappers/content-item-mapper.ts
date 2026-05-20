@@ -81,23 +81,30 @@ export class ContentItemMapper {
     }
 
     addMapping(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem) {
-        const mapping = this.getContentItemMapping(targetContentItem, 'target');
+        const mappingByTarget = this.getContentItemMapping(targetContentItem, 'target');
 
-        if (mapping) {
+        if (mappingByTarget) {
             this.updateMapping(sourceContentItem, targetContentItem);
         } else {
+            // Guard against duplicates when the same source item re-maps to a new target ID
+            // (e.g. target file was deleted and the item was re-created with a fresh ID)
+            const mappingBySource = this.getContentItemMapping(sourceContentItem, 'source');
 
-            const newMapping: ContentItemMapping = {
-                sourceGuid: this.sourceGuid,
-                targetGuid: this.targetGuid,
-                sourceContentID: sourceContentItem.contentID,
-                targetContentID: targetContentItem.contentID,
-                sourceVersionID: sourceContentItem.properties.versionID,
-                targetVersionID: targetContentItem.properties.versionID,
-
+            if (mappingBySource) {
+                mappingBySource.targetContentID = targetContentItem.contentID;
+                mappingBySource.sourceVersionID = sourceContentItem.properties.versionID;
+                mappingBySource.targetVersionID = targetContentItem.properties.versionID;
+            } else {
+                const newMapping: ContentItemMapping = {
+                    sourceGuid: this.sourceGuid,
+                    targetGuid: this.targetGuid,
+                    sourceContentID: sourceContentItem.contentID,
+                    targetContentID: targetContentItem.contentID,
+                    sourceVersionID: sourceContentItem.properties.versionID,
+                    targetVersionID: targetContentItem.properties.versionID,
+                }
+                this.mappings.push(newMapping);
             }
-
-            this.mappings.push(newMapping);
         }
 
         this.saveMapping();
