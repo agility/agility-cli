@@ -66,10 +66,15 @@ export class TemplateMapper {
     }
 
     addMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
-        const mapping = this.getTemplateMapping(targetTemplate, 'target');
+        const targetMapping = this.getTemplateMapping(targetTemplate, 'target');
+        const sourceMapping = this.getTemplateMapping(sourceTemplate, 'source');
 
-        if (mapping) {
-            this.updateMapping(sourceTemplate, targetTemplate);
+        if (targetMapping !== sourceMapping) {
+            throw new Error(`Invalid Mappings detected! Source pageTemplateID: ${sourceTemplate.pageTemplateID}, Target pageTemplateID: ${targetTemplate.pageTemplateID}`);
+        }
+
+        if (targetMapping) {
+            this.updateMapping(sourceTemplate, targetTemplate, targetMapping);
         } else {
 
             const newMapping: TemplateMapping = {
@@ -87,16 +92,16 @@ export class TemplateMapper {
         this.saveMapping();
     }
 
-    updateMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
-        const mapping = this.getTemplateMapping(targetTemplate, 'target');
-        if (mapping) {
-            mapping.sourceGuid = this.sourceGuid;
-            mapping.targetGuid = this.targetGuid;
-            mapping.sourcePageTemplateID = sourceTemplate.pageTemplateID;
-            mapping.targetPageTemplateID = targetTemplate.pageTemplateID;
-            mapping.sourcePageTemplateName = sourceTemplate.pageTemplateName;
-            mapping.targetPageTemplateName = targetTemplate.pageTemplateName;
+    updateMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel, mapping: TemplateMapping) {
+        if (sourceTemplate.pageTemplateID !== mapping.sourcePageTemplateID || targetTemplate.pageTemplateID !== mapping.targetPageTemplateID) {
+            throw new Error(`Invalid items trying to be mapped! Source pageTemplateID: ${sourceTemplate.pageTemplateID}, Target pageTemplateID: ${targetTemplate.pageTemplateID}`);
         }
+        mapping.sourceGuid = this.sourceGuid;
+        mapping.targetGuid = this.targetGuid;
+        mapping.sourcePageTemplateID = sourceTemplate.pageTemplateID;
+        mapping.targetPageTemplateID = targetTemplate.pageTemplateID;
+        mapping.sourcePageTemplateName = sourceTemplate.pageTemplateName;
+        mapping.targetPageTemplateName = targetTemplate.pageTemplateName;
         this.saveMapping();
     }
 

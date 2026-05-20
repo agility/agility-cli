@@ -33,13 +33,13 @@ export async function pushContainers(
   const modelMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
 
   for (const sourceContainer of sourceContainers) {
-
     //SPECIAL CASE for fixed Agility containers
-    if (sourceContainer.referenceName === "AgilityCSSFiles"
-      || sourceContainer.referenceName === "AgilityJavascriptFiles"
-      || sourceContainer.referenceName === "AgilityGlobalCodeTemplates"
-      || sourceContainer.referenceName === "AgilityModuleCodeTemplates"
-      || sourceContainer.referenceName === "AgilityPageCodeTemplates"
+    if (
+      sourceContainer.referenceName === "AgilityCSSFiles" ||
+      sourceContainer.referenceName === "AgilityJavascriptFiles" ||
+      sourceContainer.referenceName === "AgilityGlobalCodeTemplates" ||
+      sourceContainer.referenceName === "AgilityModuleCodeTemplates" ||
+      sourceContainer.referenceName === "AgilityPageCodeTemplates"
     ) {
       //ignore these containers
       continue;
@@ -67,15 +67,17 @@ export async function pushContainers(
       const hasTargetChanges = existingMapping !== null && containerMapper.hasTargetChanged(targetContainer);
       const hasSourceChanges = existingMapping !== null && containerMapper.hasSourceChanged(sourceContainer);
       let shouldUpdate = existingMapping !== null && !hasTargetChanges && hasSourceChanges;
-      let shouldSkip = existingMapping !== null && hasTargetChanges && !hasSourceChanges || existingMapping !== null && !hasSourceChanges && !hasTargetChanges;
+      let shouldSkip =
+        (existingMapping !== null && hasTargetChanges && !hasSourceChanges) ||
+        (existingMapping !== null && !hasSourceChanges && !hasTargetChanges);
 
       if (overwrite) {
         shouldUpdate = true;
         shouldSkip = false;
       }
 
-      const modelMapping = modelMapper.getModelMappingByID(sourceContainer.contentDefinitionID, 'source')
-      let targetModelID = -1
+      const modelMapping = modelMapper.getModelMappingByID(sourceContainer.contentDefinitionID, "source");
+      let targetModelID = -1;
 
       // Check if target container mapping exists before attempting to create
       if (sourceContainer.contentDefinitionID === 1) {
@@ -90,7 +92,7 @@ export async function pushContainers(
       if (shouldCreate) {
         // Container doesn't exist - create new one
         if (targetModelID < 1) {
-          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0])
+          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0]);
           skipped++;
         } else {
           // Container doesn't exist - create new one
@@ -103,11 +105,11 @@ export async function pushContainers(
           );
 
           if (createResult) {
-            logger.container.created(sourceContainer, "created", targetGuid[0])
-            containerMapper.addMapping(sourceContainer, createResult)
+            logger.container.created(sourceContainer, "created", targetGuid[0]);
+            containerMapper.addMapping(sourceContainer, createResult);
             successful++;
           } else {
-            logger.container.error(sourceContainer, "Failed to create container", targetGuid[0])
+            logger.container.error(sourceContainer, "Failed to create container", targetGuid[0]);
             failed++;
             currentStatus = "error";
             overallStatus = "error";
@@ -119,7 +121,7 @@ export async function pushContainers(
         // Container exists but needs updating
 
         if (targetModelID < 1) {
-          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0])
+          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0]);
 
           skipped++;
         } else {
@@ -133,11 +135,20 @@ export async function pushContainers(
           );
 
           if (updateResult) {
-            logger.container.updated(sourceContainer, "updated", targetGuid[0])
-            containerMapper.updateMapping(sourceContainer, updateResult);
+            logger.container.updated(sourceContainer, "updated", targetGuid[0]);
+            const sourceMapping = containerMapper.getContainerMapping(sourceContainer, "source");
+            const targetMapping = containerMapper.getContainerMapping(targetContainer, "target");
+
+            if (sourceMapping !== targetMapping) {
+              throw new Error(
+                `Invalid Mappings detected! Source containerID: ${sourceContainer.contentViewID}, Target containerID: ${targetContainer.contentViewID}`,
+              );
+            }
+
+            containerMapper.updateMapping(sourceContainer, updateResult, sourceMapping);
             successful++;
           } else {
-            logger.container.error(sourceContainer, "Failed to update container", targetGuid[0])
+            logger.container.error(sourceContainer, "Failed to update container", targetGuid[0]);
             failed++;
             currentStatus = "error";
             overallStatus = "error";
@@ -147,11 +158,11 @@ export async function pushContainers(
         }
       } else if (shouldSkip) {
         // Container exists and is up to date - skip
-        logger.container.skipped(sourceContainer, "up to date, skipping", targetGuid[0])
+        logger.container.skipped(sourceContainer, "up to date, skipping", targetGuid[0]);
         skipped++;
       }
     } catch (error: any) {
-      logger.container.error(sourceContainer, error, targetGuid[0])
+      logger.container.error(sourceContainer, error, targetGuid[0]);
       failed++;
       currentStatus = "error";
       overallStatus = "error";
@@ -172,9 +183,8 @@ async function updateExistingContainer(
   apiClient: ApiClient,
   targetGuid: string,
   targetModelId: number,
-  logger: Logs
+  logger: Logs,
 ): Promise<mgmtApi.Container> {
-
   // Prepare update payload
   const updatePayload = {
     ...sourceContainer,
@@ -184,7 +194,7 @@ async function updateExistingContainer(
 
   // Update the container
   const updatedContainer = await apiClient.containerMethods.saveContainer(updatePayload, targetGuid, true);
-  logger.container.updated(sourceContainer, "updated", targetGuid)
+  logger.container.updated(sourceContainer, "updated", targetGuid);
   return updatedContainer;
 }
 
@@ -196,9 +206,8 @@ async function createNewContainer(
   apiClient: ApiClient,
   targetGuid: string,
   targetModelId: number,
-  logger: Logs
+  logger: Logs,
 ): Promise<mgmtApi.Container> {
-
   // Prepare creation payload
   const createPayload = {
     ...sourceContainer,
@@ -211,7 +220,7 @@ async function createNewContainer(
     const newContainer = await apiClient.containerMethods.saveContainer(createPayload, targetGuid, true);
     return newContainer;
   } catch (error: any) {
-    logger.container.error(createPayload, error, targetGuid)
+    logger.container.error(createPayload, error, targetGuid);
     throw error;
   }
 }

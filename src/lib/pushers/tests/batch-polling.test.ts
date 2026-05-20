@@ -1,5 +1,9 @@
-import { resetState, setState } from 'core/state';
-import { extractBatchResults, logBatchError } from '../batch-polling';
+import { resetState } from 'core/state';
+import { extractContentBatchResults, logBatchError, CompletedBatch } from '../batch-polling';
+import * as mgmtApi from '@agility/management-sdk';
+
+const asBatch = (obj: Record<string, any>): CompletedBatch => obj as CompletedBatch;
+const asContent = (obj: Record<string, any>): mgmtApi.ContentItem => obj as mgmtApi.ContentItem;
 
 beforeEach(() => {
   resetState();
@@ -12,12 +16,12 @@ afterEach(() => {
   jest.restoreAllMocks();
 });
 
-// ─── extractBatchResults — no batch items returned ────────────────────────────
+// ─── extractContentBatchResults — no batch items returned ────────────────────────────
 
-describe('extractBatchResults — no items in batch', () => {
+describe('extractContentBatchResults — no items in batch', () => {
   it('marks all originalItems as failed when batch has no items array', () => {
-    const originals = [{ contentID: 1 }, { contentID: 2 }];
-    const result = extractBatchResults({}, originals);
+    const originals = [{ contentID: 1 }, { contentID: 2 }] as mgmtApi.ContentItem[];
+    const result = extractContentBatchResults(asBatch({}), originals);
 
     expect(result.failedItems).toHaveLength(2);
     expect(result.successfulItems).toHaveLength(0);
@@ -27,22 +31,22 @@ describe('extractBatchResults — no items in batch', () => {
   });
 
   it('marks all originalItems as failed when batch.items is null', () => {
-    const originals = [{ contentID: 1 }];
-    const result = extractBatchResults({ items: null }, originals);
+    const originals = [asContent({ contentID: 1 })] as mgmtApi.ContentItem[];
+    const result = extractContentBatchResults(asBatch({ items: null }), originals);
 
     expect(result.failedItems).toHaveLength(1);
     expect(result.successfulItems).toHaveLength(0);
   });
 
   it('returns empty summary when batch has no totalItems field', () => {
-    const result = extractBatchResults({}, []);
+    const result = extractContentBatchResults(asBatch({}), []);
     expect(result.summary).toBeUndefined();
   });
 });
 
-// ─── extractBatchResults — legacy items array (happy path) ────────────────────
+// ─── extractContentBatchResults — legacy items array (happy path) ────────────────────
 
-describe('extractBatchResults — legacy items array', () => {
+describe('extractContentBatchResults — legacy items array', () => {
   it('classifies items with itemID > 0 as successful', () => {
     const batch = {
       items: [
@@ -50,8 +54,8 @@ describe('extractBatchResults — legacy items array', () => {
         { itemID: 102, processedItemVersionID: 1 },
       ],
     };
-    const originals = [{ contentID: 1 }, { contentID: 2 }];
-    const result = extractBatchResults(batch, originals);
+    const originals = [{ contentID: 1 }, { contentID: 2 }] as mgmtApi.ContentItem[];
+    const result = extractContentBatchResults(asBatch(batch), originals);
 
     expect(result.successfulItems).toHaveLength(2);
     expect(result.failedItems).toHaveLength(0);
@@ -60,17 +64,17 @@ describe('extractBatchResults — legacy items array', () => {
   });
 
   it('preserves originalItem reference in successful items', () => {
-    const original = { contentID: 99 };
+    const original = { contentID: 99 } as mgmtApi.ContentItem;
     const batch = { items: [{ itemID: 200, processedItemVersionID: 1 }] };
-    const result = extractBatchResults(batch, [original]);
+    const result = extractContentBatchResults(asBatch(batch), [original]);
 
     expect(result.successfulItems[0].originalItem).toBe(original);
   });
 
   it('classifies items with itemID <= 0 as failed', () => {
     const batch = { items: [{ itemID: 0 }] };
-    const originals = [{ contentID: 1 }];
-    const result = extractBatchResults(batch, originals);
+    const originals = [asContent({ contentID: 1 })] as mgmtApi.ContentItem[];
+    const result = extractContentBatchResults(asBatch(batch), originals);
 
     expect(result.failedItems).toHaveLength(1);
     expect(result.successfulItems).toHaveLength(0);
@@ -80,30 +84,30 @@ describe('extractBatchResults — legacy items array', () => {
     const batch = {
       items: [{ itemID: 0, errorMessage: '{"message":"field too long"}' }],
     };
-    const result = extractBatchResults(batch, [{ contentID: 1 }]);
+    const result = extractContentBatchResults(asBatch(batch), [asContent({ contentID: 1 })]);
 
     expect(result.failedItems[0].error).toBe('field too long');
   });
 
   it('uses fallback error message when errorMessage is absent', () => {
     const batch = { items: [{ itemID: -1 }] };
-    const result = extractBatchResults(batch, [{ contentID: 1 }]);
+    const result = extractContentBatchResults(asBatch(batch), [asContent({ contentID: 1 })]);
 
     expect(result.failedItems[0].error).toContain('Invalid ID');
   });
 
   it('marks item as failed when itemNull is set even if itemID > 0', () => {
     const batch = { items: [{ itemID: 5, itemNull: true }] };
-    const result = extractBatchResults(batch, [{ contentID: 1 }]);
+    const result = extractContentBatchResults(asBatch(batch), [asContent({ contentID: 1 })]);
 
     expect(result.failedItems).toHaveLength(1);
     expect(result.successfulItems).toHaveLength(0);
   });
 });
 
-// ─── extractBatchResults — structured failedItems (new API) ───────────────────
+// ─── extractContentBatchResults — structured failedItems (new API) ───────────────────
 
-describe('extractBatchResults — structured failedItems array', () => {
+describe('extractContentBatchResults — structured failedItems array', () => {
   it('uses failedItems array from new API when present', () => {
     const batch = {
       failedItems: [
@@ -113,8 +117,8 @@ describe('extractBatchResults — structured failedItems array', () => {
         { itemID: 0, batchItemID: 1 },
       ],
     };
-    const originals = [{ contentID: 10 }];
-    const result = extractBatchResults(batch, originals);
+    const originals = [{ contentID: 10 }] as mgmtApi.ContentItem[];
+    const result = extractContentBatchResults(asBatch(batch), originals);
 
     expect(result.failedItems).toHaveLength(1);
     expect(result.failedItems[0].error).toBe('Validation error');
@@ -132,8 +136,8 @@ describe('extractBatchResults — structured failedItems array', () => {
         { itemID: 200, batchItemID: 2 },
       ],
     };
-    const originals = [{ contentID: 1 }, { contentID: 2 }];
-    const result = extractBatchResults(batch, originals);
+    const originals = [{ contentID: 1 }, { contentID: 2 }] as mgmtApi.ContentItem[];
+    const result = extractContentBatchResults(asBatch(batch), originals);
 
     expect(result.successfulItems).toHaveLength(1);
     expect(result.successfulItems[0].newId).toBe(200);
@@ -146,15 +150,15 @@ describe('extractBatchResults — structured failedItems array', () => {
         { batchItemID: 1, errorMessage: 'bad field', errorType: 'Error', itemType: 'Content' },
       ],
     };
-    const result = extractBatchResults(batch, [{ contentID: 1 }]);
+    const result = extractContentBatchResults(asBatch(batch), [asContent({ contentID: 1 })]);
 
     expect(result.failedItems[0].batchItemId).toBe(1);
   });
 });
 
-// ─── extractBatchResults — summary field ──────────────────────────────────────
+// ─── extractContentBatchResults — summary field ──────────────────────────────────────
 
-describe('extractBatchResults — summary', () => {
+describe('extractContentBatchResults — summary', () => {
   it('includes summary when batch has totalItems', () => {
     const batch = {
       totalItems: 3,
@@ -167,8 +171,8 @@ describe('extractBatchResults — summary', () => {
         { itemID: 0 },
       ],
     };
-    const originals = [{ contentID: 1 }, { contentID: 2 }, { contentID: 3 }];
-    const result = extractBatchResults(batch, originals);
+    const originals = [{ contentID: 1 }, { contentID: 2 }, { contentID: 3 }] as mgmtApi.ContentItem[];
+    const result = extractContentBatchResults(asBatch(batch), originals);
 
     expect(result.summary).toBeDefined();
     expect(result.summary!.totalItems).toBe(3);
@@ -179,23 +183,23 @@ describe('extractBatchResults — summary', () => {
 
   it('defaults successCount and failureCount to 0 when missing from batch', () => {
     const batch = { totalItems: 1, items: [{ itemID: 50, processedItemVersionID: 1 }] };
-    const result = extractBatchResults(batch, [{ contentID: 1 }]);
+    const result = extractContentBatchResults(asBatch(batch), [asContent({ contentID: 1 })]);
 
     expect(result.summary!.successCount).toBe(0);
     expect(result.summary!.failureCount).toBe(0);
   });
 });
 
-// ─── extractBatchResults — empty originalItems edge cases ─────────────────────
+// ─── extractContentBatchResults — empty originalItems edge cases ─────────────────────
 
-describe('extractBatchResults — edge cases', () => {
+describe('extractContentBatchResults — edge cases', () => {
   it('handles empty originals array without throwing', () => {
     const batch = { items: [] };
-    expect(() => extractBatchResults(batch, [])).not.toThrow();
+    expect(() => extractContentBatchResults(asBatch(batch), [])).not.toThrow();
   });
 
   it('returns empty results for empty batch and empty originals', () => {
-    const result = extractBatchResults({ items: [] }, []);
+    const result = extractContentBatchResults(asBatch({ items: [] }), []);
     expect(result.successfulItems).toHaveLength(0);
     expect(result.failedItems).toHaveLength(0);
   });

@@ -63,10 +63,15 @@ export class GalleryMapper {
     }
 
     addMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping) {
-        const mapping = this.getGalleryMapping(targetGallery, 'target');
+        const targetMapping = this.getGalleryMapping(targetGallery, 'target');
+        const sourceMapping = this.getGalleryMapping(sourceGallery, 'source');
 
-        if (mapping) {
-            this.updateMapping(sourceGallery, targetGallery);
+        if (targetMapping !== sourceMapping) {
+            throw new Error(`Invalid Mappings detected! Source mediaGroupingID: ${sourceGallery.mediaGroupingID}, Target mediaGroupingID: ${targetGallery.mediaGroupingID}`);
+        }
+
+        if (targetMapping) {
+            this.updateMapping(sourceGallery, targetGallery, targetMapping);
         } else {
 
             const newMapping: GalleryMapping = {
@@ -85,16 +90,16 @@ export class GalleryMapper {
         this.saveMapping();
     }
 
-    updateMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping) {
-        const mapping = this.getGalleryMapping(targetGallery, 'target');
-        if (mapping) {
-            mapping.sourceGuid = this.sourceGuid;
-            mapping.targetGuid = this.targetGuid;
-            mapping.sourceMediaGroupingID = sourceGallery.mediaGroupingID;
-            mapping.targetMediaGroupingID = targetGallery.mediaGroupingID;
-            mapping.sourceModifiedOn = sourceGallery.modifiedOn;
-            mapping.targetModifiedOn = targetGallery.modifiedOn;
+    updateMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping, mapping: GalleryMapping) {
+        if (sourceGallery.mediaGroupingID !== mapping.sourceMediaGroupingID || targetGallery.mediaGroupingID !== mapping.targetMediaGroupingID) {
+            throw new Error(`Invalid items trying to be mapped! Source mediaGroupingID: ${sourceGallery.mediaGroupingID}, Target mediaGroupingID: ${targetGallery.mediaGroupingID}`);
         }
+        mapping.sourceGuid = this.sourceGuid;
+        mapping.targetGuid = this.targetGuid;
+        mapping.sourceMediaGroupingID = sourceGallery.mediaGroupingID;
+        mapping.targetMediaGroupingID = targetGallery.mediaGroupingID;
+        mapping.sourceModifiedOn = sourceGallery.modifiedOn;
+        mapping.targetModifiedOn = targetGallery.modifiedOn;
         this.saveMapping();
     }
 
