@@ -2,11 +2,21 @@ import * as mgmtApi from '@agility/management-sdk';
 import ansiColors from 'ansi-colors';
 
 export type CompletedBatch = mgmtApi.Batch & {
+    failedItems: FailedBatchItemFromApi[];
     totalItems?: number;
     successCount?: number;
     failureCount?: number;
     durationMs?: number;
 };
+
+export type FailedBatchItemFromApi = {
+    batchItemId: number;
+    itemId: number;
+    itemType: string;
+    errorType: string;
+    errorMessage: string;
+}
+
 
 /**
  * Extract the error message from a JSON error response or plain text
@@ -47,7 +57,30 @@ function createProgressBar(percent: number, width: number = 20): string {
     return `[${'█'.repeat(filled)}${'░'.repeat(empty)}]`;
 }
 
-function logBatchErrors(batchStatus: any, originalPayloads?: any[]): void {
+function logBatchErrors(batchStatus: CompletedBatch, originalPayloads?: any[]): void {
+    // Prefer structured failedItems array from new API
+    if (Array.isArray(batchStatus.failedItems) && batchStatus.failedItems.length > 0) {
+        batchStatus.failedItems.forEach((failed: any) => {
+            const batchItemId = failed.batchItemId ?? failed.batchItemID ?? '?';
+            const errorType = failed.errorType || 'Error';
+            const errorMessage = failed.errorMessage || 'Unknown error';
+            const itemType = failed.itemType || 'Item';
+            
+            // Try to find the original payload by batchItemId to get referenceName
+            let referenceName = 'unknown';
+            if (originalPayloads) {
+                // batchItemId typically corresponds to index in the batch
+                const payload = originalPayloads.find((p, idx) => p?.batchItemId === batchItemId) 
+                    || originalPayloads[batchStatus.failedItems.indexOf(failed)];
+                referenceName = payload?.properties?.referenceName || payload?.referenceName || 'unknown';
+            }
+            
+            console.error(ansiColors.red(`  ✗ ${itemType} ${batchItemId} (${referenceName}): ${errorMessage}`));
+        });
+        return;
+    }
+    
+    // Fallback to legacy items array with errorMessage field
     if (Array.isArray(batchStatus.items)) {
         batchStatus.items.forEach((item: any, index: number) => {
             if (item.errorMessage) {
@@ -251,6 +284,7 @@ function extractBatchResultsImpl<T>(batch: CompletedBatch, originalItems: T[]): 
         durationMs: batch.durationMs ?? 0
     } : undefined;
 
+    // Fallback to legacy items array processing
     if (!batch?.items || !Array.isArray(batch.items)) {
         return {
             successfulItems: [],
@@ -264,7 +298,7 @@ function extractBatchResultsImpl<T>(batch: CompletedBatch, originalItems: T[]): 
         };
     }
 
-    batch.items.forEach((item: any, index: number) => {
+    batch.items.forEach((item, index: number) => {
         const originalItem = originalItems[index];
 
         if (item.itemID > 0 && !item.itemNull) {
@@ -276,6 +310,13 @@ function extractBatchResultsImpl<T>(batch: CompletedBatch, originalItems: T[]): 
             } else if (!item.itemNull) {
                 errorMsg = `Invalid ID: ${item.itemID}`;
             }
+
+            // replace with new api error message if we can
+            const newApiFailedItem = batch.failedItems && batch.failedItems.length > 0 && batch.failedItems.find(fi => fi.batchItemId == item.batchItemID);
+            if(newApiFailedItem){
+                errorMsg = newApiFailedItem.errorMessage;
+            }
+
             failedItems.push({ originalItem, newItem: null, error: errorMsg, index });
         }
     });
