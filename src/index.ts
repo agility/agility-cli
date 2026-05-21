@@ -22,7 +22,7 @@ inquirer.registerPrompt("search-list", searchList);
 import { Auth, state, setState, resetState, primeFromEnv, systemArgs, normalizeProcessArgs, normalizeArgv } from "./core";
 import { Pull } from "./core/pull";
 import { Push } from "./core/push";
-import { WorkflowOperation } from "./lib/workflows";
+import { WorkflowOperation, runMappingsHealth } from "./lib/workflows";
 
 import { initializeLogger, getLogger, finalizeLogger, finalizeAllGuidLoggers } from "./core/state";
 
@@ -43,6 +43,7 @@ yargs.command({
     console.log(colors.white("  push              - Push your instance to a target instance"));
     console.log(colors.white("  sync              - Sync your instance (alias for push with updates enabled)"));
     console.log(colors.white("  workflowOperation - Perform workflow operations (publish, unpublish, approve, decline)"));
+    console.log(colors.white("  mappings-health   - Validate on-disk consistency of all content item and container mappings"));
     console.log(colors.white("\nFor more information, use: --help"));
     console.log("");
   },
@@ -306,6 +307,50 @@ yargs.command({
       process.exit(1);
     }
   }
+})
+
+// Validate on-disk consistency of all content item and container mappings
+yargs.command({
+  command: "mappings-health",
+  describe: "Check that all mappings are internally consistent: definitionNames match and container referenceNames are mapped to each other.",
+  builder: {
+    sourceGuid: {
+      describe: "Source instance GUID to check. If omitted, all discovered mapping pairs are checked.",
+      demandOption: false,
+      type: "string" as const,
+    },
+    targetGuid: {
+      describe: "Target instance GUID to check. If omitted, all discovered mapping pairs are checked.",
+      demandOption: false,
+      type: "string" as const,
+    },
+    ...systemArgs,
+  },
+  handler: async function (argv) {
+    resetState();
+
+    argv = normalizeArgv(argv);
+
+    const envPriming = primeFromEnv();
+    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+    }
+
+    setState(argv);
+
+    const sourceGuid = argv.sourceGuid as string | undefined;
+    const targetGuid = argv.targetGuid as string | undefined;
+    const locales = argv.locale
+      ? (argv.locale as string).split(',').map((l: string) => l.trim()).filter(Boolean)
+      : undefined;
+
+    const results = runMappingsHealth(sourceGuid, targetGuid, locales);
+
+    const totalIssues = results.reduce((sum, r) => sum + r.issues.length, 0);
+    if (totalIssues > 0) {
+      process.exit(1);
+    }
+  },
 })
 
 // Normalize process.argv to handle rich text editor character conversions

@@ -22,3 +22,6 @@ export { getOperationName, getOperationVerb, getOperationIcon } from './workflow
 // Mapping utilities
 export { listMappings } from './list-mappings';
 export { refreshAndUpdateMappings } from './refresh-mappings';
+
+// Mappings health check
+export { runMappingsHealth, type HealthCheckResult, type HealthIssue } from './mappings-health';
