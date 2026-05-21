@@ -69,7 +69,7 @@ export class TemplateMapper {
         const targetMapping = this.getTemplateMapping(targetTemplate, 'target');
         const sourceMapping = this.getTemplateMapping(sourceTemplate, 'source');
 
-        if (targetMapping !== sourceMapping) {
+        if (targetMapping && sourceMapping && targetMapping !== sourceMapping) {
             throw new Error(`Invalid Mappings detected! Source pageTemplateID: ${sourceTemplate.pageTemplateID}, Target pageTemplateID: ${targetTemplate.pageTemplateID}`);
         }
 
@@ -93,7 +93,7 @@ export class TemplateMapper {
     }
 
     updateMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel, mapping: TemplateMapping) {
-        if (sourceTemplate.pageTemplateID !== mapping.sourcePageTemplateID || targetTemplate.pageTemplateID !== mapping.targetPageTemplateID) {
+        if (targetTemplate.pageTemplateID !== mapping.targetPageTemplateID) {
             throw new Error(`Invalid items trying to be mapped! Source pageTemplateID: ${sourceTemplate.pageTemplateID}, Target pageTemplateID: ${targetTemplate.pageTemplateID}`);
         }
         mapping.sourceGuid = this.sourceGuid;

@@ -101,7 +101,7 @@ export class ContainerMapper {
         const targetMapping = this.getContainerMapping(targetContainer, 'target');
         const sourceMapping = this.getContainerMapping(sourceContainer, 'source');
 
-        if (targetMapping !== sourceMapping) {
+        if (targetMapping && sourceMapping && targetMapping !== sourceMapping) {
             throw new Error(`Invalid Mappings detected! Source contentViewID: ${sourceContainer.contentViewID}, Target contentViewID: ${targetContainer.contentViewID}`);
         }
 
@@ -128,7 +128,7 @@ export class ContainerMapper {
     }
 
     updateMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container, mapping: ContainerMapping) {
-        if (sourceContainer.contentViewID !== mapping.sourceContentViewID || targetContainer.contentViewID !== mapping.targetContentViewID) {
+        if (targetContainer.contentViewID !== mapping.targetContentViewID) {
             throw new Error(`Invalid items trying to be mapped! Source contentViewID: ${sourceContainer.contentViewID}, Target contentViewID: ${targetContainer.contentViewID}`);
         }
         mapping.sourceGuid = this.sourceGuid;

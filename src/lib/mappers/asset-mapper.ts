@@ -106,7 +106,7 @@ export class AssetMapper {
         const targetMapping = this.getAssetMapping(targetAsset, 'target');
         const sourceMapping = this.getAssetMapping(sourceAsset, 'source');
 
-        if (targetMapping !== sourceMapping) {
+        if (targetMapping && sourceMapping && targetMapping !== sourceMapping) {
             throw new Error(`Invalid Mappings detected! Source mediaID: ${sourceAsset.mediaID}, Target mediaID: ${targetAsset.mediaID}`);
         }
 
@@ -136,7 +136,7 @@ export class AssetMapper {
     }
 
     updateMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media, mapping: AssetMapping) {
-        if (sourceAsset.mediaID !== mapping.sourceMediaID || targetAsset.mediaID !== mapping.targetMediaID) {
+        if (targetAsset.mediaID !== mapping.targetMediaID) {
             throw new Error(`Invalid items trying to be mapped! Source mediaID: ${sourceAsset.mediaID}, Target mediaID: ${targetAsset.mediaID}`);
         }
         mapping.sourceGuid = this.sourceGuid;

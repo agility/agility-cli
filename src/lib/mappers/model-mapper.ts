@@ -75,7 +75,7 @@ export class ModelMapper {
         const targetMapping = this.getModelMapping(targetModel, 'target');
         const sourceMapping = this.getModelMapping(sourceModel, 'source');
 
-        if (targetMapping !== sourceMapping) {
+        if (targetMapping && sourceMapping && targetMapping !== sourceMapping) {
             throw new Error(`Invalid Mappings detected! Source model ID: ${sourceModel.id}, Target model ID: ${targetModel.id}`);
         }
 
@@ -102,7 +102,7 @@ export class ModelMapper {
     }
 
     updateMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model, mapping: ModelMapping) {
-        if (sourceModel.id !== mapping.sourceID || targetModel.id !== mapping.targetID) {
+        if (targetModel.id !== mapping.targetID) {
             throw new Error(`Invalid items trying to be mapped! Source model ID: ${sourceModel.id}, Target model ID: ${targetModel.id}`);
         }
         mapping.sourceGuid = this.sourceGuid;

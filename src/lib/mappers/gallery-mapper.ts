@@ -66,7 +66,7 @@ export class GalleryMapper {
         const targetMapping = this.getGalleryMapping(targetGallery, 'target');
         const sourceMapping = this.getGalleryMapping(sourceGallery, 'source');
 
-        if (targetMapping !== sourceMapping) {
+        if (targetMapping && sourceMapping && targetMapping !== sourceMapping) {
             throw new Error(`Invalid Mappings detected! Source mediaGroupingID: ${sourceGallery.mediaGroupingID}, Target mediaGroupingID: ${targetGallery.mediaGroupingID}`);
         }
 
@@ -91,7 +91,7 @@ export class GalleryMapper {
     }
 
     updateMapping(sourceGallery: mgmtApi.assetMediaGrouping, targetGallery: mgmtApi.assetMediaGrouping, mapping: GalleryMapping) {
-        if (sourceGallery.mediaGroupingID !== mapping.sourceMediaGroupingID || targetGallery.mediaGroupingID !== mapping.targetMediaGroupingID) {
+        if (targetGallery.mediaGroupingID !== mapping.targetMediaGroupingID) {
             throw new Error(`Invalid items trying to be mapped! Source mediaGroupingID: ${sourceGallery.mediaGroupingID}, Target mediaGroupingID: ${targetGallery.mediaGroupingID}`);
         }
         mapping.sourceGuid = this.sourceGuid;

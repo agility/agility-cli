@@ -70,7 +70,7 @@ export class PageMapper {
         const targetMapping = this.getPageMapping(targetPage, 'target');
         const sourceMapping = this.getPageMapping(sourcePage, 'source');
 
-        if (targetMapping !== sourceMapping) {
+        if (targetMapping && sourceMapping && targetMapping !== sourceMapping) {
             throw new Error(`Invalid Mappings detected! Source pageID: ${sourcePage.pageID}, Target pageID: ${targetPage.pageID}`);
         }
 
@@ -96,7 +96,7 @@ export class PageMapper {
     }
 
     updateMapping(sourcePage: mgmtApi.PageItem, targetPage: mgmtApi.PageItem, mapping: PageMapping) {
-        if (sourcePage.pageID !== mapping.sourcePageID || targetPage.pageID !== mapping.targetPageID) {
+        if (targetPage.pageID !== mapping.targetPageID) {
             throw new Error(`Invalid items trying to be mapped! Source pageID: ${sourcePage.pageID}, Target pageID: ${targetPage.pageID}`);
         }
         mapping.sourceGuid = this.sourceGuid;

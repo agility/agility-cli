@@ -106,7 +106,7 @@ export class ContentItemMapper {
         const targetMapping = this.getContentItemMapping(targetContentItem, 'target');
         const sourceMapping = this.getContentItemMapping(sourceContentItem, 'source')
 
-        if(targetMapping !== sourceMapping){
+        if(targetMapping && sourceMapping && targetMapping !== sourceMapping){
             throw new Error(`Invalid Mappings detected! The two items have different mappings, Source contentID: ${sourceContentItem.contentID}, Target contentID: ${targetContentItem.contentID}`);
         }
 
@@ -114,7 +114,6 @@ export class ContentItemMapper {
         if (targetMapping) {
             this.updateMapping(sourceContentItem, targetContentItem, targetMapping);
         } else {
-            this.checkItemIsMappable(sourceContentItem, targetContentItem);
             const newMapping: ContentItemMapping = {
                 sourceGuid: this.sourceGuid,
                 targetGuid: this.targetGuid,
@@ -130,7 +129,7 @@ export class ContentItemMapper {
 
     updateMapping(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem, mapping: ContentItemMapping) {
 
-        if(sourceContentItem.contentID !== mapping.sourceContentID || targetContentItem.contentID !== mapping.targetContentID){
+        if(targetContentItem.contentID !== mapping.targetContentID){
             throw new Error(`Invalid items trying to be mapped! Source contentID: ${sourceContentItem.contentID}, Target contentID: ${targetContentItem.contentID}`);
         }
 
