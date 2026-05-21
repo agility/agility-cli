@@ -120,7 +120,7 @@ describe('extractContentBatchResults — batch with failedItems field', () => {
     const result = extractContentBatchResults(asBatch(batch), [asContent({ contentID: 10 })]);
 
     expect(result.failedItems).toHaveLength(1);
-    expect(result.failedItems[0].error).toContain('Invalid ID');
+    expect(result.failedItems[0].error).toContain('Validation error');
   });
 
   it('marks items with itemID > 0 as successful even when a failedItems field is present', () => {
@@ -244,7 +244,7 @@ describe('extractPageBatchResults', () => {
     };
     const result = extractPageBatchResults(asBatch(batch), [{ pageID: 1 }] as mgmtApi.PageItem[]);
 
-    expect(result.failedItems[0].error).toContain('Invalid ID');
+    expect(result.failedItems[0].error).toContain('Page validation error');
   });
 
   it('marks pages with itemID > 0 as successful even when a failedItems field is present', () => {
