@@ -59,11 +59,12 @@ let SRC: string;
 let TGT: string;
 
 function makeContentItem(overrides: Record<string, any> = {}): any {
+  const { properties: propOverride, ...rest } = overrides;
   return {
     contentID: 100,
-    properties: { versionID: 1, referenceName: 'ref', definitionName: 'Model', state: 2 },
+    properties: { versionID: 1, referenceName: 'ref', definitionName: 'Model', state: 2, ...propOverride },
     fields: { title: 'Test' },
-    ...overrides,
+    ...rest,
   };
 }
 

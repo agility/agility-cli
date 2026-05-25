@@ -424,7 +424,7 @@ export async function processPage({
 			// Page batch processing started (silent)
 
 			// Poll batch until completion using consistent utility (pass payload for error matching)
-			const { pollBatchUntilComplete, extractBatchResults } = await import("../batch-polling");
+			const { pollBatchUntilComplete, extractPageBatchResults } = await import("../batch-polling");
 			const completedBatch = await pollBatchUntilComplete(
 				apiClient,
 				batchID,
@@ -436,7 +436,7 @@ export async function processPage({
 			);
 
 			// Extract result from completed batch
-			const { successfulItems: batchSuccessItems, failedItems: batchFailedItems } = extractBatchResults(
+			const { successfulItems: batchSuccessItems, failedItems: batchFailedItems } = extractPageBatchResults(
 				completedBatch,
 				[page]
 			);
@@ -480,13 +480,8 @@ export async function processPage({
 				}
 				return { status: "success" }; // Success
 			} else {
-				// Extract error message - prefer structured failedItems from new API
 				let errorMsg: string;
-				if (Array.isArray(completedBatch.failedItems) && completedBatch.failedItems.length > 0) {
-					// Use structured error from new API
-					errorMsg = completedBatch.failedItems[0].errorMessage || 'Unknown batch error';
-				} else if (batchFailedItems.length > 0 && batchFailedItems[0].error) {
-					// Use error from extractBatchResults
+				if (batchFailedItems.length > 0 && batchFailedItems[0].error) {
 					errorMsg = batchFailedItems[0].error;
 				} else if (completedBatch.errorData && typeof completedBatch.errorData === 'string' && !completedBatch.errorData.startsWith('{')) {
 					// Use errorData only if it's a simple string (not JSON)

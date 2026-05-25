@@ -7,7 +7,6 @@ import { Logs } from "core/logs";
 /**
  * Simple change detection for models
  */
-
 export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtApi.Model[]): Promise<PusherResult> {
   const models: mgmtApi.Model[] = sourceData || [];
   const { sourceGuid, targetGuid } = state;
@@ -59,24 +58,36 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
     if ((!mapping && !targetModel)) {
       shouldCreateStub.push(model);
+      continue;
     }
     // if the mapping exists, and the source has changed, we need to update the fields
     // Added a special case for RichTextArea to handle the conflict scenario where the source has changed and the target has changed (first sync).
     // This will attempt to update the model, and write the mappings
     if ((mapping && hasSourceChanged) || (mapping && fieldCountChanged)) {
       shouldUpdateFields.push(model);
+      continue;
     }
+
+    if (mapping && (hasTargetChanged || hasSourceChanged) && state.overwrite) {
+      shouldUpdateFields.push(model);
+      continue;
+    }
+
     // if the mapping exists, and the target has changed, we need to skip the model, not safe to update
     if (mapping && hasTargetChanged) {
       shouldSkip.push(model);
+      continue;
     }
+
     // if the mapping exists, and the source and target have not changed, we need to skip the model
     if (mapping && !hasSourceChanged && !hasTargetChanged && !state.overwrite) {
       shouldSkip.push(model);
+      continue;
     }
 
     if(mapping && !hasSourceChanged && !hasTargetChanged && state.overwrite){
-      shouldUpdateFields.push(model);
+      shouldSkip.push(model);
+      continue;
     }
   }
 

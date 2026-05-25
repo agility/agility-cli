@@ -39,6 +39,7 @@ function makeMapper(): ContentItemMapper {
 }
 
 function makeItem(overrides: Record<string, any> = {}): any {
+  const { properties: propOverride, ...rest } = overrides;
   return {
     contentID: 100,
     properties: {
@@ -46,9 +47,10 @@ function makeItem(overrides: Record<string, any> = {}): any {
       referenceName: 'my-ref',
       definitionName: 'MyModel',
       state: 2,
+      ...propOverride,
     },
     fields: { title: 'Test Item' },
-    ...overrides,
+    ...rest,
   };
 }
 
@@ -166,6 +168,16 @@ describe('ContentItemMapper.addMapping', () => {
     const found = mapper.getContentItemMappingByContentID(20, 'target')!;
     expect(found.sourceContentID).toBe(11);
     expect(found.sourceVersionID).toBe(2);
+  });
+
+  it('throws when source is already mapped to a target and a different target is also already mapped', () => {
+    const mapper = makeMapper();
+    mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20 }));
+    mapper.addMapping(makeItem({ contentID: 11 }), makeItem({ contentID: 21 }));
+    // source 10 maps to 20; target 21 maps to 11 — genuinely conflicting cross-mapping
+    expect(() =>
+      mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 21 }))
+    ).toThrow('Invalid Mappings detected');
   });
 });
 

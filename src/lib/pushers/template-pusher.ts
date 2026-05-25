@@ -75,7 +75,7 @@ export async function pushTemplates(
         let shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
         let shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
 
-        if (overwrite) {
+        if (overwrite && existingMapping && targetTemplate) {
             shouldUpdate = true;
             shouldSkip = false;
         }
@@ -87,15 +87,14 @@ export async function pushTemplates(
             logger.template.skipped(template, "up to date, skipping", targetGuid[0])
             skipped++;
         } else {
-            let isUpdate = shouldUpdate;
-            let targetId = isUpdate ? targetTemplate.pageTemplateID : -1;
+            let targetId = shouldUpdate ? targetTemplate.pageTemplateID : -1;
 
             // Prepare payload
             const mappedSections = template.contentSectionDefinitions.map(def => {
                 const mappedDef = { ...def };
-                mappedDef.pageItemTemplateID = isUpdate ? def.pageItemTemplateID : -1;
+                mappedDef.pageItemTemplateID = shouldUpdate ? def.pageItemTemplateID : -1;
                 mappedDef.pageTemplateID = targetId;
-                mappedDef.contentViewID = isUpdate ? def.contentViewID : 0;
+                mappedDef.contentViewID = shouldUpdate ? def.contentViewID : 0;
 
                 if (def.contentDefinitionID) {
                     const modelMappers = new ModelMapper(sourceGuid[0], targetGuid[0]);
@@ -107,11 +106,6 @@ export async function pushTemplates(
                     const containerMapping = containerMappers.getContainerMappingByContentViewID(def.itemContainerID, 'source');
                     if (containerMapping?.targetContentViewID) mappedDef.itemContainerID = containerMapping.targetContentViewID;
                 }
-                // if (def.publishContentItemID) {
-                //     const contentMappers = new ContentItemMapper(sourceGuid[0], targetGuid[0]);
-                //     const contentMapping = contentMappers.getContentItemMappingByContentID(def.publishContentItemID, 'target');
-                //     if (contentMapping?.targetID) mappedDef.publishContentItemID = contentMapping.targetID;
-                // }
                 return mappedDef;
             });
 
@@ -124,7 +118,7 @@ export async function pushTemplates(
             try {
                 const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid[0], locale, payload);
                 referenceMapper.addMapping(template, savedTemplate);
-                const action = isUpdate ? 'updated' : 'created';
+                const action = shouldUpdate ? 'updated' : 'created';
                 logger.template[action](template, action, targetGuid[0])
                 successful++;
             } catch (error: any) {
