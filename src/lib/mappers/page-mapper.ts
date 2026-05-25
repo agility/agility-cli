@@ -67,10 +67,15 @@ export class PageMapper {
     }
 
     addMapping(sourcePage: mgmtApi.PageItem, targetPage: mgmtApi.PageItem) {
-        const mapping = this.getPageMapping(targetPage, 'target');
+        const targetMapping = this.getPageMapping(targetPage, 'target');
+        const sourceMapping = this.getPageMapping(sourcePage, 'source');
 
-        if (mapping) {
-            this.updateMapping(sourcePage, targetPage);
+        if (targetMapping && sourceMapping && targetMapping !== sourceMapping) {
+            throw new Error(`Invalid Mappings detected! Source pageID: ${sourcePage.pageID}, Target pageID: ${targetPage.pageID}`);
+        }
+
+        if (targetMapping) {
+            this.updateMapping(sourcePage, targetPage, targetMapping);
         } else {
 
             const newMapping: PageMapping = {
@@ -90,18 +95,18 @@ export class PageMapper {
         this.saveMapping();
     }
 
-    updateMapping(sourcePage: mgmtApi.PageItem, targetPage: mgmtApi.PageItem) {
-        const mapping = this.getPageMapping(targetPage, 'target');
-        if (mapping) {
-            mapping.sourceGuid = this.sourceGuid;
-            mapping.targetGuid = this.targetGuid;
-            mapping.sourcePageID = sourcePage.pageID;
-            mapping.targetPageID = targetPage.pageID;
-            mapping.sourceVersionID = sourcePage.properties.versionID;
-            mapping.targetVersionID = targetPage.properties.versionID;
-            mapping.sourcePageTemplateName = sourcePage.templateName;
-            mapping.targetPageTemplateName = targetPage.templateName;
+    updateMapping(sourcePage: mgmtApi.PageItem, targetPage: mgmtApi.PageItem, mapping: PageMapping) {
+        if (targetPage.pageID !== mapping.targetPageID) {
+            throw new Error(`Invalid items trying to be mapped! Source pageID: ${sourcePage.pageID}, Target pageID: ${targetPage.pageID}`);
         }
+        mapping.sourceGuid = this.sourceGuid;
+        mapping.targetGuid = this.targetGuid;
+        mapping.sourcePageID = sourcePage.pageID;
+        mapping.targetPageID = targetPage.pageID;
+        mapping.sourceVersionID = sourcePage.properties.versionID;
+        mapping.targetVersionID = targetPage.properties.versionID;
+        mapping.sourcePageTemplateName = sourcePage.templateName;
+        mapping.targetPageTemplateName = targetPage.templateName;
         this.saveMapping();
     }
 

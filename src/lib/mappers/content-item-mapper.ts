@@ -1,5 +1,6 @@
 import { fileOperations } from "../../core";
 import * as mgmtApi from "@agility/management-sdk";
+import { ContainerMapper } from "./container-mapper";
 
 export interface ContentItemMapping {
     sourceGuid: string;
@@ -17,6 +18,7 @@ export class ContentItemMapper {
     private targetGuid: string;
     private mappings: ContentItemMapping[];
     private directory: string;
+    private containerMapper: ContainerMapper;
     public locale: string;
 
     constructor(sourceGuid: string, targetGuid: string, locale: string) {
@@ -24,6 +26,7 @@ export class ContentItemMapper {
         this.targetGuid = targetGuid;
         this.directory = 'item';
         this.locale = locale;
+        this.containerMapper = new ContainerMapper(sourceGuid, targetGuid);
         // this will provide access to the /agility-files/{GUID}/{locale} folder
         this.fileOps = new fileOperations(targetGuid, locale);
         this.mappings = this.loadMapping();
@@ -80,13 +83,37 @@ export class ContentItemMapper {
         }
     }
 
+    /*
+     * Function to check if the items are mappable. If the definitions are the same, the contentviews are mapped, then we are safe
+     */ 
+    checkItemIsMappable(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem): void {
+
+        // check if the models are the same
+        if(sourceContentItem.properties.definitionName !== targetContentItem.properties.definitionName){
+            throw new Error(`Items cannot be mapped. They are not congruent, the content models are different. source contentID: ${sourceContentItem.contentID}, target contentID: ${targetContentItem.contentID}`);
+        }
+
+        // use the reference name to check if the containers are truly mapped together
+        const sourceContainerMapping = this.containerMapper.getContainerMappingByReferenceName(sourceContentItem.properties.referenceName, "source");
+        const targetContainerMapping = this.containerMapper.getContainerMappingByReferenceName(targetContentItem.properties.referenceName, "target");
+
+        if(sourceContainerMapping !== targetContainerMapping){
+            throw new Error(`Items cannot be mapped. The containers are not mapped to each other. source contentID: ${sourceContentItem.contentID}, target contentID: ${targetContentItem.contentID}`);
+        }
+    }
+
     addMapping(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem) {
-        const mapping = this.getContentItemMapping(targetContentItem, 'target');
+        const targetMapping = this.getContentItemMapping(targetContentItem, 'target');
+        const sourceMapping = this.getContentItemMapping(sourceContentItem, 'source')
 
-        if (mapping) {
-            this.updateMapping(sourceContentItem, targetContentItem);
+        if(targetMapping && sourceMapping && targetMapping !== sourceMapping){
+            throw new Error(`Invalid Mappings detected! The two items have different mappings, Source contentID: ${sourceContentItem.contentID}, Target contentID: ${targetContentItem.contentID}`);
+        }
+
+        // At this point target and source mappings should be the same
+        if (targetMapping) {
+            this.updateMapping(sourceContentItem, targetContentItem, targetMapping);
         } else {
-
             const newMapping: ContentItemMapping = {
                 sourceGuid: this.sourceGuid,
                 targetGuid: this.targetGuid,
@@ -94,25 +121,24 @@ export class ContentItemMapper {
                 targetContentID: targetContentItem.contentID,
                 sourceVersionID: sourceContentItem.properties.versionID,
                 targetVersionID: targetContentItem.properties.versionID,
-
             }
-
             this.mappings.push(newMapping);
         }
-
         this.saveMapping();
     }
 
-    updateMapping(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem) {
-        const mapping = this.getContentItemMapping(targetContentItem, 'target');
-        if (mapping) {
-            mapping.sourceGuid = this.sourceGuid;
-            mapping.targetGuid = this.targetGuid;
-            mapping.sourceContentID = sourceContentItem.contentID;
-            mapping.targetContentID = targetContentItem.contentID;
-            mapping.sourceVersionID = sourceContentItem.properties.versionID;
-            mapping.targetVersionID = targetContentItem.properties.versionID;
+    updateMapping(sourceContentItem: mgmtApi.ContentItem, targetContentItem: mgmtApi.ContentItem, mapping: ContentItemMapping) {
+
+        if(targetContentItem.contentID !== mapping.targetContentID){
+            throw new Error(`Invalid items trying to be mapped! Source contentID: ${sourceContentItem.contentID}, Target contentID: ${targetContentItem.contentID}`);
         }
+
+        mapping.sourceGuid = this.sourceGuid;
+        mapping.targetGuid = this.targetGuid;
+        mapping.sourceContentID = sourceContentItem.contentID;
+        mapping.targetContentID = targetContentItem.contentID;
+        mapping.sourceVersionID = sourceContentItem.properties.versionID;
+        mapping.targetVersionID = targetContentItem.properties.versionID;
         this.saveMapping();
     }
 

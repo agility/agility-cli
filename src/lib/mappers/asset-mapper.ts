@@ -103,10 +103,15 @@ export class AssetMapper {
     }
 
     addMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media) {
-        const mapping = this.getAssetMapping(targetAsset, 'target');
+        const targetMapping = this.getAssetMapping(targetAsset, 'target');
+        const sourceMapping = this.getAssetMapping(sourceAsset, 'source');
 
-        if (mapping) {
-            this.updateMapping(sourceAsset, targetAsset);
+        if (targetMapping && sourceMapping && targetMapping !== sourceMapping) {
+            throw new Error(`Invalid Mappings detected! Source mediaID: ${sourceAsset.mediaID}, Target mediaID: ${targetAsset.mediaID}`);
+        }
+
+        if (targetMapping) {
+            this.updateMapping(sourceAsset, targetAsset, targetMapping);
         } else {
 
             const newMapping: AssetMapping = {
@@ -130,22 +135,22 @@ export class AssetMapper {
         this.saveMapping();
     }
 
-    updateMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media) {
-        const mapping = this.getAssetMapping(targetAsset, 'target');
-        if (mapping) {
-            mapping.sourceGuid = this.sourceGuid;
-            mapping.targetGuid = this.targetGuid;
-            mapping.sourceDateModified = sourceAsset.dateModified;
-            mapping.targetDateModified = targetAsset.dateModified;
-            mapping.sourceMediaID = sourceAsset.mediaID;
-            mapping.targetMediaID = targetAsset.mediaID;
-            mapping.sourceUrl = sourceAsset.edgeUrl;
-            mapping.targetUrl = targetAsset.edgeUrl;
-            mapping.sourceContainerEdgeUrl = sourceAsset.containerEdgeUrl;
-            mapping.targetContainerEdgeUrl = targetAsset.containerEdgeUrl;
-            mapping.sourceContainerOriginUrl = sourceAsset.containerOriginUrl;
-            mapping.targetContainerOriginUrl = targetAsset.containerOriginUrl;
+    updateMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media, mapping: AssetMapping) {
+        if (targetAsset.mediaID !== mapping.targetMediaID) {
+            throw new Error(`Invalid items trying to be mapped! Source mediaID: ${sourceAsset.mediaID}, Target mediaID: ${targetAsset.mediaID}`);
         }
+        mapping.sourceGuid = this.sourceGuid;
+        mapping.targetGuid = this.targetGuid;
+        mapping.sourceDateModified = sourceAsset.dateModified;
+        mapping.targetDateModified = targetAsset.dateModified;
+        mapping.sourceMediaID = sourceAsset.mediaID;
+        mapping.targetMediaID = targetAsset.mediaID;
+        mapping.sourceUrl = sourceAsset.edgeUrl;
+        mapping.targetUrl = targetAsset.edgeUrl;
+        mapping.sourceContainerEdgeUrl = sourceAsset.containerEdgeUrl;
+        mapping.targetContainerEdgeUrl = targetAsset.containerEdgeUrl;
+        mapping.sourceContainerOriginUrl = sourceAsset.containerOriginUrl;
+        mapping.targetContainerOriginUrl = targetAsset.containerOriginUrl;
         this.saveMapping();
     }
 

@@ -98,10 +98,15 @@ export class ContainerMapper {
     }
 
     addMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container) {
-        const mapping = this.getContainerMapping(targetContainer, 'target');
+        const targetMapping = this.getContainerMapping(targetContainer, 'target');
+        const sourceMapping = this.getContainerMapping(sourceContainer, 'source');
 
-        if (mapping) {
-            this.updateMapping(sourceContainer, targetContainer);
+        if (targetMapping && sourceMapping && targetMapping !== sourceMapping) {
+            throw new Error(`Invalid Mappings detected! Source contentViewID: ${sourceContainer.contentViewID}, Target contentViewID: ${targetContainer.contentViewID}`);
+        }
+
+        if (targetMapping) {
+            this.updateMapping(sourceContainer, targetContainer, targetMapping);
         } else {
 
             const newMapping: ContainerMapping = {
@@ -122,20 +127,19 @@ export class ContainerMapper {
         this.saveMapping();
     }
 
-    updateMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container) {
-        const mapping = this.getContainerMapping(targetContainer, 'target');
-        if (mapping) {
-            mapping.sourceGuid = this.sourceGuid;
-            mapping.targetGuid = this.targetGuid;
-            mapping.sourceContentViewID = sourceContainer.contentViewID;
-            mapping.targetContentViewID = targetContainer.contentViewID;
-            mapping.sourceLastModifiedDate = sourceContainer.lastModifiedDate;
-            mapping.targetLastModifiedDate = targetContainer.lastModifiedDate;
-            mapping.sourceReferenceName = sourceContainer.referenceName;
-            mapping.targetReferenceName = targetContainer.referenceName;
-            this.saveMapping();
+    updateMapping(sourceContainer: mgmtApi.Container, targetContainer: mgmtApi.Container, mapping: ContainerMapping) {
+        if (targetContainer.contentViewID !== mapping.targetContentViewID) {
+            throw new Error(`Invalid items trying to be mapped! Source contentViewID: ${sourceContainer.contentViewID}, Target contentViewID: ${targetContainer.contentViewID}`);
         }
-
+        mapping.sourceGuid = this.sourceGuid;
+        mapping.targetGuid = this.targetGuid;
+        mapping.sourceContentViewID = sourceContainer.contentViewID;
+        mapping.targetContentViewID = targetContainer.contentViewID;
+        mapping.sourceLastModifiedDate = sourceContainer.lastModifiedDate;
+        mapping.targetLastModifiedDate = targetContainer.lastModifiedDate;
+        mapping.sourceReferenceName = sourceContainer.referenceName;
+        mapping.targetReferenceName = targetContainer.referenceName;
+        this.saveMapping();
     }
 
     loadMapping() {

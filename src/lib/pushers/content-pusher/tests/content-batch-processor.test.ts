@@ -8,17 +8,17 @@ import { ContentItemMapper } from 'lib/mappers/content-item-mapper';
 // Hoist mocks for modules that make real network calls or file I/O inside processBatches
 jest.mock('lib/pushers/batch-polling', () => ({
   pollBatchUntilComplete: jest.fn(),
-  extractBatchResults: jest.fn(),
+  extractContentBatchResults: jest.fn(),
 }));
 
 jest.mock('../util/find-content-in-other-locale', () => ({
   findContentInOtherLocale: jest.fn().mockResolvedValue(-1),
 }));
 
-import { pollBatchUntilComplete, extractBatchResults } from 'lib/pushers/batch-polling';
+import { pollBatchUntilComplete, extractContentBatchResults } from 'lib/pushers/batch-polling';
 
 const mockPoll = pollBatchUntilComplete as jest.Mock;
-const mockExtract = extractBatchResults as jest.Mock;
+const mockExtract = extractContentBatchResults as jest.Mock;
 
 let tmpDir: string;
 

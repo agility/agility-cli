@@ -72,10 +72,15 @@ export class ModelMapper {
     }
 
     addMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model) {
-        const mapping = this.getModelMapping(targetModel, 'target');
+        const targetMapping = this.getModelMapping(targetModel, 'target');
+        const sourceMapping = this.getModelMapping(sourceModel, 'source');
 
-        if (mapping) {
-            this.updateMapping(sourceModel, targetModel);
+        if (targetMapping && sourceMapping && targetMapping !== sourceMapping) {
+            throw new Error(`Invalid Mappings detected! Source model ID: ${sourceModel.id}, Target model ID: ${targetModel.id}`);
+        }
+
+        if (targetMapping) {
+            this.updateMapping(sourceModel, targetModel, targetMapping);
         } else {
 
             const newMapping: ModelMapping = {
@@ -96,18 +101,18 @@ export class ModelMapper {
         this.saveMapping();
     }
 
-    updateMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model) {
-        const mapping = this.getModelMapping(targetModel, 'target');
-        if (mapping) {
-            mapping.sourceGuid = this.sourceGuid;
-            mapping.targetGuid = this.targetGuid;
-            mapping.sourceID = sourceModel.id;
-            mapping.targetID = targetModel.id;
-            mapping.sourceReferenceName = sourceModel.referenceName;
-            mapping.targetReferenceName = targetModel.referenceName;
-            mapping.sourceLastModifiedDate = sourceModel.lastModifiedDate;
-            mapping.targetLastModifiedDate = targetModel.lastModifiedDate;
+    updateMapping(sourceModel: mgmtApi.Model, targetModel: mgmtApi.Model, mapping: ModelMapping) {
+        if (targetModel.id !== mapping.targetID) {
+            throw new Error(`Invalid items trying to be mapped! Source model ID: ${sourceModel.id}, Target model ID: ${targetModel.id}`);
         }
+        mapping.sourceGuid = this.sourceGuid;
+        mapping.targetGuid = this.targetGuid;
+        mapping.sourceID = sourceModel.id;
+        mapping.targetID = targetModel.id;
+        mapping.sourceReferenceName = sourceModel.referenceName;
+        mapping.targetReferenceName = targetModel.referenceName;
+        mapping.sourceLastModifiedDate = sourceModel.lastModifiedDate;
+        mapping.targetLastModifiedDate = targetModel.lastModifiedDate;
         this.saveMapping();
     }
 
