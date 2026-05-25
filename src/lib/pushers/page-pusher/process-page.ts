@@ -102,7 +102,7 @@ export async function processPage({
 				folder: "Folder",
 			}[page.pageType] || page.pageType;
 
-		if (isConflict) {
+		if (isConflict && !overwrite) {
 			// CONFLICT: Target has independent changes.
 			// Use mapping's targetPageID as fallback in case existingPage wasn't loaded.
 			const targetPageID = existingPage?.pageID ?? pageMapping?.targetPageID;
