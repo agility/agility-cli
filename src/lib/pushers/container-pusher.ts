@@ -84,6 +84,13 @@ export async function pushContainers(
               targetContainer.contentViewID === existingMapping.targetContentViewID
           ) || null;
 
+        if(!targetContainer){
+          // Container exists and is up to date - skip
+          logger.container.error(sourceContainer, `target container: ${existingMapping.targetReferenceName} was deleted, skipping!`, targetGuid[0]);
+          skipped++;
+          continue;
+        }
+
         const hasTargetChanges = containerMapper.hasTargetChanged(targetContainer);
         const hasSourceChanges = containerMapper.hasSourceChanged(sourceContainer);
         shouldUpdate = !hasTargetChanges && hasSourceChanges;
@@ -98,7 +105,6 @@ export async function pushContainers(
 
         if (targetModelID < 1) {
           logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0]);
-
           skipped++;
         }else if (shouldSkip) {
           // Container exists and is up to date - skip
