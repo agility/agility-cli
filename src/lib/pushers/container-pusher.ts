@@ -184,7 +184,6 @@ async function updateExistingContainer(
 
   // Update the container
   const updatedContainer = await apiClient.containerMethods.saveContainer(updatePayload, targetGuid, true);
-  logger.container.updated(sourceContainer, "updated", targetGuid)
   return updatedContainer;
 }
 
