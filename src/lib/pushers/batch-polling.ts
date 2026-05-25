@@ -1,6 +1,23 @@
 import * as mgmtApi from '@agility/management-sdk';
 import ansiColors from 'ansi-colors';
 
+export type CompletedBatch = mgmtApi.Batch & {
+    failedItems: FailedBatchItemFromApi[];
+    totalItems?: number;
+    successCount?: number;
+    failureCount?: number;
+    durationMs?: number;
+};
+
+export type FailedBatchItemFromApi = {
+    batchItemId: number;
+    itemId: number;
+    itemType: string;
+    errorType: string;
+    errorMessage: string;
+}
+
+
 /**
  * Extract the error message from a JSON error response or plain text
  * Handles both JSON format {"message":"..."} and plain text errors
@@ -40,10 +57,7 @@ function createProgressBar(percent: number, width: number = 20): string {
     return `[${'█'.repeat(filled)}${'░'.repeat(empty)}]`;
 }
 
-/**
- * Log batch errors using structured failedItems array (preferred) or legacy items array
- */
-function logBatchErrors(batchStatus: any, originalPayloads?: any[]): void {
+function logBatchErrors(batchStatus: CompletedBatch, originalPayloads?: any[]): void {
     // Prefer structured failedItems array from new API
     if (Array.isArray(batchStatus.failedItems) && batchStatus.failedItems.length > 0) {
         batchStatus.failedItems.forEach((failed: any) => {
@@ -86,7 +100,7 @@ const BATCH_STATE_PROCESSED = 3;
 /**
  * Normalize batch response so we handle both camelCase (SDK) and PascalCase (.NET API).
  */
-function normalizeBatchStatus(batchStatus: any): any {
+function normalizeBatchStatus(batchStatus: any): CompletedBatch {
     if (!batchStatus) return batchStatus;
     return {
         ...batchStatus,
@@ -129,7 +143,7 @@ export async function pollBatchUntilComplete(
     intervalMs: number = 2000, // 2 seconds
     batchType?: string, // Type of batch for better logging
     totalItems?: number // Total items in batch for progress display
-): Promise<any> {
+): Promise<CompletedBatch> {
     let attempts = 0;
     let consecutiveErrors = 0;
     const startTime = Date.now();
@@ -229,19 +243,40 @@ export async function pollBatchUntilComplete(
     throw new Error(`Batch ${batchID} polling timed out after ${maxAttempts} attempts (~${Math.round(maxAttempts * intervalMs / 60000)} minutes)`);
 }
 
-/**
- * Extract results from completed batch
- * Uses structured failedItems from new API if available, falls back to legacy items array
- */
-export function extractBatchResults(batch: any, originalItems: any[]): { 
-    successfulItems: any[], 
-    failedItems: any[],
-    summary?: { totalItems: number, successCount: number, failureCount: number, durationMs: number }
-} {
-    const successfulItems: any[] = [];
-    const failedItems: any[] = [];
-    
-    // Extract summary info if available from new API
+interface BatchSummary {
+    totalItems: number;
+    successCount: number;
+    failureCount: number;
+    durationMs: number;
+}
+
+interface BatchSuccessItem<T> {
+    originalItem: T;
+    newId: number;
+    newItem: mgmtApi.BatchItem;
+    index: number;
+}
+
+interface BatchFailureItem<T> {
+    originalItem: T | null;
+    newItem: null;
+    error: string;
+    errorType?: string;
+    itemType?: string;
+    batchItemId?: number;
+    index: number;
+}
+
+interface BatchExtractResult<T> {
+    successfulItems: BatchSuccessItem<T>[];
+    failedItems: BatchFailureItem<T>[];
+    summary?: BatchSummary;
+}
+
+function extractBatchResultsImpl<T>(batch: CompletedBatch, originalItems: T[]): BatchExtractResult<T> {
+    const successfulItems: BatchSuccessItem<T>[] = [];
+    const failedItems: BatchFailureItem<T>[] = [];
+
     const summary = batch?.totalItems !== undefined ? {
         totalItems: batch.totalItems,
         successCount: batch.successCount ?? 0,
@@ -249,52 +284,13 @@ export function extractBatchResults(batch: any, originalItems: any[]): {
         durationMs: batch.durationMs ?? 0
     } : undefined;
 
-    // Use structured failedItems from new API if available
-    if (Array.isArray(batch?.failedItems) && batch.failedItems.length > 0) {
-        // Track which indices failed
-        const failedBatchItemIds = new Set(batch.failedItems.map((f: any) => f.batchItemId ?? f.batchItemID));
-        
-        // Process failed items from structured array
-        batch.failedItems.forEach((failed: any, idx: number) => {
-            const batchItemId = failed.batchItemId ?? failed.batchItemID;
-            // Try to match to original item - batchItemId might be 1-indexed or match some property
-            const originalItem = originalItems[idx] || originalItems.find((item, i) => i === batchItemId - 1);
-            
-            failedItems.push({
-                originalItem: originalItem || null,
-                newItem: null,
-                error: failed.errorMessage || 'Unknown error',
-                errorType: failed.errorType,
-                itemType: failed.itemType,
-                batchItemId: batchItemId,
-                index: idx
-            });
-        });
-        
-        // Remaining items are successful (from items array or inferred)
-        if (Array.isArray(batch?.items)) {
-            batch.items.forEach((item: any, index: number) => {
-                const batchItemId = item.batchItemID || item.batchItemId;
-                if (!failedBatchItemIds.has(batchItemId) && item.itemID > 0) {
-                    successfulItems.push({
-                        originalItem: originalItems[index],
-                        newId: item.itemID,
-                        newItem: item,
-                        index
-                    });
-                }
-            });
-        }
-        
-        return { successfulItems, failedItems, summary };
-    }
-
     // Fallback to legacy items array processing
     if (!batch?.items || !Array.isArray(batch.items)) {
         return {
             successfulItems: [],
             failedItems: originalItems.map((item, index) => ({
                 originalItem: item,
+                newItem: null,
                 error: 'No batch items returned',
                 index
             })),
@@ -302,17 +298,11 @@ export function extractBatchResults(batch: any, originalItems: any[]): {
         };
     }
 
-    // Process each batch item (legacy)
-    batch.items.forEach((item: any, index: number) => {
+    batch.items.forEach((item, index: number) => {
         const originalItem = originalItems[index];
-        
+
         if (item.itemID > 0 && !item.itemNull) {
-            successfulItems.push({
-                originalItem,
-                newId: item.itemID,
-                newItem: item,
-                index
-            });
+            successfulItems.push({ originalItem, newId: item.itemID, newItem: item, index });
         } else {
             let errorMsg = 'Failed to create item';
             if (item.errorMessage) {
@@ -320,18 +310,27 @@ export function extractBatchResults(batch: any, originalItems: any[]): {
             } else if (!item.itemNull) {
                 errorMsg = `Invalid ID: ${item.itemID}`;
             }
-            
-            failedItems.push({
-                originalItem,
-                newItem: null,
-                error: errorMsg,
-                index
-            });
+
+            // replace with new api error message if we can
+            const newApiFailedItem = batch.failedItems && batch.failedItems.length > 0 && batch.failedItems.find(fi => fi.batchItemId == item.batchItemID);
+            if(newApiFailedItem){
+                errorMsg = newApiFailedItem.errorMessage;
+            }
+
+            failedItems.push({ originalItem, newItem: null, error: errorMsg, index });
         }
     });
 
     return { successfulItems, failedItems, summary };
-} 
+}
+
+export function extractContentBatchResults(batch: CompletedBatch, originalItems: mgmtApi.ContentItem[]): BatchExtractResult<mgmtApi.ContentItem> {
+    return extractBatchResultsImpl(batch, originalItems);
+}
+
+export function extractPageBatchResults(batch: CompletedBatch, originalItems: mgmtApi.PageItem[]): BatchExtractResult<mgmtApi.PageItem> {
+    return extractBatchResultsImpl(batch, originalItems);
+}
 
 
 export function prettyException(error: string) {

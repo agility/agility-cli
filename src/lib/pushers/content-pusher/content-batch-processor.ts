@@ -1,5 +1,5 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { pollBatchUntilComplete, extractBatchResults } from "../batch-polling";
+import { pollBatchUntilComplete, extractContentBatchResults } from "../batch-polling";
 import ansiColors from "ansi-colors";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContainerMapper } from "lib/mappers/container-mapper";
@@ -115,7 +115,7 @@ export class ContentBatchProcessor {
         // contentBatch may include skipped items (orphaned content, missing model, etc.) that were
         // never added to contentPayloads; using it here would shift every result after a skip onto
         // the wrong source item, corrupting the source→target ID mappings.
-        const { successfulItems, failedItems } = extractBatchResults(completedBatch, includedItems);
+        const { successfulItems, failedItems } = extractContentBatchResults(completedBatch, includedItems);
 
         // Convert to expected format
         // Filter publishableIds to only include items that are Published (state === 2) in source

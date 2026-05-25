@@ -11,15 +11,15 @@ jest.mock('../find-page-in-other-locale', () => ({
 
 jest.mock('lib/pushers/batch-polling', () => ({
   pollBatchUntilComplete: jest.fn(),
-  extractBatchResults: jest.fn(),
+  extractPageBatchResults: jest.fn(),
 }));
 
 import { findPageInOtherLocale } from '../find-page-in-other-locale';
-import { pollBatchUntilComplete, extractBatchResults } from 'lib/pushers/batch-polling';
+import { pollBatchUntilComplete, extractPageBatchResults } from 'lib/pushers/batch-polling';
 
 const mockFindInOtherLocale = findPageInOtherLocale as jest.Mock;
 const mockPoll = pollBatchUntilComplete as jest.Mock;
-const mockExtract = extractBatchResults as jest.Mock;
+const mockExtract = extractPageBatchResults as jest.Mock;
 
 let tmpDir: string;
 
