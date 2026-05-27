@@ -117,28 +117,6 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       continue;
     }
   }
-
-  // Check for when a model renamed on the source whose old reference name was reused by a new model.
-  // ie. Modal123 was renamed to Model123Legacy
-  // We stop the sync before pushing anything and warn the user to fix
-  const orphanedUpdates = shouldUpdateFields.filter((model) => !referenceMapper.getModelMapping(model, "source"));
-  if (orphanedUpdates.length > 0) {
-    const details = orphanedUpdates.map((model) => `"${model.referenceName}" (ID: ${model.id})`).join(", ");
-    for (const model of orphanedUpdates) {
-      logger.model.error(
-        model,
-        new Error(`Source mapping was reassigned to another model (likely a source-side rename).`),
-        targetGuid[0],
-      );
-    }
-    throw new Error(
-      `Model validation failed: ${orphanedUpdates.length} model(s) lost their source mapping during ` +
-        `change detection and cannot be updated: ${details}. This usually means a model was renamed on ` +
-        `the source and its old reference name was reused, so its mapping was reassigned to another ` +
-        `model. Stopping sync to avoid a partial push — resolve the rename/mapping and re-run.`,
-    );
-  }
-
   for (const model of shouldCreateStub) {
     const result = await createNewModel(model, referenceMapper, apiClient, targetGuid[0], logger);
     if (result === "created") {
