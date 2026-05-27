@@ -38,12 +38,12 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       continue;
     }
 
-    const mapping = referenceMapper.getModelMappingByID(model.id, "source");
+    const sourceMapping = referenceMapper.getModelMappingByID(model.id, "source");
     const targetModel = targetData.find((targetModel) => targetModel.referenceName === model.referenceName) || null;
 
     // A target model exists by referenceName but has no source mapping, while this model's ID is
     // already used as a target ID in another mapping — a sign the source model was renamed/reassigned.
-    if (!mapping && targetModel) {
+    if (!sourceMapping && targetModel) {
       const targetMapping = referenceMapper.getModelMappingByID(model.id, "target");
       if (targetMapping && targetMapping.targetID === model.id) {
         logger.model.error(
@@ -63,7 +63,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
     const modelLastModifiedDate = new Date(model.lastModifiedDate);
     const targetLastModifiedDate = targetModel ? new Date(targetModel.lastModifiedDate) : null;
-    const mappingLastModifiedDate = mapping ? new Date(mapping.targetLastModifiedDate) : null;
+    const mappingLastModifiedDate = sourceMapping ? new Date(sourceMapping.targetLastModifiedDate) : null;
     const hasSourceChanged = modelLastModifiedDate > targetLastModifiedDate;
     const hasTargetChanged = targetLastModifiedDate > mappingLastModifiedDate;
     const sourceFieldCount = model?.fields?.length || 0;
@@ -74,7 +74,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
     // Handle models that exist in target but have no mapping
     // This ensures downstream containers can find their model mappings
-    const existsInTargetWithoutMapping = !mapping && targetModel;
+    const existsInTargetWithoutMapping = !sourceMapping && targetModel;
     if (existsInTargetWithoutMapping) {
       // Create the mapping for existing target models (ensures containers can reference them)
       referenceMapper.addMapping(model, targetModel);
@@ -83,36 +83,36 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       continue; // Skip remaining conditions - mapping is now created, no further action needed
     }
 
-    if (!mapping && !targetModel) {
+    if (!sourceMapping && !targetModel) {
       shouldCreateStub.push(model);
       continue;
     }
     // if the mapping exists, and the source has changed, we need to update the fields
     // Added a special case for RichTextArea to handle the conflict scenario where the source has changed and the target has changed (first sync).
     // This will attempt to update the model, and write the mappings
-    if ((mapping && hasSourceChanged) || (mapping && fieldCountChanged)) {
+    if ((sourceMapping && hasSourceChanged) || (sourceMapping && fieldCountChanged)) {
       shouldUpdateFields.push(model);
       continue;
     }
 
-    if (mapping && (hasTargetChanged || hasSourceChanged) && state.overwrite) {
+    if (sourceMapping && (hasTargetChanged || hasSourceChanged) && state.overwrite) {
       shouldUpdateFields.push(model);
       continue;
     }
 
     // if the mapping exists, and the target has changed, we need to skip the model, not safe to update
-    if (mapping && hasTargetChanged) {
+    if (sourceMapping && hasTargetChanged) {
       shouldSkip.push(model);
       continue;
     }
 
     // if the mapping exists, and the source and target have not changed, we need to skip the model
-    if (mapping && !hasSourceChanged && !hasTargetChanged && !state.overwrite) {
+    if (sourceMapping && !hasSourceChanged && !hasTargetChanged && !state.overwrite) {
       shouldSkip.push(model);
       continue;
     }
 
-    if (mapping && !hasSourceChanged && !hasTargetChanged && state.overwrite) {
+    if (sourceMapping && !hasSourceChanged && !hasTargetChanged && state.overwrite) {
       shouldSkip.push(model);
       continue;
     }
@@ -133,11 +133,11 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
   const modelsToUpdate = [...stubCreated, ...shouldUpdateFields];
   for (const model of modelsToUpdate) {
-    const mapping = referenceMapper.getModelMapping(model, "source");
+    const sourceMapping = referenceMapper.getModelMapping(model, "source");
 
     const result = await updateExistingModel(
       model,
-      mapping.targetID,
+      sourceMapping.targetID,
       referenceMapper,
       apiClient,
       targetGuid[0],
@@ -149,7 +149,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       failed++;
       failureDetails.push({
         name: model.referenceName,
-        error: `Failed to update model "${model.referenceName}" (target ID: ${mapping.targetID})`,
+        error: `Failed to update model "${model.referenceName}" (target ID: ${sourceMapping.targetID})`,
         guid: sourceGuid[0],
       });
     }
