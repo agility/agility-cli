@@ -4,6 +4,7 @@ import { getLoggerForGuid, state } from "core/state";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
+import { FailureDetail, PusherResult } from "types/sourceData";
 
 /**
  * Container pusher with enhanced version-based comparison
@@ -12,7 +13,7 @@ import { Logs } from "core/logs";
 export async function pushContainers(
   sourceData: mgmtApi.Container[],
   targetData: mgmtApi.Container[],
-): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
+): Promise<PusherResult> {
 
 
   // Extract data from sourceData - unified parameter pattern
@@ -30,6 +31,7 @@ export async function pushContainers(
   let skipped = 0;
   let processedCount = 0;
   let overallStatus: "success" | "error" = "success";
+  const failureDetails: FailureDetail[] = [];
 
   const containerMapper = new ContainerMapper(sourceGuid[0], targetGuid[0]);
   const modelMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
@@ -140,6 +142,11 @@ export async function pushContainers(
             failed++;
             currentStatus = "error";
             overallStatus = "error";
+            failureDetails.push({
+              name: sourceContainer.referenceName,
+              error: `Failed to update container "${sourceContainer.referenceName}" (ID: ${sourceContainer.contentViewID})`,
+              guid: sourceGuid[0],
+            });
           }
         }
       }
@@ -169,6 +176,11 @@ export async function pushContainers(
             failed++;
             currentStatus = "error";
             overallStatus = "error";
+            failureDetails.push({
+              name: sourceContainer.referenceName,
+              error: `Failed to create container "${sourceContainer.referenceName}"`,
+              guid: sourceGuid[0],
+            });
           }
         }
       }
@@ -177,12 +189,17 @@ export async function pushContainers(
       failed++;
       currentStatus = "error";
       overallStatus = "error";
+      failureDetails.push({
+        name: sourceContainer.referenceName,
+        error: error?.message || String(error),
+        guid: sourceGuid[0],
+      });
     } finally {
       processedCount++;
     }
   }
 
-  return { status: overallStatus, successful, failed, skipped };
+  return { status: overallStatus, successful, failed, skipped, failureDetails };
 }
 
 /**

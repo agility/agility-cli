@@ -5,6 +5,7 @@ import { TemplateMapper } from "lib/mappers/template-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
+import { FailureDetail, PusherResult } from "types/sourceData";
 
 
 /**
@@ -17,7 +18,7 @@ export async function pushTemplates(
     targetData: any,
     locale: string
     // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
-): Promise<{ status: 'success' | 'error', successful: number, failed: number, skipped: number }> {
+): Promise<PusherResult> {
 
     // Extract data from sourceData - unified parameter pattern
     const templates: mgmtApi.PageModel[] = sourceData || [];
@@ -37,6 +38,7 @@ export async function pushTemplates(
     let processedCount = 0;
     const totalTemplates = templates.length;
     let overallStatus: 'success' | 'error' = 'success';
+    const failureDetails: FailureDetail[] = [];
 
     for (let i = 0; i < templates.length; i++) {
         let template = templates[i];
@@ -126,11 +128,16 @@ export async function pushTemplates(
                 failed++;
                 currentStatus = 'error';
                 overallStatus = 'error';
+                failureDetails.push({
+                    name: template.pageTemplateName,
+                    error: error?.message || String(error),
+                    guid: sourceGuid[0],
+                });
             }
         }
 
         processedCount++;
     }
 
-    return { status: overallStatus, successful, failed, skipped }; // Return status object
+    return { status: overallStatus, successful, failed, skipped, failureDetails };
 }
