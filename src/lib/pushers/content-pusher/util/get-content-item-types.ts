@@ -45,7 +45,9 @@ export function getContentItemTypes(
         }
 
         // Items start as normal; referenced items get moved to linked
-        normalSet.add(item.contentID);
+        if(!linkedSet.has(item.contentID)){
+            normalSet.add(item.contentID);
+        }
 
         // Find all list references in this item's fields
         const referenceNames = collectListReferenceNames(item.fields || {});
