@@ -28,7 +28,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
   let shouldCreateStub = [];
   let shouldUpdateFields = [];
-  let shouldSkip = [];
+  let shouldSkip: { model: mgmtApi.Model; reason: string }[] = [];
   let stubCreated = [];
 
   for (const model of models) {
@@ -79,7 +79,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       // Create the mapping for existing target models (ensures containers can reference them)
       referenceMapper.addMapping(model, targetModel);
       // Add to skip list since model already exists and is up to date
-      shouldSkip.push(model);
+      shouldSkip.push({ model, reason: "Skipping and adding default Agility mappings." });
       continue; // Skip remaining conditions - mapping is now created, no further action needed
     }
 
@@ -90,7 +90,10 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     // if the mapping exists, and the source has changed, we need to update the fields
     // Added a special case for RichTextArea to handle the conflict scenario where the source has changed and the target has changed (first sync).
     // This will attempt to update the model, and write the mappings
-    if ((sourceMapping && hasSourceChanged) || (sourceMapping && fieldCountChanged)) {
+    if (
+      (sourceMapping && hasSourceChanged && !hasTargetChanged) ||
+      (sourceMapping && fieldCountChanged && !hasTargetChanged)
+    ) {
       shouldUpdateFields.push(model);
       continue;
     }
@@ -102,18 +105,18 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
     // if the mapping exists, and the target has changed, we need to skip the model, not safe to update
     if (sourceMapping && hasTargetChanged) {
-      shouldSkip.push(model);
+      shouldSkip.push({ model, reason: "Warning: target model has changed! Add `--overwrite` flag to force update." });
       continue;
     }
 
     // if the mapping exists, and the source and target have not changed, we need to skip the model
     if (sourceMapping && !hasSourceChanged && !hasTargetChanged && !state.overwrite) {
-      shouldSkip.push(model);
+      shouldSkip.push({ model, reason: "Model has not changed, skipping." });
       continue;
     }
 
-    if (sourceMapping && !hasSourceChanged && !hasTargetChanged && state.overwrite) {
-      shouldSkip.push(model);
+    if (sourceMapping && !hasSourceChanged && !hasTargetChanged) {
+      shouldSkip.push({ model, reason: "Models have not changed, skipping." });
       continue;
     }
   }
@@ -156,7 +159,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   }
 
   for (const model of shouldSkip) {
-    logger.model.skipped(model, "up to date, skipping", targetGuid[0]);
+    logger.model.skipped(model.model, model.reason, targetGuid[0]);
     skipped++;
   }
 
