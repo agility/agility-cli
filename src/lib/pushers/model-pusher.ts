@@ -52,8 +52,12 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     }
 
     const sourceMapping = referenceMapper.getModelMappingByID(sourceModel.id, "source");
-    const targetModel =
-      targetData.find((targetModel) => targetModel.referenceName === sourceModel.referenceName) || null;
+
+    let targetModel: mgmtApi.Model = null;
+
+    if(sourceMapping){
+     targetModel = targetData.find((targetModel) => targetModel.id === sourceMapping.targetID ) || null;
+    }
 
     const modelLastModifiedDate = new Date(sourceModel.lastModifiedDate);
     const targetLastModifiedDate = targetModel ? new Date(targetModel.lastModifiedDate) : null;
@@ -68,7 +72,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
     // Handle models that exist in target but have no mapping
     // This ensures downstream containers can find their model mappings
-    const existsInTargetWithoutMapping = !sourceMapping && targetModel;
+    const existsInTargetWithoutMapping = !sourceMapping && targetData.find((targetModel) => targetModel.referenceName === sourceModel.referenceName);
     if (existsInTargetWithoutMapping) {
       const includesDefault = modelDefaults.includes(sourceModel.referenceName.toLowerCase());
 
