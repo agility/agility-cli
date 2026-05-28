@@ -36,20 +36,20 @@ export function changeDetection(
 
   const itemName = sourceEntity.properties?.referenceName || `ID:${sourceEntity.contentID}`;
 
-	if (!mapping && !targetEntity) {
-		//if we have no target content and no mapping
-		// if (state.verbose) {
-		// 	console.log(`[ChangeDetection] ${itemName}: No mapping and no target entity → CREATE`);
-		// }
-		return {
-			entity: null,
-			shouldUpdate: false,
-			shouldCreate: true,
-			shouldSkip: false,
-			isConflict: false,
-			reason: "Mapping and Target Content Item doesn't exist"
-		};
-	}
+  if (!mapping && !targetEntity) {
+    //if we have no target content and no mapping
+    // if (state.verbose) {
+    // 	console.log(`[ChangeDetection] ${itemName}: No mapping and no target entity → CREATE`);
+    // }
+    return {
+      entity: null,
+      shouldUpdate: false,
+      shouldCreate: true,
+      shouldSkip: false,
+      isConflict: false,
+      reason: "Mapping and Target Content Item doesn't exist",
+    };
+  }
 
   // Check if update is needed based on version or modification date
   const sourceVersion = sourceEntity.properties?.versionID || 0;
@@ -105,17 +105,6 @@ export function changeDetection(
       shouldSkip: false,
       isConflict: false,
       reason: "Source version is newer.",
-    };
-  }
-
-  if (overwrite) {
-    return {
-      entity: targetEntity,
-      shouldUpdate: true,
-      shouldCreate: false,
-      shouldSkip: false,
-      isConflict: false,
-      reason: "Overwrite mode enabled",
     };
   }
 
