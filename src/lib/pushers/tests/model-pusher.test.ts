@@ -149,3 +149,49 @@ describe("pushModels — create stub path", () => {
     expect(result.successful).toBe(0);
   });
 });
+
+// ─── pushModels — source-side rename orphans a mapping and halts the sync (PROD-1439) ──────
+
+describe("pushModels — source-side rename orphans a mapping and halts the sync (PROD-1439)", () => {
+  it('throws "Model validation failed" (and writes nothing) when a renamed model loses its mapping to a reused-name sibling', async () => {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+
+    // Seed the mapping exactly as it looked BEFORE the rename:
+    //   source model 248 ("ContactUsSendMessageForm") -> target model 118.
+    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    seeder.addMapping(
+      { id: 248, referenceName: "ContactUsSendMessageForm", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
+      { id: 118, referenceName: "ContactUsSendMessageForm", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
+    );
+
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 999 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    // On the source: model 248 was renamed to "...Legacy", and a NEW model 254 reused the old name.
+    const renamedModel = makeModel({
+      id: 248,
+      referenceName: "ContactUsSendMessageFormLegacy",
+      lastModifiedDate: new Date(2025, 11, 4).toISOString(),
+    });
+    const reusedNameModel = makeModel({
+      id: 254,
+      referenceName: "ContactUsSendMessageForm",
+      lastModifiedDate: new Date(2025, 11, 4).toISOString(),
+    });
+    // Target still only has the original "ContactUsSendMessageForm" (id 118), no "...Legacy".
+    const targetModel = makeModel({
+      id: 118,
+      referenceName: "ContactUsSendMessageForm",
+      lastModifiedDate: new Date(2025, 0, 1).toISOString(),
+    });
+
+    // 248 is classified for update; processing the reused-name sibling reassigns (steals) the
+    // shared target-118 mapping, leaving 248 with no mapping. The integrity gate must detect this
+    // and stop the whole sync with a "Model validation failed" error — before any model is written.
+    await expect(pushModels([renamedModel, reusedNameModel], [targetModel])).rejects.toThrow(/Model validation failed/);
+
+    expect(saveModel).not.toHaveBeenCalled();
+  });
+});
