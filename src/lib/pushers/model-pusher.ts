@@ -12,6 +12,15 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   const { sourceGuid, targetGuid } = state;
   const logger = getLoggerForGuid(sourceGuid[0])!;
 
+  const modelDefaults: string[] = [
+    "richtextarea",
+    "formbuilder",
+    "agilitycss",
+    "agilitycodetemplate",
+    "agilityjavascript",
+    "agilityformbuilder",
+  ];
+
   if (!models || models.length === 0) {
     logger.log("INFO", "No models found to process.");
     return { status: "success", successful: 0, failed: 0, skipped: 0 };
@@ -31,42 +40,27 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   let shouldSkip = [];
   let stubCreated = [];
 
-  for (const model of models) {
-    if (!model.id || !model.referenceName) {
-      logger.model.error(model, "Model is missing required properties (id or referenceName), skipping", targetGuid[0]);
+  for (const sourceModel of models) {
+    if (!sourceModel.id || !sourceModel.referenceName) {
+      logger.model.error(
+        sourceModel,
+        "Model is missing required properties (id or referenceName), skipping",
+        targetGuid[0],
+      );
       skipped++;
       continue;
     }
 
-    const sourceMapping = referenceMapper.getModelMappingByID(model.id, "source");
-    const targetModel = targetData.find((targetModel) => targetModel.referenceName === model.referenceName) || null;
+    const sourceMapping = referenceMapper.getModelMappingByID(sourceModel.id, "source");
+    const targetModel =
+      targetData.find((targetModel) => targetModel.referenceName === sourceModel.referenceName) || null;
 
-    // A target model exists by referenceName but has no source mapping, while this model's ID is
-    // already used as a target ID in another mapping — a sign the source model was renamed/reassigned.
-    if (!sourceMapping && targetModel) {
-      const targetMapping = referenceMapper.getModelMappingByID(model.id, "target");
-      if (targetMapping && targetMapping.targetID === model.id) {
-        logger.model.error(
-          model,
-          new Error(
-            `A target model named "${model.referenceName}" exists but is not mapped to source ID ${model.id} (likely a rename or reassignment of the source model).`,
-          ),
-          targetGuid[0],
-        );
-        throw new Error(
-          `Model validation failed: mapping inconsistency for model "${model.referenceName}" (ID: ${model.id}). ` +
-            `A mapping exists for the target model, but the source model ID does not match — this likely indicates ` +
-            `a rename or reassignment on the source. Stopping sync to avoid a partial push; review the model mappings and re-run.`,
-        );
-      }
-    }
-
-    const modelLastModifiedDate = new Date(model.lastModifiedDate);
+    const modelLastModifiedDate = new Date(sourceModel.lastModifiedDate);
     const targetLastModifiedDate = targetModel ? new Date(targetModel.lastModifiedDate) : null;
     const mappingLastModifiedDate = sourceMapping ? new Date(sourceMapping.targetLastModifiedDate) : null;
     const hasSourceChanged = modelLastModifiedDate > targetLastModifiedDate;
     const hasTargetChanged = targetLastModifiedDate > mappingLastModifiedDate;
-    const sourceFieldCount = model?.fields?.length || 0;
+    const sourceFieldCount = sourceModel?.fields?.length || 0;
     const targetFieldCount = targetModel?.fields?.length || 0;
     const fieldCountChanged = sourceFieldCount !== targetFieldCount;
 
@@ -76,44 +70,64 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     // This ensures downstream containers can find their model mappings
     const existsInTargetWithoutMapping = !sourceMapping && targetModel;
     if (existsInTargetWithoutMapping) {
-      // Create the mapping for existing target models (ensures containers can reference them)
-      referenceMapper.addMapping(model, targetModel);
-      // Add to skip list since model already exists and is up to date
-      shouldSkip.push(model);
-      continue; // Skip remaining conditions - mapping is now created, no further action needed
+      const includesDefault = modelDefaults.includes(sourceModel.referenceName.toLowerCase());
+
+      if (includesDefault) {
+        // Create the mapping for existing target models (ensures containers can reference them)
+        referenceMapper.addMapping(sourceModel, targetModel);
+        // Add to skip list since model already exists and is up to date
+        shouldSkip.push(sourceModel);
+        continue; // Skip remaining conditions - mapping is now created, no further action needed
+      } else {
+        const targetMapping = targetModel.id ? referenceMapper.getModelMappingByID(targetModel.id, "target") : null;
+        if (targetMapping && targetMapping.sourceID !== sourceModel.id) {
+          logger.model.error(
+            sourceModel,
+            new Error(
+              `A target model named "${sourceModel.referenceName}" exists but is not mapped to source ID ${sourceModel.id} (likely a rename or reassignment of the source model).`,
+            ),
+            targetGuid[0],
+          );
+          throw new Error(
+            `Model validation failed: mapping inconsistency for model "${sourceModel.referenceName}" (ID: ${sourceModel.id}). ` +
+              `A mapping exists for the target model, but the source model ID does not match — this likely indicates ` +
+              `a rename or reassignment on the source. Stopping sync to avoid a partial push; review the model mappings and re-run.`,
+          );
+        }
+      }
     }
 
     if (!sourceMapping && !targetModel) {
-      shouldCreateStub.push(model);
+      shouldCreateStub.push(sourceModel);
       continue;
     }
     // if the mapping exists, and the source has changed, we need to update the fields
     // Added a special case for RichTextArea to handle the conflict scenario where the source has changed and the target has changed (first sync).
     // This will attempt to update the model, and write the mappings
     if ((sourceMapping && hasSourceChanged) || (sourceMapping && fieldCountChanged)) {
-      shouldUpdateFields.push(model);
+      shouldUpdateFields.push(sourceModel);
       continue;
     }
 
     if (sourceMapping && (hasTargetChanged || hasSourceChanged) && state.overwrite) {
-      shouldUpdateFields.push(model);
+      shouldUpdateFields.push(sourceModel);
       continue;
     }
 
     // if the mapping exists, and the target has changed, we need to skip the model, not safe to update
     if (sourceMapping && hasTargetChanged) {
-      shouldSkip.push(model);
+      shouldSkip.push(sourceModel);
       continue;
     }
 
     // if the mapping exists, and the source and target have not changed, we need to skip the model
     if (sourceMapping && !hasSourceChanged && !hasTargetChanged && !state.overwrite) {
-      shouldSkip.push(model);
+      shouldSkip.push(sourceModel);
       continue;
     }
 
     if (sourceMapping && !hasSourceChanged && !hasTargetChanged && state.overwrite) {
-      shouldSkip.push(model);
+      shouldSkip.push(sourceModel);
       continue;
     }
   }
@@ -134,7 +148,6 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   const modelsToUpdate = [...stubCreated, ...shouldUpdateFields];
   for (const model of modelsToUpdate) {
     const sourceMapping = referenceMapper.getModelMapping(model, "source");
-
     const result = await updateExistingModel(
       model,
       sourceMapping.targetID,
