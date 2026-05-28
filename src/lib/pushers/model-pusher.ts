@@ -72,7 +72,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
     // Handle models that exist in target but have no mapping
     // This ensures downstream containers can find their model mappings
-    const existsInTargetWithoutMapping = !sourceMapping && targetData.find((targetModel) => targetModel.referenceName === sourceModel.referenceName);
+    const existsInTargetWithoutMapping = !sourceMapping && !!targetData.find((targetModel) => targetModel.referenceName === sourceModel.referenceName);
     if (existsInTargetWithoutMapping) {
       const includesDefault = modelDefaults.includes(sourceModel.referenceName.toLowerCase());
 
