@@ -110,6 +110,11 @@ export class ContentItemMapper {
             throw new Error(`Invalid Mappings detected! The two items have different mappings, Source contentID: ${sourceContentItem.contentID}, Target contentID: ${targetContentItem.contentID}`);
         }
 
+        // If there is a source mapping and it does not match the incoming ID
+        if(sourceMapping && !targetMapping && sourceMapping.targetContentID !== targetContentItem.contentID){
+            throw new Error(`Aborting a duplicate mapping attempt! sourceContentID: ${sourceContentItem.contentID}, orphaned targetContentID: ${targetContentItem.contentID}`);
+        }
+
         // At this point target and source mappings should be the same
         if (targetMapping) {
             this.updateMapping(sourceContentItem, targetContentItem, targetMapping);

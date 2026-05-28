@@ -131,7 +131,6 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       continue;
     }
   }
-
   for (const model of shouldCreateStub) {
     const result = await createNewModel(model, referenceMapper, apiClient, targetGuid[0], logger);
     if (result === "created") {
