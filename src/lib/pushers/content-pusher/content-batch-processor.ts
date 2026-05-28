@@ -475,7 +475,11 @@ export class ContentBatchProcessor {
         },
       } as mgmtApi.ContentItem;
 
-      this.config.referenceMapper.addMapping(sourceContentItem, targetContentItemWithId);
+      try {
+        this.config.referenceMapper.addMapping(sourceContentItem, targetContentItemWithId);
+      } catch (error) {
+        console.error(`Unable to create mappings: ${error.message}`)
+      }
     });
   }
 }
