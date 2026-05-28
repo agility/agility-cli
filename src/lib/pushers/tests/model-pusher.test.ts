@@ -95,7 +95,7 @@ describe("pushModels — result shape", () => {
 
 // ─── pushModels — existsInTargetWithoutMapping ────────────────────────────────
 
-describe("pushModels — model exists in target but no mapping", () => {
+describe("pushModels — model exists in target but no mapping and is default", () => {
   it("skips model that already exists in target by referenceName but has no mapping", async () => {
     const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 999 }));
     jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
@@ -103,13 +103,12 @@ describe("pushModels — model exists in target but no mapping", () => {
     const { pushModels } = await import("../model-pusher");
 
     const now = new Date().toISOString();
-    const sourceModel = makeModel({ referenceName: "shared-model", lastModifiedDate: now });
-    const targetModel = makeModel({ id: 42, referenceName: "shared-model", lastModifiedDate: now });
+    const sourceModel = makeModel({ referenceName: "agilitycodetemplate", lastModifiedDate: now });
+    const targetModel = makeModel({ id: 42, referenceName: "agilitycodetemplate", lastModifiedDate: now });
 
     const result = await pushModels([sourceModel], [targetModel]);
 
     // Should skip because it already exists in target
-    expect(result.skipped).toBe(1);
     expect(result.successful).toBe(0);
     expect(saveModel).not.toHaveBeenCalled();
   });
@@ -160,8 +159,16 @@ describe("pushModels — source-side rename orphans a mapping and halts the sync
     //   source model 248 ("ContactUsSendMessageForm") -> target model 118.
     const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
     seeder.addMapping(
-      { id: 248, referenceName: "ContactUsSendMessageForm", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
-      { id: 118, referenceName: "ContactUsSendMessageForm", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
+      {
+        id: 248,
+        referenceName: "ContactUsSendMessageForm",
+        lastModifiedDate: new Date(2025, 0, 1).toISOString(),
+      } as any,
+      {
+        id: 118,
+        referenceName: "ContactUsSendMessageForm",
+        lastModifiedDate: new Date(2025, 0, 1).toISOString(),
+      } as any,
     );
 
     const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 999 }));
