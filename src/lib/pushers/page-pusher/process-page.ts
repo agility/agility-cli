@@ -86,13 +86,13 @@ export async function processPage({
 		}
 
 		const hasSourceChanged = pageMapper.hasSourceChanged(page);
-		const targetChangeResult = pageMapper.hasTargetChanged(existingPage, pageMapping);
+		const hasTargetChanged = pageMapper.hasTargetChanged(existingPage, pageMapping);
 
 		// A conflict exists whenever the target has changed independently — regardless of whether
 		// the source also changed. Even if source is unchanged today, a future source push would
 		// silently overwrite the target's independent changes without this guard.
-		const isConflict = targetChangeResult !== null;
-		const updateRequired = (hasSourceChanged && !isConflict) || overwrite;
+		const isConflict = hasTargetChanged !== null;
+		const updateRequired = (hasSourceChanged && !isConflict) || (overwrite && isConflict);
 		const createRequired = !existingPage;
 
 		const pageTypeDisplay =
@@ -110,7 +110,7 @@ export async function processPage({
 			const targetUrl = `https://app.agilitycms.com/instance/${targetGuid}/${locale}/pages/${targetPageID}`;
 
 			let reason: string;
-			if (targetChangeResult === 'file_missing') {
+			if (hasTargetChanged === 'file_missing') {
 				reason = "target page may have been unpublished or deleted — cannot verify its current state";
 			} else if (hasSourceChanged) {
 				reason = "changes detected in both source and target";
