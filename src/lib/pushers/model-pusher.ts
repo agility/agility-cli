@@ -52,8 +52,12 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     }
 
     const sourceMapping = referenceMapper.getModelMappingByID(sourceModel.id, "source");
-    const targetModel =
-      targetData.find((targetModel) => targetModel.referenceName === sourceModel.referenceName) || null;
+
+    let targetModel: mgmtApi.Model = null;
+
+    if (sourceMapping) {
+      targetModel = targetData.find((targetModel) => targetModel.id === sourceMapping.targetID) || null;
+    }
 
     const modelLastModifiedDate = new Date(sourceModel.lastModifiedDate);
     const targetLastModifiedDate = targetModel ? new Date(targetModel.lastModifiedDate) : null;
@@ -68,17 +72,21 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
     // Handle models that exist in target but have no mapping
     // This ensures downstream containers can find their model mappings
-    const existsInTargetWithoutMapping = !sourceMapping && targetModel;
+    const targetModelByReference = targetData.find(
+      (targetModel) => targetModel.referenceName === sourceModel.referenceName,
+    );
+    const existsInTargetWithoutMapping = !sourceMapping && targetModelByReference;
     if (existsInTargetWithoutMapping) {
       const includesDefault = modelDefaults.includes(sourceModel.referenceName.toLowerCase());
 
       if (includesDefault) {
         // Create the mapping for existing target models (ensures containers can reference them)
-        referenceMapper.addMapping(sourceModel, targetModel);
+        referenceMapper.addMapping(sourceModel, targetModelByReference);
         // Add to skip list since model already exists and is up to date
         shouldSkip.push({ model: sourceModel, reason: "Skipping and adding default Agility mappings." });
         continue; // Skip remaining conditions - mapping is now created, no further action needed
       } else {
+        targetModel = targetModelByReference;
         const targetMapping = targetModel.id ? referenceMapper.getModelMappingByID(targetModel.id, "target") : null;
         if (targetMapping && targetMapping.sourceID !== sourceModel.id) {
           logger.model.error(
