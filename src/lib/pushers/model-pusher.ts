@@ -81,7 +81,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
       if (includesDefault) {
         // Create the mapping for existing target models (ensures containers can reference them)
-        referenceMapper.addMapping(sourceModel, targetModel);
+        referenceMapper.addMapping(sourceModel, targetModelByReference);
         // Add to skip list since model already exists and is up to date
         shouldSkip.push({ model: sourceModel, reason: "Skipping and adding default Agility mappings." });
         continue; // Skip remaining conditions - mapping is now created, no further action needed
