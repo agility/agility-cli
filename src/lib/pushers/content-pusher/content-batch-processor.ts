@@ -72,10 +72,6 @@ export class ContentBatchProcessor {
         `[${progress}%] Bulk batch ${batchNumber}/${contentBatches.length}: Processing ${contentBatch.length} ${batchType} content items (ETA: ${etaMinutes}m)...`,
       );
 
-      // if (onProgress) {
-      // 	onProgress(batchNumber, contentBatches.length, processedSoFar, contentItems.length, "processing");
-      // }
-
       try {
         // Prepare content payloads for bulk upload
 
@@ -191,17 +187,6 @@ export class ContentBatchProcessor {
             // Don't fail the entire batch due to callback errors
           }
         }
-
-        // if (onProgress) {
-        // 	onProgress(
-        // 		batchNumber,
-        // 		contentBatches.length,
-        // 		processedSoFar + contentBatch.length,
-        // 		contentItems.length,
-        // 		"success"
-        // 	);
-        // }
-
         // Add small delay between batches to prevent API throttling
         if (i < contentBatches.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, 100));
@@ -218,20 +203,8 @@ export class ContentBatchProcessor {
 
         totalFailureCount += failedBatchItems.length;
         allFailedItems.push(...failedBatchItems);
-
-        // if (onProgress) {
-        // 	onProgress(
-        // 		batchNumber,
-        // 		contentBatches.length,
-        // 		processedSoFar + contentBatch.length,
-        // 		contentItems.length,
-        // 		"error"
-        // 	);
-        // }
       }
     }
-
-    // console.log(`🎯 Content batch processing complete: ${totalSuccessCount} success, ${totalFailureCount} failed`);
 
     // Filter final publishableIds to only include items Published (state === 2) in source
     const publishableItems = allSuccessfulItems.filter((item) => {
@@ -363,7 +336,6 @@ export class ContentBatchProcessor {
           } else {
             existingContentID = existingTargetContentItem ? existingTargetContentItem.contentID : -1;
           }
-
 
           if (!existingMapping && !existingTargetContentItem) {
             //see if this content item has been mapped in another locale

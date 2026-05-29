@@ -36,7 +36,6 @@ function extractErrorMessage(error: any): string {
 export async function pushGalleries(
   sourceData: mgmtApi.assetMediaGrouping[],
   targetData: mgmtApi.assetMediaGrouping[]
-  // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
   // Extract data from sourceData - unified parameter pattern
   const galleries: mgmtApi.assetMediaGrouping[] = sourceData || [];
