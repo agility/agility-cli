@@ -94,11 +94,9 @@ export async function pushContainers(
         const hasTargetChanges = containerMapper.hasTargetChanged(targetContainer);
         const hasSourceChanges = containerMapper.hasSourceChanged(sourceContainer);
         shouldUpdate = !hasTargetChanges && hasSourceChanges;
-        shouldSkip =
-          (existingMapping !== null && hasTargetChanges && !hasSourceChanges) ||
-          (existingMapping !== null && !hasSourceChanges && !hasTargetChanges);
+        shouldSkip = !hasSourceChanges && !hasTargetChanges;
 
-        if (overwrite) {
+        if (overwrite && hasTargetChanges) {
           shouldUpdate = true;
           shouldSkip = false;
         }
@@ -110,7 +108,11 @@ export async function pushContainers(
           // Container exists and is up to date - skip
           logger.container.skipped(sourceContainer, "up to date, skipping", targetGuid[0]);
           skipped++;
-        } else if (shouldUpdate) {
+        }else if (hasTargetChanges && !overwrite) {
+          // Container exists and is up to date - skip
+          logger.container.error(sourceContainer, "Conflict detected, use --overwrite to force changes", targetGuid[0]);
+          skipped++;
+        }else if (shouldUpdate) {
 
           // Container exists but needs updating
           const updateResult = await updateExistingContainer(
