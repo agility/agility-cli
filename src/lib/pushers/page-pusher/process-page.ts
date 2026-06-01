@@ -7,6 +7,7 @@ import { translateZoneNames } from "./translate-zone-names";
 import { findPageInOtherLocale, OtherLocaleMapping } from "./find-page-in-other-locale";
 import { Logs } from "core/logs";
 import { state, getFailedContent, contentExistsInSourceData, contentExistsInOtherLocale } from "core/state";
+import { PageModuleExtended } from "types/sourceData";
 
 interface Props {
 	channel: string,
@@ -76,6 +77,9 @@ export async function processPage({
 
 		// Get channel ID from target instance sitemap (not from existing page which may be invalid)
 		const sitemap = await apiClient.pageMethods.getSitemap(targetGuid, locale);
+		// Get the page from mgmtApi for the module title
+		const mgmtApiPage = await apiClient.pageMethods.getPage(page.pageID, targetGuid, locale);
+
 		//TODO: this is NOT using the channel reference name properly since we don't get that from the mgmt api
 		//TODO: we need to add the channel reference name to the mgmt API for a proper lookup here..
 		const websiteChannel = sitemap?.find((channelObj) => channelObj.name.toLowerCase() === channel.toLowerCase());
@@ -144,7 +148,7 @@ export async function processPage({
 		let sourceZones = page.zones ? { ...page.zones } : {}; // Clone zones or use empty object
 
 		// CRITICAL: Translate zone names to match template expectations BEFORE content mapping
-		let mappedZones = translateZoneNames(sourceZones, targetTemplate);
+		let mappedZones = translateZoneNames(sourceZones, targetTemplate) as { [key: string]: PageModuleExtended[] };
 
 		// Content mapping validation - collect all content IDs that need mapping
 		const contentIdsToValidate: number[] = [];

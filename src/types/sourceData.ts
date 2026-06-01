@@ -1,5 +1,9 @@
 import * as mgmtApi from "@agility/management-sdk";
 
+export interface PageModuleExtended extends mgmtApi.PageModule {
+    title: string;
+}
+
 /**
  * Standardized source data structure for all pusher operations
  * Replaces 'any' type usage with proper TypeScript interfaces
