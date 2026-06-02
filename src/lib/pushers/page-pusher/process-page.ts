@@ -77,8 +77,6 @@ export async function processPage({
 
 		// Get channel ID from target instance sitemap (not from existing page which may be invalid)
 		const sitemap = await apiClient.pageMethods.getSitemap(targetGuid, locale);
-		// Get the page from mgmtApi for the module title
-		const mgmtApiPage = await apiClient.pageMethods.getPage(page.pageID, targetGuid, locale);
 
 		//TODO: this is NOT using the channel reference name properly since we don't get that from the mgmt api
 		//TODO: we need to add the channel reference name to the mgmt API for a proper lookup here..
