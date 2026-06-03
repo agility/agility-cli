@@ -23,6 +23,7 @@ import { Auth, state, setState, resetState, primeFromEnv, systemArgs, normalizeP
 import { Pull } from "./core/pull";
 import { Push } from "./core/push";
 import { WorkflowOperation } from "./lib/workflows";
+import { MappingsHealth } from "./lib/mappers/mappings-health";
 
 import { initializeLogger, getLogger, finalizeLogger, finalizeAllGuidLoggers } from "./core/state";
 
@@ -42,6 +43,7 @@ yargs.command({
     console.log(colors.white("  pull              - Pull your Agility instance locally"));
     console.log(colors.white("  push              - Push your instance to a target instance"));
     console.log(colors.white("  sync              - Sync your instance (alias for push with updates enabled)"));
+    console.log(colors.white("  mappings-health   - Check your mappings to make sure they are valid."));
     console.log(colors.white("  workflowOperation - Perform workflow operations (publish, unpublish, approve, decline)"));
     console.log(colors.white("\nFor more information, use: --help"));
     console.log("");
@@ -307,6 +309,87 @@ yargs.command({
     }
   }
 })
+
+// Mappings health check command - analyzes the health of mappings between two instances
+yargs.command({
+  command: "mappings-health",
+  describe: "Analyze the health of content item mappings between two instances.",
+  builder: {
+    sourceGuid: {
+      describe: "Source instance GUID.",
+      demandOption: true,
+      type: "string",
+    },
+    targetGuid: {
+      describe: "Target instance GUID.",
+      demandOption: true,
+      type: "string",
+    },
+    ...systemArgs
+  },
+  handler: async function (argv) {
+    resetState();
+    argv = normalizeArgv(argv);
+
+    const envPriming = primeFromEnv();
+    if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+    }
+
+    setState(argv);
+    state.update = true;
+    // Skip assets and galleries — not needed for mappings health analysis
+    state.elements = 'Models,Containers,Content,Templates,Sitemaps';
+
+    auth = new Auth();
+    const isAuthorized = await auth.init();
+    if (!isAuthorized) return;
+
+    const isValidCommand = await auth.validateCommand('push');
+    if (!isValidCommand) return;
+
+    initializeLogger("pull");
+
+    const sourceGuid = state.sourceGuid[0];
+    const targetGuid = state.targetGuid[0];
+
+    console.log(colors.cyan(`\n📥 Pulling latest data for ${sourceGuid} and ${targetGuid} (skipping assets)...`));
+    const pull = new Pull();
+    // fromPush=true pulls both sourceGuid and targetGuid, and does not call process.exit()
+    const pullResult = await pull.pullInstances(true);
+
+    if (!pullResult.success) {
+      console.log(colors.yellow("\n⚠️  Pull completed with some errors. Proceeding with health check using available data..."));
+    }
+
+    console.log(colors.cyan(`\n🔍 Analyzing mappings health for ${sourceGuid} → ${targetGuid}...`));
+
+    const healthChecker = new MappingsHealth(sourceGuid, targetGuid);
+    const result = await healthChecker.analyze();
+
+    // Summary
+    console.log(colors.cyan(`\n${'─'.repeat(60)}`));
+    console.log(colors.cyan(`📊 Mappings Health Summary`));
+    console.log(colors.cyan(`${'─'.repeat(60)}`));
+    console.log(`  Source GUID         : ${result.sourceGuid}`);
+    console.log(`  Target GUID         : ${result.targetGuid}`);
+    console.log(`  Locales checked     : ${result.localesChecked.join(', ') || 'none'}`);
+    console.log(`  Item mappings found : ${result.totalItemMappingsChecked}`);
+    if (result.skippedNotOnDisk > 0) {
+      console.log(colors.yellow(`  Skipped (not on disk): ${result.skippedNotOnDisk}  (draft or deleted content — not checked)`));
+    }
+    console.log(`  Issues detected     : ${result.issues.length}`);
+
+    if (result.isHealthy) {
+      console.log(colors.green(`\n✅ All mappings are healthy!`));
+    } else {
+      console.log(colors.red(`\n❌ ${result.issues.length} issue(s) detected in mappings.`));
+      process.exitCode = 1;
+    }
+
+    finalizeLogger();
+  }
+});
 
 // Normalize process.argv to handle rich text editor character conversions
 // (e.g., em dashes, curly quotes from Word/Notepad)
