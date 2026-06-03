@@ -9,25 +9,33 @@ import { SitemapNode } from "types/index";
 import { Logs } from "core/logs";
 
 interface ReturnType {
-	successful: number;
-	failed: number;
-	skipped: number;
-	publishableIds: number[];
-	failureDetails: Array<{ name: string; error: string; type?: 'content' | 'page'; pageID?: number; contentID?: number; guid?: string; locale?: string }>;
+  successful: number;
+  failed: number;
+  skipped: number;
+  publishableIds: number[];
+  failureDetails: Array<{
+    name: string;
+    error: string;
+    type?: "content" | "page";
+    pageID?: number;
+    contentID?: number;
+    guid?: string;
+    locale?: string;
+  }>;
 }
 
 interface Props {
-	channel: string,
-	pageMapper: PageMapper,
-	sitemapNodes: SitemapNode[],
-	sourceGuid: string,
-	targetGuid: string,
-	locale: string,
-	apiClient: mgmtApi.ApiClient,
-	overwrite: boolean,
-	sourcePages: mgmtApi.PageItem[],
-	parentPageID: number,
-	logger: Logs
+  channel: string;
+  pageMapper: PageMapper;
+  sitemapNodes: SitemapNode[];
+  sourceGuid: string;
+  targetGuid: string;
+  locale: string;
+  apiClient: mgmtApi.ApiClient;
+  overwrite: boolean;
+  sourcePages: mgmtApi.PageItem[];
+  parentPageID: number;
+  logger: Logs;
 }
 
 /**
@@ -42,145 +50,143 @@ const processedPageIDs = new Set<number>();
  * Reset the processed page IDs tracking - should be called at the start of each pushPages operation
  */
 export function resetProcessedPageIDs(): void {
-	processedPageIDs.clear();
+  processedPageIDs.clear();
 }
 
 export async function processSitemap({
-	channel,
-	pageMapper,
-	sitemapNodes,
-	sourceGuid,
-	targetGuid,
-	locale,
-	apiClient,
-	overwrite,
-	sourcePages,
-	parentPageID,
-	logger
+  channel,
+  pageMapper,
+  sitemapNodes,
+  sourceGuid,
+  targetGuid,
+  locale,
+  apiClient,
+  overwrite,
+  sourcePages,
+  parentPageID,
+  logger,
 }: Props): Promise<ReturnType> {
+  let returnData: ReturnType = {
+    successful: 0,
+    failed: 0,
+    skipped: 0,
+    publishableIds: [],
+    failureDetails: [],
+  };
 
-	let returnData: ReturnType = {
-		successful: 0,
-		failed: 0,
-		skipped: 0,
-		publishableIds: [],
-		failureDetails: []
-	};
+  // Reverse the sitemap nodes to process them in the correct order
+  const reversedNodes = [...sitemapNodes].reverse();
 
-	// Reverse the sitemap nodes to process them in the correct order
-	const reversedNodes = [...sitemapNodes].reverse();
+  let previousPageID = 0; // Store the previous page ID for ordering
 
-	let previousPageID = 0; // Store the previous page ID for ordering
+  // Process each page in the reversed sitemap nodes
+  for (const node of reversedNodes) {
+    //process the page for this node...
+    const sourcePage = sourcePages.find((page) => page.pageID === node.pageID);
 
-	// Process each page in the reversed sitemap nodes
-	for (const node of reversedNodes) {
+    if (!sourcePage) {
+      const errorMsg = `source page with ID ${node.pageID} not found in source data.`;
+      logger.page.error(node, errorMsg, locale, channel, targetGuid);
+      returnData.failed++;
+      returnData.failureDetails.push({
+        name: `PageID ${node.pageID}`,
+        error: errorMsg,
+        type: "page",
+        pageID: node.pageID,
+        guid: sourceGuid,
+        locale,
+      });
+      continue; // Skip if source page is missing
+    }
 
-		//process the page for this node...
-		const sourcePage = sourcePages.find(page => page.pageID === node.pageID);
+    // CRITICAL: Check if we've already processed this pageID in this sitemap session
+    // Dynamic pages can appear multiple times in the sitemap with the same pageID but different contentIDs
+    // We only want to process the page definition once, not create it multiple times
+    if (processedPageIDs.has(sourcePage.pageID)) {
+      // Silently skip - don't count as skipped, just continue
+      continue;
+    }
 
-		if (!sourcePage) {
-			const errorMsg = `source page with ID ${node.pageID} not found in source data.`;
-			logger.page.error(node, errorMsg, locale, channel, targetGuid);
-			returnData.failed++;
-			returnData.failureDetails.push({ 
-				name: `PageID ${node.pageID}`, 
-				error: errorMsg,
-				type: 'page',
-				pageID: node.pageID,
-				guid: sourceGuid,
-				locale
-			});
-			continue; // Skip if source page is missing
-		}
+    // Mark this pageID as processed
+    processedPageIDs.add(sourcePage.pageID);
 
-		// CRITICAL: Check if we've already processed this pageID in this sitemap session
-		// Dynamic pages can appear multiple times in the sitemap with the same pageID but different contentIDs
-		// We only want to process the page definition once, not create it multiple times
-		if (processedPageIDs.has(sourcePage.pageID)) {
-			// Silently skip - don't count as skipped, just continue
-			continue;
-		}
+    const pageRes = await processPage({
+      apiClient,
+      channel,
+      page: sourcePage,
+      sourceGuid,
+      targetGuid,
+      locale,
+      overwrite,
+      insertBeforePageId: previousPageID,
+      pageMapper,
+      parentPageID,
+      logger,
+    });
 
-		// Mark this pageID as processed
-		processedPageIDs.add(sourcePage.pageID);
+    if (pageRes.status === "success") {
+      returnData.successful++;
 
-		const pageRes = await processPage({
-			apiClient,
-			channel,
-			page: sourcePage,
-			sourceGuid,
-			targetGuid,
-			locale,
-			overwrite,
-			insertBeforePageId: previousPageID,
-			pageMapper,
-			parentPageID,
-			logger
-		})
+      // Only add to publishableIds if source page is in Published state (state === 2)
+      // Staging pages (state === 1) should not be auto-published
+      const isSourcePublished = sourcePage.properties?.state === 2;
+      if (isSourcePublished) {
+        const mapping = pageMapper.getPageMappingByPageID(sourcePage.pageID, "source");
+        if (mapping) {
+          returnData.publishableIds.push(mapping.targetPageID);
+        }
+      } else if (state.autoPublish) {
+        console.log(
+          ansiColors.gray(
+            `    📋 Skipping auto-publish for page "${sourcePage.name}" (state: ${sourcePage.properties?.state} - not published in source)`,
+          ),
+        );
+      }
+    } else if (pageRes.status === "skip") {
+      returnData.skipped++;
+    } else {
+      // pageRes.status is "failure"
+      returnData.failed++;
+      returnData.failureDetails.push({
+        name: sourcePage.name || `Page ${sourcePage.pageID}`,
+        error: pageRes.error || "Unknown error",
+        type: "page",
+        pageID: sourcePage.pageID,
+        contentID: pageRes.contentID, // Include contentID for linking to the missing content
+        guid: sourceGuid,
+        locale,
+      });
+    }
 
-		if (pageRes.status === "success") {
-			returnData.successful++;
+    //process the children of this node...
+    const childRes = await processSitemap({
+      channel,
+      pageMapper,
+      sitemapNodes: node.children || [],
+      sourceGuid,
+      targetGuid,
+      locale,
+      apiClient,
+      overwrite,
+      sourcePages,
+      // Pass current node's page ID as parent for children
+      parentPageID: node.pageID,
+      logger,
+    });
 
-			// Only add to publishableIds if source page is in Published state (state === 2)
-			// Staging pages (state === 1) should not be auto-published
-			const isSourcePublished = sourcePage.properties?.state === 2;
-			if (isSourcePublished) {
-				const mapping = pageMapper.getPageMappingByPageID(sourcePage.pageID, 'source');
-				if (mapping) {
-					returnData.publishableIds.push(mapping.targetPageID);
-				}
-			} else {
-				console.log(ansiColors.gray(`    📋 Skipping auto-publish for page "${sourcePage.name}" (state: ${sourcePage.properties?.state} - not published in source)`));
-			}
+    // Update returnData based on childRes
+    returnData.successful += childRes.successful;
+    returnData.failed += childRes.failed;
+    returnData.skipped += childRes.skipped;
+    returnData.publishableIds.push(...childRes.publishableIds);
+    returnData.failureDetails.push(...childRes.failureDetails);
 
-		} else if (pageRes.status === "skip") {
-			returnData.skipped++;
-		} else {
-			// pageRes.status is "failure"
-			returnData.failed++;
-			returnData.failureDetails.push({ 
-				name: sourcePage.name || `Page ${sourcePage.pageID}`, 
-				error: pageRes.error || 'Unknown error',
-				type: 'page',
-				pageID: sourcePage.pageID,
-				contentID: pageRes.contentID,  // Include contentID for linking to the missing content
-				guid: sourceGuid,
-				locale
-			});
-		}
+    // Update previousPageID for next iteration
+    previousPageID = node.pageID;
+  }
 
+  // Deduplicate publishableIds at the sitemap level to prevent duplicates from recursive calls
+  returnData.publishableIds = Array.from(new Set(returnData.publishableIds));
 
-		//process the children of this node...
-		const childRes = await processSitemap({
-			channel,
-			pageMapper,
-			sitemapNodes: node.children || [],
-			sourceGuid,
-			targetGuid,
-			locale,
-			apiClient,
-			overwrite,
-			sourcePages,
-			// Pass current node's page ID as parent for children
-			parentPageID: node.pageID,
-			logger
-		})
-
-		// Update returnData based on childRes
-		returnData.successful += childRes.successful;
-		returnData.failed += childRes.failed;
-		returnData.skipped += childRes.skipped;
-		returnData.publishableIds.push(...childRes.publishableIds);
-		returnData.failureDetails.push(...childRes.failureDetails);
-
-		// Update previousPageID for next iteration
-		previousPageID = node.pageID;
-
-
-	}
-	
-	// Deduplicate publishableIds at the sitemap level to prevent duplicates from recursive calls
-	returnData.publishableIds = Array.from(new Set(returnData.publishableIds));
-	
-	return returnData;
+  return returnData;
 }
