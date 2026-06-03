@@ -150,7 +150,7 @@ export class Pushers {
    */
   private async executePushersInOrder(
     sourceGuid: string,
-    targetGuid: string
+    targetGuid: string,
   ): Promise<{
     totalSuccess: number;
     totalFailures: number;
@@ -197,8 +197,8 @@ export class Pushers {
     }
 
     // Reset logging flags for new operation
-    const { GuidDataLoader } = await import("./guid-data-loader");
-    const { ModelDependencyTreeBuilder } = await import("../models/model-dependency-tree-builder");
+    const { GuidDataLoader } = await import('./guid-data-loader');
+    const { ModelDependencyTreeBuilder } = await import('../models/model-dependency-tree-builder');
     GuidDataLoader.resetLoggingFlags();
     ModelDependencyTreeBuilder.resetLoggingFlags();
 
@@ -206,12 +206,12 @@ export class Pushers {
     const sourceDataLoader = new GuidDataLoader(sourceGuid);
     const targetDataLoader = new GuidDataLoader(targetGuid);
 
-    // Do guid level ops first
+    // Do guid level ops first 
     // TODO: use locale[0] as a temp locale THIS NEEDS TO BE REFACTORED
     try {
       const sourceData = await sourceDataLoader.loadGuidEntities(
         locales[0],
-        Object.keys(filterOptions).length > 0 ? filterOptions : undefined
+        Object.keys(filterOptions).length > 0 ? filterOptions : undefined,
       );
       const targetData = await targetDataLoader.loadGuidEntities(locales[0]);
 
@@ -237,7 +237,7 @@ export class Pushers {
       }
     } catch (error: any) {
       // Re-throw validation errors immediately to stop sync
-      if (error?.message?.includes("Model validation failed")) {
+      if (error?.message?.includes('Model validation failed')) {
         throw error;
       }
       // For other errors, log but don't stop (legacy behavior for guid-level ops)
@@ -252,7 +252,7 @@ export class Pushers {
         for (const locale of locales) {
           const sourceData = await sourceDataLoader.loadGuidEntities(
             locale,
-            Object.keys(filterOptions).length > 0 ? filterOptions : undefined
+            Object.keys(filterOptions).length > 0 ? filterOptions : undefined,
           );
           const targetData = await targetDataLoader.loadGuidEntities(locale);
 
@@ -331,9 +331,7 @@ export class Pushers {
       (Array.isArray(elementData) && elementData.length === 0) ||
       !elements.some((element) => config.elements.includes(element))
     ) {
-      console.log(
-        ansiColors.yellow(`⚠️ Skipping ${config.description} for locale ${locale} - no data or filtered by --locales`)
-      );
+      console.log(ansiColors.yellow(`⚠️ Skipping ${config.description} for locale ${locale} - no data or filtered by --locales`));
       return { success: 0, failures: 0, skipped: 0, failureDetails: [] };
     }
 
@@ -359,14 +357,14 @@ export class Pushers {
       ansiColors.gray(`\n${config.description}: `) +
         successfulColor(`${pusherResult.successful} successful, `) +
         skippedColor(`${pusherResult.skipped} skipped, `) +
-        failedColor(`${pusherResult.failed} failed\n`)
+        failedColor(`${pusherResult.failed} failed\n`),
     );
 
     this.config.onOperationComplete?.(
       config.name,
       state.sourceGuid[0],
       state.targetGuid[0],
-      pusherResult.status === "success"
+      pusherResult.status === "success",
     );
 
     // Return the counts so they can be accumulated by the caller

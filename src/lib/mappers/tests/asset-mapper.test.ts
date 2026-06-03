@@ -1,13 +1,13 @@
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import { resetState, setState } from "core/state";
-import { AssetMapper } from "lib/mappers/asset-mapper";
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { resetState, setState } from 'core/state';
+import { AssetMapper } from 'lib/mappers/asset-mapper';
 
 let tmpDir: string;
 
 beforeAll(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agility-asset-mapper-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agility-asset-mapper-'));
 });
 
 afterAll(() => {
@@ -17,9 +17,9 @@ afterAll(() => {
 beforeEach(() => {
   resetState();
   setState({ rootPath: tmpDir });
-  jest.spyOn(console, "log").mockImplementation(() => {});
-  jest.spyOn(console, "warn").mockImplementation(() => {});
-  jest.spyOn(console, "error").mockImplementation(() => {});
+  jest.spyOn(console, 'log').mockImplementation(() => {});
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -37,51 +37,51 @@ function makeMapper(): AssetMapper {
 function makeAsset(overrides: Record<string, any> = {}): any {
   return {
     mediaID: 1,
-    dateModified: "2024-01-01T00:00:00Z",
-    edgeUrl: "https://cdn.aglty.io/src/photo.jpg",
-    containerEdgeUrl: "https://cdn.aglty.io/src",
-    containerOriginUrl: "https://origin.aglty.io/src",
+    dateModified: '2024-01-01T00:00:00Z',
+    edgeUrl: 'https://cdn.aglty.io/src/photo.jpg',
+    containerEdgeUrl: 'https://cdn.aglty.io/src',
+    containerOriginUrl: 'https://origin.aglty.io/src',
     ...overrides,
   };
 }
 
 // ─── constructor ──────────────────────────────────────────────────────────────
 
-describe("AssetMapper constructor", () => {
-  it("constructs without throwing when no mapping file exists", () => {
+describe('AssetMapper constructor', () => {
+  it('constructs without throwing when no mapping file exists', () => {
     expect(() => makeMapper()).not.toThrow();
   });
 });
 
 // ─── getAssetMapping ──────────────────────────────────────────────────────────
 
-describe("AssetMapper.getAssetMapping", () => {
-  it("returns null when no mapping exists for source", () => {
+describe('AssetMapper.getAssetMapping', () => {
+  it('returns null when no mapping exists for source', () => {
     const mapper = makeMapper();
-    expect(mapper.getAssetMapping(makeAsset({ mediaID: 99 }), "source")).toBeNull();
+    expect(mapper.getAssetMapping(makeAsset({ mediaID: 99 }), 'source')).toBeNull();
   });
 
-  it("returns null when no mapping exists for target", () => {
+  it('returns null when no mapping exists for target', () => {
     const mapper = makeMapper();
-    expect(mapper.getAssetMapping(makeAsset({ mediaID: 99 }), "target")).toBeNull();
+    expect(mapper.getAssetMapping(makeAsset({ mediaID: 99 }), 'target')).toBeNull();
   });
 
-  it("returns the mapping after addMapping", () => {
+  it('returns the mapping after addMapping', () => {
     const mapper = makeMapper();
     const src = makeAsset({ mediaID: 10 });
-    const tgt = makeAsset({ mediaID: 20, edgeUrl: "https://cdn.aglty.io/tgt/photo.jpg" });
+    const tgt = makeAsset({ mediaID: 20, edgeUrl: 'https://cdn.aglty.io/tgt/photo.jpg' });
     mapper.addMapping(src, tgt);
-    const found = mapper.getAssetMapping(tgt, "target");
+    const found = mapper.getAssetMapping(tgt, 'target');
     expect(found).not.toBeNull();
     expect(found!.targetMediaID).toBe(20);
   });
 
-  it("finds the mapping by source mediaID", () => {
+  it('finds the mapping by source mediaID', () => {
     const mapper = makeMapper();
     const src = makeAsset({ mediaID: 10 });
     const tgt = makeAsset({ mediaID: 20 });
     mapper.addMapping(src, tgt);
-    const found = mapper.getAssetMapping(src, "source");
+    const found = mapper.getAssetMapping(src, 'source');
     expect(found).not.toBeNull();
     expect(found!.sourceMediaID).toBe(10);
   });
@@ -89,208 +89,208 @@ describe("AssetMapper.getAssetMapping", () => {
 
 // ─── getAssetMappingByMediaID ─────────────────────────────────────────────────
 
-describe("AssetMapper.getAssetMappingByMediaID", () => {
-  it("returns null for unknown ID", () => {
+describe('AssetMapper.getAssetMappingByMediaID', () => {
+  it('returns null for unknown ID', () => {
     const mapper = makeMapper();
-    expect(mapper.getAssetMappingByMediaID(999, "source")).toBeNull();
+    expect(mapper.getAssetMappingByMediaID(999, 'source')).toBeNull();
   });
 
-  it("returns mapping by source mediaID", () => {
+  it('returns mapping by source mediaID', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeAsset({ mediaID: 5 }), makeAsset({ mediaID: 6 }));
-    expect(mapper.getAssetMappingByMediaID(5, "source")).not.toBeNull();
+    expect(mapper.getAssetMappingByMediaID(5, 'source')).not.toBeNull();
   });
 
-  it("returns mapping by target mediaID", () => {
+  it('returns mapping by target mediaID', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeAsset({ mediaID: 5 }), makeAsset({ mediaID: 6 }));
-    expect(mapper.getAssetMappingByMediaID(6, "target")).not.toBeNull();
+    expect(mapper.getAssetMappingByMediaID(6, 'target')).not.toBeNull();
   });
 });
 
 // ─── getAssetMappingByMediaUrl ────────────────────────────────────────────────
 
-describe("AssetMapper.getAssetMappingByMediaUrl", () => {
-  it("returns null when no mappings exist", () => {
+describe('AssetMapper.getAssetMappingByMediaUrl', () => {
+  it('returns null when no mappings exist', () => {
     const mapper = makeMapper();
-    expect(mapper.getAssetMappingByMediaUrl("https://cdn.aglty.io/none.jpg", "source")).toBeNull();
+    expect(mapper.getAssetMappingByMediaUrl('https://cdn.aglty.io/none.jpg', 'source')).toBeNull();
   });
 
-  it("returns a mapping by exact source URL", () => {
+  it('returns a mapping by exact source URL', () => {
     const mapper = makeMapper();
-    const src = makeAsset({ mediaID: 1, edgeUrl: "https://cdn.aglty.io/src/photo.jpg" });
-    const tgt = makeAsset({ mediaID: 2, edgeUrl: "https://cdn.aglty.io/tgt/photo.jpg" });
+    const src = makeAsset({ mediaID: 1, edgeUrl: 'https://cdn.aglty.io/src/photo.jpg' });
+    const tgt = makeAsset({ mediaID: 2, edgeUrl: 'https://cdn.aglty.io/tgt/photo.jpg' });
     mapper.addMapping(src, tgt);
-    const found = mapper.getAssetMappingByMediaUrl("https://cdn.aglty.io/src/photo.jpg", "source");
+    const found = mapper.getAssetMappingByMediaUrl('https://cdn.aglty.io/src/photo.jpg', 'source');
     expect(found).not.toBeNull();
     expect(found!.sourceMediaID).toBe(1);
   });
 
-  it("returns a mapping by exact target URL", () => {
+  it('returns a mapping by exact target URL', () => {
     const mapper = makeMapper();
-    const src = makeAsset({ mediaID: 1, edgeUrl: "https://cdn.aglty.io/src/photo.jpg" });
-    const tgt = makeAsset({ mediaID: 2, edgeUrl: "https://cdn.aglty.io/tgt/photo.jpg" });
+    const src = makeAsset({ mediaID: 1, edgeUrl: 'https://cdn.aglty.io/src/photo.jpg' });
+    const tgt = makeAsset({ mediaID: 2, edgeUrl: 'https://cdn.aglty.io/tgt/photo.jpg' });
     mapper.addMapping(src, tgt);
-    const found = mapper.getAssetMappingByMediaUrl("https://cdn.aglty.io/tgt/photo.jpg", "target");
+    const found = mapper.getAssetMappingByMediaUrl('https://cdn.aglty.io/tgt/photo.jpg', 'target');
     expect(found).not.toBeNull();
     expect(found!.targetMediaID).toBe(2);
   });
 
-  it("falls back to container prefix match when exact URL is not found", () => {
+  it('falls back to container prefix match when exact URL is not found', () => {
     const mapper = makeMapper();
     const src = makeAsset({
       mediaID: 1,
-      edgeUrl: "https://cdn.aglty.io/src/img.jpg",
-      containerEdgeUrl: "https://cdn.aglty.io/src",
+      edgeUrl: 'https://cdn.aglty.io/src/img.jpg',
+      containerEdgeUrl: 'https://cdn.aglty.io/src',
     });
     const tgt = makeAsset({
       mediaID: 2,
-      edgeUrl: "https://cdn.aglty.io/tgt/img.jpg",
-      containerEdgeUrl: "https://cdn.aglty.io/tgt",
+      edgeUrl: 'https://cdn.aglty.io/tgt/img.jpg',
+      containerEdgeUrl: 'https://cdn.aglty.io/tgt',
     });
     mapper.addMapping(src, tgt);
-    const found = mapper.getAssetMappingByMediaUrl("https://cdn.aglty.io/src/subfolder/other.jpg", "source");
+    const found = mapper.getAssetMappingByMediaUrl('https://cdn.aglty.io/src/subfolder/other.jpg', 'source');
     expect(found).not.toBeNull();
   });
 });
 
 // ─── remapUrlByContainer ──────────────────────────────────────────────────────
 
-describe("AssetMapper.remapUrlByContainer", () => {
-  it("returns null when no mappings exist", () => {
+describe('AssetMapper.remapUrlByContainer', () => {
+  it('returns null when no mappings exist', () => {
     const mapper = makeMapper();
-    expect(mapper.remapUrlByContainer("https://cdn.aglty.io/src/file.jpg", "source")).toBeNull();
+    expect(mapper.remapUrlByContainer('https://cdn.aglty.io/src/file.jpg', 'source')).toBeNull();
   });
 
-  it("remaps a URL by swapping the edge container prefix", () => {
+  it('remaps a URL by swapping the edge container prefix', () => {
     const mapper = makeMapper();
     const src = makeAsset({
       mediaID: 1,
-      edgeUrl: "https://cdn.aglty.io/src/img.jpg",
-      containerEdgeUrl: "https://cdn.aglty.io/src",
-      containerOriginUrl: "https://origin.aglty.io/src",
+      edgeUrl: 'https://cdn.aglty.io/src/img.jpg',
+      containerEdgeUrl: 'https://cdn.aglty.io/src',
+      containerOriginUrl: 'https://origin.aglty.io/src',
     });
     const tgt = makeAsset({
       mediaID: 2,
-      edgeUrl: "https://cdn.aglty.io/tgt/img.jpg",
-      containerEdgeUrl: "https://cdn.aglty.io/tgt",
-      containerOriginUrl: "https://origin.aglty.io/tgt",
+      edgeUrl: 'https://cdn.aglty.io/tgt/img.jpg',
+      containerEdgeUrl: 'https://cdn.aglty.io/tgt',
+      containerOriginUrl: 'https://origin.aglty.io/tgt',
     });
     mapper.addMapping(src, tgt);
-    const result = mapper.remapUrlByContainer("https://cdn.aglty.io/src/sub/file.jpg", "source");
-    expect(result).toBe("https://cdn.aglty.io/tgt/sub/file.jpg");
+    const result = mapper.remapUrlByContainer('https://cdn.aglty.io/src/sub/file.jpg', 'source');
+    expect(result).toBe('https://cdn.aglty.io/tgt/sub/file.jpg');
   });
 
-  it("remaps a URL by swapping the origin container prefix when edge does not match", () => {
+  it('remaps a URL by swapping the origin container prefix when edge does not match', () => {
     const mapper = makeMapper();
     const src = makeAsset({
       mediaID: 1,
-      edgeUrl: "https://cdn.aglty.io/src/img.jpg",
+      edgeUrl: 'https://cdn.aglty.io/src/img.jpg',
       containerEdgeUrl: null,
-      containerOriginUrl: "https://origin.aglty.io/src",
+      containerOriginUrl: 'https://origin.aglty.io/src',
     });
     const tgt = makeAsset({
       mediaID: 2,
-      edgeUrl: "https://cdn.aglty.io/tgt/img.jpg",
+      edgeUrl: 'https://cdn.aglty.io/tgt/img.jpg',
       containerEdgeUrl: null,
-      containerOriginUrl: "https://origin.aglty.io/tgt",
+      containerOriginUrl: 'https://origin.aglty.io/tgt',
     });
     mapper.addMapping(src, tgt);
-    const result = mapper.remapUrlByContainer("https://origin.aglty.io/src/photo.jpg", "source");
-    expect(result).toBe("https://origin.aglty.io/tgt/photo.jpg");
+    const result = mapper.remapUrlByContainer('https://origin.aglty.io/src/photo.jpg', 'source');
+    expect(result).toBe('https://origin.aglty.io/tgt/photo.jpg');
   });
 
-  it("returns null when URL does not match any container prefix", () => {
+  it('returns null when URL does not match any container prefix', () => {
     const mapper = makeMapper();
-    const src = makeAsset({ mediaID: 1, containerEdgeUrl: "https://cdn.aglty.io/src" });
-    const tgt = makeAsset({ mediaID: 2, containerEdgeUrl: "https://cdn.aglty.io/tgt" });
+    const src = makeAsset({ mediaID: 1, containerEdgeUrl: 'https://cdn.aglty.io/src' });
+    const tgt = makeAsset({ mediaID: 2, containerEdgeUrl: 'https://cdn.aglty.io/tgt' });
     mapper.addMapping(src, tgt);
-    const result = mapper.remapUrlByContainer("https://completely-different.io/file.jpg", "source");
+    const result = mapper.remapUrlByContainer('https://completely-different.io/file.jpg', 'source');
     expect(result).toBeNull();
   });
 });
 
 // ─── addMapping / updateMapping ───────────────────────────────────────────────
 
-describe("AssetMapper.addMapping", () => {
-  it("adds a new mapping when target does not exist", () => {
+describe('AssetMapper.addMapping', () => {
+  it('adds a new mapping when target does not exist', () => {
     const mapper = makeMapper();
     const src = makeAsset({ mediaID: 10 });
     const tgt = makeAsset({ mediaID: 20 });
     mapper.addMapping(src, tgt);
-    expect(mapper.getAssetMappingByMediaID(20, "target")).not.toBeNull();
+    expect(mapper.getAssetMappingByMediaID(20, 'target')).not.toBeNull();
   });
 
-  it("updates the mapping when target mediaID already exists", () => {
+  it('updates the mapping when target mediaID already exists', () => {
     const mapper = makeMapper();
-    const src1 = makeAsset({ mediaID: 10, dateModified: "2024-01-01T00:00:00Z" });
+    const src1 = makeAsset({ mediaID: 10, dateModified: '2024-01-01T00:00:00Z' });
     const tgt = makeAsset({ mediaID: 20 });
     mapper.addMapping(src1, tgt);
 
-    const src2 = makeAsset({ mediaID: 11, dateModified: "2024-02-01T00:00:00Z" });
+    const src2 = makeAsset({ mediaID: 11, dateModified: '2024-02-01T00:00:00Z' });
     mapper.addMapping(src2, tgt);
 
-    const found = mapper.getAssetMappingByMediaID(20, "target");
+    const found = mapper.getAssetMappingByMediaID(20, 'target');
     expect(found!.sourceMediaID).toBe(11);
   });
 });
 
 // ─── hasSourceChanged ─────────────────────────────────────────────────────────
 
-describe("AssetMapper.hasSourceChanged", () => {
-  it("returns false when sourceAsset is null", () => {
+describe('AssetMapper.hasSourceChanged', () => {
+  it('returns false when sourceAsset is null', () => {
     const mapper = makeMapper();
     expect(mapper.hasSourceChanged(null)).toBe(false);
   });
 
-  it("returns false when no mapping exists for the source asset", () => {
+  it('returns false when no mapping exists for the source asset', () => {
     const mapper = makeMapper();
     expect(mapper.hasSourceChanged(makeAsset({ mediaID: 999 }))).toBe(false);
   });
 
-  it("returns false when source date has not changed", () => {
+  it('returns false when source date has not changed', () => {
     const mapper = makeMapper();
-    const date = "2024-01-01T00:00:00Z";
+    const date = '2024-01-01T00:00:00Z';
     const src = makeAsset({ mediaID: 1, dateModified: date });
     mapper.addMapping(src, makeAsset({ mediaID: 2 }));
     expect(mapper.hasSourceChanged(makeAsset({ mediaID: 1, dateModified: date }))).toBe(false);
   });
 
-  it("returns true when source date is newer than mapped date", () => {
+  it('returns true when source date is newer than mapped date', () => {
     const mapper = makeMapper();
-    const src = makeAsset({ mediaID: 1, dateModified: "2024-01-01T00:00:00Z" });
+    const src = makeAsset({ mediaID: 1, dateModified: '2024-01-01T00:00:00Z' });
     mapper.addMapping(src, makeAsset({ mediaID: 2 }));
-    expect(mapper.hasSourceChanged(makeAsset({ mediaID: 1, dateModified: "2025-01-01T00:00:00Z" }))).toBe(true);
+    expect(mapper.hasSourceChanged(makeAsset({ mediaID: 1, dateModified: '2025-01-01T00:00:00Z' }))).toBe(true);
   });
 });
 
 // ─── hasTargetChanged ─────────────────────────────────────────────────────────
 
-describe("AssetMapper.hasTargetChanged", () => {
-  it("returns false when targetAsset is undefined", () => {
+describe('AssetMapper.hasTargetChanged', () => {
+  it('returns false when targetAsset is undefined', () => {
     const mapper = makeMapper();
     expect(mapper.hasTargetChanged(undefined)).toBe(false);
   });
 
-  it("returns false when no mapping exists for the target asset", () => {
+  it('returns false when no mapping exists for the target asset', () => {
     const mapper = makeMapper();
     expect(mapper.hasTargetChanged(makeAsset({ mediaID: 999 }))).toBe(false);
   });
 
-  it("returns false when target date has not changed", () => {
+  it('returns false when target date has not changed', () => {
     const mapper = makeMapper();
-    const date = "2024-01-01T00:00:00Z";
+    const date = '2024-01-01T00:00:00Z';
     const src = makeAsset({ mediaID: 1, dateModified: date });
     const tgt = makeAsset({ mediaID: 2, dateModified: date });
     mapper.addMapping(src, tgt);
     expect(mapper.hasTargetChanged(makeAsset({ mediaID: 2, dateModified: date }))).toBe(false);
   });
 
-  it("returns true when target date is newer than mapped date", () => {
+  it('returns true when target date is newer than mapped date', () => {
     const mapper = makeMapper();
     const src = makeAsset({ mediaID: 1 });
-    const tgt = makeAsset({ mediaID: 2, dateModified: "2024-01-01T00:00:00Z" });
+    const tgt = makeAsset({ mediaID: 2, dateModified: '2024-01-01T00:00:00Z' });
     mapper.addMapping(src, tgt);
-    expect(mapper.hasTargetChanged(makeAsset({ mediaID: 2, dateModified: "2025-06-01T00:00:00Z" }))).toBe(true);
+    expect(mapper.hasTargetChanged(makeAsset({ mediaID: 2, dateModified: '2025-06-01T00:00:00Z' }))).toBe(true);
   });
 });

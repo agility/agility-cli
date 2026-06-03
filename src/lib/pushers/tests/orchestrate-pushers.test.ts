@@ -1,13 +1,13 @@
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import { resetState, setState, state } from "core/state";
-import { Pushers } from "../orchestrate-pushers";
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { resetState, setState, state } from 'core/state';
+import { Pushers } from '../orchestrate-pushers';
 
 let tmpDir: string;
 
 beforeAll(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agility-orch-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agility-orch-'));
 });
 
 afterAll(() => {
@@ -17,9 +17,9 @@ afterAll(() => {
 beforeEach(() => {
   resetState();
   setState({ rootPath: tmpDir });
-  jest.spyOn(console, "log").mockImplementation(() => {});
-  jest.spyOn(console, "warn").mockImplementation(() => {});
-  jest.spyOn(console, "error").mockImplementation(() => {});
+  jest.spyOn(console, 'log').mockImplementation(() => {});
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -28,47 +28,47 @@ afterEach(() => {
 
 // ─── constructor ──────────────────────────────────────────────────────────────
 
-describe("Pushers constructor", () => {
-  it("constructs without throwing with no config", () => {
+describe('Pushers constructor', () => {
+  it('constructs without throwing with no config', () => {
     expect(() => new Pushers()).not.toThrow();
   });
 
-  it("constructs without throwing with empty config", () => {
+  it('constructs without throwing with empty config', () => {
     expect(() => new Pushers({})).not.toThrow();
   });
 
-  it("constructs without throwing with onOperationStart callback", () => {
+  it('constructs without throwing with onOperationStart callback', () => {
     const config = { onOperationStart: jest.fn() };
     expect(() => new Pushers(config)).not.toThrow();
   });
 
-  it("constructs without throwing when state has sourceGuid set", () => {
-    setState({ sourceGuid: "src-guid-u", targetGuid: "tgt-guid-u" });
+  it('constructs without throwing when state has sourceGuid set', () => {
+    setState({ sourceGuid: 'src-guid-u', targetGuid: 'tgt-guid-u' });
     expect(() => new Pushers()).not.toThrow();
   });
 });
 
 // ─── getPushSummary ───────────────────────────────────────────────────────────
 
-describe("Pushers.getPushSummary", () => {
-  it("returns summary shape with expected keys", () => {
+describe('Pushers.getPushSummary', () => {
+  it('returns summary shape with expected keys', () => {
     const pushers = new Pushers();
     const summary = pushers.getPushSummary();
 
-    expect(summary).toHaveProperty("totalOperations");
-    expect(summary).toHaveProperty("successfulOperations");
-    expect(summary).toHaveProperty("failedOperations");
-    expect(summary).toHaveProperty("overallSuccess");
-    expect(summary).toHaveProperty("duration");
+    expect(summary).toHaveProperty('totalOperations');
+    expect(summary).toHaveProperty('successfulOperations');
+    expect(summary).toHaveProperty('failedOperations');
+    expect(summary).toHaveProperty('overallSuccess');
+    expect(summary).toHaveProperty('duration');
   });
 
-  it("returns overallSuccess as true by default", () => {
+  it('returns overallSuccess as true by default', () => {
     const pushers = new Pushers();
     const summary = pushers.getPushSummary();
     expect(summary.overallSuccess).toBe(true);
   });
 
-  it("returns non-negative duration", () => {
+  it('returns non-negative duration', () => {
     const pushers = new Pushers();
     const summary = pushers.getPushSummary();
     expect(summary.duration).toBeGreaterThanOrEqual(0);
@@ -77,13 +77,13 @@ describe("Pushers.getPushSummary", () => {
 
 // ─── reset ────────────────────────────────────────────────────────────────────
 
-describe("Pushers.reset", () => {
-  it("does not throw when called", () => {
+describe('Pushers.reset', () => {
+  it('does not throw when called', () => {
     const pushers = new Pushers();
     expect(() => pushers.reset()).not.toThrow();
   });
 
-  it("duration increases after reset + time passes", () => {
+  it('duration increases after reset + time passes', () => {
     const pushers = new Pushers();
     const summaryBefore = pushers.getPushSummary();
     pushers.reset();
@@ -95,13 +95,13 @@ describe("Pushers.reset", () => {
 
 // ─── updateConfig ─────────────────────────────────────────────────────────────
 
-describe("Pushers.updateConfig", () => {
-  it("does not throw when updating config", () => {
+describe('Pushers.updateConfig', () => {
+  it('does not throw when updating config', () => {
     const pushers = new Pushers();
     expect(() => pushers.updateConfig({ onOperationStart: jest.fn() })).not.toThrow();
   });
 
-  it("allows partial config updates", () => {
+  it('allows partial config updates', () => {
     const cb = jest.fn();
     const pushers = new Pushers({ onOperationComplete: cb });
     expect(() => pushers.updateConfig({ onOperationStart: jest.fn() })).not.toThrow();
@@ -110,39 +110,37 @@ describe("Pushers.updateConfig", () => {
 
 // ─── instanceOrchestrator — guard clause: missing GUIDs ──────────────────────
 
-describe("Pushers.instanceOrchestrator — guard clause", () => {
-  it("throws when no sourceGuid is set", async () => {
+describe('Pushers.instanceOrchestrator — guard clause', () => {
+  it('throws when no sourceGuid is set', async () => {
     const pushers = new Pushers();
     // state has no sourceGuid after resetState
-    await expect(pushers.instanceOrchestrator()).rejects.toThrow(/No source or target GUIDs/);
+    await expect(pushers.instanceOrchestrator()).rejects.toThrow(
+      /No source or target GUIDs/
+    );
   });
 
-  it("throws when no targetGuid is set", async () => {
-    setState({ sourceGuid: "src-guid-u" });
+  it('throws when no targetGuid is set', async () => {
+    setState({ sourceGuid: 'src-guid-u' });
     const pushers = new Pushers();
-    await expect(pushers.instanceOrchestrator()).rejects.toThrow(/No source or target GUIDs/);
+    await expect(pushers.instanceOrchestrator()).rejects.toThrow(
+      /No source or target GUIDs/
+    );
   });
 });
 
 // ─── executePushOperation — skips on empty data ───────────────────────────────
 
-describe("Pushers.executePushOperation — empty data skip", () => {
-  it("returns zero counts when elementData is empty array", async () => {
-    setState({ sourceGuid: "src-u", targetGuid: "tgt-u" });
+describe('Pushers.executePushOperation — empty data skip', () => {
+  it('returns zero counts when elementData is empty array', async () => {
+    setState({ sourceGuid: 'src-u', targetGuid: 'tgt-u' });
     const pushers = new Pushers();
 
-    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    const { PUSH_OPERATIONS } = await import('../push-operations-config');
     const config = PUSH_OPERATIONS.models;
 
     const emptySource: any = {
-      pages: [],
-      templates: [],
-      containers: [],
-      lists: [],
-      models: [],
-      content: [],
-      assets: [],
-      galleries: [],
+      pages: [], templates: [], containers: [], lists: [],
+      models: [], content: [], assets: [], galleries: []
     };
     const emptyTarget: any = { ...emptySource };
 
@@ -150,8 +148,8 @@ describe("Pushers.executePushOperation — empty data skip", () => {
       config,
       sourceData: emptySource,
       targetData: emptyTarget,
-      locale: "en-us",
-      elements: ["Models"],
+      locale: 'en-us',
+      elements: ['Models'],
     });
 
     expect(result.success).toBe(0);
@@ -159,30 +157,25 @@ describe("Pushers.executePushOperation — empty data skip", () => {
     expect(result.skipped).toBe(0);
   });
 
-  it("returns zero counts when element is not in requested elements", async () => {
-    setState({ sourceGuid: "src-u", targetGuid: "tgt-u" });
+  it('returns zero counts when element is not in requested elements', async () => {
+    setState({ sourceGuid: 'src-u', targetGuid: 'tgt-u' });
     const pushers = new Pushers();
 
-    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    const { PUSH_OPERATIONS } = await import('../push-operations-config');
     const config = PUSH_OPERATIONS.models;
 
     const sourceData: any = {
-      pages: [],
-      templates: [],
-      containers: [],
-      lists: [],
-      models: [{ id: 1, referenceName: "TestModel" }],
-      content: [],
-      assets: [],
-      galleries: [],
+      pages: [], templates: [], containers: [], lists: [],
+      models: [{ id: 1, referenceName: 'TestModel' }],
+      content: [], assets: [], galleries: []
     };
 
     const result = await pushers.executePushOperation({
       config,
       sourceData,
       targetData: { ...sourceData },
-      locale: "en-us",
-      elements: ["Pages"], // Models not in requested elements
+      locale: 'en-us',
+      elements: ['Pages'], // Models not in requested elements
     });
 
     expect(result.success).toBe(0);
@@ -192,70 +185,60 @@ describe("Pushers.executePushOperation — empty data skip", () => {
 
 // ─── executePushOperation — callbacks ─────────────────────────────────────────
 
-describe("Pushers.executePushOperation — callbacks", () => {
-  it("calls onOperationStart when data is non-empty", async () => {
-    setState({ sourceGuid: "src-u", targetGuid: "tgt-u" });
+describe('Pushers.executePushOperation — callbacks', () => {
+  it('calls onOperationStart when data is non-empty', async () => {
+    setState({ sourceGuid: 'src-u', targetGuid: 'tgt-u' });
     const onOperationStart = jest.fn();
     const pushers = new Pushers({ onOperationStart });
 
-    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    const { PUSH_OPERATIONS } = await import('../push-operations-config');
     const config = {
       ...PUSH_OPERATIONS.models,
-      handler: jest.fn().mockResolvedValue({ status: "success", successful: 0, failed: 0, skipped: 0 }),
+      handler: jest.fn().mockResolvedValue({ status: 'success', successful: 0, failed: 0, skipped: 0 }),
     };
 
     const sourceData: any = {
-      pages: [],
-      templates: [],
-      containers: [],
-      lists: [],
-      models: [{ id: 1, referenceName: "TestModel" }],
-      content: [],
-      assets: [],
-      galleries: [],
+      pages: [], templates: [], containers: [], lists: [],
+      models: [{ id: 1, referenceName: 'TestModel' }],
+      content: [], assets: [], galleries: []
     };
 
     await pushers.executePushOperation({
       config,
       sourceData,
       targetData: { ...sourceData },
-      locale: "en-us",
-      elements: ["Models"],
+      locale: 'en-us',
+      elements: ['Models'],
     });
 
-    expect(onOperationStart).toHaveBeenCalledWith("pushModels", "src-u", "tgt-u");
+    expect(onOperationStart).toHaveBeenCalledWith('pushModels', 'src-u', 'tgt-u');
   });
 
-  it("calls onOperationComplete when data is non-empty", async () => {
-    setState({ sourceGuid: "src-u", targetGuid: "tgt-u" });
+  it('calls onOperationComplete when data is non-empty', async () => {
+    setState({ sourceGuid: 'src-u', targetGuid: 'tgt-u' });
     const onOperationComplete = jest.fn();
     const pushers = new Pushers({ onOperationComplete });
 
-    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    const { PUSH_OPERATIONS } = await import('../push-operations-config');
     const config = {
       ...PUSH_OPERATIONS.models,
-      handler: jest.fn().mockResolvedValue({ status: "success", successful: 1, failed: 0, skipped: 0 }),
+      handler: jest.fn().mockResolvedValue({ status: 'success', successful: 1, failed: 0, skipped: 0 }),
     };
 
     const sourceData: any = {
-      pages: [],
-      templates: [],
-      containers: [],
-      lists: [],
-      models: [{ id: 1, referenceName: "TestModel" }],
-      content: [],
-      assets: [],
-      galleries: [],
+      pages: [], templates: [], containers: [], lists: [],
+      models: [{ id: 1, referenceName: 'TestModel' }],
+      content: [], assets: [], galleries: []
     };
 
     await pushers.executePushOperation({
       config,
       sourceData,
       targetData: { ...sourceData },
-      locale: "en-us",
-      elements: ["Models"],
+      locale: 'en-us',
+      elements: ['Models'],
     });
 
-    expect(onOperationComplete).toHaveBeenCalledWith("pushModels", "src-u", "tgt-u", true);
+    expect(onOperationComplete).toHaveBeenCalledWith('pushModels', 'src-u', 'tgt-u', true);
   });
 });

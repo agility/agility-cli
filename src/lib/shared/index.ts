@@ -7,36 +7,36 @@ export * from "../loggers";
 export * from "../pushers/batch-polling";
 export * from "./link-type-detector";
 export { GuidDataLoader, GuidEntities, SourceEntities } from "../pushers/guid-data-loader";
-export function prettyException(error: any): string {
-  return error.message || error.toString();
-}
-export function logBatchError(error: any, context: string): void {
-  console.error("Batch Error:", error);
-}
+export function prettyException(error: any): string { return error.message || error.toString(); }
+export function logBatchError(error: any, context: string): void { console.error("Batch Error:", error); }
 export { pollBatchUntilComplete, extractContentBatchResults, extractPageBatchResults } from "../pushers/batch-polling";
 
 // Source publish status checker - checks source instance publish status
 export {
-  checkSourcePublishStatus,
-  filterPublishedContent,
-  filterPublishedPages,
-  isPublished,
-} from "./source-publish-status-checker";
+    checkSourcePublishStatus,
+    filterPublishedContent,
+    filterPublishedPages,
+    isPublished
+} from './source-publish-status-checker';
 
 // Fetch API status checker - checks if CDN sync is complete
 export {
-  getFetchApiStatus,
-  waitForFetchApiSync,
-  type FetchApiStatus,
-  type FetchApiSyncMode,
-} from "./get-fetch-api-status";
+    getFetchApiStatus,
+    waitForFetchApiSync,
+    type FetchApiStatus,
+    type FetchApiSyncMode
+} from './get-fetch-api-status';
 
 // Re-export types from central types folder
-export { ItemState, type SourceItemData, type PublishStatusResult } from "../../types";
+export {
+    ItemState,
+    type SourceItemData,
+    type PublishStatusResult
+} from '../../types';
 
 // Version utility
-import * as fs from "fs";
-import * as path from "path";
+import * as fs from 'fs';
+import * as path from 'path';
 
 /**
  * Get package version from package.json
@@ -48,19 +48,19 @@ import * as path from "path";
 export function getPackageVersion(): string {
   const possiblePaths = [
     // Try current working directory first (for development)
-    path.join(process.cwd(), "package.json"),
+    path.join(process.cwd(), 'package.json'),
     // Try the CLI installation directory (for installed CLI)
-    path.join(__dirname, "../../package.json"),
-    path.join(__dirname, "../../../package.json"),
+    path.join(__dirname, '../../package.json'),
+    path.join(__dirname, '../../../package.json'),
     // Try one more level up for different installation structures
-    path.join(__dirname, "../../../../package.json"),
+    path.join(__dirname, '../../../../package.json')
   ];
 
   for (const packageJsonPath of possiblePaths) {
     try {
       if (fs.existsSync(packageJsonPath)) {
-        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, "utf8"));
-        if (packageJson.version && packageJson.name === "@agility/cli") {
+        const packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+        if (packageJson.version && packageJson.name === '@agility/cli') {
           return packageJson.version;
         }
       }
@@ -71,7 +71,7 @@ export function getPackageVersion(): string {
   }
 
   // If we can't find the package.json or version, return 'unknown'
-  return "unknown";
+  return 'unknown';
 }
 
 /**
@@ -80,9 +80,9 @@ export function getPackageVersion(): string {
 export function generateLogHeader(operationType: string, additionalInfo: Record<string, any> = {}): string {
   const timestamp = new Date().toISOString();
   const version = getPackageVersion();
-
+  
   const headerLines = [
-    "=".repeat(80),
+    '='.repeat(80),
     `Agility CLI ${operationType} Operation Log`,
     `Version: ${version}`,
     `Timestamp: ${timestamp}`,
@@ -93,8 +93,8 @@ export function generateLogHeader(operationType: string, additionalInfo: Record<
     headerLines.push(`${key}: ${value}`);
   });
 
-  headerLines.push("=".repeat(80));
-  headerLines.push("");
+  headerLines.push('='.repeat(80));
+  headerLines.push('');
 
-  return headerLines.join("\n");
+  return headerLines.join('\n');
 }

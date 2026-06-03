@@ -1,13 +1,13 @@
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import { resetState, setState } from "core/state";
-import { ContentItemMapper } from "lib/mappers/content-item-mapper";
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { resetState, setState } from 'core/state';
+import { ContentItemMapper } from 'lib/mappers/content-item-mapper';
 
 let tmpDir: string;
 
 beforeAll(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agility-content-item-mapper-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agility-content-item-mapper-'));
 });
 
 afterAll(() => {
@@ -17,9 +17,9 @@ afterAll(() => {
 beforeEach(() => {
   resetState();
   setState({ rootPath: tmpDir });
-  jest.spyOn(console, "log").mockImplementation(() => {});
-  jest.spyOn(console, "warn").mockImplementation(() => {});
-  jest.spyOn(console, "error").mockImplementation(() => {});
+  jest.spyOn(console, 'log').mockImplementation(() => {});
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -27,7 +27,7 @@ afterEach(() => {
 });
 
 let testCounter = 0;
-const LOCALE = "en-us";
+const LOCALE = 'en-us';
 let currentSrc: string;
 let currentTgt: string;
 
@@ -44,20 +44,20 @@ function makeItem(overrides: Record<string, any> = {}): any {
     contentID: 100,
     properties: {
       versionID: 1,
-      referenceName: "my-ref",
-      definitionName: "MyModel",
+      referenceName: 'my-ref',
+      definitionName: 'MyModel',
       state: 2,
       ...propOverride,
     },
-    fields: { title: "Test Item" },
+    fields: { title: 'Test Item' },
     ...rest,
   };
 }
 
 // ─── constructor ──────────────────────────────────────────────────────────────
 
-describe("ContentItemMapper constructor", () => {
-  it("constructs without throwing and exposes locale", () => {
+describe('ContentItemMapper constructor', () => {
+  it('constructs without throwing and exposes locale', () => {
     const mapper = makeMapper();
     expect(mapper.locale).toBe(LOCALE);
   });
@@ -65,87 +65,87 @@ describe("ContentItemMapper constructor", () => {
 
 // ─── getContentItemMapping ────────────────────────────────────────────────────
 
-describe("ContentItemMapper.getContentItemMapping", () => {
-  it("returns null when no mapping exists", () => {
+describe('ContentItemMapper.getContentItemMapping', () => {
+  it('returns null when no mapping exists', () => {
     const mapper = makeMapper();
-    expect(mapper.getContentItemMapping(makeItem({ contentID: 999 }), "source")).toBeNull();
+    expect(mapper.getContentItemMapping(makeItem({ contentID: 999 }), 'source')).toBeNull();
   });
 
-  it("finds mapping by source contentID", () => {
+  it('finds mapping by source contentID', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20 }));
-    expect(mapper.getContentItemMapping(makeItem({ contentID: 10 }), "source")).not.toBeNull();
+    expect(mapper.getContentItemMapping(makeItem({ contentID: 10 }), 'source')).not.toBeNull();
   });
 
-  it("finds mapping by target contentID", () => {
+  it('finds mapping by target contentID', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20 }));
-    const found = mapper.getContentItemMapping(makeItem({ contentID: 20 }), "target");
+    const found = mapper.getContentItemMapping(makeItem({ contentID: 20 }), 'target');
     expect(found!.targetContentID).toBe(20);
   });
 });
 
 // ─── getContentItemMappingByContentID ────────────────────────────────────────
 
-describe("ContentItemMapper.getContentItemMappingByContentID", () => {
-  it("returns null for unknown ID", () => {
+describe('ContentItemMapper.getContentItemMappingByContentID', () => {
+  it('returns null for unknown ID', () => {
     const mapper = makeMapper();
-    expect(mapper.getContentItemMappingByContentID(999, "source")).toBeNull();
+    expect(mapper.getContentItemMappingByContentID(999, 'source')).toBeNull();
   });
 
-  it("returns mapping by source contentID", () => {
+  it('returns mapping by source contentID', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 5 }), makeItem({ contentID: 6 }));
-    expect(mapper.getContentItemMappingByContentID(5, "source")).not.toBeNull();
+    expect(mapper.getContentItemMappingByContentID(5, 'source')).not.toBeNull();
   });
 
-  it("returns mapping by target contentID", () => {
+  it('returns mapping by target contentID', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 5 }), makeItem({ contentID: 6 }));
-    expect(mapper.getContentItemMappingByContentID(6, "target")).not.toBeNull();
+    expect(mapper.getContentItemMappingByContentID(6, 'target')).not.toBeNull();
   });
 });
 
 // ─── getMappedEntity ──────────────────────────────────────────────────────────
 
-describe("ContentItemMapper.getMappedEntity", () => {
-  it("returns null when mapping is null", () => {
+describe('ContentItemMapper.getMappedEntity', () => {
+  it('returns null when mapping is null', () => {
     const mapper = makeMapper();
-    expect(mapper.getMappedEntity(null as any, "source")).toBeNull();
+    expect(mapper.getMappedEntity(null as any, 'source')).toBeNull();
   });
 
-  it("returns null when mapping has no guid", () => {
+  it('returns null when mapping has no guid', () => {
     const mapper = makeMapper();
     const mapping = {
-      sourceGuid: "",
-      targetGuid: "",
+      sourceGuid: '',
+      targetGuid: '',
       sourceContentID: 0,
       targetContentID: 0,
       sourceVersionID: 1,
       targetVersionID: 1,
     };
-    expect(mapper.getMappedEntity(mapping as any, "source")).toBeNull();
+    expect(mapper.getMappedEntity(mapping as any, 'source')).toBeNull();
   });
 
-  it("returns null when the content file does not exist on disk", () => {
+  it('returns null when the content file does not exist on disk', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20 }));
-    const mapping = mapper.getContentItemMappingByContentID(20, "target")!;
-    expect(mapper.getMappedEntity(mapping, "target")).toBeNull();
+    const mapping = mapper.getContentItemMappingByContentID(20, 'target')!;
+    expect(mapper.getMappedEntity(mapping, 'target')).toBeNull();
   });
 
-  it("returns the content item when the file exists and has properties", () => {
+  it('returns the content item when the file exists and has properties', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20 }));
-    const mapping = mapper.getContentItemMappingByContentID(20, "target")!;
+    const mapping = mapper.getContentItemMappingByContentID(20, 'target')!;
 
     // Write a fake content item file to the target location
-    const itemDir = path.join(tmpDir, currentTgt, LOCALE, "item");
+    const itemDir = path.join(tmpDir, currentTgt, LOCALE, 'item');
     fs.mkdirSync(itemDir, { recursive: true });
     const itemData = { contentID: 20, properties: { versionID: 5 }, fields: {} };
-    fs.writeFileSync(path.join(itemDir, "20.json"), JSON.stringify(itemData));
+    fs.writeFileSync(path.join(itemDir, '20.json'), JSON.stringify(itemData));
 
-    const result = mapper.getMappedEntity(mapping, "target");
+    const result = mapper.getMappedEntity(mapping, 'target');
     expect(result).not.toBeNull();
     expect((result as any).contentID).toBe(20);
   });
@@ -153,31 +153,31 @@ describe("ContentItemMapper.getMappedEntity", () => {
 
 // ─── addMapping / updateMapping ───────────────────────────────────────────────
 
-describe("ContentItemMapper.addMapping", () => {
-  it("adds a new mapping", () => {
+describe('ContentItemMapper.addMapping', () => {
+  it('adds a new mapping', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20 }));
-    expect(mapper.getContentItemMappingByContentID(20, "target")).not.toBeNull();
+    expect(mapper.getContentItemMappingByContentID(20, 'target')).not.toBeNull();
   });
 
-  it("updates an existing mapping when target contentID already exists", () => {
+  it('updates an existing mapping when target contentID already exists', () => {
     const mapper = makeMapper();
     const tgt = makeItem({ contentID: 20, properties: { versionID: 1 } });
     mapper.addMapping(makeItem({ contentID: 10, properties: { versionID: 1 } }), tgt);
     mapper.addMapping(makeItem({ contentID: 11, properties: { versionID: 2 } }), tgt);
-    const found = mapper.getContentItemMappingByContentID(20, "target")!;
+    const found = mapper.getContentItemMappingByContentID(20, 'target')!;
     expect(found.sourceContentID).toBe(11);
     expect(found.sourceVersionID).toBe(2);
   });
 
-  it("throws when source is already mapped to a target and a different target is also already mapped", () => {
+  it('throws when source is already mapped to a target and a different target is also already mapped', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20 }));
     mapper.addMapping(makeItem({ contentID: 11 }), makeItem({ contentID: 21 }));
     // source 10 maps to 20; target 21 maps to 11 — genuinely conflicting cross-mapping
-    expect(() => mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 21 }))).toThrow(
-      "Invalid Mappings detected"
-    );
+    expect(() =>
+      mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 21 }))
+    ).toThrow('Invalid Mappings detected');
   });
 
   it('throws when source already has a mapping but a different unmapped target is provided (duplicate mapping attempt)', () => {
@@ -193,41 +193,44 @@ describe("ContentItemMapper.addMapping", () => {
 
 // ─── hasSourceChanged ─────────────────────────────────────────────────────────
 
-describe("ContentItemMapper.hasSourceChanged", () => {
-  it("returns true when no mapping exists (treat as changed)", () => {
+describe('ContentItemMapper.hasSourceChanged', () => {
+  it('returns true when no mapping exists (treat as changed)', () => {
     const mapper = makeMapper();
     expect(mapper.hasSourceChanged(makeItem({ contentID: 999, properties: { versionID: 1 } }))).toBe(true);
   });
 
-  it("returns false when versionID matches mapping", () => {
+  it('returns false when versionID matches mapping', () => {
     const mapper = makeMapper();
     const src = makeItem({ contentID: 10, properties: { versionID: 5 } });
     mapper.addMapping(src, makeItem({ contentID: 20 }));
     expect(mapper.hasSourceChanged(makeItem({ contentID: 10, properties: { versionID: 5 } }))).toBe(false);
   });
 
-  it("returns true when source versionID is greater than mapped versionID", () => {
+  it('returns true when source versionID is greater than mapped versionID', () => {
     const mapper = makeMapper();
-    mapper.addMapping(makeItem({ contentID: 10, properties: { versionID: 5 } }), makeItem({ contentID: 20 }));
+    mapper.addMapping(
+      makeItem({ contentID: 10, properties: { versionID: 5 } }),
+      makeItem({ contentID: 20 }),
+    );
     expect(mapper.hasSourceChanged(makeItem({ contentID: 10, properties: { versionID: 10 } }))).toBe(true);
   });
 });
 
 // ─── hasTargetChanged ─────────────────────────────────────────────────────────
 
-describe("ContentItemMapper.hasTargetChanged", () => {
-  it("returns false when no mapping exists", () => {
+describe('ContentItemMapper.hasTargetChanged', () => {
+  it('returns false when no mapping exists', () => {
     const mapper = makeMapper();
     expect(mapper.hasTargetChanged(makeItem({ contentID: 999 }))).toBe(false);
   });
 
-  it("returns false when versionID matches", () => {
+  it('returns false when versionID matches', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20, properties: { versionID: 3 } }));
     expect(mapper.hasTargetChanged(makeItem({ contentID: 20, properties: { versionID: 3 } }))).toBe(false);
   });
 
-  it("returns true when target versionID is greater than mapped versionID", () => {
+  it('returns true when target versionID is greater than mapped versionID', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20, properties: { versionID: 3 } }));
     expect(mapper.hasTargetChanged(makeItem({ contentID: 20, properties: { versionID: 9 } }))).toBe(true);
@@ -236,13 +239,13 @@ describe("ContentItemMapper.hasTargetChanged", () => {
 
 // ─── updateTargetVersionID ────────────────────────────────────────────────────
 
-describe("ContentItemMapper.updateTargetVersionID", () => {
-  it("returns success:false when no mapping exists", () => {
+describe('ContentItemMapper.updateTargetVersionID', () => {
+  it('returns success:false when no mapping exists', () => {
     const mapper = makeMapper();
     expect(mapper.updateTargetVersionID(999, 42)).toEqual({ success: false });
   });
 
-  it("returns success:true with old and new versionIDs when mapping exists", () => {
+  it('returns success:true with old and new versionIDs when mapping exists', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20, properties: { versionID: 5 } }));
     const result = mapper.updateTargetVersionID(20, 10);
@@ -251,18 +254,18 @@ describe("ContentItemMapper.updateTargetVersionID", () => {
     expect(result.newVersionID).toBe(10);
   });
 
-  it("does not save mapping when versionID is unchanged", () => {
+  it('does not save mapping when versionID is unchanged', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20, properties: { versionID: 5 } }));
-    const saveSpy = jest.spyOn(mapper as any, "saveMapping");
+    const saveSpy = jest.spyOn(mapper as any, 'saveMapping');
     mapper.updateTargetVersionID(20, 5);
     expect(saveSpy).not.toHaveBeenCalled();
   });
 
-  it("saves mapping when versionID changes", () => {
+  it('saves mapping when versionID changes', () => {
     const mapper = makeMapper();
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20, properties: { versionID: 5 } }));
-    const saveSpy = jest.spyOn(mapper as any, "saveMapping");
+    const saveSpy = jest.spyOn(mapper as any, 'saveMapping');
     mapper.updateTargetVersionID(20, 99);
     expect(saveSpy).toHaveBeenCalledTimes(1);
   });

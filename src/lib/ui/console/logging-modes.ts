@@ -1,5 +1,5 @@
-import { getState } from "../../../core/state";
-import { ConsoleMode } from "./console-manager";
+import { getState } from '../../../core/state';
+import { ConsoleMode } from './console-manager';
 
 export interface LoggingModeConfig {
   mode: ConsoleMode;
@@ -19,16 +19,16 @@ export class LoggingModes {
 
     // Priority order: useHeadless > useVerbose > default (plain)
     // Remove blessed from priority order
-
+    
     if (state.useHeadless) {
-      return "headless";
+      return 'headless';
     }
-
+    
     if (state.useVerbose) {
-      return "verbose";
+      return 'verbose';
     }
-
-    return "plain";
+    
+    return 'plain';
   }
 
   /**
@@ -36,24 +36,24 @@ export class LoggingModes {
    */
   static getConfig(mode: ConsoleMode): LoggingModeConfig {
     switch (mode) {
-      case "headless":
+      case 'headless':
         return {
-          mode: "headless",
+          mode: 'headless',
           shouldLogToFile: true,
           shouldLogToConsole: false,
           shouldRedirectToUI: false,
           shouldShowProgress: false,
-          shouldShowVerboseOutput: false,
+          shouldShowVerboseOutput: false
         };
 
-      case "verbose":
+      case 'verbose':
         return {
-          mode: "verbose",
+          mode: 'verbose',
           shouldLogToFile: true,
           shouldLogToConsole: true,
           shouldRedirectToUI: false,
           shouldShowProgress: true,
-          shouldShowVerboseOutput: true,
+          shouldShowVerboseOutput: true
         };
 
       // Remove blessed case:
@@ -67,15 +67,15 @@ export class LoggingModes {
       //     shouldShowVerboseOutput: false
       //   };
 
-      case "plain":
+      case 'plain':
       default:
         return {
-          mode: "plain",
+          mode: 'plain',
           shouldLogToFile: true,
           shouldLogToConsole: true,
           shouldRedirectToUI: false,
           shouldShowProgress: true,
-          shouldShowVerboseOutput: false,
+          shouldShowVerboseOutput: false
         };
     }
   }
@@ -124,19 +124,19 @@ export class LoggingModes {
   /**
    * Conditional logging based on mode
    */
-  static shouldLog(logType: "console" | "file" | "ui" | "progress" | "verbose"): boolean {
+  static shouldLog(logType: 'console' | 'file' | 'ui' | 'progress' | 'verbose'): boolean {
     const config = this.getCurrentConfig();
 
     switch (logType) {
-      case "console":
+      case 'console':
         return config.shouldLogToConsole;
-      case "file":
+      case 'file':
         return config.shouldLogToFile;
-      case "ui":
+      case 'ui':
         return config.shouldRedirectToUI;
-      case "progress":
+      case 'progress':
         return config.shouldShowProgress;
-      case "verbose":
+      case 'verbose':
         return config.shouldShowVerboseOutput;
       default:
         return true;
@@ -153,20 +153,20 @@ export class LoggingModes {
     includeProgressBars: boolean;
   } {
     switch (mode) {
-      case "headless":
+      case 'headless':
         return {
           includeTimestamp: true,
           includeLevel: true,
           includeColors: false,
-          includeProgressBars: false,
+          includeProgressBars: false
         };
 
-      case "verbose":
+      case 'verbose':
         return {
           includeTimestamp: false,
           includeLevel: false,
           includeColors: true,
-          includeProgressBars: true,
+          includeProgressBars: true
         };
 
       // Remove blessed case:
@@ -178,13 +178,13 @@ export class LoggingModes {
       //     includeProgressBars: true
       //   };
 
-      case "plain":
+      case 'plain':
       default:
         return {
           includeTimestamp: false,
           includeLevel: false,
           includeColors: true,
-          includeProgressBars: true,
+          includeProgressBars: true
         };
     }
   }
@@ -200,20 +200,20 @@ export class LoggingModes {
   /**
    * Check if we should show specific content based on mode
    */
-  static shouldShowContent(contentType: "errors" | "warnings" | "info" | "debug" | "stats"): boolean {
+  static shouldShowContent(contentType: 'errors' | 'warnings' | 'info' | 'debug' | 'stats'): boolean {
     const config = this.getCurrentConfig();
     const format = this.getCurrentLogFormat();
 
     switch (contentType) {
-      case "errors":
+      case 'errors':
         return true; // Always show errors
-      case "warnings":
+      case 'warnings':
         return true; // Always show warnings
-      case "info":
+      case 'info':
         return config.shouldLogToConsole || config.shouldRedirectToUI;
-      case "debug":
+      case 'debug':
         return config.shouldShowVerboseOutput;
-      case "stats":
+      case 'stats':
         return config.shouldShowProgress;
       default:
         return true;
@@ -230,20 +230,20 @@ export class LoggingModes {
     bufferedOutput: boolean;
   } {
     switch (mode) {
-      case "headless":
+      case 'headless':
         return {
           redirectConsole: true,
           showInlineProgress: false,
           enableColors: false,
-          bufferedOutput: false,
+          bufferedOutput: false
         };
 
-      case "verbose":
+      case 'verbose':
         return {
           redirectConsole: false,
           showInlineProgress: true,
           enableColors: true,
-          bufferedOutput: false,
+          bufferedOutput: false
         };
 
       // Remove blessed case:
@@ -255,13 +255,13 @@ export class LoggingModes {
       //     bufferedOutput: true
       //   };
 
-      case "plain":
+      case 'plain':
       default:
         return {
           redirectConsole: false,
           showInlineProgress: true,
           enableColors: true,
-          bufferedOutput: false,
+          bufferedOutput: false
         };
     }
   }
@@ -287,29 +287,32 @@ export class LoggingModes {
     const errors: string[] = [];
 
     // Check for conflicting modes
-    const modeCount = [state.useHeadless, state.useVerbose].filter(Boolean).length;
+    const modeCount = [
+      state.useHeadless,
+      state.useVerbose
+    ].filter(Boolean).length;
 
     if (modeCount > 1) {
-      warnings.push("Multiple console modes specified, using priority order: headless > verbose");
+      warnings.push('Multiple console modes specified, using priority order: headless > verbose');
     }
 
     // Check for required state values
     if (!state.rootPath) {
-      errors.push("rootPath is required for file logging");
+      errors.push('rootPath is required for file logging');
     }
 
     if (!state.sourceGuid?.length) {
-      errors.push("sourceGuid is required for logging operations");
+      errors.push('sourceGuid is required for logging operations');
     }
 
     if (!state.locale?.length) {
-      errors.push("locale is required for logging operations");
+      errors.push('locale is required for logging operations');
     }
 
     return {
       isValid: errors.length === 0,
       warnings,
-      errors,
+      errors
     };
   }
 
@@ -318,15 +321,15 @@ export class LoggingModes {
    */
   static getModeDescription(mode: ConsoleMode): string {
     switch (mode) {
-      case "headless":
-        return "Headless mode - All output redirected to log file only";
-      case "verbose":
-        return "Verbose mode - Full console output with detailed progress information";
+      case 'headless':
+        return 'Headless mode - All output redirected to log file only';
+      case 'verbose':
+        return 'Verbose mode - Full console output with detailed progress information';
       // Remove blessed case - no longer supported
-      case "plain":
-        return "Plain mode - Standard console output with basic progress information";
+      case 'plain':
+        return 'Plain mode - Standard console output with basic progress information';
       default:
-        return "Unknown mode";
+        return 'Unknown mode';
     }
   }
 
@@ -337,4 +340,4 @@ export class LoggingModes {
     const mode = this.determineMode();
     return this.getModeDescription(mode);
   }
-}
+} 

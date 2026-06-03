@@ -45,7 +45,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       logger.model.error(
         sourceModel,
         "Model is missing required properties (id or referenceName), skipping",
-        targetGuid[0]
+        targetGuid[0],
       );
       skipped++;
       continue;
@@ -73,7 +73,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     // Handle models that exist in target but have no mapping
     // This ensures downstream containers can find their model mappings
     const targetModelByReference = targetData.find(
-      (targetModel) => targetModel.referenceName === sourceModel.referenceName
+      (targetModel) => targetModel.referenceName === sourceModel.referenceName,
     );
     const existsInTargetWithoutMapping = !sourceMapping && targetModelByReference;
     if (existsInTargetWithoutMapping) {
@@ -92,14 +92,14 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
           logger.model.error(
             sourceModel,
             new Error(
-              `A target model named "${sourceModel.referenceName}" exists but is not mapped to source ID ${sourceModel.id} (likely a rename or reassignment of the source model).`
+              `A target model named "${sourceModel.referenceName}" exists but is not mapped to source ID ${sourceModel.id} (likely a rename or reassignment of the source model).`,
             ),
-            targetGuid[0]
+            targetGuid[0],
           );
           throw new Error(
             `Model validation failed: mapping inconsistency for model "${sourceModel.referenceName}" (ID: ${sourceModel.id}). ` +
               `A mapping exists for the target model, but the source model ID does not match — this likely indicates ` +
-              `a rename or reassignment on the source. Stopping sync to avoid a partial push; review the model mappings and re-run.`
+              `a rename or reassignment on the source. Stopping sync to avoid a partial push; review the model mappings and re-run.`,
           );
         }
       }
@@ -168,7 +168,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       referenceMapper,
       apiClient,
       targetGuid[0],
-      logger
+      logger,
     );
     if (result) {
       successful++;
@@ -204,7 +204,7 @@ const createNewModel = async (
   referenceMapper: ModelMapper,
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
-  logger: Logs
+  logger: Logs,
 ): Promise<"created" | "updated" | "skipped" | "failed"> => {
   try {
     // process the model without fields
@@ -233,7 +233,7 @@ async function updateExistingModel(
   referenceMapper: ModelMapper,
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
-  logger: Logs
+  logger: Logs,
 ): Promise<"updated" | "failed"> {
   try {
     const updatePayload = {
