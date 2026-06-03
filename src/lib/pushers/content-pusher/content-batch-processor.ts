@@ -122,7 +122,7 @@ export class ContentBatchProcessor {
 
         // Log staging items being skipped from auto-publish
         const stagingItems = successfulItems.filter((item) => item.originalItem?.properties?.state !== 2);
-        if (stagingItems.length > 0) {
+        if (stagingItems.length > 0 && state.autoPublish) {
           console.log(
             ansiColors.gray(
               `    📋 Skipping auto-publish for ${stagingItems.length} content item(s) (not published in source)`
@@ -450,7 +450,7 @@ export class ContentBatchProcessor {
       try {
         this.config.referenceMapper.addMapping(sourceContentItem, targetContentItemWithId);
       } catch (error) {
-        console.error(`Unable to create mappings: ${error.message}`)
+        console.error(`Unable to create mappings: ${error.message}`);
       }
     });
   }

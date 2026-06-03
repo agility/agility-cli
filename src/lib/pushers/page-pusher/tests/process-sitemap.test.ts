@@ -193,12 +193,12 @@ describe('processSitemap — auto-publish skip log', () => {
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping auto-publish'));
   });
 
-  it('does not log "Skipping auto-publish" for a staging page when state.autoPublish is off', async () => {
+  it('does not log "Skipping auto-publish" for a staging page when state.autoPublish is off', async () => {   
     const consoleSpy = jest.spyOn(console, 'log');
     mockProcessPage.mockResolvedValue({ status: 'success' });
 
     const nodes = [makeNode(1)];
-    const pages = [makePage(1, 1)];
+    const pages = [makePage(1, 1)]; 
     await processSitemap(makeProps({ sitemapNodes: nodes, sourcePages: pages }));
 
     expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('Skipping auto-publish'));
