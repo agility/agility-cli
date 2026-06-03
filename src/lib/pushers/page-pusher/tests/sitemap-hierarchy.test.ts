@@ -1,14 +1,14 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-import { resetState, setState } from 'core/state';
-import { SitemapHierarchy } from '../sitemap-hierarchy';
-import { SitemapNode, PageHierarchy } from 'types/syncAnalysis';
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import { resetState, setState } from "core/state";
+import { SitemapHierarchy } from "../sitemap-hierarchy";
+import { SitemapNode, PageHierarchy } from "types/syncAnalysis";
 
 let tmpDir: string;
 
 beforeAll(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agility-sh-'));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agility-sh-"));
 });
 
 afterAll(() => {
@@ -18,9 +18,9 @@ afterAll(() => {
 beforeEach(() => {
   resetState();
   setState({ rootPath: tmpDir });
-  jest.spyOn(console, 'log').mockImplementation(() => {});
-  jest.spyOn(console, 'warn').mockImplementation(() => {});
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  jest.spyOn(console, "log").mockImplementation(() => {});
+  jest.spyOn(console, "warn").mockImplementation(() => {});
+  jest.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -38,7 +38,7 @@ function makeNode(pageID: number, children: SitemapNode[] = []): SitemapNode {
     title: null,
     name: `node-${pageID}`,
     pageID,
-    menuText: '',
+    menuText: "",
     visible: { menu: true, sitemap: true },
     path: `/${pageID}`,
     redirect: null,
@@ -53,28 +53,28 @@ function writeSitemapFile(dir: string, channel: string, nodes: SitemapNode[]): v
 }
 
 function sitemapDir(guid: string, locale: string): string {
-  return path.join(tmpDir, guid, locale, 'nestedsitemap');
+  return path.join(tmpDir, guid, locale, "nestedsitemap");
 }
 
 // ─── constructor ──────────────────────────────────────────────────────────────
 
-describe('SitemapHierarchy constructor', () => {
-  it('constructs without throwing', () => {
+describe("SitemapHierarchy constructor", () => {
+  it("constructs without throwing", () => {
     expect(() => new SitemapHierarchy()).not.toThrow();
   });
 });
 
 // ─── loadNestedSitemap ────────────────────────────────────────────────────────
 
-describe('SitemapHierarchy.loadNestedSitemap', () => {
-  it('returns null when file does not exist', () => {
+describe("SitemapHierarchy.loadNestedSitemap", () => {
+  it("returns null when file does not exist", () => {
     const sh = new SitemapHierarchy();
-    const result = sh.loadNestedSitemap(path.join(tmpDir, 'nonexistent.json'));
+    const result = sh.loadNestedSitemap(path.join(tmpDir, "nonexistent.json"));
     expect(result).toBeNull();
   });
 
-  it('returns parsed sitemap nodes when file is valid JSON', () => {
-    const filePath = path.join(tmpDir, 'valid.json');
+  it("returns parsed sitemap nodes when file is valid JSON", () => {
+    const filePath = path.join(tmpDir, "valid.json");
     const nodes = [makeNode(1), makeNode(2)];
     fs.writeFileSync(filePath, JSON.stringify(nodes));
     const sh = new SitemapHierarchy();
@@ -83,9 +83,9 @@ describe('SitemapHierarchy.loadNestedSitemap', () => {
     expect(result![0].pageID).toBe(1);
   });
 
-  it('returns null when file contains invalid JSON', () => {
-    const filePath = path.join(tmpDir, 'invalid.json');
-    fs.writeFileSync(filePath, '{not valid json}');
+  it("returns null when file contains invalid JSON", () => {
+    const filePath = path.join(tmpDir, "invalid.json");
+    fs.writeFileSync(filePath, "{not valid json}");
     const sh = new SitemapHierarchy();
     const result = sh.loadNestedSitemap(filePath);
     expect(result).toBeNull();
@@ -94,60 +94,60 @@ describe('SitemapHierarchy.loadNestedSitemap', () => {
 
 // ─── loadAllSitemaps ──────────────────────────────────────────────────────────
 
-describe('SitemapHierarchy.loadAllSitemaps', () => {
-  it('returns empty object when sitemap directory does not exist', () => {
+describe("SitemapHierarchy.loadAllSitemaps", () => {
+  it("returns empty object when sitemap directory does not exist", () => {
     const sh = new SitemapHierarchy();
-    const result = sh.loadAllSitemaps('no-such-guid', 'en-us');
+    const result = sh.loadAllSitemaps("no-such-guid", "en-us");
     expect(result).toEqual({});
   });
 
-  it('loads all .json files as channels', () => {
-    const guid = 'guid-load-all';
-    const locale = 'en-us';
+  it("loads all .json files as channels", () => {
+    const guid = "guid-load-all";
+    const locale = "en-us";
     const dir = sitemapDir(guid, locale);
-    writeSitemapFile(dir, 'website', [makeNode(1)]);
-    writeSitemapFile(dir, 'mobile', [makeNode(2)]);
+    writeSitemapFile(dir, "website", [makeNode(1)]);
+    writeSitemapFile(dir, "mobile", [makeNode(2)]);
     const sh = new SitemapHierarchy();
     const result = sh.loadAllSitemaps(guid, locale);
-    expect(Object.keys(result)).toEqual(expect.arrayContaining(['website', 'mobile']));
+    expect(Object.keys(result)).toEqual(expect.arrayContaining(["website", "mobile"]));
   });
 
-  it('ignores non-.json files in the sitemap directory', () => {
-    const guid = 'guid-non-json';
-    const locale = 'en-us';
+  it("ignores non-.json files in the sitemap directory", () => {
+    const guid = "guid-non-json";
+    const locale = "en-us";
     const dir = sitemapDir(guid, locale);
     fs.mkdirSync(dir, { recursive: true });
-    writeSitemapFile(dir, 'website', [makeNode(1)]);
-    fs.writeFileSync(path.join(dir, 'README.txt'), 'ignore me');
+    writeSitemapFile(dir, "website", [makeNode(1)]);
+    fs.writeFileSync(path.join(dir, "README.txt"), "ignore me");
     const sh = new SitemapHierarchy();
     const result = sh.loadAllSitemaps(guid, locale);
-    expect(Object.keys(result)).toEqual(['website']);
+    expect(Object.keys(result)).toEqual(["website"]);
   });
 });
 
 // ─── buildPageHierarchy ───────────────────────────────────────────────────────
 
-describe('SitemapHierarchy.buildPageHierarchy', () => {
-  it('returns empty object for an empty sitemap', () => {
+describe("SitemapHierarchy.buildPageHierarchy", () => {
+  it("returns empty object for an empty sitemap", () => {
     const sh = new SitemapHierarchy();
     expect(sh.buildPageHierarchy([])).toEqual({});
   });
 
-  it('does not add leaf nodes (no children) to hierarchy', () => {
+  it("does not add leaf nodes (no children) to hierarchy", () => {
     const sh = new SitemapHierarchy();
     const sitemap = [makeNode(1), makeNode(2)];
     const hierarchy = sh.buildPageHierarchy(sitemap);
     expect(Object.keys(hierarchy)).toHaveLength(0);
   });
 
-  it('maps parent to direct child IDs', () => {
+  it("maps parent to direct child IDs", () => {
     const sh = new SitemapHierarchy();
     const sitemap = [makeNode(1, [makeNode(2), makeNode(3)])];
     const hierarchy = sh.buildPageHierarchy(sitemap);
     expect(hierarchy[1]).toEqual([2, 3]);
   });
 
-  it('handles nested hierarchy recursively', () => {
+  it("handles nested hierarchy recursively", () => {
     const sh = new SitemapHierarchy();
     const sitemap = [makeNode(1, [makeNode(2, [makeNode(3)])])];
     const hierarchy = sh.buildPageHierarchy(sitemap);
@@ -158,16 +158,16 @@ describe('SitemapHierarchy.buildPageHierarchy', () => {
 
 // ─── groupPagesHierarchically ─────────────────────────────────────────────────
 
-describe('SitemapHierarchy.groupPagesHierarchically', () => {
-  it('returns each page as its own group when hierarchy is empty', () => {
+describe("SitemapHierarchy.groupPagesHierarchically", () => {
+  it("returns each page as its own group when hierarchy is empty", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2)];
     const groups = sh.groupPagesHierarchically(pages, {});
     expect(groups).toHaveLength(2);
-    groups.forEach(g => expect(g.childPages).toHaveLength(0));
+    groups.forEach((g) => expect(g.childPages).toHaveLength(0));
   });
 
-  it('groups parent and children together', () => {
+  it("groups parent and children together", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2), makePage(3)];
     const hierarchy: PageHierarchy = { 1: [2, 3] };
@@ -177,21 +177,21 @@ describe('SitemapHierarchy.groupPagesHierarchically', () => {
     expect(groups[0].childPages.map((p: any) => p.pageID)).toEqual(expect.arrayContaining([2, 3]));
   });
 
-  it('marks all pages within a group as processed (no duplicates)', () => {
+  it("marks all pages within a group as processed (no duplicates)", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2)];
     const hierarchy: PageHierarchy = { 1: [2] };
     const groups = sh.groupPagesHierarchically(pages, hierarchy);
     // Total pages across all groups should equal original page count
-    const totalIds = groups.flatMap(g => Array.from(g.allPageIds));
+    const totalIds = groups.flatMap((g) => Array.from(g.allPageIds));
     expect(new Set(totalIds).size).toBe(pages.length);
   });
 });
 
 // ─── calculatePageDepths ──────────────────────────────────────────────────────
 
-describe('SitemapHierarchy.calculatePageDepths', () => {
-  it('assigns depth 0 to all pages when hierarchy is empty', () => {
+describe("SitemapHierarchy.calculatePageDepths", () => {
+  it("assigns depth 0 to all pages when hierarchy is empty", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2)];
     const depths = sh.calculatePageDepths(pages, {});
@@ -199,7 +199,7 @@ describe('SitemapHierarchy.calculatePageDepths', () => {
     expect(depths.get(2)).toBe(0);
   });
 
-  it('assigns depth 1 to direct children', () => {
+  it("assigns depth 1 to direct children", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2)];
     const hierarchy: PageHierarchy = { 1: [2] };
@@ -208,7 +208,7 @@ describe('SitemapHierarchy.calculatePageDepths', () => {
     expect(depths.get(2)).toBe(1);
   });
 
-  it('assigns depth 2 to grandchildren', () => {
+  it("assigns depth 2 to grandchildren", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2), makePage(3)];
     const hierarchy: PageHierarchy = { 1: [2], 2: [3] };
@@ -216,7 +216,7 @@ describe('SitemapHierarchy.calculatePageDepths', () => {
     expect(depths.get(3)).toBe(2);
   });
 
-  it('handles circular references without infinite loop', () => {
+  it("handles circular references without infinite loop", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2)];
     // Circular: 1→2 and 2→1
@@ -227,8 +227,8 @@ describe('SitemapHierarchy.calculatePageDepths', () => {
 
 // ─── getProcessingOrder ────────────────────────────────────────────────────────
 
-describe('SitemapHierarchy.getProcessingOrder', () => {
-  it('returns all pages in the ordered list', () => {
+describe("SitemapHierarchy.getProcessingOrder", () => {
+  it("returns all pages in the ordered list", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2), makePage(3)];
     const hierarchy: PageHierarchy = { 1: [2, 3] };
@@ -236,7 +236,7 @@ describe('SitemapHierarchy.getProcessingOrder', () => {
     expect(orderedPages).toHaveLength(3);
   });
 
-  it('ensures parents come before their children', () => {
+  it("ensures parents come before their children", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2), makePage(3)];
     const hierarchy: PageHierarchy = { 1: [2], 2: [3] };
@@ -246,7 +246,7 @@ describe('SitemapHierarchy.getProcessingOrder', () => {
     expect(idx(2)).toBeLessThan(idx(3));
   });
 
-  it('returns depthInfo map alongside orderedPages', () => {
+  it("returns depthInfo map alongside orderedPages", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2)];
     const hierarchy: PageHierarchy = { 1: [2] };
@@ -259,13 +259,13 @@ describe('SitemapHierarchy.getProcessingOrder', () => {
 
 // ─── validateProcessingOrder ──────────────────────────────────────────────────
 
-describe('SitemapHierarchy.validateProcessingOrder', () => {
-  it('returns true for an empty page list', () => {
+describe("SitemapHierarchy.validateProcessingOrder", () => {
+  it("returns true for an empty page list", () => {
     const sh = new SitemapHierarchy();
     expect(sh.validateProcessingOrder([], {})).toBe(true);
   });
 
-  it('returns true when processing order is dependency-safe', () => {
+  it("returns true when processing order is dependency-safe", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2)];
     const hierarchy: PageHierarchy = { 1: [2] };
@@ -273,7 +273,7 @@ describe('SitemapHierarchy.validateProcessingOrder', () => {
     expect(sh.validateProcessingOrder(pages, hierarchy)).toBe(true);
   });
 
-  it('returns false when a child is ordered before its parent', () => {
+  it("returns false when a child is ordered before its parent", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(2), makePage(1)]; // child before parent
     const hierarchy: PageHierarchy = { 1: [2] };
@@ -283,13 +283,13 @@ describe('SitemapHierarchy.validateProcessingOrder', () => {
 
 // ─── extractSiblingOrderFromSitemap ──────────────────────────────────────────
 
-describe('SitemapHierarchy.extractSiblingOrderFromSitemap', () => {
-  it('returns empty map for empty sitemap', () => {
+describe("SitemapHierarchy.extractSiblingOrderFromSitemap", () => {
+  it("returns empty map for empty sitemap", () => {
     const sh = new SitemapHierarchy();
     expect(sh.extractSiblingOrderFromSitemap([])).toEqual(new Map());
   });
 
-  it('maps each page to its next sibling (null for last)', () => {
+  it("maps each page to its next sibling (null for last)", () => {
     const sh = new SitemapHierarchy();
     const sitemap = [makeNode(1), makeNode(2), makeNode(3)];
     const order = sh.extractSiblingOrderFromSitemap(sitemap);
@@ -298,7 +298,7 @@ describe('SitemapHierarchy.extractSiblingOrderFromSitemap', () => {
     expect(order.get(3)).toBeNull();
   });
 
-  it('processes children recursively', () => {
+  it("processes children recursively", () => {
     const sh = new SitemapHierarchy();
     const sitemap = [makeNode(1, [makeNode(10), makeNode(11)])];
     const order = sh.extractSiblingOrderFromSitemap(sitemap);
@@ -309,20 +309,23 @@ describe('SitemapHierarchy.extractSiblingOrderFromSitemap', () => {
 
 // ─── getInsertBeforePageId ────────────────────────────────────────────────────
 
-describe('SitemapHierarchy.getInsertBeforePageId', () => {
-  it('returns null when page has no next sibling', () => {
+describe("SitemapHierarchy.getInsertBeforePageId", () => {
+  it("returns null when page has no next sibling", () => {
     const sh = new SitemapHierarchy();
     const order = new Map<number, number | null>([[1, null]]);
     expect(sh.getInsertBeforePageId(1, order)).toBeNull();
   });
 
-  it('returns the next sibling ID when one exists', () => {
+  it("returns the next sibling ID when one exists", () => {
     const sh = new SitemapHierarchy();
-    const order = new Map<number, number | null>([[1, 5], [5, null]]);
+    const order = new Map<number, number | null>([
+      [1, 5],
+      [5, null],
+    ]);
     expect(sh.getInsertBeforePageId(1, order)).toBe(5);
   });
 
-  it('returns null when page ID is not in the sibling map', () => {
+  it("returns null when page ID is not in the sibling map", () => {
     const sh = new SitemapHierarchy();
     const order = new Map<number, number | null>();
     expect(sh.getInsertBeforePageId(99, order)).toBeNull();
@@ -331,51 +334,47 @@ describe('SitemapHierarchy.getInsertBeforePageId', () => {
 
 // ─── getOrphanedPages ────────────────────────────────────────────────────────
 
-describe('SitemapHierarchy.getOrphanedPages', () => {
-  it('returns all pages when no groups exist', () => {
+describe("SitemapHierarchy.getOrphanedPages", () => {
+  it("returns all pages when no groups exist", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2)];
     const result = sh.getOrphanedPages(pages, []);
     expect(result).toHaveLength(2);
   });
 
-  it('returns only pages not covered by any group', () => {
+  it("returns only pages not covered by any group", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2), makePage(3)];
-    const groups = [
-      { rootPage: makePage(1), childPages: [makePage(2)], allPageIds: new Set([1, 2]) },
-    ];
+    const groups = [{ rootPage: makePage(1), childPages: [makePage(2)], allPageIds: new Set([1, 2]) }];
     const orphans = sh.getOrphanedPages(pages, groups);
     expect(orphans).toHaveLength(1);
     expect(orphans[0].pageID).toBe(3);
   });
 
-  it('returns empty array when all pages are covered by groups', () => {
+  it("returns empty array when all pages are covered by groups", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2)];
-    const groups = [
-      { rootPage: makePage(1), childPages: [makePage(2)], allPageIds: new Set([1, 2]) },
-    ];
+    const groups = [{ rootPage: makePage(1), childPages: [makePage(2)], allPageIds: new Set([1, 2]) }];
     expect(sh.getOrphanedPages(pages, groups)).toHaveLength(0);
   });
 });
 
 // ─── buildPageHierarchyWithDynamicSupport ─────────────────────────────────────
 
-describe('SitemapHierarchy.buildPageHierarchyWithDynamicSupport', () => {
-  it('returns empty hierarchy for empty sitemap', () => {
+describe("SitemapHierarchy.buildPageHierarchyWithDynamicSupport", () => {
+  it("returns empty hierarchy for empty sitemap", () => {
     const sh = new SitemapHierarchy();
     expect(sh.buildPageHierarchyWithDynamicSupport([])).toEqual({});
   });
 
-  it('maps parent page to its children IDs', () => {
+  it("maps parent page to its children IDs", () => {
     const sh = new SitemapHierarchy();
     const sitemap = [makeNode(1, [makeNode(2), makeNode(3)])];
     const hierarchy = sh.buildPageHierarchyWithDynamicSupport(sitemap);
     expect(hierarchy[1]).toEqual(expect.arrayContaining([2, 3]));
   });
 
-  it('does not add duplicate child IDs for dynamic pages', () => {
+  it("does not add duplicate child IDs for dynamic pages", () => {
     const sh = new SitemapHierarchy();
     const dynamicChild: SitemapNode = { ...makeNode(5), contentID: 100 };
     const sitemap = [makeNode(1, [dynamicChild])];
@@ -387,17 +386,17 @@ describe('SitemapHierarchy.buildPageHierarchyWithDynamicSupport', () => {
 
 // ─── buildPageOrderingData ────────────────────────────────────────────────────
 
-describe('SitemapHierarchy.buildPageOrderingData', () => {
-  it('returns hierarchy, siblingOrder and parentToChildrenMap', () => {
+describe("SitemapHierarchy.buildPageOrderingData", () => {
+  it("returns hierarchy, siblingOrder and parentToChildrenMap", () => {
     const sh = new SitemapHierarchy();
     const sitemap = [makeNode(1, [makeNode(2)])];
     const data = sh.buildPageOrderingData(sitemap);
-    expect(data).toHaveProperty('hierarchy');
-    expect(data).toHaveProperty('siblingOrder');
-    expect(data).toHaveProperty('parentToChildrenMap');
+    expect(data).toHaveProperty("hierarchy");
+    expect(data).toHaveProperty("siblingOrder");
+    expect(data).toHaveProperty("parentToChildrenMap");
   });
 
-  it('populates parentToChildrenMap consistently with hierarchy', () => {
+  it("populates parentToChildrenMap consistently with hierarchy", () => {
     const sh = new SitemapHierarchy();
     const sitemap = [makeNode(10, [makeNode(20), makeNode(30)])];
     const { hierarchy, parentToChildrenMap } = sh.buildPageOrderingData(sitemap);
@@ -407,17 +406,21 @@ describe('SitemapHierarchy.buildPageOrderingData', () => {
 
 // ─── getPagesByDepth ──────────────────────────────────────────────────────────
 
-describe('SitemapHierarchy.getPagesByDepth', () => {
-  it('groups pages by their depth', () => {
+describe("SitemapHierarchy.getPagesByDepth", () => {
+  it("groups pages by their depth", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(1), makePage(2), makePage(3)];
-    const depths = new Map([[1, 0], [2, 1], [3, 1]]);
+    const depths = new Map([
+      [1, 0],
+      [2, 1],
+      [3, 1],
+    ]);
     const byDepth = sh.getPagesByDepth(pages, depths);
     expect(byDepth.get(0)!.map((p: any) => p.pageID)).toEqual([1]);
     expect(byDepth.get(1)!.map((p: any) => p.pageID)).toEqual(expect.arrayContaining([2, 3]));
   });
 
-  it('defaults to depth 0 for pages not in the depth map', () => {
+  it("defaults to depth 0 for pages not in the depth map", () => {
     const sh = new SitemapHierarchy();
     const pages = [makePage(99)];
     const byDepth = sh.getPagesByDepth(pages, new Map());

@@ -41,7 +41,7 @@ function extractErrorMessage(error: any): string {
 export async function pushAssets(
   sourceData: mgmtApi.Media[], // TODO: Type these
   targetData: mgmtApi.Media[], // TODO: Type these
-  onProgress?: (processed: number, total: number, status?: "success" | "error") => void,
+  onProgress?: (processed: number, total: number, status?: "success" | "error") => void
 ): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
   // Extract data from sourceData - unified parameter pattern
   const assets: mgmtApi.Media[] = sourceData || [];
@@ -142,7 +142,7 @@ export async function pushAssets(
           sourceGuid[0],
           targetGuid[0],
           referenceMapper,
-          logger,
+          logger
         );
         referenceMapper.addMapping(media, createdAsset);
         successful++;
@@ -156,7 +156,7 @@ export async function pushAssets(
           sourceGuid[0],
           targetGuid[0],
           referenceMapper,
-          logger,
+          logger
         );
         referenceMapper.addMapping(media, updatedAsset);
         successful++;
@@ -182,7 +182,7 @@ export async function pushAssets(
   }
 
   console.log(
-    ansiColors.yellow(`Processed ${successful}/${totalAssets} assets (${failed} failed, ${skipped} skipped)`),
+    ansiColors.yellow(`Processed ${successful}/${totalAssets} assets (${failed} failed, ${skipped} skipped)`)
   );
   return { status: overallStatus, successful, failed, skipped };
 }
@@ -199,7 +199,7 @@ async function createAsset(
   sourceGuid: string,
   targetGuid: string,
   referenceMapper: AssetMapper,
-  logger: Logs,
+  logger: Logs
 ): Promise<mgmtApi.Media> {
   // Handle gallery if present
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, sourceGuid, targetGuid);
@@ -286,7 +286,7 @@ async function updateAsset(
   sourceGuid: string,
   targetGuid: string,
   referenceMapper: AssetMapper,
-  logger: Logs,
+  logger: Logs
 ): Promise<mgmtApi.Media> {
   // Handle gallery if present
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, sourceGuid, targetGuid);
@@ -354,7 +354,7 @@ async function resolveGalleryMapping(
   apiClient: mgmtApi.ApiClient,
 
   sourceGuid: string,
-  targetGuid: string,
+  targetGuid: string
   // referenceMapper: AssetMapper,
 ): Promise<number> {
   let targetMediaGroupingID = -1;
@@ -381,7 +381,7 @@ async function resolveGalleryMapping(
     } catch (error: any) {
       // Gallery doesn't exist - this is normal, asset will upload without gallery
       console.log(
-        `[Asset] Gallery ${media.mediaGroupingName} not found - asset will upload without gallery association`,
+        `[Asset] Gallery ${media.mediaGroupingName} not found - asset will upload without gallery association`
       );
     }
   }
