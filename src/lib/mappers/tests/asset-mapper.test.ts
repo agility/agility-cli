@@ -208,6 +208,125 @@ describe("AssetMapper.remapUrlByContainer", () => {
     const result = mapper.remapUrlByContainer("https://completely-different.io/file.jpg", "source");
     expect(result).toBeNull();
   });
+
+  it("handles a customer using a custom CDN domain (cdn.ilotteryservices.com) end-to-end", () => {
+    // custom configured domain cdn host
+    const mapper = makeMapper();
+    const src = makeAsset({
+      mediaID: 1,
+      edgeUrl: "https://cdn.ilotteryservices.com/8f5ad099/mobile/configuration/wizard.json",
+      containerEdgeUrl: "https://cdn.ilotteryservices.com/8f5ad099",
+      containerOriginUrl: "https://origin.ilotteryservices.com/8f5ad099",
+    });
+    const tgt = makeAsset({
+      mediaID: 2,
+      edgeUrl: "https://cdn.ilotteryservices.com/0e9b1234/mobile/configuration/wizard.json",
+      containerEdgeUrl: "https://cdn.ilotteryservices.com/0e9b1234",
+      containerOriginUrl: "https://origin.ilotteryservices.com/0e9b1234",
+    });
+    mapper.addMapping(src, tgt);
+
+    // Edge URL swap
+    expect(
+      mapper.remapUrlByContainer("https://cdn.ilotteryservices.com/8f5ad099/draw-games/picks.json", "source")
+    ).toBe("https://cdn.ilotteryservices.com/0e9b1234/draw-games/picks.json");
+
+    // Origin URL swap
+    expect(mapper.remapUrlByContainer("https://origin.ilotteryservices.com/8f5ad099/folder/asset.png", "source")).toBe(
+      "https://origin.ilotteryservices.com/0e9b1234/folder/asset.png"
+    );
+
+    // Detection: source-side URL is recognized
+    expect(mapper.isKnownAssetUrl("https://cdn.ilotteryservices.com/8f5ad099/anything/at/all.json")).toBe(true);
+    expect(mapper.isKnownAssetUrl("https://cdn.ilotteryservices.com/0e9b1234/anything/at/all.json")).toBe(true);
+
+    expect(mapper.isKnownAssetUrl("https://cdn.competitor.com/8f5ad099/file.jpg")).toBe(false);
+    expect(mapper.isKnownAssetUrl("https://cdn.ilotteryservices.com/zzzzzzzz/file.jpg")).toBe(false);
+  });
+});
+
+// ─── isKnownAssetUrl ──────────────────────────────────────────────────────────
+
+describe("AssetMapper.isKnownAssetUrl", () => {
+  it("returns false for empty or non-string input", () => {
+    const mapper = makeMapper();
+    expect(mapper.isKnownAssetUrl("")).toBe(false);
+    expect(mapper.isKnownAssetUrl(null as any)).toBe(false);
+    expect(mapper.isKnownAssetUrl(undefined as any)).toBe(false);
+    expect(mapper.isKnownAssetUrl(123 as any)).toBe(false);
+  });
+
+  it("returns false when no mappings exist", () => {
+    const mapper = makeMapper();
+    expect(mapper.isKnownAssetUrl("https://cdn.aglty.io/anywhere/file.jpg")).toBe(false);
+  });
+
+  it("returns true when URL starts with a source container edge URL", () => {
+    const mapper = makeMapper();
+    const src = makeAsset({ mediaID: 1, containerEdgeUrl: "https://cdn-usa2.aglty.io/brightstar-qa" });
+    const tgt = makeAsset({ mediaID: 2, containerEdgeUrl: "https://cdn-usa2.aglty.io/brightstar-prod" });
+    mapper.addMapping(src, tgt);
+    expect(mapper.isKnownAssetUrl("https://cdn-usa2.aglty.io/brightstar-qa/mobile/file.json")).toBe(true);
+  });
+
+  it("returns true when URL starts with a source container origin URL", () => {
+    const mapper = makeMapper();
+    const src = makeAsset({ mediaID: 1, containerOriginUrl: "https://mediadev.agilitycms.com/aaaaaaaa" });
+    const tgt = makeAsset({ mediaID: 2, containerOriginUrl: "https://mediadev.agilitycms.com/bbbbbbbb" });
+    mapper.addMapping(src, tgt);
+    expect(mapper.isKnownAssetUrl("https://mediadev.agilitycms.com/aaaaaaaa/folder/asset.png")).toBe(true);
+  });
+
+  it("returns true when URL starts with a target container URL", () => {
+    const mapper = makeMapper();
+    const src = makeAsset({ mediaID: 1, containerEdgeUrl: "https://cdn.aglty.io/src" });
+    const tgt = makeAsset({ mediaID: 2, containerEdgeUrl: "https://cdn.aglty.io/tgt" });
+    mapper.addMapping(src, tgt);
+    expect(mapper.isKnownAssetUrl("https://cdn.aglty.io/tgt/some/path.jpg")).toBe(true);
+  });
+
+  it("recognizes URLs on a custom CDN host (PROD-1505 scenario)", () => {
+    // Customer using a custom CDN domain — the container URL the CMS returns
+    // points to their host, not aglty.io. isKnownAssetUrl should still match.
+    const mapper = makeMapper();
+    const src = makeAsset({
+      mediaID: 1,
+      containerEdgeUrl: "https://cdn.ilotteryservices.com/8f5ad099",
+      containerOriginUrl: "https://origin.ilotteryservices.com/8f5ad099",
+    });
+    const tgt = makeAsset({
+      mediaID: 2,
+      containerEdgeUrl: "https://cdn.ilotteryservices.com/0e9b1234",
+      containerOriginUrl: "https://origin.ilotteryservices.com/0e9b1234",
+    });
+    mapper.addMapping(src, tgt);
+    expect(mapper.isKnownAssetUrl("https://cdn.ilotteryservices.com/8f5ad099/mobile/config.json")).toBe(true);
+    expect(mapper.isKnownAssetUrl("https://origin.ilotteryservices.com/8f5ad099/folder/file.png")).toBe(true);
+  });
+
+  it("returns false for a URL that does not match any container URL", () => {
+    const mapper = makeMapper();
+    const src = makeAsset({ mediaID: 1, containerEdgeUrl: "https://cdn.aglty.io/src" });
+    const tgt = makeAsset({ mediaID: 2, containerEdgeUrl: "https://cdn.aglty.io/tgt" });
+    mapper.addMapping(src, tgt);
+    expect(mapper.isKnownAssetUrl("https://unrelated.example.com/file.jpg")).toBe(false);
+  });
+
+  it("ignores mappings whose container URLs are undefined", () => {
+    const mapper = makeMapper();
+    const src = makeAsset({
+      mediaID: 1,
+      containerEdgeUrl: undefined as any,
+      containerOriginUrl: undefined as any,
+    });
+    const tgt = makeAsset({
+      mediaID: 2,
+      containerEdgeUrl: undefined as any,
+      containerOriginUrl: undefined as any,
+    });
+    mapper.addMapping(src, tgt);
+    expect(mapper.isKnownAssetUrl("https://cdn.aglty.io/anything.jpg")).toBe(false);
+  });
 });
 
 // ─── addMapping / updateMapping ───────────────────────────────────────────────

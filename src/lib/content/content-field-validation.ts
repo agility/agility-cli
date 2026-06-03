@@ -210,7 +210,7 @@ export class ContentFieldValidator {
     };
 
     // Validate asset URLs
-    if (fieldValue.includes("cdn.aglty.io")) {
+    if (this.isAssetUrl(fieldValue, options)) {
       if (!this.isValidAssetUrl(fieldValue)) {
         result.errors.push(`Invalid asset URL format in field ${fieldKey}: ${fieldValue}`);
         result.isValid = false;
@@ -286,12 +286,29 @@ export class ContentFieldValidator {
   }
 
   /**
-   * Validate asset URL format
+   * Domain-agnostic check for asset URL strings. Matches:
+   *  - any Agility-managed CDN subdomain (cdn.aglty.io, cdn-usa2.aglty.io, *.agilitycms.com, etc.)
+   *  - any URL that exactly matches one of the source assets passed in options
+   *    (so customer-supplied custom CDN domains are recognized when source data is available)
+   */
+  private isAssetUrl(value: string, options: ContentValidationOptions): boolean {
+    if (value.includes(".aglty.io") || value.includes(".agilitycms.com")) return true;
+    if (options.sourceAssets) {
+      return options.sourceAssets.some(
+        (asset) => asset?.originUrl === value || asset?.url === value || asset?.edgeUrl === value
+      );
+    }
+    return false;
+  }
+
+  /**
+   * Structural validity check for an asset URL — caller is responsible for
+   * deciding the string is asset-like in the first place (see looksLikeAssetUrl).
    */
   private isValidAssetUrl(url: string): boolean {
     try {
       const urlObj = new URL(url);
-      return urlObj.hostname.includes("cdn.aglty.io") && urlObj.pathname.length > 1;
+      return urlObj.pathname.length > 1;
     } catch {
       return false;
     }

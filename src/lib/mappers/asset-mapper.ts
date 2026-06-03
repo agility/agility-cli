@@ -98,6 +98,26 @@ export class AssetMapper {
     );
   }
 
+  /**
+   * Returns true if the given URL starts with any container edge/origin URL
+   * known to the mapper (source or target). Lets callers identify asset URLs
+   * without hardcoding CDN domains — supports custom CDN hosts.
+   */
+  isKnownAssetUrl(url: string): boolean {
+    if (!url || typeof url !== "string") return false;
+
+    return this.mappings.some((mapping) => {
+      const knownContainerUrls = [
+        mapping.sourceContainerEdgeUrl,
+        mapping.sourceContainerOriginUrl,
+        mapping.targetContainerEdgeUrl,
+        mapping.targetContainerOriginUrl,
+      ].filter((containerUrl): containerUrl is string => typeof containerUrl === "string");
+
+      return knownContainerUrls.some((containerUrl) => url.startsWith(containerUrl));
+    });
+  }
+
   getMappedEntity(mapping: AssetMapping, type: "source" | "target"): mgmtApi.Media | null {
     const guid = type === "source" ? mapping.sourceGuid : mapping.targetGuid;
     const mediaID = type === "source" ? mapping.sourceMediaID : mapping.targetMediaID;

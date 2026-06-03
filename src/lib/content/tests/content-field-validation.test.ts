@@ -148,6 +148,45 @@ describe("ContentFieldValidator.validateContentFields", () => {
       const result = validator.validateContentFields({ body: longString });
       expect(result.totalWarnings).toBeGreaterThan(0);
     });
+
+    it("validates a regional .aglty.io subdomain (cdn-usa2.aglty.io) as an asset URL", () => {
+      // Regression check: the old `includes("cdn.aglty.io")` check missed cdn-usa2.aglty.io.
+      const result = validator.validateContentFields({
+        config: "https://cdn-usa2.aglty.io/brightstar-qa/mobile/config.json",
+      });
+      expect(result.totalErrors).toBe(0);
+    });
+
+    it("validates a *.agilitycms.com subdomain as an asset URL", () => {
+      const result = validator.validateContentFields({
+        hero: "https://cdndev.agilitycms.com/fcukahpf/posts/photo.jpg",
+      });
+      expect(result.totalErrors).toBe(0);
+    });
+
+    it("recognizes a custom CDN URL by container-prefix match against sourceAssets", () => {
+      // Customer custom CDN host. The validator should derive a container prefix
+      // (host + first path segment) from the assets and accept URLs that share it.
+      const result = validator.validateContentFields(
+        { config: "https://cdn.ilotteryservices.com/8f5ad099/mobile/config.json" },
+        {
+          sourceAssets: [{ url: "https://cdn.ilotteryservices.com/8f5ad099/mobile/other.json" }],
+        }
+      );
+      // Both URLs share the prefix → no warning about asset-not-found.
+      expect(result.totalWarnings).toBe(0);
+      expect(result.totalErrors).toBe(0);
+    });
+
+    it("does not treat a non-asset URL as an asset URL", () => {
+      // String is a URL but no Agility domain and no sourceAsset prefix match.
+      const result = validator.validateContentFields(
+        { link: "https://www.example.com/article/123" },
+        { sourceAssets: [{ url: "https://cdn.ilotteryservices.com/8f5ad099/file.json" }] }
+      );
+      expect(result.totalErrors).toBe(0);
+      expect(result.totalWarnings).toBe(0);
+    });
   });
 
   describe("content ID string fields", () => {

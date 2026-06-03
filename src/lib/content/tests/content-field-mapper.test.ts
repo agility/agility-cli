@@ -48,6 +48,7 @@ function makeAssetMapper(overrides: any = {}): any {
   return {
     getAssetMappingByMediaUrl: jest.fn().mockReturnValue(null),
     remapUrlByContainer: jest.fn().mockReturnValue(null),
+    isKnownAssetUrl: jest.fn().mockReturnValue(false),
     ...overrides,
   };
 }
@@ -253,6 +254,55 @@ describe("ContentFieldMapper.mapContentFields", () => {
       const fields = { heroUrl: "https://cdn.aglty.io/src/assets/img.jpg" };
       const result = mapper.mapContentFields(fields, context);
       expect(result.mappedFields.heroUrl).toBe("https://cdn.aglty.io/tgt/assets/img.jpg");
+    });
+
+    it("detects a regional .aglty.io subdomain (cdn-usa2.aglty.io) as an asset URL", () => {
+      // Regression check: the old `includes("cdn.aglty.io")` check missed cdn-usa2.aglty.io.
+      const assetMapper = makeAssetMapper({
+        getAssetMappingByMediaUrl: jest.fn().mockReturnValue({ sourceUrl: "different", targetUrl: "x" }),
+        remapUrlByContainer: jest.fn().mockReturnValue("https://cdn-usa2.aglty.io/tgt/file.json"),
+      });
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper };
+      const fields = { config: "https://cdn-usa2.aglty.io/src/mobile/config.json" };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.config).toBe("https://cdn-usa2.aglty.io/tgt/file.json");
+    });
+
+    it("detects a *.agilitycms.com subdomain as an asset URL", () => {
+      const assetMapper = makeAssetMapper({
+        getAssetMappingByMediaUrl: jest.fn().mockReturnValue({ sourceUrl: "different", targetUrl: "x" }),
+        remapUrlByContainer: jest.fn().mockReturnValue("https://cdndev.agilitycms.com/tgt/file.jpg"),
+      });
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper };
+      const fields = { hero: "https://cdndev.agilitycms.com/src/folder/photo.jpg" };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.hero).toBe("https://cdndev.agilitycms.com/tgt/file.jpg");
+    });
+
+    it("detects a custom CDN URL via assetMapper.isKnownAssetUrl()", () => {
+      // Customer using a custom CDN host (cdn.ilotteryservices.com). The string
+      // does NOT include .aglty.io/.agilitycms.com, so detection falls through
+      // to the asset mapper, which recognizes it from its loaded container URLs.
+      const assetMapper = makeAssetMapper({
+        isKnownAssetUrl: jest.fn().mockReturnValue(true),
+        getAssetMappingByMediaUrl: jest.fn().mockReturnValue({ sourceUrl: "different", targetUrl: "x" }),
+        remapUrlByContainer: jest.fn().mockReturnValue("https://cdn.ilotteryservices.com/0e9b1234/mobile/file.json"),
+      });
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper };
+      const fields = { config: "https://cdn.ilotteryservices.com/8f5ad099/mobile/file.json" };
+      const result = mapper.mapContentFields(fields, context);
+      expect(assetMapper.isKnownAssetUrl).toHaveBeenCalledWith(fields.config);
+      expect(result.mappedFields.config).toBe("https://cdn.ilotteryservices.com/0e9b1234/mobile/file.json");
+    });
+
+    it("leaves an unrecognized string field unchanged", () => {
+      const assetMapper = makeAssetMapper(); // isKnownAssetUrl returns false by default
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper };
+      const fields = { description: "Just a regular text value, not a URL" };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.description).toBe("Just a regular text value, not a URL");
+      // Non-asset string should not trigger the asset-URL mapping path
+      expect(assetMapper.getAssetMappingByMediaUrl).not.toHaveBeenCalled();
     });
   });
 
