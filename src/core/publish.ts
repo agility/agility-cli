@@ -3,9 +3,11 @@
  * Uses simple publisher functions that mirror the SDK patterns
  */
 
-import * as mgmtApi from "@agility/management-sdk";
-import { getState, getApiClient } from "./state";
-import { publishContentItem } from "../lib/publishers";
+import * as mgmtApi from '@agility/management-sdk';
+import { getState, getApiClient } from './state';
+import { 
+  publishContentItem
+} from '../lib/publishers';
 
 const ansiColors = require("ansi-colors");
 
@@ -40,11 +42,11 @@ export class PublishService {
 
   constructor(options: PublishOptions = {}) {
     const state = getState();
-
+    
     if (!state.targetGuid?.length) {
-      throw new Error("PublishService requires targetGuid to be set in state");
+      throw new Error('PublishService requires targetGuid to be set in state');
     }
-
+    
     this.apiClient = getApiClient();
     this.targetGuid = state.targetGuid[0];
     this.options = { verbose: false, ...options };
@@ -53,10 +55,10 @@ export class PublishService {
   /**
    * Publish a batch of content items using simple publisher functions
    */
-  async publishContentBatch(contentIds: number[], locale: string): Promise<PublishResult["contentItems"]> {
-    const result: PublishResult["contentItems"] = {
+  async publishContentBatch(contentIds: number[], locale: string): Promise<PublishResult['contentItems']> {
+    const result: PublishResult['contentItems'] = {
       successful: [],
-      failed: [],
+      failed: []
     };
 
     if (contentIds.length === 0) {
@@ -71,14 +73,14 @@ export class PublishService {
     for (const contentId of contentIds) {
       try {
         const publishResult = await publishContentItem(contentId, locale);
-
+        
         if (publishResult.success) {
           result.successful.push(contentId);
           if (this.options.verbose) {
             console.log(`✓ Content item ${ansiColors.cyan.underline(contentId)} published.`);
           }
         } else {
-          result.failed.push({ id: contentId, error: publishResult.error || "Unknown error" });
+          result.failed.push({ id: contentId, error: publishResult.error || 'Unknown error' });
           if (this.options.verbose) {
             console.error(ansiColors.red(`❌ Failed to publish content item ${contentId}: ${publishResult.error}`));
           }

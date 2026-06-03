@@ -168,7 +168,7 @@ describe("pushModels — source-side rename orphans a mapping and halts the sync
         id: 118,
         referenceName: "ContactUsSendMessageForm",
         lastModifiedDate: new Date(2025, 0, 1).toISOString(),
-      } as any
+      } as any,
     );
 
     const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 999 }));

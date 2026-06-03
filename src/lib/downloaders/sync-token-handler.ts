@@ -2,6 +2,7 @@ import ansiColors from "ansi-colors";
 import * as fs from "fs";
 
 export async function handleSyncToken(syncTokenPath: string, reset: boolean) {
+
   const syncTokenExists = fs.existsSync(syncTokenPath);
 
   if (!reset) {

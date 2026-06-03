@@ -31,7 +31,7 @@ function makeMapper(
     mapping?: any;
     targetEntity?: any;
     locale?: string;
-  } = {}
+  } = {},
 ): any {
   return {
     getContentItemMappingByContentID: jest.fn().mockReturnValue(opts.mapping ?? null),

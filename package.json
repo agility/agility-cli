@@ -13,15 +13,13 @@
   "main": "dist/index.js",
   "scripts": {
     "start": "node dist/index.js",
-    "build": "tsc -p . && node -e \"console.log('✓ TypeScript compiled to dist/')\"",
-    "postbuild": "node -e \"require('fs').chmodSync('dist/index.js', 0o755); console.log('✓ chmod +x dist/index.js')\"",
+    "build": "tsc -p .",
+    "postbuild": "chmod +x dist/index.js",
     "refresh": "rm -rf ./node_modules ./package-lock.json && npm install",
     "test": "jest",
     "test:unit": "jest",
     "test:integration": "jest --testMatch=\"**/*.integration.test.ts\" --testPathIgnorePatterns=\"/node_modules/|/dist/|/src/index.ts\"",
-    "lint": "eslint src",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "lint": "eslint 'src/**/*.ts'",
     "type-check": "tsc --noEmit",
     "debug": "node --inspect-brk -r ts-node/register src/index.ts"
   },
@@ -82,7 +80,6 @@
     "@typescript-eslint/parser": "^8.59.4",
     "eslint": "^9.39.4",
     "jest": "^29.7.0",
-    "prettier": "3.8.3",
     "ts-jest": "^29.3.4",
     "ts-node": "^10.9.2",
     "typescript": "^5.8.3"

@@ -16,7 +16,7 @@ export class content {
     this._multibar = multibar;
     this._guid = guid;
     this._locale = locale;
-    this._rootPath = "agility-files";
+    this._rootPath = 'agility-files';
     this._isPreview = true;
     this.skippedContentItems = {};
   }
@@ -153,8 +153,6 @@ export class content {
   }
 
   camelize(str: string) {
-    return str
-      .replace(/(?:^\w|[A-Z]|\b\w)/g, (char, index) => (index === 0 ? char.toLowerCase() : char))
-      .replace(/[_\s]+/g, "");
+    return str.replace(/(?:^\w|[A-Z]|\b\w)/g, (char, index) => (index === 0 ? char.toLowerCase() : char)).replace(/[_\s]+/g, '');
   }
 }

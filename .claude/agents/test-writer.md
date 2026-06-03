@@ -23,7 +23,6 @@ Write thorough Jest unit tests that match the project's existing patterns. When 
 **Test runner:** Jest 29 with `ts-jest`. Config in `jest.config.js`.
 
 **Where tests live:**
-
 - Tests always go in a `tests/` subfolder **inside the same directory as the source file**.
   - `src/core/auth.ts` → `src/core/tests/auth.test.ts`
   - `src/lib/assets/asset-utils.ts` → `src/lib/assets/tests/asset-utils.test.ts`
@@ -35,7 +34,6 @@ Write thorough Jest unit tests that match the project's existing patterns. When 
 The `jest.config.js` `testMatch` is `**/src/**/tests/**/*.test.ts` — any `tests/` folder under `src/` is automatically picked up.
 
 **TypeScript path aliases** (pre-configured in `jest.config.js`):
-
 - `core/*` → `src/core/*`
 - `lib/*` → `src/lib/*`
 - `types/*` → `src/types/*`
@@ -47,14 +45,14 @@ The `jest.config.js` `testMatch` is `**/src/**/tests/**/*.test.ts` — any `test
 ### Standard test file scaffold
 
 ```typescript
-import { ThingToTest } from "../module-name";
-import { resetState, setState, getState } from "../state";
+import { ThingToTest } from '../module-name';
+import { resetState, setState, getState } from '../state';
 
 beforeEach(() => {
   resetState();
-  jest.spyOn(console, "log").mockImplementation(() => {});
-  jest.spyOn(console, "warn").mockImplementation(() => {});
-  jest.spyOn(console, "error").mockImplementation(() => {});
+  jest.spyOn(console, 'log').mockImplementation(() => {});
+  jest.spyOn(console, 'warn').mockImplementation(() => {});
+  jest.spyOn(console, 'error').mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -67,15 +65,15 @@ Always suppress console output. Always call `resetState()` — the `state` objec
 ### When tests touch the filesystem
 
 ```typescript
-import * as fs from "fs";
-import * as os from "os";
-import * as path from "path";
-import { setState } from "../state";
+import * as fs from 'fs';
+import * as os from 'os';
+import * as path from 'path';
+import { setState } from '../state';
 
 let tmpDir: string;
 
 beforeAll(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agility-test-"));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agility-test-'));
 });
 
 afterAll(() => {
@@ -96,16 +94,16 @@ Never write to `agility-files/` or the project root in tests. Always use `os.tmp
 `getApiClient()` throws unless `state.mgmtApiOptions` or `state.token` is set. To unblock a constructor or method that calls it without testing the API:
 
 ```typescript
-setState({ token: "test-token", targetGuid: "test-guid-u" });
+setState({ token: 'test-token', targetGuid: 'test-guid-u' });
 // This makes getApiClient() create a real (but unused) ApiClient from the SDK.
 // Safe — the SDK constructor just stores options, makes no network calls.
 ```
 
-For methods that actually _call_ the API, mock `getApiClient`:
+For methods that actually *call* the API, mock `getApiClient`:
 
 ```typescript
-jest.mock("../state", () => ({
-  ...jest.requireActual("../state"),
+jest.mock('../state', () => ({
+  ...jest.requireActual('../state'),
   getApiClient: jest.fn().mockReturnValue({
     contentMethods: { saveContentItem: jest.fn().mockResolvedValue({ contentID: 99 }) },
     // add only the methods your test needs
@@ -116,7 +114,7 @@ jest.mock("../state", () => ({
 ### When testing `fileOperations`
 
 ```typescript
-const ops = new fileOperations("my-guid", "en-us");
+const ops = new fileOperations('my-guid', 'en-us');
 // instancePath = tmpDir/my-guid/en-us  (because setState({ rootPath: tmpDir }))
 ```
 
@@ -149,7 +147,6 @@ const ops = new fileOperations("my-guid", "en-us");
 `state` is a single exported object. All functions share it. Always call `resetState()` in `beforeEach`.
 
 Key defaults after `resetState()`:
-
 - `sourceGuid: []`, `targetGuid: []`, `locale: []`
 - `rootPath: 'agility-files'`
 - `token: null`
@@ -162,7 +159,6 @@ Key defaults after `resetState()`:
 ### Auth URL routing (`src/core/auth.ts`)
 
 `determineBaseUrl(guid)` and `determineFetchUrl(guid)` route by GUID suffix:
-
 - `*u` → US (`mgmt.aglty.io` / `api.aglty.io`)
 - `*c` → Canada, `*e` → EU, `*a` → AUS, `*d` → Dev, `*us2` → US2
 - `state.local = true` → `https://localhost:5050` (management only, not fetch)
@@ -175,7 +171,6 @@ Pure utility: `createBatches<T>(items: T[], batchSize?: number): T[][]`. Default
 ### `fileOperations` (`src/core/fileOperations.ts`)
 
 Path layout (normal mode):
-
 - `instancePath` = `rootPath/guid/locale`
 - `mappingsPath` = `rootPath/guid/mappings`
 - Central mapping path = `rootPath/mappings/sourceGuid-targetGuid/locale/type/mappings.json`
@@ -202,7 +197,7 @@ Legacy mode (`state.legacyFolders = true`) flattens everything to `rootPath/`.
 - Group tests with `describe` blocks by method/behavior. Match the naming style in existing tests.
 - Use `it('does X when Y')` phrasing — describe behavior, not implementation.
 - Use `it.each` for table-driven cases (multiple valid/invalid inputs, multiple enum values, etc.).
-- Never add comments that describe what the code does — only write comments when the _why_ is non-obvious.
+- Never add comments that describe what the code does — only write comments when the *why* is non-obvious.
 - Don't import types you don't use.
 - Keep each test focused on one assertion or one closely related group.
 - After writing, always run `npm test` to confirm all tests pass before reporting done.
