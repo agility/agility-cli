@@ -138,8 +138,8 @@ export async function processSitemap({
       } else if (state.autoPublish) {
         console.log(
           ansiColors.gray(
-            `    📋 Skipping auto-publish for page "${sourcePage.name}" (state: ${sourcePage.properties?.state} - not published in source)`,
-          ),
+            `    📋 Skipping auto-publish for page "${sourcePage.name}" (state: ${sourcePage.properties?.state} - not published in source)`
+          )
         );
       }
     } else if (pageRes.status === "skip") {

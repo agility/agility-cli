@@ -180,40 +180,40 @@ describe("processSitemap — successful page processing", () => {
   });
 });
 
-describe('processSitemap — auto-publish skip log', () => {
+describe("processSitemap — auto-publish skip log", () => {
   it('logs "Skipping auto-publish" for a staging page when state.autoPublish is on', async () => {
-    setState({ rootPath: tmpDir, sourceGuid: 'src', targetGuid: 'tgt', autoPublish: 'pages' });
-    const consoleSpy = jest.spyOn(console, 'log');
-    mockProcessPage.mockResolvedValue({ status: 'success' });
+    setState({ rootPath: tmpDir, sourceGuid: "src", targetGuid: "tgt", autoPublish: "pages" });
+    const consoleSpy = jest.spyOn(console, "log");
+    mockProcessPage.mockResolvedValue({ status: "success" });
 
     const nodes = [makeNode(1)];
     const pages = [makePage(1, 1)];
     await processSitemap(makeProps({ sitemapNodes: nodes, sourcePages: pages }));
 
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('Skipping auto-publish'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Skipping auto-publish"));
   });
 
-  it('does not log "Skipping auto-publish" for a staging page when state.autoPublish is off', async () => {   
-    const consoleSpy = jest.spyOn(console, 'log');
-    mockProcessPage.mockResolvedValue({ status: 'success' });
+  it('does not log "Skipping auto-publish" for a staging page when state.autoPublish is off', async () => {
+    const consoleSpy = jest.spyOn(console, "log");
+    mockProcessPage.mockResolvedValue({ status: "success" });
 
     const nodes = [makeNode(1)];
-    const pages = [makePage(1, 1)]; 
+    const pages = [makePage(1, 1)];
     await processSitemap(makeProps({ sitemapNodes: nodes, sourcePages: pages }));
 
-    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('Skipping auto-publish'));
+    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining("Skipping auto-publish"));
   });
 
   it('does not log "Skipping auto-publish" for a published page even when state.autoPublish is on', async () => {
-    setState({ rootPath: tmpDir, sourceGuid: 'src', targetGuid: 'tgt', autoPublish: 'pages' });
-    const consoleSpy = jest.spyOn(console, 'log');
-    mockProcessPage.mockResolvedValue({ status: 'success' });
+    setState({ rootPath: tmpDir, sourceGuid: "src", targetGuid: "tgt", autoPublish: "pages" });
+    const consoleSpy = jest.spyOn(console, "log");
+    mockProcessPage.mockResolvedValue({ status: "success" });
 
     const nodes = [makeNode(1)];
     const pages = [makePage(1, 2)]; // state=2 = published — takes the isSourcePublished branch
     await processSitemap(makeProps({ sitemapNodes: nodes, sourcePages: pages }));
 
-    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining('Skipping auto-publish'));
+    expect(consoleSpy).not.toHaveBeenCalledWith(expect.stringContaining("Skipping auto-publish"));
   });
 });
 
