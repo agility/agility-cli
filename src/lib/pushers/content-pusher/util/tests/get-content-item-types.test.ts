@@ -181,10 +181,27 @@ describe("getContentItemTypes — linked items", () => {
     expect(result.linkedContentItems[0]).toBe(linkedItem);
   });
 
-  it("item referenced by multiple parents ends up as linked only once", () => {
-    const sharedItem = makeItem("shared-ref", "ModelShared");
-    const parent1 = makeItem("parent-1", "ModelParent", {
-      items: { referenceName: "shared-ref", fullList: true },
+  it('item already in linkedSet is not re-added to normalSet when its own loop iteration runs', () => {
+    // parent is first in the array — when processed, it marks linkedItem as linked
+    // linkedItem comes second — without the fix, its loop iteration would add it back to normalSet
+    const linkedItem = makeItem('linked-ref', 'ModelLinked');
+    const parentItem = makeItem('parent-ref', 'ModelParent', {
+      items: { referenceName: 'linked-ref', fullList: true },
+    });
+
+    const result = getContentItemTypes([parentItem, linkedItem], makeValidOpts());
+    expect(result.linkedContentItems).toHaveLength(1);
+    expect(result.linkedContentItems[0]).toBe(linkedItem);
+    expect(result.normalContentItems).toHaveLength(1);
+    expect(result.normalContentItems[0]).toBe(parentItem);
+    // linkedItem must not appear in normalContentItems
+    expect(result.normalContentItems).not.toContain(linkedItem);
+  });
+
+  it('item referenced by multiple parents ends up as linked only once', () => {
+    const sharedItem = makeItem('shared-ref', 'ModelShared');
+    const parent1 = makeItem('parent-1', 'ModelParent', {
+      items: { referenceName: 'shared-ref', fullList: true },
     });
     const parent2 = makeItem("parent-2", "ModelParent", {
       items: { referenceName: "shared-ref", fullList: true },

@@ -179,6 +179,16 @@ describe("ContentItemMapper.addMapping", () => {
       "Invalid Mappings detected"
     );
   });
+
+  it('throws when source already has a mapping but a different unmapped target is provided (duplicate mapping attempt)', () => {
+    const mapper = makeMapper();
+    // source 10 is already mapped to target 20
+    mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20 }));
+    // now try to map source 10 to target 99 — target 99 has no mapping, but source already points to 20
+    expect(() =>
+      mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 99 }))
+    ).toThrow('Aborting a duplicate mapping attempt');
+  });
 });
 
 // ─── hasSourceChanged ─────────────────────────────────────────────────────────
