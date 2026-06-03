@@ -1,13 +1,13 @@
-import { Auth } from '../auth';
-import { resetState, setState, getState } from '../state';
+import { Auth } from "../auth";
+import { resetState, setState, getState } from "../state";
 
 beforeEach(() => {
   resetState();
-  jest.spyOn(console, 'log').mockImplementation(() => {});
-  jest.spyOn(console, 'warn').mockImplementation(() => {});
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  jest.spyOn(console, "log").mockImplementation(() => {});
+  jest.spyOn(console, "warn").mockImplementation(() => {});
+  jest.spyOn(console, "error").mockImplementation(() => {});
   // Clear argv token flags between tests
-  process.argv = ['node', 'script.js'];
+  process.argv = ["node", "script.js"];
   delete process.env.AGILITY_TOKEN;
 });
 
@@ -17,193 +17,193 @@ afterEach(() => {
 
 // ─── getEnv ────────────────────────────────────────────────────────────────────
 
-describe('Auth.getEnv', () => {
+describe("Auth.getEnv", () => {
   it('returns "prod" by default', () => {
     const auth = new Auth();
-    expect(auth.getEnv()).toBe('prod');
+    expect(auth.getEnv()).toBe("prod");
   });
 
   it('returns "local" when state.local is true', () => {
     setState({ local: true });
     const auth = new Auth();
-    expect(auth.getEnv()).toBe('local');
+    expect(auth.getEnv()).toBe("local");
   });
 
   it('returns "dev" when state.dev is true', () => {
     setState({ dev: true });
     const auth = new Auth();
-    expect(auth.getEnv()).toBe('dev');
+    expect(auth.getEnv()).toBe("dev");
   });
 
   it('returns "preprod" when state.preprod is true', () => {
     setState({ preprod: true });
     const auth = new Auth();
-    expect(auth.getEnv()).toBe('preprod');
+    expect(auth.getEnv()).toBe("preprod");
   });
 
-  it('local takes priority over dev', () => {
+  it("local takes priority over dev", () => {
     setState({ local: true, dev: true });
     const auth = new Auth();
-    expect(auth.getEnv()).toBe('local');
+    expect(auth.getEnv()).toBe("local");
   });
 });
 
 // ─── getEnvKey ─────────────────────────────────────────────────────────────────
 
-describe('Auth.getEnvKey', () => {
-  it('returns the correct key format for prod', () => {
+describe("Auth.getEnvKey", () => {
+  it("returns the correct key format for prod", () => {
     const auth = new Auth();
-    expect(auth.getEnvKey('prod')).toBe('cli-auth-token:prod');
+    expect(auth.getEnvKey("prod")).toBe("cli-auth-token:prod");
   });
 
-  it('returns the correct key format for dev', () => {
+  it("returns the correct key format for dev", () => {
     const auth = new Auth();
-    expect(auth.getEnvKey('dev')).toBe('cli-auth-token:dev');
+    expect(auth.getEnvKey("dev")).toBe("cli-auth-token:dev");
   });
 });
 
 // ─── determineBaseUrl ──────────────────────────────────────────────────────────
 
-describe('Auth.determineBaseUrl', () => {
+describe("Auth.determineBaseUrl", () => {
   it('returns US mgmt URL for GUID ending in "u"', () => {
     const auth = new Auth();
-    expect(auth.determineBaseUrl('my-instance-guid-u')).toBe('https://mgmt.aglty.io');
+    expect(auth.determineBaseUrl("my-instance-guid-u")).toBe("https://mgmt.aglty.io");
   });
 
   it('returns CA mgmt URL for GUID ending in "c"', () => {
     const auth = new Auth();
-    expect(auth.determineBaseUrl('my-instance-guid-c')).toBe('https://mgmt-ca.aglty.io');
+    expect(auth.determineBaseUrl("my-instance-guid-c")).toBe("https://mgmt-ca.aglty.io");
   });
 
   it('returns EU mgmt URL for GUID ending in "e"', () => {
     const auth = new Auth();
-    expect(auth.determineBaseUrl('my-instance-e')).toBe('https://mgmt-eu.aglty.io');
+    expect(auth.determineBaseUrl("my-instance-e")).toBe("https://mgmt-eu.aglty.io");
   });
 
   it('returns AUS mgmt URL for GUID ending in "a"', () => {
     const auth = new Auth();
-    expect(auth.determineBaseUrl('my-instance-a')).toBe('https://mgmt-aus.aglty.io');
+    expect(auth.determineBaseUrl("my-instance-a")).toBe("https://mgmt-aus.aglty.io");
   });
 
   it('returns dev URL for GUID ending in "d"', () => {
     const auth = new Auth();
-    expect(auth.determineBaseUrl('my-instance-d')).toBe('https://mgmt-dev.aglty.io');
+    expect(auth.determineBaseUrl("my-instance-d")).toBe("https://mgmt-dev.aglty.io");
   });
 
   it('returns US2 URL for GUID ending in "us2"', () => {
     const auth = new Auth();
-    expect(auth.determineBaseUrl('my-instance-us2')).toBe('https://mgmt-usa2.aglty.io');
+    expect(auth.determineBaseUrl("my-instance-us2")).toBe("https://mgmt-usa2.aglty.io");
   });
 
-  it('returns localhost when state.local is true', () => {
+  it("returns localhost when state.local is true", () => {
     setState({ local: true });
     const auth = new Auth();
-    expect(auth.determineBaseUrl('any-guid')).toBe('https://localhost:5050');
+    expect(auth.determineBaseUrl("any-guid")).toBe("https://localhost:5050");
   });
 
-  it('returns dev URL when state.dev is true', () => {
+  it("returns dev URL when state.dev is true", () => {
     setState({ dev: true });
     const auth = new Auth();
-    expect(auth.determineBaseUrl('any-guid')).toBe('https://mgmt-dev.aglty.io');
+    expect(auth.determineBaseUrl("any-guid")).toBe("https://mgmt-dev.aglty.io");
   });
 
-  it('respects state.baseUrl override', () => {
-    setState({ baseUrl: 'https://custom.example.com' });
+  it("respects state.baseUrl override", () => {
+    setState({ baseUrl: "https://custom.example.com" });
     const auth = new Auth();
-    expect(auth.determineBaseUrl('any-guid-u')).toBe('https://custom.example.com');
+    expect(auth.determineBaseUrl("any-guid-u")).toBe("https://custom.example.com");
   });
 
-  it('returns default US URL when no GUID is given and no state flags', () => {
+  it("returns default US URL when no GUID is given and no state flags", () => {
     const auth = new Auth();
-    expect(auth.determineBaseUrl()).toBe('https://mgmt.aglty.io');
+    expect(auth.determineBaseUrl()).toBe("https://mgmt.aglty.io");
   });
 
-  it('falls back to sourceGuid[0] when no explicit guid is provided', () => {
-    setState({ sourceGuid: 'my-guid-c' });
+  it("falls back to sourceGuid[0] when no explicit guid is provided", () => {
+    setState({ sourceGuid: "my-guid-c" });
     const auth = new Auth();
-    expect(auth.determineBaseUrl()).toBe('https://mgmt-ca.aglty.io');
+    expect(auth.determineBaseUrl()).toBe("https://mgmt-ca.aglty.io");
   });
 });
 
 // ─── determineFetchUrl ────────────────────────────────────────────────────────
 
-describe('Auth.determineFetchUrl', () => {
+describe("Auth.determineFetchUrl", () => {
   it('returns US fetch URL for GUID ending in "u"', () => {
     const auth = new Auth();
-    expect(auth.determineFetchUrl('my-guid-u')).toBe('https://api.aglty.io');
+    expect(auth.determineFetchUrl("my-guid-u")).toBe("https://api.aglty.io");
   });
 
   it('returns CA fetch URL for GUID ending in "c"', () => {
     const auth = new Auth();
-    expect(auth.determineFetchUrl('my-guid-c')).toBe('https://api-ca.aglty.io');
+    expect(auth.determineFetchUrl("my-guid-c")).toBe("https://api-ca.aglty.io");
   });
 
   it('returns EU fetch URL for GUID ending in "e"', () => {
     const auth = new Auth();
-    expect(auth.determineFetchUrl('my-guid-e')).toBe('https://api-eu.aglty.io');
+    expect(auth.determineFetchUrl("my-guid-e")).toBe("https://api-eu.aglty.io");
   });
 
   it('returns AUS fetch URL for GUID ending in "a"', () => {
     const auth = new Auth();
-    expect(auth.determineFetchUrl('my-guid-a')).toBe('https://api-aus.aglty.io');
+    expect(auth.determineFetchUrl("my-guid-a")).toBe("https://api-aus.aglty.io");
   });
 
   it('returns dev fetch URL for GUID ending in "d"', () => {
     const auth = new Auth();
-    expect(auth.determineFetchUrl('my-guid-d')).toBe('https://api-dev.aglty.io');
+    expect(auth.determineFetchUrl("my-guid-d")).toBe("https://api-dev.aglty.io");
   });
 
   it('returns US2 fetch URL for GUID ending in "us2"', () => {
     const auth = new Auth();
-    expect(auth.determineFetchUrl('my-guid-us2')).toBe('https://api-usa2.aglty.io');
+    expect(auth.determineFetchUrl("my-guid-us2")).toBe("https://api-usa2.aglty.io");
   });
 
-  it('does NOT switch to localhost even when state.local is true (fetch API is always cloud)', () => {
+  it("does NOT switch to localhost even when state.local is true (fetch API is always cloud)", () => {
     setState({ local: true });
     const auth = new Auth();
-    expect(auth.determineFetchUrl('my-guid-u')).toBe('https://api.aglty.io');
+    expect(auth.determineFetchUrl("my-guid-u")).toBe("https://api.aglty.io");
   });
 
-  it('returns default US fetch URL when no guid provided', () => {
+  it("returns default US fetch URL when no guid provided", () => {
     const auth = new Auth();
-    expect(auth.determineFetchUrl()).toBe('https://api.aglty.io');
+    expect(auth.determineFetchUrl()).toBe("https://api.aglty.io");
   });
 });
 
 // ─── determineCloudMgmtUrl ────────────────────────────────────────────────────
 
-describe('Auth.determineCloudMgmtUrl', () => {
-  it('always returns cloud URL even when local flag is set', () => {
+describe("Auth.determineCloudMgmtUrl", () => {
+  it("always returns cloud URL even when local flag is set", () => {
     setState({ local: true });
     const auth = new Auth();
-    expect(auth.determineCloudMgmtUrl('my-guid-u')).toBe('https://mgmt.aglty.io');
+    expect(auth.determineCloudMgmtUrl("my-guid-u")).toBe("https://mgmt.aglty.io");
   });
 
   it('returns CA cloud mgmt URL for GUID ending in "c"', () => {
     const auth = new Auth();
-    expect(auth.determineCloudMgmtUrl('my-guid-c')).toBe('https://mgmt-ca.aglty.io');
+    expect(auth.determineCloudMgmtUrl("my-guid-c")).toBe("https://mgmt-ca.aglty.io");
   });
 });
 
 // ─── getBaseUrl ───────────────────────────────────────────────────────────────
 
-describe('Auth.getBaseUrl', () => {
-  it('appends /oauth to the management base URL', () => {
+describe("Auth.getBaseUrl", () => {
+  it("appends /oauth to the management base URL", () => {
     const auth = new Auth();
-    const result = auth.getBaseUrl('my-guid-u');
-    expect(result).toBe('https://mgmt.aglty.io/oauth');
+    const result = auth.getBaseUrl("my-guid-u");
+    expect(result).toBe("https://mgmt.aglty.io/oauth");
   });
 });
 
 // ─── shouldSkipPermissionCheck ────────────────────────────────────────────────
 
-describe('Auth.shouldSkipPermissionCheck', () => {
-  it('returns false by default', () => {
+describe("Auth.shouldSkipPermissionCheck", () => {
+  it("returns false by default", () => {
     const auth = new Auth();
     expect(auth.shouldSkipPermissionCheck()).toBe(false);
   });
 
-  it('returns true when state.test is true', () => {
+  it("returns true when state.test is true", () => {
     setState({ test: true });
     const auth = new Auth();
     expect(auth.shouldSkipPermissionCheck()).toBe(true);
@@ -212,14 +212,14 @@ describe('Auth.shouldSkipPermissionCheck', () => {
 
 // ─── generateCode ─────────────────────────────────────────────────────────────
 
-describe('Auth.generateCode', () => {
-  it('returns a 6-character alphanumeric code', async () => {
+describe("Auth.generateCode", () => {
+  it("returns a 6-character alphanumeric code", async () => {
     const auth = new Auth();
     const code = await auth.generateCode();
     expect(code).toMatch(/^[a-z0-9]{6}$/);
   });
 
-  it('generates different codes on successive calls', async () => {
+  it("generates different codes on successive calls", async () => {
     const auth = new Auth();
     const codes = new Set<string>();
     for (let i = 0; i < 20; i++) {
@@ -231,18 +231,18 @@ describe('Auth.generateCode', () => {
 
 // ─── setInsecureMode ──────────────────────────────────────────────────────────
 
-describe('Auth insecure mode', () => {
-  it('defaults to secure mode', () => {
+describe("Auth insecure mode", () => {
+  it("defaults to secure mode", () => {
     const auth = new Auth();
     // createHttpsAgent is private, but we can verify the constructor accepts the flag
     expect(() => new Auth(false)).not.toThrow();
   });
 
-  it('can be constructed in insecure mode', () => {
+  it("can be constructed in insecure mode", () => {
     expect(() => new Auth(true)).not.toThrow();
   });
 
-  it('setInsecureMode does not throw', () => {
+  it("setInsecureMode does not throw", () => {
     const auth = new Auth();
     expect(() => auth.setInsecureMode(true)).not.toThrow();
     expect(() => auth.setInsecureMode(false)).not.toThrow();
@@ -251,41 +251,35 @@ describe('Auth insecure mode', () => {
 
 // ─── validateAndResolveParams ─────────────────────────────────────────────────
 
-describe('Auth.validateAndResolveParams', () => {
-  it('returns params from args when all are provided', () => {
+describe("Auth.validateAndResolveParams", () => {
+  it("returns params from args when all are provided", () => {
     const auth = new Auth();
     const result = auth.validateAndResolveParams(
-      { sourceGuid: 'guid1', targetGuid: 'guid2', locale: 'en-us', channel: 'website' },
+      { sourceGuid: "guid1", targetGuid: "guid2", locale: "en-us", channel: "website" },
       []
     );
-    expect(result.sourceGuid).toBe('guid1');
-    expect(result.targetGuid).toBe('guid2');
-    expect(result.locale).toBe('en-us');
-    expect(result.channel).toBe('website');
+    expect(result.sourceGuid).toBe("guid1");
+    expect(result.targetGuid).toBe("guid2");
+    expect(result.locale).toBe("en-us");
+    expect(result.channel).toBe("website");
   });
 
-  it('throws when a required field is missing', () => {
+  it("throws when a required field is missing", () => {
     const auth = new Auth();
-    expect(() =>
-      auth.validateAndResolveParams({ targetGuid: 'guid2' }, ['sourceGuid'])
-    ).toThrow();
+    expect(() => auth.validateAndResolveParams({ targetGuid: "guid2" }, ["sourceGuid"])).toThrow();
   });
 
-  it('throws with helpful message for missing sourceGuid', () => {
+  it("throws with helpful message for missing sourceGuid", () => {
     const auth = new Auth();
-    expect(() =>
-      auth.validateAndResolveParams({}, ['sourceGuid'])
-    ).toThrow(/sourceGuid/i);
+    expect(() => auth.validateAndResolveParams({}, ["sourceGuid"])).toThrow(/sourceGuid/i);
   });
 
-  it('throws with helpful message for missing targetGuid', () => {
+  it("throws with helpful message for missing targetGuid", () => {
     const auth = new Auth();
-    expect(() =>
-      auth.validateAndResolveParams({}, ['targetGuid'])
-    ).toThrow(/targetGuid/i);
+    expect(() => auth.validateAndResolveParams({}, ["targetGuid"])).toThrow(/targetGuid/i);
   });
 
-  it('does not throw when no fields are required', () => {
+  it("does not throw when no fields are required", () => {
     const auth = new Auth();
     expect(() => auth.validateAndResolveParams({}, [])).not.toThrow();
   });

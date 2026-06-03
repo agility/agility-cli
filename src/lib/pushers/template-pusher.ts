@@ -1,12 +1,11 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { state, getState, getApiClient, getLoggerForGuid } from '../../core/state';
+import { state, getState, getApiClient, getLoggerForGuid } from "../../core/state";
 import { TemplateMapper } from "lib/mappers/template-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { FailureDetail, PusherResult } from "types/sourceData";
-
 
 /**
  * Enhanced template finder with proper target safety and conflict resolution
@@ -58,28 +57,36 @@ export async function pushTemplates(
             targetTemplate = referenceMapper.getMappedEntity(existingMapping, "target");
         }
 
-        // Handle templates that exist in target but have no mapping (match by name)
-        // This ensures downstream pages can find their template mappings
-        if (!existingMapping && !targetTemplate) {
-            targetTemplate = targetData.find(t => t.pageTemplateName === template.pageTemplateName) || null;
-            if (targetTemplate) {
-                // Create the mapping for existing target template
-                referenceMapper.addMapping(template, targetTemplate);
-                logger.template.skipped(template, "exists in target, mapping created", targetGuid[0]);
-                skipped++;
-                processedCount++;
-                continue; // Skip to next template - mapping is now created
-            }
-        }
+    const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetTemplate);
+    const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(template);
+    let shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
+    let shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
 
-        const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetTemplate);
-        const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(template);
-        let shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
-        let shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
+    if (overwrite && existingMapping && targetTemplate) {
+      shouldUpdate = true;
+      shouldSkip = false;
+    }
 
-        if (overwrite && existingMapping && targetTemplate) {
-            shouldUpdate = true;
-            shouldSkip = false;
+    if (shouldSkip) {
+      if (targetTemplate) {
+        referenceMapper.addMapping(template, targetTemplate);
+      }
+      logger.template.skipped(template, "up to date, skipping", targetGuid[0]);
+      skipped++;
+    } else {
+      let targetId = shouldUpdate ? targetTemplate.pageTemplateID : -1;
+
+      // Prepare payload
+      const mappedSections = template.contentSectionDefinitions.map((def) => {
+        const mappedDef = { ...def };
+        mappedDef.pageItemTemplateID = shouldUpdate ? def.pageItemTemplateID : -1;
+        mappedDef.pageTemplateID = targetId;
+        mappedDef.contentViewID = shouldUpdate ? def.contentViewID : 0;
+
+        if (def.contentDefinitionID) {
+          const modelMappers = new ModelMapper(sourceGuid[0], targetGuid[0]);
+          const modelMapping = modelMappers.getModelMappingByID(def.contentDefinitionID, "source");
+          if (modelMapping?.targetID) mappedDef.contentDefinitionID = modelMapping.targetID;
         }
 
         if (shouldSkip) {
@@ -135,8 +142,27 @@ export async function pushTemplates(
                 });
             }
         }
+        return mappedDef;
+      });
 
-        processedCount++;
+      const payload = {
+        ...template,
+        pageTemplateID: targetId,
+        contentSectionDefinitions: mappedSections,
+      };
+
+      try {
+        const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid[0], locale, payload);
+        referenceMapper.addMapping(template, savedTemplate);
+        const action = shouldUpdate ? "updated" : "created";
+        logger.template[action](template, action, targetGuid[0]);
+        successful++;
+      } catch (error: any) {
+        logger.template.error(template, error, targetGuid[0]);
+        failed++;
+        currentStatus = "error";
+        overallStatus = "error";
+      }
     }
 
     return { status: overallStatus, successful, failed, skipped, failureDetails };

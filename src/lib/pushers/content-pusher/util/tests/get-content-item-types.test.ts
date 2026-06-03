@@ -1,23 +1,23 @@
-import { resetState } from 'core/state';
-import { getContentItemTypes } from '../get-content-item-types';
+import { resetState } from "core/state";
+import { getContentItemTypes } from "../get-content-item-types";
 
-jest.mock('lib/mappers/container-mapper', () => ({
+jest.mock("lib/mappers/container-mapper", () => ({
   ContainerMapper: jest.fn(),
 }));
 
-jest.mock('lib/mappers/model-mapper', () => ({
+jest.mock("lib/mappers/model-mapper", () => ({
   ModelMapper: jest.fn(),
 }));
 
-jest.mock('lib/mappers/content-item-mapper', () => ({
+jest.mock("lib/mappers/content-item-mapper", () => ({
   ContentItemMapper: jest.fn(),
 }));
 
 beforeEach(() => {
   resetState();
-  jest.spyOn(console, 'log').mockImplementation(() => {});
-  jest.spyOn(console, 'warn').mockImplementation(() => {});
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  jest.spyOn(console, "log").mockImplementation(() => {});
+  jest.spyOn(console, "warn").mockImplementation(() => {});
+  jest.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -27,11 +27,7 @@ afterEach(() => {
 // ─── helpers ──────────────────────────────────────────────────────────────────
 
 let nextId = 1;
-function makeItem(
-  referenceName: string,
-  definitionName: string,
-  fields: any = {}
-): any {
+function makeItem(referenceName: string, definitionName: string, fields: any = {}): any {
   return {
     contentID: nextId++,
     properties: { referenceName, definitionName },
@@ -85,8 +81,8 @@ beforeEach(() => {
 
 // ─── empty input ──────────────────────────────────────────────────────────────
 
-describe('getContentItemTypes — empty input', () => {
-  it('returns empty arrays when contentItems is empty', () => {
+describe("getContentItemTypes — empty input", () => {
+  it("returns empty arrays when contentItems is empty", () => {
     const result = getContentItemTypes([], makeValidOpts());
     expect(result.normalContentItems).toHaveLength(0);
     expect(result.linkedContentItems).toHaveLength(0);
@@ -96,9 +92,9 @@ describe('getContentItemTypes — empty input', () => {
 
 // ─── skipped items (no valid mappings) ────────────────────────────────────────
 
-describe('getContentItemTypes — skipped items', () => {
-  it('adds item to skippedItems when mappings are invalid', () => {
-    const item = makeItem('container-a', 'ModelA');
+describe("getContentItemTypes — skipped items", () => {
+  it("adds item to skippedItems when mappings are invalid", () => {
+    const item = makeItem("container-a", "ModelA");
     const result = getContentItemTypes([item], makeInvalidOpts());
     expect(result.skippedItems).toHaveLength(1);
     expect(result.skippedItems[0]).toBe(item);
@@ -106,28 +102,22 @@ describe('getContentItemTypes — skipped items', () => {
     expect(result.linkedContentItems).toHaveLength(0);
   });
 
-  it('skips some and classifies others when mappings are mixed', () => {
-    const validItem = makeItem('valid-container', 'ValidModel');
-    const invalidItem = makeItem('invalid-container', 'InvalidModel');
+  it("skips some and classifies others when mappings are mixed", () => {
+    const validItem = makeItem("valid-container", "ValidModel");
+    const invalidItem = makeItem("invalid-container", "InvalidModel");
 
     const mixedOpts = {
       containerMapper: {
-        getContainerMappingByReferenceName: jest.fn().mockImplementation(
-          (ref: string) =>
-            ref === 'valid-container' ? { sourceContentViewID: 1 } : null
-        ),
-        getMappedEntity: jest.fn().mockImplementation(
-          (mapping: any) => (mapping ? { contentViewID: 1 } : null)
-        ),
+        getContainerMappingByReferenceName: jest
+          .fn()
+          .mockImplementation((ref: string) => (ref === "valid-container" ? { sourceContentViewID: 1 } : null)),
+        getMappedEntity: jest.fn().mockImplementation((mapping: any) => (mapping ? { contentViewID: 1 } : null)),
       },
       modelMapper: {
-        getModelMappingByReferenceName: jest.fn().mockImplementation(
-          (ref: string) =>
-            ref === 'validmodel' ? { sourceID: 10 } : null
-        ),
-        getMappedEntity: jest.fn().mockImplementation(
-          (mapping: any) => (mapping ? { id: 10 } : null)
-        ),
+        getModelMappingByReferenceName: jest
+          .fn()
+          .mockImplementation((ref: string) => (ref === "validmodel" ? { sourceID: 10 } : null)),
+        getMappedEntity: jest.fn().mockImplementation((mapping: any) => (mapping ? { id: 10 } : null)),
       },
       referenceMapper: {},
       logger: {},
@@ -142,20 +132,20 @@ describe('getContentItemTypes — skipped items', () => {
 
 // ─── normal items (no fullList references) ────────────────────────────────────
 
-describe('getContentItemTypes — normal items', () => {
-  it('classifies an item as normal when it has no fullList references', () => {
-    const item = makeItem('container-a', 'ModelA', { title: 'Hello' });
+describe("getContentItemTypes — normal items", () => {
+  it("classifies an item as normal when it has no fullList references", () => {
+    const item = makeItem("container-a", "ModelA", { title: "Hello" });
     const result = getContentItemTypes([item], makeValidOpts());
     expect(result.normalContentItems).toHaveLength(1);
     expect(result.normalContentItems[0]).toBe(item);
     expect(result.linkedContentItems).toHaveLength(0);
   });
 
-  it('classifies multiple items without references as normal', () => {
+  it("classifies multiple items without references as normal", () => {
     const items = [
-      makeItem('container-a', 'ModelA'),
-      makeItem('container-b', 'ModelB'),
-      makeItem('container-c', 'ModelC'),
+      makeItem("container-a", "ModelA"),
+      makeItem("container-b", "ModelB"),
+      makeItem("container-c", "ModelC"),
     ];
     const result = getContentItemTypes(items, makeValidOpts());
     expect(result.normalContentItems).toHaveLength(3);
@@ -166,11 +156,11 @@ describe('getContentItemTypes — normal items', () => {
 
 // ─── linked items (have fullList references) ──────────────────────────────────
 
-describe('getContentItemTypes — linked items', () => {
-  it('moves a referenced item from normal to linked when another item points to it with fullList=true', () => {
-    const linkedItem = makeItem('linked-ref', 'ModelLinked');
-    const parentItem = makeItem('parent-ref', 'ModelParent', {
-      items: { referenceName: 'linked-ref', fullList: true },
+describe("getContentItemTypes — linked items", () => {
+  it("moves a referenced item from normal to linked when another item points to it with fullList=true", () => {
+    const linkedItem = makeItem("linked-ref", "ModelLinked");
+    const parentItem = makeItem("parent-ref", "ModelParent", {
+      items: { referenceName: "linked-ref", fullList: true },
     });
 
     const result = getContentItemTypes([linkedItem, parentItem], makeValidOpts());
@@ -180,10 +170,10 @@ describe('getContentItemTypes — linked items', () => {
     expect(result.normalContentItems[0]).toBe(parentItem);
   });
 
-  it('handles lowercase referencename/fulllist properties', () => {
-    const linkedItem = makeItem('linked-lower', 'ModelLinked');
-    const parentItem = makeItem('parent-ref', 'ModelParent', {
-      items: { referencename: 'linked-lower', fulllist: true },
+  it("handles lowercase referencename/fulllist properties", () => {
+    const linkedItem = makeItem("linked-lower", "ModelLinked");
+    const parentItem = makeItem("parent-ref", "ModelParent", {
+      items: { referencename: "linked-lower", fulllist: true },
     });
 
     const result = getContentItemTypes([linkedItem, parentItem], makeValidOpts());
@@ -213,18 +203,18 @@ describe('getContentItemTypes — linked items', () => {
     const parent1 = makeItem('parent-1', 'ModelParent', {
       items: { referenceName: 'shared-ref', fullList: true },
     });
-    const parent2 = makeItem('parent-2', 'ModelParent', {
-      items: { referenceName: 'shared-ref', fullList: true },
+    const parent2 = makeItem("parent-2", "ModelParent", {
+      items: { referenceName: "shared-ref", fullList: true },
     });
 
     const result = getContentItemTypes([sharedItem, parent1, parent2], makeValidOpts());
     expect(result.linkedContentItems).toHaveLength(1);
   });
 
-  it('an item with fullList=false is not treated as linked', () => {
-    const candidateItem = makeItem('candidate-ref', 'ModelCandidate');
-    const parentItem = makeItem('parent-ref', 'ModelParent', {
-      items: { referenceName: 'candidate-ref', fullList: false },
+  it("an item with fullList=false is not treated as linked", () => {
+    const candidateItem = makeItem("candidate-ref", "ModelCandidate");
+    const parentItem = makeItem("parent-ref", "ModelParent", {
+      items: { referenceName: "candidate-ref", fullList: false },
     });
 
     const result = getContentItemTypes([candidateItem, parentItem], makeValidOpts());
@@ -235,10 +225,10 @@ describe('getContentItemTypes — linked items', () => {
 
 // ─── reference to unknown item ────────────────────────────────────────────────
 
-describe('getContentItemTypes — reference to unknown referenceName', () => {
-  it('does not crash when a referenced referenceName is not found in contentItems', () => {
-    const parentItem = makeItem('parent-ref', 'ModelParent', {
-      items: { referenceName: 'ghost-ref', fullList: true },
+describe("getContentItemTypes — reference to unknown referenceName", () => {
+  it("does not crash when a referenced referenceName is not found in contentItems", () => {
+    const parentItem = makeItem("parent-ref", "ModelParent", {
+      items: { referenceName: "ghost-ref", fullList: true },
     });
 
     const result = getContentItemTypes([parentItem], makeValidOpts());
@@ -250,31 +240,31 @@ describe('getContentItemTypes — reference to unknown referenceName', () => {
 
 // ─── recursive / nested references ───────────────────────────────────────────
 
-describe('getContentItemTypes — recursive references', () => {
-  it('marks transitively referenced items as linked', () => {
-    const deepItem = makeItem('deep-ref', 'ModelDeep');
-    const midItem = makeItem('mid-ref', 'ModelMid', {
-      nested: { referenceName: 'deep-ref', fullList: true },
+describe("getContentItemTypes — recursive references", () => {
+  it("marks transitively referenced items as linked", () => {
+    const deepItem = makeItem("deep-ref", "ModelDeep");
+    const midItem = makeItem("mid-ref", "ModelMid", {
+      nested: { referenceName: "deep-ref", fullList: true },
     });
-    const topItem = makeItem('top-ref', 'ModelTop', {
-      items: { referenceName: 'mid-ref', fullList: true },
+    const topItem = makeItem("top-ref", "ModelTop", {
+      items: { referenceName: "mid-ref", fullList: true },
     });
 
     const result = getContentItemTypes([deepItem, midItem, topItem], makeValidOpts());
     expect(result.normalContentItems).toHaveLength(1);
     expect(result.normalContentItems[0]).toBe(topItem);
     expect(result.linkedContentItems).toHaveLength(2);
-    const linkedIds = result.linkedContentItems.map(i => i.contentID);
+    const linkedIds = result.linkedContentItems.map((i) => i.contentID);
     expect(linkedIds).toContain(deepItem.contentID);
     expect(linkedIds).toContain(midItem.contentID);
   });
 
-  it('handles circular references without infinite loop', () => {
-    const itemA = makeItem('ref-a', 'ModelA', {
-      loop: { referenceName: 'ref-b', fullList: true },
+  it("handles circular references without infinite loop", () => {
+    const itemA = makeItem("ref-a", "ModelA", {
+      loop: { referenceName: "ref-b", fullList: true },
     });
-    const itemB = makeItem('ref-b', 'ModelB', {
-      loop: { referenceName: 'ref-a', fullList: true },
+    const itemB = makeItem("ref-b", "ModelB", {
+      loop: { referenceName: "ref-a", fullList: true },
     });
 
     expect(() => getContentItemTypes([itemA, itemB], makeValidOpts())).not.toThrow();
