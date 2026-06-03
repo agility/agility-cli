@@ -48,4 +48,4 @@ jobs:
             npm publish --access public --tag "$PRERELEASE_TAG"
           else
             npm publish --access public
-          fi 
+          fi

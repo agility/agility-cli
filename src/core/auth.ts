@@ -131,9 +131,9 @@ export class Auth {
     const env = this.getEnv();
     const auth0Key = this.getEnvKey(env);
     const patKey = `cli-pat-token:${env}`;
-    
+
     let removedAny = false;
-    
+
     const kt = getKeytar();
     if (!kt) {
       console.log(ansiColors.yellow("Keychain not available on this system. Nothing to log out."));
@@ -172,7 +172,6 @@ export class Auth {
   }
 
   determineBaseUrl(guid?: string): string {
-
     let baseGUID = guid;
     if (!baseGUID) {
       baseGUID = state.sourceGuid[0];
@@ -290,7 +289,7 @@ export class Auth {
   }
 
   async executeGet(apiPath: string, guid: string, userBaseUrl: string = null) {
-    const baseUrl = this.getBaseUrl(guid)
+    const baseUrl = this.getBaseUrl(guid);
     const url = `${baseUrl}${apiPath}`;
 
     try {
@@ -367,7 +366,7 @@ export class Auth {
     let code = await this.generateCode();
 
     const baseUrl = this.determineBaseUrl();
-    
+
     const redirectUri = `${baseUrl}/oauth/CliAuth`;
     const authUrl = `${baseUrl}/oauth/Authorize?response_type=code&redirect_uri=${encodeURIComponent(
       redirectUri
@@ -498,7 +497,9 @@ export class Auth {
         //Get the locales for the TARGET GUID
         let targetLocales: string[] = [];
         if (state.targetGuid.length > 0) {
-          targetLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.targetGuid[0])).map((locale: any) => locale.localeCode);
+          targetLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.targetGuid[0])).map(
+            (locale: any) => locale.localeCode
+          );
 
           // Determine which locales to validate based on user input
           let localesToValidate: string[];
@@ -512,10 +513,14 @@ export class Auth {
             localesToValidate = sourceLocales;
           }
 
-          const missingLocales = localesToValidate.filter(locale => !targetLocales.includes(locale));
+          const missingLocales = localesToValidate.filter((locale) => !targetLocales.includes(locale));
           if (missingLocales.length > 0) {
-            const validationScope = state.locale.length > 0 ? 'specified' : 'source';
-            console.log(ansiColors.yellow(`⚠️  Target instance ${state.targetGuid[0]}: Missing ${validationScope} locales ${missingLocales.join(', ')} (available: ${targetLocales.join(', ')})`));
+            const validationScope = state.locale.length > 0 ? "specified" : "source";
+            console.log(
+              ansiColors.yellow(
+                `⚠️  Target instance ${state.targetGuid[0]}: Missing ${validationScope} locales ${missingLocales.join(", ")} (available: ${targetLocales.join(", ")})`
+              )
+            );
             return false; // Cannot proceed with missing locales
           }
         }
@@ -545,8 +550,6 @@ export class Auth {
 
         state.locale = localesToUse; // Set the state locale list to the determined locales
         state.guidLocaleMap = guidLocaleMap;
-
-
       } catch (error) {
         // If we also failed to get keys for any GUIDs, this is likely an auth/GUID problem — fail fast
         // This should never happen, but just in case
@@ -611,7 +614,8 @@ export class Auth {
       }
     } catch (error) {
       throw new Error(
-        `${instanceType.charAt(0).toUpperCase() + instanceType.slice(1)} instance authentication failed: ${error.message
+        `${instanceType.charAt(0).toUpperCase() + instanceType.slice(1)} instance authentication failed: ${
+          error.message
         }`
       );
     }
@@ -742,7 +746,7 @@ export class Auth {
     // Priority 1: Check if token came from --token flag or AGILITY_TOKEN env var
     // We need to check the ORIGINAL source, not state.token which Auth0 also populates
     const userProvidedToken = await this.getUserProvidedToken();
-    
+
     if (userProvidedToken && userProvidedToken.trim().length > 0) {
       // Validate PAT format (basic check)
       if (await this.validatePersonalAccessToken(userProvidedToken)) {
@@ -756,12 +760,12 @@ export class Auth {
     // Priority 2: Check for PAT stored in keytar from previous session
     const env = this.getEnv();
     const patKey = `cli-pat-token:${env}`;
-    
+
     try {
       const kt = getKeytar();
       if (kt) {
         const storedPAT = await kt.getPassword(SERVICE_NAME, patKey);
-        if (storedPAT && await this.validatePersonalAccessToken(storedPAT)) {
+        if (storedPAT && (await this.validatePersonalAccessToken(storedPAT))) {
           return storedPAT;
         }
       }
@@ -779,18 +783,18 @@ export class Auth {
   private async getUserProvidedToken(): Promise<string | null> {
     // Priority 1: Check if token was provided via command line argument
     const args = process.argv;
-    
+
     // Handle both --token=value and --token value formats
     for (let i = 0; i < args.length; i++) {
       const arg = args[i];
-      
+
       // Format: --token=value
-      if (arg.startsWith('--token=')) {
-        return arg.substring('--token='.length);
+      if (arg.startsWith("--token=")) {
+        return arg.substring("--token=".length);
       }
-      
+
       // Format: --token value
-      if (arg === '--token' && i + 1 < args.length) {
+      if (arg === "--token" && i + 1 < args.length) {
         return args[i + 1];
       }
     }
@@ -813,7 +817,9 @@ export class Auth {
 
     const kt = getKeytar();
     if (!kt) {
-      throw new Error(`❌ Keychain not available on this system. Use --token or set the AGILITY_TOKEN environment variable.`);
+      throw new Error(
+        `❌ Keychain not available on this system. Use --token or set the AGILITY_TOKEN environment variable.`
+      );
     }
     const tokenRaw = await kt.getPassword(SERVICE_NAME, key);
 
@@ -872,7 +878,7 @@ export class Auth {
     if (userProvidedToken && userProvidedToken.trim().length > 0) {
       const env = this.getEnv();
       const patKey = `cli-pat-token:${env}`;
-      
+
       try {
         const kt = getKeytar();
         if (kt) await kt.setPassword(SERVICE_NAME, patKey, userProvidedToken);
@@ -920,9 +926,7 @@ export class Auth {
       }
 
       const textResponse = await response.text();
-      return textResponse.startsWith('"') && textResponse.endsWith('"') 
-        ? textResponse.slice(1, -1) 
-        : textResponse;
+      return textResponse.startsWith('"') && textResponse.endsWith('"') ? textResponse.slice(1, -1) : textResponse;
     } catch (err) {
       throw err;
     }
@@ -949,9 +953,7 @@ export class Auth {
       }
 
       const textResponse = await response.text();
-      return textResponse.startsWith('"') && textResponse.endsWith('"') 
-        ? textResponse.slice(1, -1) 
-        : textResponse;
+      return textResponse.startsWith('"') && textResponse.endsWith('"') ? textResponse.slice(1, -1) : textResponse;
     } catch (err) {
       throw err;
     }
@@ -1078,7 +1080,8 @@ export class Auth {
         // Both push and sync require source and target GUIDs
         if (!state.sourceGuid || state.sourceGuid.length === 0)
           missingFields.push("sourceGuid (use --sourceGuid or AGILITY_GUID in .env)");
-        if (!state.targetGuid || state.targetGuid.length === 0) missingFields.push("targetGuid (use --targetGuid or AGILITY_TARGET_GUID in .env)");
+        if (!state.targetGuid || state.targetGuid.length === 0)
+          missingFields.push("targetGuid (use --targetGuid or AGILITY_TARGET_GUID in .env)");
 
         // Check for locales: either user-specified OR auto-detected per-GUID mappings
         const hasSyncUserLocales = state.locale && state.locale.length > 0;

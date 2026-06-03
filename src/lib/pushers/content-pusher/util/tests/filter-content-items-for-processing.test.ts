@@ -1,21 +1,21 @@
-import { resetState, setState } from 'core/state';
+import { resetState, setState } from "core/state";
 
 // Mock findContentInTargetInstance so we can control its return value
-jest.mock('../find-content-in-target-instance', () => ({
+jest.mock("../find-content-in-target-instance", () => ({
   findContentInTargetInstance: jest.fn(),
 }));
 
-import { filterContentItemsForProcessing } from '../filter-content-items-for-processing';
-import { findContentInTargetInstance } from '../find-content-in-target-instance';
+import { filterContentItemsForProcessing } from "../filter-content-items-for-processing";
+import { findContentInTargetInstance } from "../find-content-in-target-instance";
 
 const mockFind = findContentInTargetInstance as jest.Mock;
 
 beforeEach(() => {
   resetState();
   mockFind.mockReset();
-  jest.spyOn(console, 'log').mockImplementation(() => {});
-  jest.spyOn(console, 'warn').mockImplementation(() => {});
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  jest.spyOn(console, "log").mockImplementation(() => {});
+  jest.spyOn(console, "warn").mockImplementation(() => {});
+  jest.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -27,7 +27,7 @@ afterEach(() => {
 function makeContentItem(id: number, referenceName = `ref-${id}`): any {
   return {
     contentID: id,
-    properties: { referenceName, definitionName: 'Model', versionID: 1 },
+    properties: { referenceName, definitionName: "Model", versionID: 1 },
     fields: {},
   };
 }
@@ -45,8 +45,8 @@ function makeBaseProps(contentItems: any[], overrides: Partial<any> = {}): any {
   return {
     contentItems,
     apiClient: {} as any,
-    targetGuid: 'tgt-guid',
-    locale: 'en-us',
+    targetGuid: "tgt-guid",
+    locale: "en-us",
     referenceMapper: {} as any,
     targetData: [],
     logger: makeLogger(),
@@ -56,8 +56,8 @@ function makeBaseProps(contentItems: any[], overrides: Partial<any> = {}): any {
 
 // ─── empty input ──────────────────────────────────────────────────────────────
 
-describe('filterContentItemsForProcessing — empty input', () => {
-  it('returns empty arrays when contentItems is empty', async () => {
+describe("filterContentItemsForProcessing — empty input", () => {
+  it("returns empty arrays when contentItems is empty", async () => {
     const result = await filterContentItemsForProcessing(makeBaseProps([]));
     expect(result.itemsToProcess).toHaveLength(0);
     expect(result.itemsToSkip).toHaveLength(0);
@@ -67,10 +67,16 @@ describe('filterContentItemsForProcessing — empty input', () => {
 
 // ─── shouldCreate → itemsToProcess ───────────────────────────────────────────
 
-describe('filterContentItemsForProcessing — shouldCreate', () => {
-  it('includes item in itemsToProcess when shouldCreate is true', async () => {
+describe("filterContentItemsForProcessing — shouldCreate", () => {
+  it("includes item in itemsToProcess when shouldCreate is true", async () => {
     const item = makeContentItem(1);
-    mockFind.mockReturnValue({ content: null, shouldCreate: true, shouldUpdate: false, shouldSkip: false, isConflict: false });
+    mockFind.mockReturnValue({
+      content: null,
+      shouldCreate: true,
+      shouldUpdate: false,
+      shouldSkip: false,
+      isConflict: false,
+    });
     const result = await filterContentItemsForProcessing(makeBaseProps([item]));
     expect(result.itemsToProcess).toContain(item);
     expect(result.itemsToSkip).toHaveLength(0);
@@ -79,10 +85,16 @@ describe('filterContentItemsForProcessing — shouldCreate', () => {
 
 // ─── shouldUpdate → itemsToProcess ───────────────────────────────────────────
 
-describe('filterContentItemsForProcessing — shouldUpdate', () => {
-  it('includes item in itemsToProcess when shouldUpdate is true', async () => {
+describe("filterContentItemsForProcessing — shouldUpdate", () => {
+  it("includes item in itemsToProcess when shouldUpdate is true", async () => {
     const item = makeContentItem(1);
-    mockFind.mockReturnValue({ content: item, shouldCreate: false, shouldUpdate: true, shouldSkip: false, isConflict: false });
+    mockFind.mockReturnValue({
+      content: item,
+      shouldCreate: false,
+      shouldUpdate: true,
+      shouldSkip: false,
+      isConflict: false,
+    });
     const result = await filterContentItemsForProcessing(makeBaseProps([item]));
     expect(result.itemsToProcess).toContain(item);
     expect(result.itemsToSkip).toHaveLength(0);
@@ -91,11 +103,17 @@ describe('filterContentItemsForProcessing — shouldUpdate', () => {
 
 // ─── shouldSkip → itemsToSkip ─────────────────────────────────────────────────
 
-describe('filterContentItemsForProcessing — shouldSkip', () => {
-  it('puts item in itemsToSkip when shouldSkip is true', async () => {
+describe("filterContentItemsForProcessing — shouldSkip", () => {
+  it("puts item in itemsToSkip when shouldSkip is true", async () => {
     const item = makeContentItem(1);
     const logger = makeLogger();
-    mockFind.mockReturnValue({ content: item, shouldCreate: false, shouldUpdate: false, shouldSkip: true, isConflict: false });
+    mockFind.mockReturnValue({
+      content: item,
+      shouldCreate: false,
+      shouldUpdate: false,
+      shouldSkip: true,
+      isConflict: false,
+    });
     const result = await filterContentItemsForProcessing(makeBaseProps([item], { logger }));
     expect(result.itemsToSkip).toContain(item);
     expect(result.itemsToProcess).toHaveLength(0);
@@ -103,26 +121,25 @@ describe('filterContentItemsForProcessing — shouldSkip', () => {
     expect(logger.content.skipped).toHaveBeenCalled();
   });
 
-  it('logs the correct locale and targetGuid when skipping', async () => {
+  it("logs the correct locale and targetGuid when skipping", async () => {
     const item = makeContentItem(1);
     const logger = makeLogger();
-    mockFind.mockReturnValue({ content: item, shouldCreate: false, shouldUpdate: false, shouldSkip: true, isConflict: false });
-    await filterContentItemsForProcessing(
-      makeBaseProps([item], { logger, locale: 'fr-ca', targetGuid: 'my-guid' })
-    );
-    expect(logger.content.skipped).toHaveBeenCalledWith(
-      item,
-      expect.any(String),
-      'fr-ca',
-      'my-guid'
-    );
+    mockFind.mockReturnValue({
+      content: item,
+      shouldCreate: false,
+      shouldUpdate: false,
+      shouldSkip: true,
+      isConflict: false,
+    });
+    await filterContentItemsForProcessing(makeBaseProps([item], { logger, locale: "fr-ca", targetGuid: "my-guid" }));
+    expect(logger.content.skipped).toHaveBeenCalledWith(item, expect.any(String), "fr-ca", "my-guid");
   });
 });
 
 // ─── isConflict → itemsToSkip + warning ───────────────────────────────────────
 
-describe('filterContentItemsForProcessing — isConflict', () => {
-  it('puts conflicted item in itemsToSkip', async () => {
+describe("filterContentItemsForProcessing — isConflict", () => {
+  it("puts conflicted item in itemsToSkip", async () => {
     const item = makeContentItem(1);
     mockFind.mockReturnValue({
       content: item,
@@ -130,14 +147,14 @@ describe('filterContentItemsForProcessing — isConflict', () => {
       shouldUpdate: false,
       shouldSkip: false,
       isConflict: true,
-      reason: 'Both versions changed',
+      reason: "Both versions changed",
     });
     const result = await filterContentItemsForProcessing(makeBaseProps([item]));
     expect(result.itemsToSkip).toContain(item);
     expect(result.itemsToProcess).toHaveLength(0);
   });
 
-  it('logs a warning when conflict is detected', async () => {
+  it("logs a warning when conflict is detected", async () => {
     const item = makeContentItem(1);
     mockFind.mockReturnValue({
       content: null,
@@ -145,9 +162,9 @@ describe('filterContentItemsForProcessing — isConflict', () => {
       shouldUpdate: false,
       shouldSkip: false,
       isConflict: true,
-      reason: 'conflict reason',
+      reason: "conflict reason",
     });
-    const warnSpy = jest.spyOn(console, 'warn').mockImplementation(() => {});
+    const warnSpy = jest.spyOn(console, "warn").mockImplementation(() => {});
     await filterContentItemsForProcessing(makeBaseProps([item]));
     expect(warnSpy).toHaveBeenCalled();
   });
@@ -155,37 +172,59 @@ describe('filterContentItemsForProcessing — isConflict', () => {
 
 // ─── error handling ───────────────────────────────────────────────────────────
 
-describe('filterContentItemsForProcessing — error handling', () => {
-  it('includes item in itemsToProcess and logs error when findContentInTargetInstance throws', async () => {
+describe("filterContentItemsForProcessing — error handling", () => {
+  it("includes item in itemsToProcess and logs error when findContentInTargetInstance throws", async () => {
     const item = makeContentItem(1);
     const logger = makeLogger();
-    mockFind.mockImplementation(() => { throw new Error('lookup failed'); });
+    mockFind.mockImplementation(() => {
+      throw new Error("lookup failed");
+    });
     const result = await filterContentItemsForProcessing(makeBaseProps([item], { logger }));
     expect(result.itemsToProcess).toContain(item);
     expect(result.itemsToSkip).toHaveLength(0);
-    expect(logger.content.error).toHaveBeenCalledWith(
-      item,
-      'lookup failed',
-      expect.any(String),
-      expect.any(String)
-    );
+    expect(logger.content.error).toHaveBeenCalledWith(item, "lookup failed", expect.any(String), expect.any(String));
   });
 });
 
 // ─── mixed batch ──────────────────────────────────────────────────────────────
 
-describe('filterContentItemsForProcessing — mixed batch', () => {
-  it('correctly partitions a batch with create, update, skip, and conflict', async () => {
+describe("filterContentItemsForProcessing — mixed batch", () => {
+  it("correctly partitions a batch with create, update, skip, and conflict", async () => {
     const createItem = makeContentItem(1);
     const updateItem = makeContentItem(2);
     const skipItem = makeContentItem(3);
     const conflictItem = makeContentItem(4);
 
     mockFind
-      .mockReturnValueOnce({ content: null, shouldCreate: true, shouldUpdate: false, shouldSkip: false, isConflict: false })
-      .mockReturnValueOnce({ content: updateItem, shouldCreate: false, shouldUpdate: true, shouldSkip: false, isConflict: false })
-      .mockReturnValueOnce({ content: skipItem, shouldCreate: false, shouldUpdate: false, shouldSkip: true, isConflict: false })
-      .mockReturnValueOnce({ content: conflictItem, shouldCreate: false, shouldUpdate: false, shouldSkip: false, isConflict: true, reason: 'conflict' });
+      .mockReturnValueOnce({
+        content: null,
+        shouldCreate: true,
+        shouldUpdate: false,
+        shouldSkip: false,
+        isConflict: false,
+      })
+      .mockReturnValueOnce({
+        content: updateItem,
+        shouldCreate: false,
+        shouldUpdate: true,
+        shouldSkip: false,
+        isConflict: false,
+      })
+      .mockReturnValueOnce({
+        content: skipItem,
+        shouldCreate: false,
+        shouldUpdate: false,
+        shouldSkip: true,
+        isConflict: false,
+      })
+      .mockReturnValueOnce({
+        content: conflictItem,
+        shouldCreate: false,
+        shouldUpdate: false,
+        shouldSkip: false,
+        isConflict: true,
+        reason: "conflict",
+      });
 
     const logger = makeLogger();
     const result = await filterContentItemsForProcessing(
@@ -204,10 +243,16 @@ describe('filterContentItemsForProcessing — mixed batch', () => {
 
 // ─── skippedCount accuracy ────────────────────────────────────────────────────
 
-describe('filterContentItemsForProcessing — skippedCount', () => {
-  it('skippedCount equals itemsToSkip.length', async () => {
+describe("filterContentItemsForProcessing — skippedCount", () => {
+  it("skippedCount equals itemsToSkip.length", async () => {
     const items = [makeContentItem(1), makeContentItem(2), makeContentItem(3)];
-    mockFind.mockReturnValue({ content: null, shouldCreate: false, shouldUpdate: false, shouldSkip: true, isConflict: false });
+    mockFind.mockReturnValue({
+      content: null,
+      shouldCreate: false,
+      shouldUpdate: false,
+      shouldSkip: true,
+      isConflict: false,
+    });
     const logger = makeLogger();
     const result = await filterContentItemsForProcessing(makeBaseProps(items, { logger }));
     expect(result.skippedCount).toBe(result.itemsToSkip.length);
@@ -217,21 +262,33 @@ describe('filterContentItemsForProcessing — skippedCount', () => {
 
 // ─── verbose logging ──────────────────────────────────────────────────────────
 
-describe('filterContentItemsForProcessing — verbose logging', () => {
-  it('logs summary when verbose=true and contentItems is non-empty', async () => {
+describe("filterContentItemsForProcessing — verbose logging", () => {
+  it("logs summary when verbose=true and contentItems is non-empty", async () => {
     setState({ verbose: true });
     const item = makeContentItem(1);
-    mockFind.mockReturnValue({ content: null, shouldCreate: true, shouldUpdate: false, shouldSkip: false, isConflict: false });
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    mockFind.mockReturnValue({
+      content: null,
+      shouldCreate: true,
+      shouldUpdate: false,
+      shouldSkip: false,
+      isConflict: false,
+    });
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
     await filterContentItemsForProcessing(makeBaseProps([item]));
     expect(logSpy).toHaveBeenCalled();
   });
 
-  it('does not log summary when verbose=false', async () => {
+  it("does not log summary when verbose=false", async () => {
     setState({ verbose: false });
     const item = makeContentItem(1);
-    mockFind.mockReturnValue({ content: null, shouldCreate: true, shouldUpdate: false, shouldSkip: false, isConflict: false });
-    const logSpy = jest.spyOn(console, 'log').mockImplementation(() => {});
+    mockFind.mockReturnValue({
+      content: null,
+      shouldCreate: true,
+      shouldUpdate: false,
+      shouldSkip: false,
+      isConflict: false,
+    });
+    const logSpy = jest.spyOn(console, "log").mockImplementation(() => {});
     await filterContentItemsForProcessing(makeBaseProps([item]));
     expect(logSpy).not.toHaveBeenCalled();
   });

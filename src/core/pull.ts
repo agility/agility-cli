@@ -17,7 +17,7 @@ export class Pull {
 
   async pullInstances(fromPush: boolean = false): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
     const state = getState();
-    
+
     // Initialize logger inside the method so it works correctly when called from push operations
     // But only if not called from push operation (to avoid conflicts with push logger)
     if (!fromPush) {
@@ -72,7 +72,7 @@ export class Pull {
       if (!fromPush) {
         for (const guid of allGuids) {
           try {
-            await waitForFetchApiSync(guid, 'fetch', false);
+            await waitForFetchApiSync(guid, "fetch", false);
           } catch (error: any) {
             // Log warning but don't fail the pull - the API might not support this endpoint yet
             console.log(ansiColors.yellow(`⚠️ Could not check Fetch API status for ${guid}: ${error.message}`));
@@ -105,10 +105,8 @@ export class Pull {
         const logger = getLogger();
         if (logger) {
           // Collect log file paths
-          const logFilePaths = results
-            .map(res => res.logFilePath)
-            .filter(path => path);
-          
+          const logFilePaths = results.map((res) => res.logFilePath).filter((path) => path);
+
           logger.orchestratorSummary(results, totalElapsedTime, success, logFilePaths);
         }
 
@@ -120,9 +118,8 @@ export class Pull {
       return {
         success,
         results,
-        elapsedTime: totalElapsedTime
+        elapsedTime: totalElapsedTime,
       };
-
     } catch (error: any) {
       console.error(ansiColors.red("\n❌ An error occurred during the pull command:"), error);
       throw error; // Let calling code handle error response

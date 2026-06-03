@@ -18,7 +18,7 @@ export function changeDetection(
   sourceEntity: mgmtApi.ContentItem,
   targetEntity: mgmtApi.ContentItem | null,
   mapping: ContentItemMapping,
-  locale: string,
+  locale: string
 ): ChangeDetection {
   const { overwrite } = state;
   // Validate source entity structure

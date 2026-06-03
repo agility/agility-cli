@@ -11,7 +11,7 @@ function extractErrorMessage(error: any): string {
   // Check for axios response data (actual API error message)
   if (error?.innerError?.response?.data) {
     const data = error.innerError.response.data;
-    if (typeof data === 'string') return data;
+    if (typeof data === "string") return data;
     if (data.message) return data.message;
     if (data.error) return data.error;
     if (data.Message) return data.Message;
@@ -20,7 +20,7 @@ function extractErrorMessage(error: any): string {
   // Check for direct response data
   if (error?.response?.data) {
     const data = error.response.data;
-    if (typeof data === 'string') return data;
+    if (typeof data === "string") return data;
     if (data.message) return data.message;
     if (data.error) return data.error;
   }
@@ -42,7 +42,6 @@ export async function pushGalleries(
 
   const { sourceGuid, targetGuid, overwrite } = state;
 
-  
   // Get the GUID logger from state instead of creating a new one
   const logger = getLoggerForGuid(sourceGuid[0]) || new Logs("push", "gallery", sourceGuid[0]);
 
@@ -63,16 +62,15 @@ export async function pushGalleries(
   let processedCount = 0;
   let overallStatus: "success" | "error" = "success";
 
-  
   for (const sourceGallery of galleries) {
     let currentStatus: "success" | "error" = "success";
     try {
       const existingMapping = referenceMapper.getGalleryMapping(sourceGallery, "source");
-      
+
       // Check both: mapping file AND if gallery exists by name in target data
-      const targetGalleryByName = targetData.find(t => t.name === sourceGallery.name);
-      const targetGalleryById = targetData.find(t => t.mediaGroupingID === existingMapping?.targetMediaGroupingID);
-      
+      const targetGalleryByName = targetData.find((t) => t.name === sourceGallery.name);
+      const targetGalleryById = targetData.find((t) => t.mediaGroupingID === existingMapping?.targetMediaGroupingID);
+
       // If no mapping but gallery exists by name in target, create/update the mapping
       if (!existingMapping && targetGalleryByName) {
         // Gallery exists in target by name but no mapping - add mapping and skip
@@ -81,7 +79,7 @@ export async function pushGalleries(
         skipped++;
         continue;
       }
-        
+
       const shouldCreate = existingMapping === null && !targetGalleryByName;
 
       if (shouldCreate) {
@@ -102,7 +100,14 @@ export async function pushGalleries(
 
         if (shouldUpdate) {
           // Gallery exists but needs updating
-          await updateGallery(sourceGallery, existingMapping.targetMediaGroupingID, apiClient, targetGuid[0], referenceMapper, logger);
+          await updateGallery(
+            sourceGallery,
+            existingMapping.targetMediaGroupingID,
+            apiClient,
+            targetGuid[0],
+            referenceMapper,
+            logger
+          );
           successful++;
         } else if (shouldSkip) {
           // Gallery exists and is up to date - skip
@@ -153,9 +158,7 @@ async function createGallery(
     modifiedOn: null, // Let API set this
     isDeleted: false,
     isFolder: mediaGrouping.isFolder ?? false,
-    metaData: mediaGrouping.metaData && Object.keys(mediaGrouping.metaData).length > 0 
-      ? mediaGrouping.metaData 
-      : {}
+    metaData: mediaGrouping.metaData && Object.keys(mediaGrouping.metaData).length > 0 ? mediaGrouping.metaData : {},
   };
   // Let errors propagate to caller for proper failure tracking
   const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
@@ -188,9 +191,7 @@ async function updateGallery(
     modifiedOn: null, // Let API set this
     isDeleted: sourceGallery.isDeleted ?? false,
     isFolder: sourceGallery.isFolder ?? false,
-    metaData: sourceGallery.metaData && Object.keys(sourceGallery.metaData).length > 0 
-      ? sourceGallery.metaData 
-      : {}
+    metaData: sourceGallery.metaData && Object.keys(sourceGallery.metaData).length > 0 ? sourceGallery.metaData : {},
   };
   const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
   referenceMapper.addMapping(sourceGallery, savedGallery);
