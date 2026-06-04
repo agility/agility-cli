@@ -100,7 +100,7 @@ export class ContentFieldMapper {
       errors += contentMappingResult.errors;
     }
     // Handle URL fields with potential asset references
-    else if (typeof fieldValue === "string" && fieldValue.includes("cdn.aglty.io")) {
+    else if (typeof fieldValue === "string" && this.isAssetUrl(fieldValue, context)) {
       const urlMappingResult = this.mapAssetUrlString(fieldValue, context);
       mappedValue = urlMappingResult.mappedValue;
       warnings += urlMappingResult.warnings;
@@ -127,6 +127,19 @@ export class ContentFieldMapper {
     }
 
     return { mappedValue, warnings, errors };
+  }
+
+  /**
+   *    Domain check for asset URL strings. Matches:
+   *  - any Agility-managed CDN subdomain (cdn.aglty.io, cdn-usa2.aglty.io, *.agilitycms.com, etc.)
+   *  - any URL whose prefix matches a container URL loaded into the asset mapper
+   */
+  private isAssetUrl(value: string, context?: ContentFieldMappingContext): boolean {
+    return (
+      value.includes(".aglty.io") ||
+      value.includes(".agilitycms.com") ||
+      context?.assetMapper?.isKnownAssetUrl(value) === true
+    );
   }
 
   private isAssetAttachmentField(fieldValue: any): boolean {
