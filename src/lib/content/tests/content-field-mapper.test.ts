@@ -306,6 +306,34 @@ describe("ContentFieldMapper.mapContentFields", () => {
     });
   });
 
+  describe("URL link object fields (href/target/text)", () => {
+    it("remaps the href of an Agility URL field that points at a source asset URL", () => {
+      // Agility's "URL" field type produces an object of shape { href, target, text }.
+      // It does NOT have a `.url` key, so it is not caught by isAssetAttachmentField.
+      // The href value pointing at a source CDN should be remapped to the target CDN.
+      const assetMapper = makeAssetMapper({
+        getAssetMappingByMediaUrl: jest
+          .fn()
+          .mockReturnValue({
+            sourceUrl: "https://cdn-eu.aglty.io/jules-eu-a/pikachu.png",
+            targetUrl: "https://cdn-aus.aglty.io/jules-aus-a/pikachu.png",
+          }),
+      });
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper };
+      const fields = {
+        url: {
+          href: "https://cdn-eu.aglty.io/jules-eu-a/pikachu.png",
+          target: "",
+          text: "",
+        },
+      };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.url.href).toBe("https://cdn-aus.aglty.io/jules-aus-a/pikachu.png");
+      expect(result.mappedFields.url.target).toBe("");
+      expect(result.mappedFields.url.text).toBe("");
+    });
+  });
+
   describe("nested object fields", () => {
     it("recursively processes nested plain objects", () => {
       const fields = {
