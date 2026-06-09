@@ -99,7 +99,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
           throw new Error(
             `Model validation failed: mapping inconsistency for model "${sourceModel.referenceName}" (ID: ${sourceModel.id}). ` +
               `A mapping exists for the target model, but the source model ID does not match — this likely indicates ` +
-              `a rename or reassignment on the source. Stopping sync to avoid a partial push; review the model mappings and re-run.`
+              `a rename or reassignment on the source. Stopping sync to avoid a partial push; review the model mappings and re-run. Please contact AgilityCMS Support to resolve this issue`
           );
         }
       }
