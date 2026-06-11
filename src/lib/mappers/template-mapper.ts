@@ -9,6 +9,24 @@ interface TemplateMapping {
   targetPageTemplateName: string;
 }
 
+// Templates have no lastModifiedDate, so change detection compares the source and
+// target structure directly. Per-instance IDs (pageItemTemplateID, pageTemplateID,
+// contentViewID, contentDefinitionID, itemContainerID) are excluded — they always
+// differ between instances. Sections are sorted by reference name so payload
+// ordering doesn't matter; itemOrder still captures real reordering.
+function normalizeTemplate(template: mgmtApi.PageModel): string {
+  const sections = (template.contentSectionDefinitions || [])
+    .map((def) => ({
+      name: def.pageItemTemplateName ?? null,
+      referenceName: def.pageItemTemplateReferenceName ?? null,
+      type: def.pageItemTemplateType ?? null,
+      itemOrder: def.itemOrder ?? null,
+    }))
+    .sort((a, b) => String(a.referenceName).localeCompare(String(b.referenceName)));
+
+  return JSON.stringify({ pageTemplateName: template.pageTemplateName ?? null, sections });
+}
+
 export class TemplateMapper {
   private fileOps: fileOperations;
   private sourceGuid: string;
@@ -115,19 +133,8 @@ export class TemplateMapper {
     this.fileOps.saveMappingFile(this.mappings, this.directory, this.sourceGuid, this.targetGuid);
   }
 
-  hasTargetChanged(template: mgmtApi.PageModel): boolean {
-    if (!template) return false;
-    const mapping = this.getTemplateMapping(template, "target");
-    if (!mapping) return false;
-    return mapping.targetPageTemplateID !== template.pageTemplateID;
+  hasTemplateChanged(sourceTemplate: mgmtApi.PageModel | null, targetTemplate: mgmtApi.PageModel | null): boolean {
+    if (!sourceTemplate || !targetTemplate) return false;
+    return normalizeTemplate(sourceTemplate) !== normalizeTemplate(targetTemplate);
   }
-
-  hasSourceChanged(template: mgmtApi.PageModel): boolean {
-    const mapping = this.getTemplateMapping(template, "source");
-    if (!mapping) return false;
-    return mapping.sourcePageTemplateID !== template.pageTemplateID;
-  }
-
-  // we can't detect if the template has changed
-  // we just have to push it to the target and respect the --overwrite flag
 }
