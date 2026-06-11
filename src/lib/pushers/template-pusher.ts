@@ -53,9 +53,9 @@ export async function pushTemplates(
             targetGuid[0]
           );
           throw new Error(
-            `Page template validation failed: mapping inconsistency for model "${sourceTemplate.pageTemplateName}" (ID: ${sourceTemplate.pageTemplateID}). ` +
-              `A mapping exists for the target model, but the source model ID does not match — this likely indicates ` +
-              `a rename or reassignment on the source. Stopping sync to avoid a partial push; review the model mappings and re-run. Please contact AgilityCMS Support to resolve this issue`
+            `Page template validation failed: mapping inconsistency for template "${sourceTemplate.pageTemplateName}" (ID: ${sourceTemplate.pageTemplateID}). ` +
+              `A mapping exists for the target template, but the source template ID does not match — this likely indicates ` +
+              `a rename or reassignment on the source. Stopping sync to avoid a partial push; review the template mappings and re-run. Please contact AgilityCMS Support to resolve this issue`
           );
       }
     }
