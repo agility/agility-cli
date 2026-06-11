@@ -13,7 +13,8 @@
 import * as fs from "fs";
 import ansiColors from "ansi-colors";
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState } from "../../core/state";
+import { getState } from "../../core/state";
+import * as mgmtApi from "@agility/management-sdk";
 
 export interface ModelFilterOptions {
   models?: string[]; // Simple model filtering
@@ -22,7 +23,7 @@ export interface ModelFilterOptions {
 
 export interface GuidEntities {
   pages: any[];
-  templates: any[];
+  templates: mgmtApi.PageModel[];
   containers: any[];
   lists: any[];
   models: any[];
