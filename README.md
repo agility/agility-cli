@@ -27,29 +27,41 @@ agility pull [options]
 
 **Core Instance Options:**
 
-| Option         | Type   | Default   | Description                                                                                                         |
-| -------------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------- |
-| `--sourceGuid` | string | _(empty)_ | Source instance GUID (required for sync, can be from .env for pull)                                                 |
-| `--locales`    | string | _(empty)_ | Comma-separated list of locales to operate on. If not specified, locales are automatically pulled from the instance |
+| Option         | Type    | Default   | Description                                                                                                          |
+| -------------- | ------- | --------- | -------------------------------------------------------------------------------------------------------------------- |
+| `--sourceGuid` | string  | _(empty)_ | Source instance GUID. Optional — falls back to `AGILITY_GUID` from your `.env` file if not provided                  |
+| `--locales`    | string  | _(empty)_ | Comma-separated list of locales to operate on. If not specified, locales are automatically pulled from the instance  |
+| `--channel`    | string  | `website` | Channel for the operation. Falls back to `AGILITY_WEBSITE` from your `.env` file if not provided                     |
+| `--preview`    | boolean | `true`    | Use preview environment data. Set to `false` to use live environment data                                            |
 
 **Content Selection Options:**
 
-| Option       | Type   | Default                                                      | Description                                                                             |
-| ------------ | ------ | ------------------------------------------------------------ | --------------------------------------------------------------------------------------- |
-| `--elements` | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages` | Comma-separated list of elements to process                                             |
-| `--models`   | string | _(empty)_                                                    | Comma-separated list of model reference names to sync (only syncs the specified models) |
+| Option       | Type   | Default                                                               | Description                                                                             |
+| ------------ | ------ | --------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `--elements` | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps` | Comma-separated list of elements to process                                             |
+| `--models`   | string | _(empty)_                                                             | Comma-separated list of model reference names to sync (only syncs the specified models) |
 
 **File System Options:**
 
-| Option       | Type   | Default         | Description                    |
-| ------------ | ------ | --------------- | ------------------------------ |
-| `--rootPath` | string | `agility-files` | Root directory for local files |
+| Option            | Type    | Default         | Description                                                          |
+| ----------------- | ------- | --------------- | -------------------------------------------------------------------- |
+| `--rootPath`      | string  | `agility-files` | Root directory for local files                                       |
+| `--legacyFolders` | boolean | `false`         | Use the legacy folder structure (all files in root `agility-files`) |
 
 **Operation Control Options:**
 
-| Option     | Type    | Default | Description                                 |
-| ---------- | ------- | ------- | ------------------------------------------- |
-| `--update` | boolean | `false` | Set to `true` to force updating source data |
+| Option     | Type    | Default | Description                                                                                                                                |
+| ---------- | ------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `--update` | boolean | `false` | Set to `true` to force download/overwrite existing local files and clear sync tokens for a complete refresh (default skips existing files) |
+| `--reset`  | boolean | `false` | Nuclear option: completely delete the instance GUID folder (including sync tokens), forcing a full fresh download                          |
+
+**Network & Authentication Options:**
+
+| Option       | Type    | Default   | Description                                                                                              |
+| ------------ | ------- | --------- | --------------------------------------------------------------------------------------------------------- |
+| `--token`    | string  | _(empty)_ | Personal Access Token for headless/CI authentication. Falls back to `AGILITY_TOKEN` from your `.env` file |
+| `--insecure` | boolean | `false`   | Disable SSL certificate verification                                                                      |
+| `--baseUrl`  | string  | _(empty)_ | Override the base URL for the Agility API, if different from the default                                  |
 
 **UI & Output Options:**
 
@@ -90,31 +102,47 @@ agility sync [options]
 
 | Option         | Type   | Default   | Description                                                                                                                                                                                                                                                                                                                                                                                                               |
 | -------------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--sourceGuid` | string | _(empty)_ | Source instance GUID (required for sync)                                                                                                                                                                                                                                                                                                                                                                                  |
-| `--targetGuid` | string | _(empty)_ | Target instance GUID (required for sync)                                                                                                                                                                                                                                                                                                                                                                                  |
+| `--sourceGuid` | string | _(empty)_ | Source instance GUID (required for sync — falls back to `AGILITY_GUID` from your `.env` file)                                                                                                                                                                                                                                                                                                                             |
+| `--targetGuid` | string | _(empty)_ | Target instance GUID (required for sync — falls back to `AGILITY_TARGET_GUID` from your `.env` file)                                                                                                                                                                                                                                                                                                                      |
 | `--locales`    | string | _(empty)_ | Comma-separated list of locales to operate on. If not specified, locales are automatically pulled from the source instance. **Note:** For sync operations, if locales are not specified, the target instance must have all the same locales set up, or the sync will error. You can selectively sync only specific locales (e.g., `--locales="en-us"`) to avoid requiring all locales to be set up in the target instance |
+| `--channel`    | string | `website` | Channel for the operation. Falls back to `AGILITY_WEBSITE` from your `.env` file if not provided                                                                                                                                                                                                                                                                                                                          |
+| `--preview`    | boolean | `true`   | Use preview environment data. Set to `false` to use live environment data                                                                                                                                                                                                                                                                                                                                                 |
 
 **Content Selection Options:**
 
 | Option               | Type   | Default                                                      | Description                                                                                                                                         |
 | -------------------- | ------ | ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--elements`         | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages` | Comma-separated list of elements to process                                                                                                         |
-| `--models`           | string | _(empty)_                                                    | Comma-separated list of model reference names to sync (only syncs the specified models)                                                             |
-| `--models-with-deps` | string | _(empty)_                                                    | Comma-separated list of model reference names to sync with dependencies (includes content, assets, galleries, containers, and lists, but not pages) |
+| `--elements`         | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps` | Comma-separated list of elements to process                                                                                                                    |
+| `--models`           | string | _(empty)_                                                             | Comma-separated list of model reference names to sync (only syncs the specified models)                                                                        |
+| `--models-with-deps` | string | _(empty)_                                                             | Comma-separated list of model reference names to sync with their full dependency tree (includes content, pages, assets, galleries, templates, and containers) |
 
 **File System Options:**
 
-| Option       | Type   | Default         | Description                    |
-| ------------ | ------ | --------------- | ------------------------------ |
-| `--rootPath` | string | `agility-files` | Root directory for local files |
+| Option            | Type    | Default         | Description                                                         |
+| ----------------- | ------- | --------------- | ------------------------------------------------------------------- |
+| `--rootPath`      | string  | `agility-files` | Root directory for local files                                      |
+| `--legacyFolders` | boolean | `false`         | Use the legacy folder structure (all files in root `agility-files`) |
 
 **Operation Control Options:**
 
-| Option          | Type    | Default      | Description                                                                                                                                                                                                                                           |
-| --------------- | ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Option          | Type    | Default      | Description                                                                                                                                                                                                                                            |
+| --------------- | ------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `--update`      | boolean | `false`      | Download fresh data from source instance before operations, if left false, incremental sync is performed to only get changed data.                                                                                                                    |
-| `--overwrite`   | boolean | `false`      | Force update existing items in target instance instead of creating new items with -1 IDs. Default: false (Warning: may cause duplicate items in lists, overwriting existing content)                                                                  |
+| `--overwrite`   | boolean | `false`      | Overwrite target items that are in **conflict** with the source (e.g. the item already exists or has changed in the target). By default, conflicting target items are left as-is and skipped — safer behavior to prevent overwriting existing content |
+| `--force`       | boolean | `false`      | Override target safety conflicts: when the target instance has changes AND the change delta has updates, apply sync changes anyway. Default is the safer behavior to prevent data loss                                                                |
+| `--reset`       | boolean | `false`      | Nuclear option: completely delete the instance GUID folder (including sync tokens), forcing a full fresh download                                                                                                                                      |
+| `--dryRun`      | boolean | `false`      | Show what items would be processed without executing the operation                                                                                                                                                                                    |
+| `--contentIDs`  | string  | _(empty)_    | Comma-separated list of target content IDs to process, bypassing the mappings lookup (e.g., `--contentIDs=121,1221,345`)                                                                                                                              |
+| `--pageIDs`     | string  | _(empty)_    | Comma-separated list of target page IDs to process, bypassing the mappings lookup (e.g., `--pageIDs=12,11,45`)                                                                                                                                        |
 | `--autoPublish` | string  | _(disabled)_ | Automatically publish synced items that were published in the source instance. Values: `content`, `pages`, `both`. If flag is provided without a value, defaults to `both`. Items that are only in staging (not published) in the source are skipped. |
+
+**Network & Authentication Options:**
+
+| Option       | Type    | Default   | Description                                                                                                |
+| ------------ | ------- | --------- | ---------------------------------------------------------------------------------------------------------- |
+| `--token`    | string  | _(empty)_ | Personal Access Token for headless/CI authentication. Falls back to `AGILITY_TOKEN` from your `.env` file |
+| `--insecure` | boolean | `false`   | Disable SSL certificate verification                                                                       |
+| `--baseUrl`  | string  | _(empty)_ | Override the base URL for the Agility API, if different from the default                                   |
 
 **UI & Output Options:**
 
@@ -122,6 +150,10 @@ agility sync [options]
 | ------------ | ------- | ------- | --------------------------------------------------------------------- |
 | `--headless` | boolean | `false` | Disable logging and console/terminal output, log to file only (CI/CD) |
 | `--verbose`  | boolean | `true`  | Detailed console output                                               |
+
+**Developer Options:**
+
+The CLI also accepts `--dev`, `--local`, `--preprod`, and `--test` flags. These point the CLI at non-production Agility environments or enable analysis-only test mode, and are intended for Agility developers — they are not needed for normal use.
 
 #### Sync Examples
 
@@ -135,13 +167,13 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --locales="en-us"
 # Sync specific elements only
 agility sync --sourceGuid="abc123" --targetGuid="def456" --elements="Assets"
 
-# Force update existing items
+# Overwrite target items that conflict with the source
 agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite
 
 # Sync only specified models (models only, no dependencies)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,BlogCategory"
 
-# Sync models with dependencies (includes content, assets, galleries, containers, lists, but not pages)
+# Sync models with dependencies (includes content, pages, assets, galleries, templates, and containers)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="BlogPost,BlogCategory"
 
 # Sync and auto-publish everything that was published in source
@@ -213,18 +245,17 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,Blog
 
 #### --models-with-deps
 
-The `--models-with-deps` parameter syncs the specified models **plus their dependencies**. It includes:
+The `--models-with-deps` parameter syncs the specified models **plus their full dependency tree**. It includes:
 
 - Content items based on those models
+- Pages that use the content
 - Assets referenced by the content
 - Galleries referenced by the content
+- Templates
 - Containers
-- Lists
-
-**Note:** Pages are **not** included when using `--models-with-deps`.
 
 ```bash
-# Sync models with all dependencies (except pages)
+# Sync models with all dependencies (including pages)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="BlogPost,BlogCategory"
 ```
 
@@ -234,7 +265,7 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="Blo
 # Sync only models (no dependencies)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,BlogCategory"
 
-# Sync models with dependencies (content, assets, galleries, containers, lists - but not pages)
+# Sync models with dependencies (content, pages, assets, galleries, templates, and containers)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="Product,ProductCategory,ProductReview"
 ```
 

@@ -166,14 +166,10 @@ yargs.command({
   aliases: ["sync"],
   describe: "Push your instance using the new 2-pass dependency system.",
   builder: {
-    // Override targetGuid to be required for push
-    targetGuid: {
-      describe: "Provide the target instance GUID to push your instance to.",
-      demandOption: true,
-      type: "string",
-    },
-
     // System args (commonly repeated across commands)
+    // targetGuid is required for push/sync, but is enforced in auth.validateCommand() after
+    // .env priming so the AGILITY_TARGET_GUID fallback keeps working (yargs demandOption
+    // would reject the command before the handler can read the .env file)
     ...systemArgs,
   },
   handler: async function (argv) {

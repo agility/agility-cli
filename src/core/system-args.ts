@@ -159,9 +159,9 @@ export const systemArgs = {
   sourceGuid: {
     describe:
       "Provide the source instance GUID(s). Comma-separated for multiple instances (e.g., 'guid1,guid2,guid3'). If not provided, will use AGILITY_GUID from .env file if available.",
+    // NOTE: an alias matching the option key itself causes yargs to hide the option from --help
     alias: [
       "source-guid",
-      "sourceGuid",
       "sourceguid",
       "source",
       "SourceGuid",
@@ -178,10 +178,9 @@ export const systemArgs = {
   },
   targetGuid: {
     describe:
-      "Provide the target instance GUID(s) for sync operations. Comma-separated for multiple instances (e.g., 'guid1,guid2,guid3').",
+      "Provide the target instance GUID(s) for push/sync operations. Comma-separated for multiple instances (e.g., 'guid1,guid2,guid3'). If not provided, will use AGILITY_TARGET_GUID from .env file if available.",
     alias: [
       "target-guid",
-      "targetGuid",
       "targetguid",
       "target",
       "TargetGuid",
@@ -202,27 +201,30 @@ export const systemArgs = {
     describe:
       "For sync commands only: force update existing items in target instance instead of creating new items with -1 IDs. Default: false (safer behavior to prevent overwriting existing content).",
     type: "boolean" as const,
-    alias: ["overwrite", "Overwrite", "OVERWRITE"],
+    alias: ["Overwrite", "OVERWRITE"],
     default: false,
   },
   force: {
     describe:
       "Override target safety conflicts during sync operations. When target instance has changes AND change delta has updates, --force will apply sync changes anyway. Default: false (safer behavior to prevent data loss).",
     type: "boolean" as const,
-    alias: ["force", "Force", "FORCE"],
+    alias: ["Force", "FORCE"],
     default: false,
   },
   update: {
     describe:
       "Controls file downloading behavior. --update=false (default): Skip existing files during download (normal efficient behavior). --update=true: Force download/overwrite existing files and clear sync tokens for complete refresh.",
     type: "boolean" as const,
-    alias: ["reset", "Reset", "RESET", "forceUpdate", "ForceUpdate", "FORCEUPDATE"],
+    // "reset" must not be an alias here — it collides with the separate `reset` option below,
+    // which hides --reset from --help and overwrites this option's description
+    alias: ["forceUpdate", "ForceUpdate", "FORCEUPDATE"],
     default: false,
   },
   reset: {
     describe:
       "Nuclear reset option: completely delete instance GUID folder including sync tokens. Forces full fresh download for all SDKs. To reset only Content Sync SDK: manually delete agility-files/GUID/locale/preview/state folder. Default: false.",
     type: "boolean" as const,
+    alias: ["Reset", "RESET"],
     default: false,
   },
 
@@ -231,7 +233,7 @@ export const systemArgs = {
     describe:
       "Automatically publish content and/or pages after sync completes. Options: 'content' (publish only content), 'pages' (publish only pages), 'both' (publish content and pages). Default: both when flag is provided.",
     demandOption: false,
-    alias: ["auto-publish", "autoPublish", "AutoPublish", "AUTO_PUBLISH", "autopublish"],
+    alias: ["auto-publish", "AutoPublish", "AUTO_PUBLISH", "autopublish"],
     type: "string" as const,
     coerce: (value: string | boolean) => {
       // Handle --autoPublish without value (defaults to 'both')
