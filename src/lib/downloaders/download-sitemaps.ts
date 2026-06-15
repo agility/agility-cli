@@ -1,5 +1,5 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
+import { getApiClient, getLoggerForGuid, state } from "../../core/state";
 import * as fs from "fs";
 import * as path from "path";
 import ansiColors from "ansi-colors";
@@ -8,7 +8,6 @@ import { getAllChannels } from "../shared/get-all-channels";
 export async function downloadAllSitemaps(guid: string): Promise<void> {
   const fileOps = new fileOperations(guid);
   const locales = state.guidLocaleMap.get(guid);
-  const update = state.update;
   const apiClient = getApiClient();
   const logger = getLoggerForGuid(guid); // Use GUID-specific logger
 
@@ -44,7 +43,7 @@ export async function downloadAllSitemaps(guid: string): Promise<void> {
 
     // Check if download is needed (sitemap is an array, so we use the first channel for lastModified check)
     const firstChannel = sitemap[0];
-    const sitemapDownloadDecision = shouldDownloadSitemap(firstChannel, localSitemapInfo, update);
+    const sitemapDownloadDecision = shouldDownloadSitemap(firstChannel, localSitemapInfo);
 
     if (sitemapDownloadDecision.shouldDownload) {
       // Write sitemap file
@@ -84,13 +83,8 @@ function getLocalSitemapInfo(filePath: string): { lastModified?: string; exists:
 
 function shouldDownloadSitemap(
   channel: any,
-  localSitemapInfo: { lastModified?: string; exists: boolean },
-  forceUpdate: boolean = false
+  localSitemapInfo: { lastModified?: string; exists: boolean }
 ): { shouldDownload: boolean; reason: string } {
-  if (state.update === false) {
-    return { shouldDownload: false, reason: "" };
-  }
-
   if (!localSitemapInfo.exists) {
     return { shouldDownload: true, reason: "local file does not exist" };
   }

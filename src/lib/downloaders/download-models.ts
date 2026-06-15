@@ -1,5 +1,5 @@
 import { fileOperations } from "core/fileOperations";
-import { getApiClient, getLoggerForGuid, getState, state } from "core/state";
+import { getApiClient, getLoggerForGuid } from "core/state";
 import * as path from "path";
 import * as fs from "fs";
 import { getAllChannels } from "lib/shared/get-all-channels";
@@ -38,10 +38,6 @@ export async function downloadAllModels(guid: string): Promise<void> {
     apiModel: any,
     localInfo: { lastModifiedDate?: string; exists: boolean }
   ): { shouldDownload: boolean; reason: string } {
-    if (state.update === false) {
-      return { shouldDownload: false, reason: "" };
-    }
-
     if (!localInfo.exists) {
       return { shouldDownload: true, reason: "new file" };
     }

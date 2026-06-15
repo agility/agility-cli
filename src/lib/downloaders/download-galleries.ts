@@ -1,12 +1,11 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
+import { getApiClient, getLoggerForGuid } from "../../core/state";
 import ansiColors from "ansi-colors";
 import { getAllChannels } from "../shared/get-all-channels";
 import * as mgmtApi from "@agility/management-sdk";
 
 export async function downloadAllGalleries(guid: string): Promise<void> {
   const fileOps = new fileOperations(guid);
-  const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
   const logger = getLoggerForGuid(guid); // Use GUID-specific logger
 

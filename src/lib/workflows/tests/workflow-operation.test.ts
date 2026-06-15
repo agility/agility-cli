@@ -101,32 +101,6 @@ describe("WorkflowOperation.executeFromMappings", () => {
     });
   });
 
-  describe("dry run mode", () => {
-    it("returns without calling workflowOrchestrator when dryRun=true", async () => {
-      state.sourceGuid = ["src-u"];
-      state.targetGuid = ["tgt-u"];
-      state.locale = ["en-us"];
-      state.dryRun = true;
-      state.operationType = "unpublish";
-
-      jest.spyOn(mappingReader, "getMappingSummary").mockReturnValue(makeMappingSummary(3, 2));
-      jest
-        .spyOn(mappingReader, "readMappingsForGuidPair")
-        .mockReturnValue(makeMappingResult({ contentIds: [1, 2, 3], pageIds: [10, 11] }));
-
-      const orchestratorSpy = jest.spyOn(workflowOrchestratorModule, "workflowOrchestrator");
-
-      const op = new WorkflowOperation();
-      const result = await op.executeFromMappings();
-
-      expect(orchestratorSpy).not.toHaveBeenCalled();
-      expect(result.success).toBe(true);
-      // dry run reports would-be counts
-      expect(result.contentProcessed).toBe(3);
-      expect(result.pagesProcessed).toBe(2);
-    });
-  });
-
   describe("publish operation with source status check", () => {
     it("filters content to only published-in-source IDs", async () => {
       state.sourceGuid = ["src-u"];

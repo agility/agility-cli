@@ -11,17 +11,10 @@ export function getContainersFromFileSystem(
   guid: string,
   locale: string,
   isPreview: boolean,
-  rootPath?: string,
-  legacyFolders?: boolean
+  rootPath?: string
 ): mgmtApi.Container[] {
   const baseFolder = rootPath || "agility-files";
-  let listPath: string;
-
-  if (legacyFolders) {
-    listPath = `${baseFolder}/list`;
-  } else {
-    listPath = `${baseFolder}/${guid}/${locale}/${isPreview ? "preview" : "live"}/list`;
-  }
+  const listPath = `${baseFolder}/${guid}/${locale}/${isPreview ? "preview" : "live"}/list`;
 
   if (!fs.existsSync(listPath)) {
     console.warn(`[Containers] List directory not found: ${listPath}`);
@@ -32,9 +25,7 @@ export function getContainersFromFileSystem(
   const containers: mgmtApi.Container[] = [];
 
   // Also load models to resolve definitionName to model ID (like chain-data-loader does)
-  const modelsPath = legacyFolders
-    ? `${baseFolder}/models`
-    : `${baseFolder}/${guid}/${locale}/${isPreview ? "preview" : "live"}/models`;
+  const modelsPath = `${baseFolder}/${guid}/${locale}/${isPreview ? "preview" : "live"}/models`;
 
   const models = loadModels(modelsPath);
 

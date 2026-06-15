@@ -1,8 +1,6 @@
-import * as path from "path";
-import * as fs from "fs";
 import { getState, initializeLogger, finalizeLogger, getLogger } from "./state";
 import ansiColors from "ansi-colors";
-import { markPullStart, clearTimestamps } from "../lib/incremental";
+import { markPullStart } from "../lib/incremental";
 import { waitForFetchApiSync } from "../lib/shared/get-fetch-api-status";
 
 import { Downloader } from "../lib/downloaders/orchestrate-downloaders";
@@ -27,14 +25,10 @@ export class Pull {
     // TODO: Add support for multiple GUIDs, multiple locales, multiple chanels
     // Currently only supports one GUID, one locale, one channel
     // Get all GUIDs to process (both source and target)
-    const { update } = state;
-
     let allGuids = [];
-    if (update === false && fromPush === true) {
-      allGuids = [...state.targetGuid];
-    } else if (update === true && fromPush === true) {
+    if (fromPush === true) {
       allGuids = [...state.sourceGuid, ...state.targetGuid];
-    } else if (update === true && fromPush === false) {
+    } else {
       allGuids = [...state.sourceGuid];
     }
 
@@ -53,13 +47,6 @@ export class Pull {
     }
 
     // operationDetails.forEach((detail) => console.log(`${detail}`));
-
-    // Handle --reset flag: completely delete GUID folders and start fresh
-    if (state.reset) {
-      for (const guid of allGuids) {
-        await this.handleResetFlag(guid);
-      }
-    }
 
     // Mark the start of this pull operation for incremental tracking
     markPullStart();
@@ -124,27 +111,5 @@ export class Pull {
       console.error(ansiColors.red("\n❌ An error occurred during the pull command:"), error);
       throw error; // Let calling code handle error response
     }
-  }
-
-  private async handleResetFlag(guid: string): Promise<void> {
-    const state = getState();
-    const guidFolderPath = path.resolve(state.rootPath, guid);
-
-    if (fs.existsSync(guidFolderPath)) {
-      console.log(ansiColors.red(`🔄 --reset flag detected: Deleting entire instance folder ${guidFolderPath}`));
-
-      try {
-        fs.rmSync(guidFolderPath, { recursive: true, force: true });
-        console.log(ansiColors.green(`✓ Successfully deleted instance folder: ${guidFolderPath}`));
-      } catch (resetError: any) {
-        console.error(ansiColors.red(`✗ Error deleting instance folder: ${resetError.message}`));
-        throw resetError;
-      }
-    } else {
-      console.log(ansiColors.yellow(`⚠️ Instance folder ${guidFolderPath} does not exist (already clean)`));
-    }
-
-    // Clear timestamp tracking for this instance
-    clearTimestamps(guid, state.rootPath);
   }
 }

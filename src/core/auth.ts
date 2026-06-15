@@ -1,11 +1,10 @@
 import { serverUser } from "../types/serverUser";
-import { state, getState, clearApiClient } from "./state";
+import { state } from "./state";
 import * as mgmtApi from "@agility/management-sdk";
 const open = require("open");
 const FormData = require("form-data");
 import fs from "fs";
 import path from "path";
-import https from "https";
 
 let _keytar: typeof import("keytar") | null | undefined;
 function getKeytar() {
@@ -21,8 +20,6 @@ function getKeytar() {
 import { exit } from "process";
 import ansiColors from "ansi-colors";
 
-import { getAllChannels } from "../lib/shared/get-all-channels";
-
 const SERVICE_NAME = "agility-cli";
 
 let lastLength = 0;
@@ -34,42 +31,6 @@ function logReplace(text) {
 }
 
 export class Auth {
-  private insecureMode: boolean = false;
-
-  constructor(insecureMode: boolean = false) {
-    this.insecureMode = insecureMode;
-  }
-
-  setInsecureMode(insecure: boolean) {
-    this.insecureMode = insecure;
-  }
-
-  private createHttpsAgent() {
-    if (this.insecureMode) {
-      return new https.Agent({
-        rejectUnauthorized: false,
-      });
-    }
-    return undefined;
-  }
-
-  private getFetchConfig(): RequestInit {
-    const config: RequestInit = {
-      headers: {
-        "Cache-Control": "no-cache",
-        "User-Agent": "agility-cli-fetch/1.0",
-      },
-    };
-
-    if (this.insecureMode) {
-      // For fetch with Node.js, we need to handle SSL differently
-      // This is a simplified approach - in production, you might need more sophisticated SSL handling
-      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-    }
-
-    return config;
-  }
-
   private handleSSLError(error: any): never {
     if (
       error.code === "UNABLE_TO_GET_ISSUER_CERT_LOCALLY" ||
@@ -78,16 +39,12 @@ export class Auth {
     ) {
       console.error("❌ SSL Certificate Error detected.");
       console.error("This often happens in corporate environments with proxy servers.");
-      console.error("Try running with the --insecure flag to bypass SSL verification:");
-      console.error("  npx agility login --insecure");
-      console.error("  npx agility pull --insecure --sourceGuid <your-guid>");
-      console.error("  npx agility sync --insecure --sourceGuid <guid1> --targetGuid <guid2>");
     }
     throw error;
   }
 
-  getEnv(): "dev" | "local" | "preprod" | "prod" {
-    return state.local ? "local" : state.dev ? "dev" : state.preprod ? "preprod" : "prod";
+  getEnv(): "dev" | "prod" {
+    return state.dev ? "dev" : "prod";
   }
 
   checkForEnvFile(): { hasEnvFile: boolean; guid?: string; channel?: string; locales?: string[] } {
@@ -177,18 +134,8 @@ export class Auth {
       baseGUID = state.sourceGuid[0];
     }
 
-    const userBaseUrl = state.baseUrl;
-    if (userBaseUrl) {
-      return userBaseUrl;
-    }
-
-    switch (true) {
-      case state.local:
-        return "https://localhost:5050";
-      case state.dev:
-        return "https://mgmt-dev.aglty.io";
-      case state.preprod:
-        return "https://management-api-us-pre-prod.azurewebsites.net";
+    if (state.dev) {
+      return "https://mgmt-dev.aglty.io";
     }
 
     if (baseGUID) {
@@ -372,8 +319,8 @@ export class Auth {
       redirectUri
     )}&state=cli-code%2e${code}`;
 
-    // Debug logging for local development
-    if (state.local || state.dev) {
+    // Debug logging for dev development
+    if (state.dev) {
       console.log("\n🔍 OAuth Debug Info:");
       console.log(`   Base URL: ${baseUrl}`);
       console.log(`   Redirect URI: ${redirectUri}`);
@@ -390,11 +337,7 @@ export class Auth {
    * Handles everything needed to get the CLI ready for operation
    */
   async init(): Promise<boolean> {
-    // Step 1: Configure SSL if needed
-    const { configureSSL } = await import("./state");
-    configureSSL();
-
-    // Step 2: Authenticate (PAT or Auth0)
+    // Step 1: Authenticate (PAT or Auth0)
     const hasPAT = await this.hasPersonalAccessToken();
     if (hasPAT) {
       console.log(ansiColors.green("🔑 Using Personal Access Token for authentication."));
@@ -441,21 +384,11 @@ export class Auth {
     state.useVerbose = !state.useHeadless && state.verbose;
     // Remove blessed mode - no longer supported
 
-    // Step 5: Check permission bypass flags
-    const shouldSkip = this.shouldSkipPermissionCheck();
-    if (shouldSkip) {
-      if (state.test) {
-        console.log(ansiColors.yellow("🧪 TEST MODE: Bypassing permission checks for analysis..."));
-      } else if (state.test) {
-        console.log(ansiColors.yellow("🧪 TEST MODE: Bypassing permission checks..."));
-      }
-    }
-
     // Step 5: Set up basic management API options
     const mgmtApiOptions = new (await import("@agility/management-sdk")).Options();
     mgmtApiOptions.token = await this.getToken();
 
-    // CRITICAL: Set baseUrl for local/dev/preprod modes BEFORE creating the client
+    // CRITICAL: Resolve the Management API baseUrl BEFORE creating the client
     // This ensures getLocales() and other SDK calls use the correct endpoint
     const baseUrl = this.determineBaseUrl();
     mgmtApiOptions.baseUrl = baseUrl;
@@ -576,8 +509,8 @@ export class Auth {
           console.log(`📝 Using user-specified locales: ${state.locale.join(", ")}`);
         } else {
           // No explicit locales and auto-detect failed — can't safely assume en-us
-          console.log(ansiColors.red(`Error: Could not detect available locales and no --locale flag was provided.`));
-          console.log(ansiColors.red(`Please specify locales explicitly with --locale (e.g., --locale en-us)\n`));
+          console.log(ansiColors.red(`Error: Could not detect available locales and no --locales flag was provided.`));
+          console.log(ansiColors.red(`Please specify locales explicitly with --locales (e.g., --locales en-us)\n`));
           return false;
         }
       }
@@ -1069,7 +1002,7 @@ export class Auth {
         const hasUserLocales = state.locale && state.locale.length > 0;
         const hasAutoDetectedLocales = state.guidLocaleMap && state.guidLocaleMap.size > 0;
         if (!hasUserLocales && !hasAutoDetectedLocales) {
-          missingFields.push("locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)");
+          missingFields.push("locale (use --locales or AGILITY_LOCALES in .env, or locales will be auto-detected)");
         }
 
         if (!state.channel) missingFields.push("channel (use --channel or AGILITY_WEBSITE in .env)");
@@ -1087,7 +1020,7 @@ export class Auth {
         const hasSyncUserLocales = state.locale && state.locale.length > 0;
         const hasSyncAutoDetectedLocales = state.guidLocaleMap && state.guidLocaleMap.size > 0;
         if (!hasSyncUserLocales && !hasSyncAutoDetectedLocales) {
-          missingFields.push("locale (use --locale or AGILITY_LOCALES in .env, or locales will be auto-detected)");
+          missingFields.push("locale (use --locales or AGILITY_LOCALES in .env, or locales will be auto-detected)");
         }
 
         if (!state.channel) missingFields.push("channel (use --channel or AGILITY_WEBSITE in .env)");
@@ -1112,17 +1045,13 @@ export class Auth {
     }
 
     // Validate instance access and set up API configuration
-    const shouldSkip = this.shouldSkipPermissionCheck();
-
     try {
       if (commandType === "sync" && state.targetGuid && state.targetGuid.length > 0) {
         // Sync operation - validate access to both source and target (use first GUID for validation)
-        if (!shouldSkip) {
-          if (!state.isAgilityDev && !state.dev && !state.local) {
-            await this.validateInstanceAccess(state.sourceGuid[0], "source");
-          }
-          await this.validateInstanceAccess(state.targetGuid[0], "target");
+        if (!state.isAgilityDev && !state.dev) {
+          await this.validateInstanceAccess(state.sourceGuid[0], "source");
         }
+        await this.validateInstanceAccess(state.targetGuid[0], "target");
 
         // Configure for target instance (sync writes to target - use first target GUID)
         const targetBaseUrl = state.baseUrl || this.determineBaseUrl(state.targetGuid[0]);
@@ -1140,16 +1069,14 @@ export class Auth {
         if (!state.apiKeyForPull) {
           console.log(
             ansiColors.red(
-              `Could not retrieve the required API key (preview: ${state.preview}) for source instance ${state.sourceGuid[0]}. Check API key configuration in Agility and --baseUrl if used.`
+              `Could not retrieve the required API key (preview: ${state.preview}) for source instance ${state.sourceGuid[0]}. Check API key configuration in Agility.`
             )
           );
           return false;
         }
       } else if (commandType === "pull" && state.sourceGuid && state.sourceGuid.length > 0) {
         // Pull operation - validate source access and get API keys (use first source GUID for validation)
-        if (!shouldSkip) {
-          await this.validateInstanceAccess(state.sourceGuid[0], "instance");
-        }
+        await this.validateInstanceAccess(state.sourceGuid[0], "instance");
 
         const baseUrl = state.baseUrl || this.determineBaseUrl(state.sourceGuid[0]);
         state.mgmtApiOptions!.baseUrl = baseUrl;
@@ -1166,7 +1093,7 @@ export class Auth {
         if (!state.apiKeyForPull) {
           console.log(
             ansiColors.red(
-              `Could not retrieve the required API key (preview: ${state.preview}) for instance ${state.sourceGuid[0]}. Check API key configuration in Agility and --baseUrl if used.`
+              `Could not retrieve the required API key (preview: ${state.preview}) for instance ${state.sourceGuid[0]}. Check API key configuration in Agility.`
             )
           );
           return false;
@@ -1178,11 +1105,6 @@ export class Auth {
     }
 
     return true;
-  }
-
-  shouldSkipPermissionCheck(): boolean {
-    const state = getState();
-    return state.test;
   }
 
   /**
@@ -1287,7 +1209,7 @@ export class Auth {
 
     if (!apiKeyForPull) {
       throw new Error(
-        `Could not retrieve the required API key (preview: ${isPreview}) for instance ${guid}. Check API key configuration in Agility and --baseUrl if used.`
+        `Could not retrieve the required API key (preview: ${isPreview}) for instance ${guid}. Check API key configuration in Agility.`
       );
     }
 
