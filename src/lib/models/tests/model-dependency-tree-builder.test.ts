@@ -94,6 +94,63 @@ function makeSourceData(overrides: Partial<any> = {}): any {
   };
 }
 
+// ─── model→model references via linked-content fields (PROD-2187) ─────────────
+
+function makeModelWithRefs(id: number, referenceName: string, refs: string[] = []): any {
+  return {
+    id,
+    referenceName,
+    fields: refs.map((r) => ({ type: "Content", settings: { ContentDefinition: r } })),
+  };
+}
+
+describe("ModelDependencyTreeBuilder — model→model references", () => {
+  it("includes a model referenced via a linked-content field (FooterLinks → FooterLinksLists)", () => {
+    const builder = new ModelDependencyTreeBuilder(
+      makeSourceData({
+        models: [makeModelWithRefs(1, "FooterLinks", ["FooterLinksLists"]), makeModelWithRefs(2, "FooterLinksLists")],
+      })
+    );
+    const tree = builder.buildDependencyTree(["FooterLinks"], "website");
+    expect(tree.models.has("FooterLinks")).toBe(true);
+    expect(tree.models.has("FooterLinksLists")).toBe(true);
+  });
+
+  it("resolves references transitively (A → B → C)", () => {
+    const builder = new ModelDependencyTreeBuilder(
+      makeSourceData({
+        models: [makeModelWithRefs(1, "A", ["B"]), makeModelWithRefs(2, "B", ["C"]), makeModelWithRefs(3, "C")],
+      })
+    );
+    const tree = builder.buildDependencyTree(["A"], "website");
+    expect(tree.models.has("B")).toBe(true);
+    expect(tree.models.has("C")).toBe(true);
+  });
+
+  it("does not pull in unrelated models", () => {
+    const builder = new ModelDependencyTreeBuilder(
+      makeSourceData({
+        models: [
+          makeModelWithRefs(1, "FooterLinks", ["FooterLinksLists"]),
+          makeModelWithRefs(2, "FooterLinksLists"),
+          makeModelWithRefs(9, "Unrelated"),
+        ],
+      })
+    );
+    const tree = builder.buildDependencyTree(["FooterLinks"], "website");
+    expect(tree.models.has("Unrelated")).toBe(false);
+  });
+
+  it("terminates on a reference cycle (A → B → A)", () => {
+    const builder = new ModelDependencyTreeBuilder(
+      makeSourceData({ models: [makeModelWithRefs(1, "A", ["B"]), makeModelWithRefs(2, "B", ["A"])] })
+    );
+    const tree = builder.buildDependencyTree(["A"], "website");
+    expect(tree.models.has("A")).toBe(true);
+    expect(tree.models.has("B")).toBe(true);
+  });
+});
+
 // ─── resetLoggingFlags ────────────────────────────────────────────────────────
 
 describe("ModelDependencyTreeBuilder.resetLoggingFlags", () => {
