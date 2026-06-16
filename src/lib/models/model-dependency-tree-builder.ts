@@ -13,6 +13,43 @@ import ansiColors from "ansi-colors";
 import { SitemapHierarchy } from "../pushers/page-pusher/sitemap-hierarchy";
 import { AssetReferenceExtractor } from "../assets/asset-reference-extractor";
 
+/**
+ * Expand a list of model reference names to include every model they reference through
+ * linked-content fields.
+ */
+export function resolveReferencedModels(modelNames: string[], allModels: any[]): string[] {
+  const byLower = new Map<string, any>();
+  (allModels || []).forEach((m: any) => {
+    if (m?.referenceName) byLower.set(m.referenceName.toLowerCase(), m);
+  });
+
+  const result = new Set<string>();
+  const queue: string[] = [];
+
+  const add = (name: string | undefined | null) => {
+    if (!name || typeof name !== "string") return;
+    const model = byLower.get(name.toLowerCase());
+    const canonical = model?.referenceName ?? name;
+    if (!result.has(canonical)) {
+      result.add(canonical);
+      queue.push(canonical);
+    }
+  };
+
+  (modelNames || []).forEach(add);
+
+  while (queue.length > 0) {
+    const name = queue.pop()!;
+    const model = byLower.get(name.toLowerCase());
+    if (!model || !Array.isArray(model.fields)) continue;
+    for (const field of model.fields) {
+      add(field?.settings?.ContentDefinition);
+    }
+  }
+
+  return Array.from(result);
+}
+
 export interface ModelDependencyTree {
   models: Set<string>; // Model reference names
   containers: Set<number>;
@@ -75,6 +112,10 @@ export class ModelDependencyTreeBuilder {
     this.findTemplatesUsedByPages(tree);
     // 🎯 NEW: Include models for the newly discovered content
     this.findModelsForDiscoveredContent(tree);
+    // 🎯 NEW: Include models referenced by other models via linked-content fields
+    // (e.g. FooterLinks → FooterLinksLists). Without this, a selected model whose field points at
+    // another model fails to save on the target with a 404 "Definition for setting X not found".
+    this.findModelsReferencedByModels(tree);
     // 🎯 NEW: Include containers for the newly discovered models
     this.findContainersForDiscoveredModels(tree);
     // 🎯 NEW: Include containers that contain discovered content items
@@ -343,6 +384,16 @@ export class ModelDependencyTreeBuilder {
 
     const newModelCount = tree.models.size - initialModelSize;
     // console.log(ansiColors.gray(`  📋 Added ${newModelCount} additional models for content dependencies`));
+  }
+
+  /**
+   * Expand the model set with models referenced by other models through linked-content fields.
+   * Delegates to the shared `resolveReferencedModels` walk (transitive, de-duplicated, cycle-safe).
+   */
+  private findModelsReferencedByModels(tree: ModelDependencyTree): void {
+    if (!this.sourceData.models) return;
+    const expanded = resolveReferencedModels(Array.from(tree.models), this.sourceData.models);
+    expanded.forEach((name) => tree.models.add(name));
   }
 
   /**
