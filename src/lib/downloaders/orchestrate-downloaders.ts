@@ -1,4 +1,3 @@
-import ansiColors from "ansi-colors";
 import { DownloadOperationsRegistry } from "./download-operations-config";
 import { getState, initializeGuidLogger, finalizeGuidLogger } from "core/state";
 
@@ -94,24 +93,6 @@ export class Downloader {
 
     if (allGuids.length === 0) {
       throw new Error("No GUIDs available for download operation");
-    }
-
-    // Use sequential mode when running against local API to prevent crashes
-    // Local debugging sessions can't handle as many concurrent requests
-    if (state.local) {
-      console.log(ansiColors.gray("Using sequential download mode for local API..."));
-      const successfulResults: DownloadResults[] = [];
-
-      for (const guid of allGuids) {
-        try {
-          const result = await this.guidDownloader(guid, fromPush);
-          successfulResults.push(result);
-        } catch (error: any) {
-          console.error(`Failed download: ${guid} - ${error?.message || "Unknown error"}`);
-        }
-      }
-
-      return successfulResults;
     }
 
     // Start ALL downloads simultaneously (true parallel execution) for cloud APIs

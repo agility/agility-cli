@@ -49,11 +49,6 @@ describe("constructor and path getters", () => {
     expect(ops.guid).toBe("my-guid");
     expect(ops.locale).toBe("en-us");
   });
-
-  it("isLegacyMode is false by default", () => {
-    const ops = new fileOperations("my-guid", "en-us");
-    expect(ops.isLegacyMode).toBe(false);
-  });
 });
 
 // ─── Path utility methods ─────────────────────────────────────────────────────

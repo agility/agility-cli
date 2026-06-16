@@ -197,33 +197,6 @@ describe("getContainersFromFileSystem (from-list)", () => {
     });
   });
 
-  describe("legacy folder mode", () => {
-    it("reads list from flat baseFolder/list path when legacyFolders is true", () => {
-      const root = path.join(tmpDir, "legacy-list");
-      const lp = path.join(root, "list");
-      fs.mkdirSync(lp, { recursive: true });
-
-      const contentList = [
-        { contentID: 1, properties: { referenceName: "legacyRef", definitionName: "LegacyModel", state: 1 } },
-      ];
-      fs.writeFileSync(path.join(lp, "legacyRef.json"), JSON.stringify(contentList));
-
-      const result = getContainersFromFileSystem("g-010", "en-us", false, root, true);
-
-      expect(result).toHaveLength(1);
-      expect((result[0] as any).referenceName).toBe("legacyRef");
-    });
-
-    it("returns empty array when legacy list directory does not exist", () => {
-      const root = path.join(tmpDir, "legacy-list-missing");
-      fs.mkdirSync(root, { recursive: true });
-
-      const result = getContainersFromFileSystem("g-011", "en-us", false, root, true);
-
-      expect(result).toEqual([]);
-    });
-  });
-
   describe("preview vs live mode", () => {
     it("reads from preview sub-directory when isPreview is true", () => {
       const root = path.join(tmpDir, "preview-mode");

@@ -1021,9 +1021,8 @@ export class Logs {
       Locales: this.guid ? state.guidLocaleMap?.get(this.guid)?.join(", ") || "Not specified" : "Multiple",
       Channel: state.channel || "Not specified",
       Elements: state.elements || "All",
-      "Reset Mode": state.reset ? "Full reset" : "Incremental",
       Verbose: state.verbose ? "Enabled" : "Disabled",
-      "Preview Mode": state.isPreview ? "Preview" : "Live",
+      "Preview Mode": state.preview ? "Preview" : "Live",
     };
 
     const header = generateLogHeader(this.operationType, additionalInfo);

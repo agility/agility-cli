@@ -9,7 +9,6 @@ export class fileOperations {
   private _rootPath: string;
   private _guid: string;
   private _locale: string;
-  private _legacyFolders: boolean;
   private _resolvedRootPath: string;
   private _basePath: string;
   private _instanceLogDir: string;
@@ -22,26 +21,17 @@ export class fileOperations {
     this._guid = guid;
     this._isGuidLevel = locale === undefined || locale === null || locale === "";
     this._locale = locale ?? "";
-    this._legacyFolders = state.legacyFolders;
 
     // Keep paths relative instead of resolving to absolute paths
     // This prevents files from being written to /Users/ directories
     this._resolvedRootPath = state.rootPath;
 
-    // Calculate paths based on legacy mode
-    if (state.legacyFolders) {
-      // Legacy mode: flat structure
-      this._basePath = this._resolvedRootPath;
-      this._mappingsPath = path.join(this._resolvedRootPath, "mappings");
-      this._instanceLogDir = path.join(this._resolvedRootPath, "logs");
-    } else {
-      // Normal mode: nested structure
-      this._basePath = this._isGuidLevel
-        ? path.join(this._resolvedRootPath, this._guid)
-        : path.join(this._resolvedRootPath, this._guid, this._locale);
-      this._mappingsPath = path.join(this._resolvedRootPath, this._guid, "mappings");
-      this._instanceLogDir = path.join(this._basePath, "logs");
-    }
+    // Nested folder structure: rootPath/guid[/locale]
+    this._basePath = this._isGuidLevel
+      ? path.join(this._resolvedRootPath, this._guid)
+      : path.join(this._resolvedRootPath, this._guid, this._locale);
+    this._mappingsPath = path.join(this._resolvedRootPath, this._guid, "mappings");
+    this._instanceLogDir = path.join(this._basePath, "logs");
 
     this._currentLogFilePath = path.join(this._instanceLogDir, "instancelog.txt");
   }
@@ -53,10 +43,6 @@ export class fileOperations {
 
   public get mappingsPath(): string {
     return this._mappingsPath;
-  }
-
-  public get isLegacyMode(): boolean {
-    return this._legacyFolders;
   }
 
   public get resolvedRootPath(): string {

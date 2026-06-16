@@ -140,7 +140,6 @@ yargs.command({
     }
 
     setState(argv);
-    state.update = true; // Ensure updates are enabled for pull
     state.isPull = true;
 
     auth = new Auth();
@@ -193,9 +192,8 @@ yargs.command({
 
     setState(argv);
 
-    // if the user is "syncing", we need to turn on the updates to the downloaders
+    // mark whether this invocation is a sync or a push
     if (isSync) {
-      state.update = true;
       state.isSync = true;
     } else {
       state.isPush = true;

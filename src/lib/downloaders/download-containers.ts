@@ -1,5 +1,5 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
+import { getApiClient, getLoggerForGuid } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
 // import { ChangeDelta } from "../shared/change-delta-tracker";
@@ -11,7 +11,6 @@ export async function downloadAllContainers(
   // changeDelta: ChangeDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
-  const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
   const logger = getLoggerForGuid(guid); // Use GUID-specific logger
 
@@ -51,10 +50,6 @@ export async function downloadAllContainers(
     apiContainer: any,
     localInfo: { lastModifiedDate?: string; exists: boolean }
   ): { shouldDownload: boolean; reason: string } {
-    if (state.update === false) {
-      return { shouldDownload: false, reason: "" };
-    }
-
     if (!localInfo.exists) {
       return { shouldDownload: true, reason: "new file" };
     }
@@ -68,7 +63,7 @@ export async function downloadAllContainers(
     const apiDateTime = parse(apiContainer.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
     const localeDateTime = parse(localInfo.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
 
-    if (apiDateTime > localeDateTime && state.update === true) {
+    if (apiDateTime > localeDateTime) {
       return { shouldDownload: true, reason: "content changed" };
     }
 

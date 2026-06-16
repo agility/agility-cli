@@ -244,7 +244,6 @@ async function createAsset(
     },
     maxContentLength: Infinity,
     maxBodyLength: Infinity,
-    httpsAgent: state.local ? new (require("https").Agent)({ rejectUnauthorized: false }) : undefined,
   });
 
   const uploadedMediaArray = response.data as mgmtApi.Media[];
@@ -329,7 +328,6 @@ async function updateAsset(
     },
     maxContentLength: Infinity,
     maxBodyLength: Infinity,
-    httpsAgent: state.local ? new (require("https").Agent)({ rejectUnauthorized: false }) : undefined,
   });
 
   const uploadedMediaArray = response.data as mgmtApi.Media[];

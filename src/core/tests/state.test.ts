@@ -51,24 +51,24 @@ describe("setState – GUID parsing", () => {
   });
 });
 
-describe("setState – locale parsing", () => {
+describe("setState – locale parsing (--locales)", () => {
   it("sets a single locale", () => {
-    setState({ locale: "en-us" });
+    setState({ locales: "en-us" });
     expect(getState().locale).toEqual(["en-us"]);
   });
 
   it("splits comma-separated locales", () => {
-    setState({ locale: "en-us,fr-ca" });
+    setState({ locales: "en-us,fr-ca" });
     expect(getState().locale).toEqual(["en-us", "fr-ca"]);
   });
 
   it("splits space-separated locales", () => {
-    setState({ locale: "en-us fr-ca" });
+    setState({ locales: "en-us fr-ca" });
     expect(getState().locale).toEqual(["en-us", "fr-ca"]);
   });
 
   it("sets empty array for blank locale string", () => {
-    setState({ locale: "  " });
+    setState({ locales: "  " });
     expect(getState().locale).toEqual([]);
   });
 });
@@ -116,24 +116,9 @@ describe("setState – boolean and string flags", () => {
     expect(getState().overwrite).toBe(true);
   });
 
-  it("sets force flag", () => {
-    setState({ force: true });
-    expect(getState().force).toBe(true);
-  });
-
-  it("sets dryRun flag", () => {
-    setState({ dryRun: true });
-    expect(getState().dryRun).toBe(true);
-  });
-
   it("sets autoPublish value", () => {
     setState({ autoPublish: "both" });
     expect(getState().autoPublish).toBe("both");
-  });
-
-  it("sets rootPath", () => {
-    setState({ rootPath: "/custom/path" });
-    expect(getState().rootPath).toBe("/custom/path");
   });
 
   it("sets operationType", () => {
@@ -164,18 +149,15 @@ describe("resetState", () => {
   });
 
   it("resets boolean flags to defaults", () => {
-    setState({ headless: true, verbose: true, overwrite: true, force: true, dryRun: true });
+    setState({ headless: true, verbose: true, overwrite: true });
     resetState();
     const s = getState();
     expect(s.headless).toBe(false);
     expect(s.verbose).toBe(false);
     expect(s.overwrite).toBe(false);
-    expect(s.force).toBe(false);
-    expect(s.dryRun).toBe(false);
   });
 
   it("resets rootPath to agility-files", () => {
-    setState({ rootPath: "/custom" });
     resetState();
     expect(getState().rootPath).toBe("agility-files");
   });
@@ -275,16 +257,6 @@ describe("getCmsAppUrl", () => {
 
   it("returns QA URL when dev=true", () => {
     setState({ dev: true });
-    expect(getCmsAppUrl()).toBe("https://app-qa.publishwithagility.com");
-  });
-
-  it("returns QA URL when local=true", () => {
-    setState({ local: true });
-    expect(getCmsAppUrl()).toBe("https://app-qa.publishwithagility.com");
-  });
-
-  it("returns QA URL when preprod=true", () => {
-    setState({ preprod: true });
     expect(getCmsAppUrl()).toBe("https://app-qa.publishwithagility.com");
   });
 });
