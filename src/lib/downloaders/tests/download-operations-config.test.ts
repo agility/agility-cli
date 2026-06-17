@@ -83,6 +83,30 @@ describe("DownloadOperationsRegistry.getOperationsForElements", () => {
     expect(ops.length).toBe(Object.keys(DOWNLOAD_OPERATIONS).length);
   });
 
+  it("skips assets (and other non-model ops) on a sync scoped to --elements=Models", () => {
+    setState({ elements: "Models" });
+    const ops = DownloadOperationsRegistry.getOperationsForElements(true);
+    const names = ops.map((o: OperationConfig) => o.name);
+    expect(names).toEqual(["downloadAllModels"]);
+    expect(names).not.toContain("downloadAllAssets");
+    expect(names).not.toContain("downloadAllGalleries");
+  });
+
+  it("skips assets on a sync that uses the simple --models filter", () => {
+    setState({ models: "FooterLinks" }); // elements stays at the full default
+    const ops = DownloadOperationsRegistry.getOperationsForElements(true);
+    const names = ops.map((o: OperationConfig) => o.name);
+    expect(names).toEqual(["downloadAllModels"]);
+    expect(names).not.toContain("downloadAllAssets");
+  });
+
+  it("still downloads everything on a --models-with-deps sync (full tree needs assets)", () => {
+    setState({ modelsWithDeps: "FooterLinks" });
+    const ops = DownloadOperationsRegistry.getOperationsForElements(true);
+    expect(ops.length).toBe(Object.keys(DOWNLOAD_OPERATIONS).length);
+    expect(ops.map((o: OperationConfig) => o.name)).toContain("downloadAllAssets");
+  });
+
   it("returns only operations matching state.elements when fromPush is false", () => {
     setState({ elements: "Models" });
     const ops = DownloadOperationsRegistry.getOperationsForElements(false);
