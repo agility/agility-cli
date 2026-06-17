@@ -1,0 +1,18 @@
+{
+  "name": "11-model-push-fresh",
+  "description": "Brightstar Case 8: source has a Post model that doesn't exist in target yet, no model mappings on disk. pushModels should create a stub in the target (saveModel call #1), then update the stub with fields (saveModel call #2), and write a model mapping linking source ID 10 to the new target ID assigned by the mock (7001).",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "pushes": "models",
+  "expect": {
+    "apiCalls": {
+      "saveModel": 2
+    },
+    "mappings": {
+      "model": [
+        { "sourceID": 10, "targetID": 7001, "sourceReferenceName": "Post" }
+      ]
+    }
+  }
+}

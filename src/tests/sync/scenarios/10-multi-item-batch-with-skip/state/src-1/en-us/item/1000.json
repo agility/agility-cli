@@ -1,0 +1,16 @@
+{
+  "contentID": 1000,
+  "properties": {
+    "referenceName": "Posts",
+    "definitionName": "Post",
+    "versionID": 1,
+    "state": 2,
+    "itemOrder": 0
+  },
+  "fields": {
+    "title": "First Post",
+    "slug": "first-post"
+  },
+  "seo": null,
+  "scripts": null
+}

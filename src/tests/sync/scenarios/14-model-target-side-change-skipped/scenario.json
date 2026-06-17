@@ -1,0 +1,18 @@
+{
+  "name": "14-model-target-side-change-skipped",
+  "description": "Target-safety branch of the model pusher. Source model is unchanged since the last sync, but the target model has been edited locally (e.g., a Brightstar customer touched their Client A QA instance between upstream syncs). pushModels detects hasTargetChanged and routes the model to shouldSkip, leaving the target untouched. 0 saveModel calls, mapping unchanged on disk. This is the protection that lets multi-stage chains (Dev → QA → Client) tolerate downstream edits without losing them on the next upstream push.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "pushes": "models",
+  "expect": {
+    "apiCalls": {
+      "saveModel": 0
+    },
+    "mappings": {
+      "model": [
+        { "sourceID": 10, "targetID": 50, "sourceReferenceName": "Post" }
+      ]
+    }
+  }
+}

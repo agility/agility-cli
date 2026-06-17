@@ -1,0 +1,22 @@
+{
+  "name": "04-source-updated",
+  "description": "Mapping + target file both present; source version has bumped while target version matches the mapped version. Filter says shouldUpdate, payload is sent with the existing target contentID, addMapping finds the existing entry by target ID and updates in place — no new mapping entry.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "expect": {
+    "apiCalls": {
+      "saveContentItems": 1
+    },
+    "mappings": {
+      "item": [
+        {
+          "sourceContentID": 1000,
+          "targetContentID": 5000
+        }
+      ]
+    },
+    "noDuplicateMappingsBySourceID": true
+  },
+  "base": "_base"
+}
