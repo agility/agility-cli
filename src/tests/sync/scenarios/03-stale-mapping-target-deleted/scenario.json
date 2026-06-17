@@ -1,0 +1,25 @@
+{
+  "name": "03-stale-mapping-target-deleted",
+  "description": "Regression test for PROD-1320 (PR #135). Mapping points to a target item file that no longer exists (deleted out-of-band) and source version has bumped. With state.overwrite=true, prepareContentPayloads detects the stale mapping (existingMapping set, existingTargetContentItem null) and sends the payload with the stale targetContentID (5000) instead of -1. The API treats this as an update, addMapping finds the existing entry by target ID and updates in place — no duplicate. Without the overwrite flag, the underlying bug still produces a duplicate (see FINDINGS.md Finding 1) — that path is left as documented behavior rather than a failing test.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "state": {
+    "overwrite": true
+  },
+  "expect": {
+    "apiCalls": {
+      "saveContentItems": 1
+    },
+    "mappings": {
+      "item": [
+        {
+          "sourceContentID": 1000,
+          "targetContentID": 5000
+        }
+      ]
+    },
+    "noDuplicateMappingsBySourceID": true
+  },
+  "base": "_base"
+}

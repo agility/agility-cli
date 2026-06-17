@@ -1,0 +1,22 @@
+{
+  "name": "01-fresh-sync",
+  "description": "Realistic main code path: model + container exist with mappings; one Post content item is created in a blank target and one item mapping is written.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "expect": {
+    "apiCalls": {
+      "saveContentItems": 1
+    },
+    "mappings": {
+      "item": [
+        {
+          "sourceContentID": 1000,
+          "targetContentID": "__any__"
+        }
+      ]
+    },
+    "noDuplicateMappingsBySourceID": true
+  },
+  "base": "_base"
+}

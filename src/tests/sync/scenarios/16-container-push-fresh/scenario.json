@@ -1,0 +1,18 @@
+{
+  "name": "16-container-push-fresh",
+  "description": "Source has Posts container, target has no containers, model mapping for Post already exists (since containers reference models via contentDefinitionID). pushContainers should resolve the source's contentDefinitionID through the model mapping to find target model ID 50, send a create payload (contentViewID: -1, contentDefinitionID: 50) to saveContainer, and write a container mapping linking source contentViewID 200 to the new target ID 8001 assigned by the mock.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "pushes": "containers",
+  "expect": {
+    "apiCalls": {
+      "saveContainer": 1
+    },
+    "mappings": {
+      "container": [
+        { "sourceContentViewID": 200, "targetContentViewID": 8001, "sourceReferenceName": "Posts" }
+      ]
+    }
+  }
+}

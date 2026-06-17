@@ -1,0 +1,28 @@
+{
+  "name": "07-cross-locale-mapping-inheritance",
+  "description": "Pushing fr-ca for source item 1000. fr-ca has no mapping yet, but en-us already has {src:1000, tgt:5000}. findContentInOtherLocale should locate the en-us mapping and reuse target ID 5000 — so fr-ca writes {src:1000, tgt:5000} instead of creating a brand-new item in the target.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "fr-ca",
+  "state": {
+    "availableLocales": [
+      "en-us",
+      "fr-ca"
+    ]
+  },
+  "expect": {
+    "apiCalls": {
+      "saveContentItems": 1
+    },
+    "mappings": {
+      "item": [
+        {
+          "sourceContentID": 1000,
+          "targetContentID": 5000
+        }
+      ]
+    },
+    "noDuplicateMappingsBySourceID": true
+  },
+  "base": "_base"
+}

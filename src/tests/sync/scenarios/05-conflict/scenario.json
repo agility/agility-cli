@@ -1,0 +1,22 @@
+{
+  "name": "05-conflict",
+  "description": "Both source and target versions have bumped past their mapped values. Change detection returns isConflict=true; the filter pushes the item into itemsToSkip and processBatches never runs. Conflict resolution is a manual operation, so the integration test asserts the system declines to act.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "expect": {
+    "apiCalls": {
+      "saveContentItems": 0
+    },
+    "mappings": {
+      "item": [
+        {
+          "sourceContentID": 1000,
+          "targetContentID": 5000
+        }
+      ]
+    },
+    "noDuplicateMappingsBySourceID": true
+  },
+  "base": "_base"
+}

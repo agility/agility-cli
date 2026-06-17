@@ -1,0 +1,39 @@
+{
+  "name": "15-multi-batch-content",
+  "description": "Five source items with batchSize=2 — exercises the multi-batch loop in ContentBatchProcessor.processBatches. Asserts 3 saveContentItems calls (batches of 2, 2, and 1), 5 distinct mappings, and no duplicate source IDs. Catches regressions in batch splitting, intra-batch ordering, and per-batch result extraction that single-batch scenarios can't reach.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "batchSize": 2,
+  "expect": {
+    "apiCalls": {
+      "saveContentItems": 3
+    },
+    "mappings": {
+      "item": [
+        {
+          "sourceContentID": 1000,
+          "targetContentID": "__any__"
+        },
+        {
+          "sourceContentID": 1001,
+          "targetContentID": "__any__"
+        },
+        {
+          "sourceContentID": 1002,
+          "targetContentID": "__any__"
+        },
+        {
+          "sourceContentID": 1003,
+          "targetContentID": "__any__"
+        },
+        {
+          "sourceContentID": 1004,
+          "targetContentID": "__any__"
+        }
+      ]
+    },
+    "noDuplicateMappingsBySourceID": true
+  },
+  "base": "_base"
+}
