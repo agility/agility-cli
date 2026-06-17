@@ -105,6 +105,14 @@ export class DownloadOperationsRegistry {
     }
 
     if (fromPush) {
+      // A sync/push normally downloads everything so the push pipeline has complete data for change
+      // detection. Exception: when the operation is scoped to models only — `--elements="Models"` or
+      // the simple `--models` filter — only model definitions are needed, so skip assets, galleries,
+      // content, etc. (`--models-with-deps` still needs the full renderable tree and is NOT treated as
+      // models-only here.)
+      if (this.isModelsOnlyScope(resolvedElements)) {
+        return Object.values(DOWNLOAD_OPERATIONS).filter((operation) => operation.elements.includes("Models"));
+      }
       return Object.values(DOWNLOAD_OPERATIONS);
     }
 
@@ -115,6 +123,23 @@ export class DownloadOperationsRegistry {
     });
 
     return relevantOperations;
+  }
+
+  /**
+   * A models-only operation needs only model definitions downloaded — no assets, galleries, content,
+   * templates, containers, or pages. True when the user scoped elements to just "Models", or used the
+   * simple `--models` filter. `--models-with-deps` is intentionally excluded: it pulls the full
+   * dependency tree (assets included) and therefore is NOT models-only.
+   */
+  private static isModelsOnlyScope(resolvedElements: string[]): boolean {
+    const state = getState();
+
+    const simpleModelsOnly =
+      !!(state.models && state.models.trim()) && !(state.modelsWithDeps && state.modelsWithDeps.trim());
+
+    const elementsModelsOnly = resolvedElements.length === 1 && resolvedElements[0] === "Models";
+
+    return simpleModelsOnly || elementsModelsOnly;
   }
 
   /**
