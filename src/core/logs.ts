@@ -754,8 +754,12 @@ export class Logs {
     error: (payload: any, apiError: any, targetGuid?: string) => {
       const itemName = payload?.referenceName || payload?.displayName || `Model ${payload?.id || "Unknown"}`;
       const baseMessage = apiError?.message || "Unknown error";
-      const responseData = apiError?.response?.data ?? apiError?.response?.body ?? apiError?.data;
-      const responseStatus = apiError?.response?.status ?? apiError?.status;
+      // The management SDK wraps the underlying axios error as `innerError`, so the real status/body
+      // live there — unwrap it (falling back to the top-level error) so the log captures them.
+      const inner = apiError?.innerError ?? apiError;
+      const responseData =
+        inner?.response?.data ?? inner?.response?.body ?? inner?.data ?? apiError?.response?.data ?? apiError?.data;
+      const responseStatus = inner?.response?.status ?? inner?.status ?? apiError?.response?.status ?? apiError?.status;
       const serverDetail = responseData
         ? ` | Server response (${responseStatus ?? "?"}): ${typeof responseData === "string" ? responseData : safeStringify(responseData)}`
         : "";
