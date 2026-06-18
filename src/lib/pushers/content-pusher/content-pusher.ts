@@ -84,6 +84,13 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
         logger,
       });
 
+      // Preflight (PROD-2203): the filter has already recorded create/update/skip/conflict.
+      // Skip the batch write entirely so nothing is sent to the target, but keep
+      // processing the remaining (normal) content so its actions are reported too.
+      if (state.preflight) {
+        totalSuccessful += filteredLinkedContentItems.itemsToProcess.length;
+        totalSkipped += filteredLinkedContentItems.skippedCount;
+      } else {
       const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
       const linkedResult = await linkedBatchProcessor.processBatches(
         filteredLinkedContentItems.itemsToProcess.reverse(),
@@ -115,6 +122,7 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
           }
         });
       }
+      }
     }
 
     // Process normal content items first (no dependencies)
@@ -139,6 +147,11 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
         targetData,
         logger,
       });
+      // Preflight (PROD-2203): filter already recorded the actions; skip the write.
+      if (state.preflight) {
+        totalSuccessful += filteredNormalContentItems.itemsToProcess.length;
+        totalSkipped += filteredNormalContentItems.skippedCount;
+      } else {
       const normalBatchProcessor = new ContentBatchProcessor(normalBatchConfig);
       const normalResult = await normalBatchProcessor.processBatches(
         filteredNormalContentItems.itemsToProcess as ContentItem[],
@@ -169,6 +182,7 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
             registerFailedContent(contentID, name, item.error, locale);
           }
         });
+      }
       }
     }
 

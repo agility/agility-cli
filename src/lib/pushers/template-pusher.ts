@@ -4,6 +4,7 @@ import { TemplateMapper } from "lib/mappers/template-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { FailureDetail, PusherResult } from "types/sourceData";
+import { preflightReport } from "../preflight/preflight-report";
 
 
 export async function pushTemplates(
@@ -70,7 +71,22 @@ export async function pushTemplates(
 
     if (shouldSkip) {
       logger.template.skipped(sourceTemplate, "Up to date, skipping", targetGuid[0]);
+      preflightReport.record({
+        phase: "Templates",
+        action: "skip",
+        name: sourceTemplate.pageTemplateName,
+        detail: "up to date",
+      });
       skipped++;
+    }
+    else if (state.preflight) {
+      // Preflight: report the planned create/update and skip the write.
+      preflightReport.record({
+        phase: "Templates",
+        action: shouldUpdate ? "update" : "create",
+        name: sourceTemplate.pageTemplateName,
+      });
+      successful++;
     }
     else {
       let targetId = shouldUpdate ? targetTemplate?.pageTemplateID : -1;

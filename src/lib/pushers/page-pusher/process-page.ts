@@ -8,6 +8,7 @@ import { findPageInOtherLocale, OtherLocaleMapping } from "./find-page-in-other-
 import { Logs } from "core/logs";
 import { state, getFailedContent, contentExistsInSourceData, contentExistsInOtherLocale } from "core/state";
 import { PageModuleExtended } from "types/sourceData";
+import { preflightReport } from "../../preflight/preflight-report";
 
 interface Props {
   channel: string;
@@ -59,6 +60,13 @@ export async function processPage({
           channel,
           targetGuid
         );
+        preflightReport.record({
+          phase: "Pages",
+          action: "skip",
+          name: page.name,
+          locale,
+          detail: `missing page template ${page.templateName}`,
+        });
         return { status: "skip" };
       }
       targetTemplate = templateMapper.getMappedEntity(templateRef, "target") as mgmtApi.PageModel;
@@ -131,6 +139,7 @@ export async function processPage({
       console.warn(`   - Target: ${targetUrl}`);
 
       if (!overwrite) {
+        preflightReport.record({ phase: "Pages", action: "conflict", name: page.name, locale, detail: reason });
         return { status: "skip" }; // Prevent conflicting pages from being processed and auto-published
       }
       // overwrite mode: warn but continue processing
@@ -142,7 +151,20 @@ export async function processPage({
       }
 
       logger.page.skipped(page, "up to date, skipping", locale, channel, targetGuid);
+      preflightReport.record({ phase: "Pages", action: "skip", name: page.name, locale, detail: "up to date" });
       return { status: "skip" }; // Skip processing - page already exists
+    }
+
+    // Preflight (PROD-2203): we've decided this page would be created or updated.
+    // Record the planned action and skip the actual write to the target.
+    if (state.preflight) {
+      preflightReport.record({
+        phase: "Pages",
+        action: createRequired ? "create" : "update",
+        name: page.name,
+        locale,
+      });
+      return { status: "success" };
     }
 
     // Map Content IDs in Zones

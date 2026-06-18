@@ -3,6 +3,7 @@ import { getApiClient, state, getLoggerForGuid } from "../../core/state";
 import { PusherResult, FailureDetail } from "../../types/sourceData";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
+import { preflightReport } from "../preflight/preflight-report";
 
 /**
  * Simple change detection for models
@@ -145,6 +146,34 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       continue;
     }
   }
+  // Preflight (PROD-2203): report the planned model actions and skip all writes.
+  // A "target has changed" skip is surfaced as a conflict since a real sync would
+  // need --overwrite to proceed.
+  if (state.preflight) {
+    for (const model of shouldCreateStub) {
+      preflightReport.record({ phase: "Models", action: "create", name: model.referenceName });
+    }
+    for (const model of shouldUpdateFields) {
+      preflightReport.record({ phase: "Models", action: "update", name: model.referenceName });
+    }
+    for (const { model, reason } of shouldSkip) {
+      const isConflict = /target model has changed/i.test(reason);
+      preflightReport.record({
+        phase: "Models",
+        action: isConflict ? "conflict" : "skip",
+        name: model.referenceName,
+        detail: reason,
+      });
+    }
+    return {
+      status: "success",
+      successful: shouldCreateStub.length + shouldUpdateFields.length,
+      failed: 0,
+      skipped: shouldSkip.length,
+      failureDetails: [],
+    };
+  }
+
   for (const model of shouldCreateStub) {
     const result = await createNewModel(model, referenceMapper, apiClient, targetGuid[0], logger);
     if (result === "created") {

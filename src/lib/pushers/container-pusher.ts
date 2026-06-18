@@ -5,6 +5,7 @@ import { ContainerMapper } from "lib/mappers/container-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
 import { FailureDetail, PusherResult } from "types/sourceData";
+import { preflightReport } from "../preflight/preflight-report";
 
 /**
  * Container pusher with enhanced version-based comparison
@@ -92,6 +93,12 @@ export async function pushContainers(
             `target container: ${existingMapping.targetReferenceName} was deleted, skipping!`,
             targetGuid[0]
           );
+          preflightReport.record({
+            phase: "Containers",
+            action: "skip",
+            name: sourceContainer.referenceName,
+            detail: "target container was deleted",
+          });
           skipped++;
           continue;
         }
@@ -108,15 +115,37 @@ export async function pushContainers(
 
         if (targetModelID < 1) {
           logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0]);
+          preflightReport.record({
+            phase: "Containers",
+            action: "skip",
+            name: sourceContainer.referenceName,
+            detail: "target model mapping not found",
+          });
           skipped++;
         } else if (shouldSkip) {
           // Container exists and is up to date - skip
           logger.container.skipped(sourceContainer, "up to date, skipping", targetGuid[0]);
+          preflightReport.record({
+            phase: "Containers",
+            action: "skip",
+            name: sourceContainer.referenceName,
+            detail: "up to date",
+          });
           skipped++;
         } else if (hasTargetChanges && !overwrite) {
           // Container exists and is up to date - skip
           logger.container.error(sourceContainer, "Conflict detected, use --overwrite to force changes", targetGuid[0]);
+          preflightReport.record({
+            phase: "Containers",
+            action: "conflict",
+            name: sourceContainer.referenceName,
+            detail: "target changed; use --overwrite to force",
+          });
           skipped++;
+        } else if (shouldUpdate && state.preflight) {
+          // Preflight: would update, but skip the write.
+          preflightReport.record({ phase: "Containers", action: "update", name: sourceContainer.referenceName });
+          successful++;
         } else if (shouldUpdate) {
           // Container exists but needs updating
           const updateResult = await updateExistingContainer(
@@ -159,7 +188,17 @@ export async function pushContainers(
         // Container doesn't exist - create new one
         if (targetModelID < 1) {
           logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0]);
+          preflightReport.record({
+            phase: "Containers",
+            action: "skip",
+            name: sourceContainer.referenceName,
+            detail: "target model mapping not found",
+          });
           skipped++;
+        } else if (state.preflight) {
+          // Preflight: would create, but skip the write.
+          preflightReport.record({ phase: "Containers", action: "create", name: sourceContainer.referenceName });
+          successful++;
         } else {
           // Container doesn't exist - create new one
           const createResult = await createNewContainer(

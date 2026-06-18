@@ -35,6 +35,8 @@ export interface State {
 
   // Operation control
   overwrite: boolean;
+  preflight: boolean; // Preflight mode - report planned sync actions without writing to target/mappings
+  preflightJson: boolean; // Emit the preflight report as machine-readable JSON
 
   // Workflow operation control
   operationType?: string; // Workflow operation: publish, unpublish, approve, decline, requestApproval
@@ -77,7 +79,6 @@ export interface State {
   token: string | null;
   localServer: string;
   isAgilityDev: boolean;
-  forceNGROK: boolean;
 
   // Push/Pull/Sync flags
   isPush: boolean;
@@ -117,6 +118,8 @@ export const state: State = {
 
   // Operation control
   overwrite: false,
+  preflight: false,
+  preflightJson: false,
   autoPublish: "", // Empty string = disabled
 
   // Explicit ID overrides (bypass mappings lookup)
@@ -141,7 +144,6 @@ export const state: State = {
   token: null,
   localServer: "",
   isAgilityDev: false,
-  forceNGROK: false,
   isPush: false,
   isPull: false,
   isSync: false,
@@ -214,6 +216,10 @@ export function setState(argv: any) {
 
   // Operation control
   if (argv.overwrite !== undefined) state.overwrite = argv.overwrite;
+
+  // Operation control (preflight)
+  if (argv.preflight !== undefined) state.preflight = argv.preflight;
+  if (argv.preflightJson !== undefined) state.preflightJson = argv.preflightJson;
 
   // Workflow operation control
   if (argv.operationType !== undefined) state.operationType = argv.operationType;
@@ -395,6 +401,8 @@ export function resetState() {
 
   // Operation control
   state.overwrite = false;
+  state.preflight = false;
+  state.preflightJson = false;
 
   // Workflow operation control
   state.operationType = undefined;
@@ -426,7 +434,6 @@ export function resetState() {
   state.token = null;
   state.localServer = "";
   state.isAgilityDev = false;
-  state.forceNGROK = false;
 }
 
 /**
