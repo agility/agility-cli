@@ -1,6 +1,6 @@
 {
   "name": "13-model-exists-in-target-no-mapping",
-  "description": "Behavior changed by PR #147 (Rm reference name lookup, use IDs unless source mapping does not exist). Setup: target has model 'Post' (custom, non-default) with same referenceName as source, but no mapping file exists locally. Previous behavior: pushModels invoked addMapping silently via existsInTargetWithoutMapping → adopted target by name, 1 mapping created. New behavior: only *default* Agility models (richtextarea, formbuilder, agilitycss, etc.) get silently adopted. Custom models like Post fall through every condition in the for-loop without entering shouldCreateStub/shouldUpdateFields/shouldSkip — 0 saveModel calls, 0 mappings, no skip log. The model is silently dropped. NOTE: this is documented in FINDINGS.md Finding 5 as an unintended gap — the PR's stated intent was to *throw* when a name conflict is detected, but the throw only fires when there's an existing conflicting targetMapping; in the no-mapping-at-all case (our scenario), the code falls through silently. Containers downstream that reference this model would now fail to find their target model mapping.",
+  "description": "Setup: target has model 'Post' (custom, non-default) with the same referenceName as source, but no local mapping file exists. Behavior corrected by PROD-2211 (Fix 3, map-on-adopt): a custom model that already exists on the target by (referenceName, contentDefinitionTypeID) but has no mapping row is adopted — pushModels writes the mapping (source 10 -> target 50) and skips the model. No saveModel call is made. This replaces the earlier silent-drop gap (documented in FINDINGS.md Finding 5), where the model fell through every condition without a mapping, leaving downstream containers unable to resolve their target model. The mapping now self-heals on re-sync.",
   "sourceGuid": "src-1",
   "targetGuid": "tgt-1",
   "locale": "en-us",
@@ -10,7 +10,7 @@
       "saveModel": 0
     },
     "mappings": {
-      "model": []
+      "model": [{ "sourceID": 10, "targetID": 50, "sourceReferenceName": "Post" }]
     }
   }
 }
