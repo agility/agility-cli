@@ -1,0 +1,25 @@
+{
+  "name": "09-models-with-deps-simple",
+  "description": "Source has 2 models (Post, Author) with 1 content item in each. Sync runs with --models-with-deps=[Post]. ModelDependencyTree should include Post + Posts container + the Post content item, and exclude Author and the Author content item entirely. Only the Post item should be pushed and only one item mapping should be written.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "modelsWithDeps": [
+    "Post"
+  ],
+  "expect": {
+    "apiCalls": {
+      "saveContentItems": 1
+    },
+    "mappings": {
+      "item": [
+        {
+          "sourceContentID": 1000,
+          "targetContentID": "__any__"
+        }
+      ]
+    },
+    "noDuplicateMappingsBySourceID": true
+  },
+  "base": "_base"
+}

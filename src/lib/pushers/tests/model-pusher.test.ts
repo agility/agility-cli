@@ -43,10 +43,11 @@ function makeModel(overrides: Record<string, any> = {}): any {
   };
 }
 
-function makeApiClient(saveModelImpl?: jest.Mock): any {
+function makeApiClient(saveModelImpl?: jest.Mock, getContentModulesImpl?: jest.Mock): any {
   return {
     modelMethods: {
       saveModel: saveModelImpl ?? jest.fn().mockResolvedValue(makeModel({ id: 999 })),
+      getContentModules: getContentModulesImpl ?? jest.fn().mockResolvedValue([]),
     },
   };
 }
@@ -200,5 +201,158 @@ describe("pushModels — source-side rename orphans a mapping and halts the sync
     await expect(pushModels([renamedModel, reusedNameModel], [targetModel])).rejects.toThrow(/Model validation failed/);
 
     expect(saveModel).not.toHaveBeenCalled();
+  });
+});
+
+// ─── PROD-2211: honest failure reporting ──────────────────────────────────────
+
+describe("pushModels — failed update is reported as failed, not success (PROD-2211)", () => {
+  it("counts a model whose field-update genuinely fails as failed", async () => {
+    // Stub create succeeds; the follow-up field update is rejected (e.g. 404). Must be a failure.
+    const saveModel = jest
+      .fn()
+      .mockResolvedValueOnce(makeModel({ id: 55, referenceName: "FooterLinks" }))
+      .mockRejectedValue(new Error("Unable to save the model."));
+    // Re-query returns the stub (0 fields) — does NOT match the source field count, so no recovery.
+    const getContentModules = jest
+      .fn()
+      .mockResolvedValue([makeModel({ id: 55, referenceName: "FooterLinks", fields: [] })]);
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel, getContentModules));
+
+    const { pushModels } = await import("../model-pusher");
+    const sourceModel = makeModel({
+      id: 410,
+      referenceName: "FooterLinks",
+      contentDefinitionTypeID: 1,
+      fields: [{ name: "a" }, { name: "b" }],
+    });
+
+    const result = await pushModels([sourceModel], []);
+
+    expect(result.failed).toBe(1);
+    expect(result.successful).toBe(0);
+    expect(result.failureDetails?.some((f) => f.name === "FooterLinks")).toBe(true);
+  });
+});
+
+// ─── PROD-2211: false-negative create recovery ────────────────────────────────
+
+describe("pushModels — false-negative create recovery (PROD-2211)", () => {
+  it("recovers as success + writes a mapping when the create throws but the model exists on target", async () => {
+    const sourceModel = makeModel({ id: 700, referenceName: "RetailerLocatorSearchPanel", contentDefinitionTypeID: 1 });
+    // Stub create rejects (false-negative); the follow-up update then succeeds normally.
+    const saveModel = jest
+      .fn()
+      .mockRejectedValueOnce(new Error("socket hang up"))
+      .mockResolvedValue(makeModel({ id: 8, referenceName: "RetailerLocatorSearchPanel" }));
+    const getContentModules = jest
+      .fn()
+      .mockResolvedValue([
+        makeModel({ id: 8, referenceName: "RetailerLocatorSearchPanel", contentDefinitionTypeID: 1 }),
+      ]);
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel, getContentModules));
+
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    const { pushModels } = await import("../model-pusher");
+
+    const result = await pushModels([sourceModel], []);
+
+    expect(getContentModules).toHaveBeenCalled();
+    expect(result.failed).toBe(0);
+    expect(result.successful).toBe(1);
+    const mapper = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    expect(mapper.getModelMappingByID(700, "source")?.targetID).toBe(8);
+  });
+
+  it("stays failed when the create throws and only a different-typed same-name model exists", async () => {
+    const sourceModule = makeModel({ id: 800, referenceName: "PromoBanner", contentDefinitionTypeID: 2 });
+    const saveModel = jest.fn().mockRejectedValue(new Error("Unable to save the model."));
+    // Only a same-name Content List (type 1) exists — not a match for the Module (type 2).
+    const getContentModules = jest
+      .fn()
+      .mockResolvedValue([makeModel({ id: 9, referenceName: "PromoBanner", contentDefinitionTypeID: 1 })]);
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel, getContentModules));
+
+    const { pushModels } = await import("../model-pusher");
+    const result = await pushModels([sourceModule], []);
+
+    expect(result.failed).toBe(1);
+    expect(result.successful).toBe(0);
+  });
+
+  it("recovers a failed UPDATE when the saved field set matches the source", async () => {
+    // Mapping exists (model already on target); the update throws but the fields were persisted.
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    seeder.addMapping(
+      { id: 300, referenceName: "Header", lastModifiedDate: new Date(2024, 0, 1).toISOString() } as any,
+      { id: 30, referenceName: "Header", lastModifiedDate: new Date(2024, 0, 1).toISOString() } as any
+    );
+
+    const saveModel = jest.fn().mockRejectedValue(new Error("Unable to save the model."));
+    // Re-query shows the target now has the same field count as the source → recovered.
+    const getContentModules = jest
+      .fn()
+      .mockResolvedValue([makeModel({ id: 30, referenceName: "Header", fields: [{ name: "x" }, { name: "y" }] })]);
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel, getContentModules));
+
+    const { pushModels } = await import("../model-pusher");
+    const sourceModel = makeModel({
+      id: 300,
+      referenceName: "Header",
+      lastModifiedDate: new Date(2025, 0, 1).toISOString(), // newer than mapping → triggers update
+      fields: [{ name: "x" }, { name: "y" }],
+    });
+
+    const targetModel = makeModel({
+      id: 30,
+      referenceName: "Header",
+      lastModifiedDate: new Date(2024, 0, 1).toISOString(),
+    });
+
+    const result = await pushModels([sourceModel], [targetModel]);
+
+    expect(result.successful).toBe(1);
+    expect(result.failed).toBe(0);
+  });
+});
+
+// ─── PROD-2211: adopt existing target model without a mapping ─────────────────
+
+describe("pushModels — exists in target without mapping, non-default (PROD-2211)", () => {
+  it("writes a mapping row and skips instead of silently dropping the model", async () => {
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 999 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    const { pushModels } = await import("../model-pusher");
+
+    const sourceModel = makeModel({ id: 501, referenceName: "Header", contentDefinitionTypeID: 1 });
+    const targetModel = makeModel({ id: 10, referenceName: "Header", contentDefinitionTypeID: 1 });
+
+    const result = await pushModels([sourceModel], [targetModel]);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(result.failed).toBe(0);
+
+    const mapper = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    expect(mapper.getModelMappingByID(501, "source")?.targetID).toBe(10);
+  });
+
+  it("does NOT adopt a same-name target model of a different type (type-blind lookup)", async () => {
+    const createdStub = makeModel({ id: 888, referenceName: "PromoBanner", contentDefinitionTypeID: 2 });
+    const saveModel = jest.fn().mockResolvedValue(createdStub);
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    const sourceModel = makeModel({ id: 600, referenceName: "PromoBanner", contentDefinitionTypeID: 2 });
+    const targetContentList = makeModel({ id: 9, referenceName: "PromoBanner", contentDefinitionTypeID: 1 });
+
+    const result = await pushModels([sourceModel], [targetContentList]);
+
+    expect(saveModel).toHaveBeenCalled(); // goes through create, not adopted
+    expect(result.skipped).toBe(0);
   });
 });

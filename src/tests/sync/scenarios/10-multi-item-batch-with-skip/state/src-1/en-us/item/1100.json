@@ -1,0 +1,15 @@
+{
+  "contentID": 1100,
+  "properties": {
+    "referenceName": "Orphans",
+    "definitionName": "OrphanedModel",
+    "versionID": 1,
+    "state": 2,
+    "itemOrder": 0
+  },
+  "fields": {
+    "value": "I have no model mapping in this target"
+  },
+  "seo": null,
+  "scripts": null
+}

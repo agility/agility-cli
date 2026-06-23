@@ -6,6 +6,48 @@ import { Logs } from "core/logs";
 import { preflightReport } from "../preflight/preflight-report";
 
 /**
+ * Two Agility models can share a `referenceName` while differing in `contentDefinitionTypeID`
+ * (e.g. a Content List vs. a Module/Component named "PromoBanner"). A name-only lookup conflates
+ * them (the PROD-1505 / PROD-2211 type-blind-lookup family). This compares the model TYPE in
+ * addition to the name. `contentDefinitionTypeID` is present in the pulled model JSON but not on the
+ * SDK `Model` type, so we read it defensively; when either side lacks it (older pulls / fixtures) we
+ * fall back to name-only matching.
+ */
+function modelTypeMatches(a: mgmtApi.Model, b: mgmtApi.Model): boolean {
+  const aType = (a as any)?.contentDefinitionTypeID;
+  const bType = (b as any)?.contentDefinitionTypeID;
+  if (aType === undefined || aType === null || bType === undefined || bType === null) return true;
+  return aType === bType;
+}
+
+/**
+ * Re-query the target for a model matching (referenceName, contentDefinitionTypeID).
+ *
+ * Used after a `saveModel` rejection to detect a false-negative — the SDK rethrows any failure as
+ * "Unable to save the model." even when the API actually persisted the model (timeout-with-server-
+ * completion, response-parse race, etc.). Returns the matching target model, or null if the re-query
+ * fails or finds nothing. Matching by type avoids mistaking a same-name different-type collision for
+ * a recovered save.
+ */
+async function findTargetModelAfterSave(
+  sourceModel: mgmtApi.Model,
+  apiClient: mgmtApi.ApiClient,
+  targetGuid: string
+): Promise<mgmtApi.Model | null> {
+  try {
+    // includeDefaults + includeModules so both content models and module/component models are returned.
+    const targetModels = await apiClient.modelMethods.getContentModules(true, targetGuid, true);
+    return (
+      (targetModels || []).find(
+        (t) => t.referenceName === sourceModel.referenceName && modelTypeMatches(sourceModel, t)
+      ) || null
+    );
+  } catch {
+    return null;
+  }
+}
+
+/**
  * Simple change detection for models
  */
 export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtApi.Model[]): Promise<PusherResult> {
@@ -74,7 +116,8 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     // Handle models that exist in target but have no mapping
     // This ensures downstream containers can find their model mappings
     const targetModelByReference = targetData.find(
-      (targetModel) => targetModel.referenceName === sourceModel.referenceName
+      (targetModel) =>
+        targetModel.referenceName === sourceModel.referenceName && modelTypeMatches(sourceModel, targetModel)
     );
     const existsInTargetWithoutMapping = !sourceMapping && targetModelByReference;
     if (existsInTargetWithoutMapping) {
@@ -103,6 +146,20 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
               `a rename or reassignment on the source. Stopping sync to avoid a partial push; review the model mappings and re-run. Please contact AgilityCMS Support to resolve this issue`
           );
         }
+
+        // PROD-2211: the model exists on the target by (referenceName, type) but has no mapping row
+        // (e.g. a prior create succeeded server-side yet was logged as a false-negative failure, or a
+        // model adopted by referenceName without a mapping ever being written). Previously this branch
+        // set `targetModel` but fell through every downstream condition (all gated on `sourceMapping`),
+        // so the model was silently dropped — not created, skipped, or failed — and the wedge never
+        // self-healed. Write the mapping now so downstream containers/content can translate and so
+        // re-syncs converge.
+        referenceMapper.addMapping(sourceModel, targetModel);
+        shouldSkip.push({
+          model: sourceModel,
+          reason: "Model already exists on target without a mapping; mapping row created.",
+        });
+        continue;
       }
     }
 
@@ -199,7 +256,11 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       targetGuid[0],
       logger
     );
-    if (result) {
+    // PROD-2211: `updateExistingModel` returns the string "updated" | "failed". A bare `if (result)`
+    // treats "failed" as truthy, so failed field-updates were counted as successes — the run reported
+    // "N successful, 0 failed" with a green banner while models had genuinely failed. Compare
+    // explicitly so the summary, ERROR SUMMARY, and exit status reflect reality.
+    if (result === "updated") {
       successful++;
     } else {
       failed++;
@@ -248,6 +309,16 @@ const createNewModel = async (
     referenceMapper.addMapping(model, newModel);
     return "created";
   } catch (error: any) {
+    // PROD-2211: saveModel can reject even though the API created the model server-side. Before
+    // declaring failure — which leaves the mapping file without a row and wedges future syncs —
+    // re-query the target. If a model with the matching (referenceName, type) now exists, the stub
+    // create really succeeded: write the mapping and report created.
+    const recovered = await findTargetModelAfterSave(model, apiClient, targetGuid);
+    if (recovered) {
+      logger.model.created(model, "created", targetGuid);
+      referenceMapper.addMapping(model, recovered);
+      return "created";
+    }
     logger.model.error(model, error, targetGuid);
     return "failed";
   }
@@ -275,11 +346,16 @@ async function updateExistingModel(
     referenceMapper.addMapping(sourceModel, updatedModel);
     return "updated";
   } catch (error: any) {
-    const axiosErr = error?.innerError;
-    console.error(`[model-pusher] SAVE FAILED for ${sourceModel?.referenceName}:`);
-    console.error(`  message: ${error?.message}`);
-    console.error(`  status:  ${axiosErr?.response?.status ?? axiosErr?.status ?? "n/a"}`);
-    console.error(`  responseData: ${JSON.stringify(axiosErr?.response?.data ?? axiosErr?.data ?? null, null, 2)}`);
+    // PROD-2211: saveModel can reject even though the field update was persisted server-side. Re-query
+    // the target; treat it as a recovered update ONLY when the saved field set matches the source
+    // (field count). A genuine reject — e.g. a 404 "Definition for setting X not found" — leaves the
+    // fields unapplied, so the count won't match and it correctly stays a failure.
+    const recovered = await findTargetModelAfterSave(sourceModel, apiClient, targetGuid);
+    if (recovered && (recovered.fields?.length ?? 0) === (sourceModel.fields?.length ?? 0)) {
+      logger.model.updated(sourceModel, "updated", targetGuid);
+      referenceMapper.addMapping(sourceModel, recovered);
+      return "updated";
+    }
     logger.model.error(sourceModel, error, targetGuid);
     return "failed";
   }

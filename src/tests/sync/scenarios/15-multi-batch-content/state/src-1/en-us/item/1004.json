@@ -1,0 +1,7 @@
+{
+  "contentID": 1004,
+  "properties": { "referenceName": "Posts", "definitionName": "Post", "versionID": 1, "state": 2, "itemOrder": 4 },
+  "fields": { "title": "Post Five", "slug": "post-five" },
+  "seo": null,
+  "scripts": null
+}

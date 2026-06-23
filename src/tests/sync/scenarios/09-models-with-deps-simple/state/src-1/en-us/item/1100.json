@@ -1,0 +1,15 @@
+{
+  "contentID": 1100,
+  "properties": {
+    "referenceName": "Authors",
+    "definitionName": "Author",
+    "versionID": 1,
+    "state": 2,
+    "itemOrder": 0
+  },
+  "fields": {
+    "name": "Jane Doe"
+  },
+  "seo": null,
+  "scripts": null
+}

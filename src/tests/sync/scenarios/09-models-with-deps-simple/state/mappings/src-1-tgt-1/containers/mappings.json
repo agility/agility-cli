@@ -1,0 +1,22 @@
+[
+  {
+    "sourceGuid": "src-1",
+    "targetGuid": "tgt-1",
+    "sourceContentViewID": 200,
+    "targetContentViewID": 600,
+    "sourceReferenceName": "Posts",
+    "targetReferenceName": "Posts",
+    "sourceLastModifiedDate": "01/01/2025 12:00AM",
+    "targetLastModifiedDate": "01/01/2025 12:00AM"
+  },
+  {
+    "sourceGuid": "src-1",
+    "targetGuid": "tgt-1",
+    "sourceContentViewID": 210,
+    "targetContentViewID": 610,
+    "sourceReferenceName": "Authors",
+    "targetReferenceName": "Authors",
+    "sourceLastModifiedDate": "01/01/2025 12:00AM",
+    "targetLastModifiedDate": "01/01/2025 12:00AM"
+  }
+]

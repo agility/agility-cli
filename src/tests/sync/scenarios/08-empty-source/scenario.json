@@ -1,0 +1,16 @@
+{
+  "name": "08-empty-source",
+  "description": "No source content items on disk at all. The pipeline should short-circuit gracefully: filter sees nothing, processBatches is never called, no mappings file is written. Smoke test for defensive behavior when a locale or container is empty.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "expect": {
+    "apiCalls": {
+      "saveContentItems": 0
+    },
+    "mappings": {
+      "item": []
+    },
+    "noDuplicateMappingsBySourceID": true
+  }
+}

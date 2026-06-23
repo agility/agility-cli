@@ -1,0 +1,25 @@
+{
+  "name": "06-overwrite-mode",
+  "description": "Conflict resolution via overwrite. Source has bumped past mapped (v2 > 1), target has independently bumped past mapped (v101 > 100). Change-detection sees both > mapped and would normally return isConflict — but with state.overwrite=true, the conflict branch's escape hatch returns shouldUpdate, force-applying the source over the target. PR #149 narrowed overwrite to ONLY fire in the conflict branch (it used to force shouldUpdate unconditionally); this scenario now asserts the narrower, more correct semantic.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "state": {
+    "overwrite": true
+  },
+  "expect": {
+    "apiCalls": {
+      "saveContentItems": 1
+    },
+    "mappings": {
+      "item": [
+        {
+          "sourceContentID": 1000,
+          "targetContentID": 5000
+        }
+      ]
+    },
+    "noDuplicateMappingsBySourceID": true
+  },
+  "base": "_base"
+}
