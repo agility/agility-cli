@@ -169,7 +169,7 @@ class PreflightReport {
         ACTION_COLOR.conflict(`${totals.conflict} conflict`)
     );
     if (this.hasConflicts()) {
-      lines.push(ansiColors.red("\n⚠️  Conflicts detected — a real sync would require --force (exit code 1)."));
+      lines.push(ansiColors.red("\n⚠️  Conflicts detected — a real sync would require --overwrite (exit code 1)."));
     }
     lines.push(ansiColors.cyan(bar));
 
