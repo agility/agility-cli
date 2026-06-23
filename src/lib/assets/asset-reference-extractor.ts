@@ -12,6 +12,7 @@ import {
   AssetReference,
   ReferenceExtractionService,
 } from "../../types/syncAnalysis";
+import { AssetMapper } from "../mappers/asset-mapper";
 
 export class AssetReferenceExtractor implements ReferenceExtractionService {
   private context?: SyncAnalysisContext;
@@ -26,27 +27,30 @@ export class AssetReferenceExtractor implements ReferenceExtractionService {
   /**
    * Extract asset references from content fields
    */
-  extractReferences(fields: any): AssetReference[] {
-    return this.extractAssetReferences(fields);
+  extractReferences(fields: any, assetMapper?: AssetMapper): AssetReference[] {
+    return this.extractAssetReferences(fields, assetMapper);
   }
 
   /**
    * Extract asset references from content fields
    */
-  extractAssetReferences(fields: any): AssetReference[] {
+  extractAssetReferences(fields: any, assetMapper?: AssetMapper): AssetReference[] {
     const references: AssetReference[] = [];
 
     if (!fields || typeof fields !== "object") {
       return references;
     }
 
-    // Helper to check if a string is an asset URL
-    // Matches any subdomain of aglty.io or agilitycms.com (e.g., cdn-usa2.aglty.io, cdn-eu.aglty.io, etc.)
+    // Helper to check if a string is an asset URL. Matches:
+    //  - any Agility-managed CDN subdomain (cdn.aglty.io, cdn-usa2.aglty.io, *.agilitycms.com, etc.)
+    //  - any URL whose prefix matches a container URL loaded into the asset mapper (supports custom CDN hosts)
     const isAssetUrl = (url: string): boolean => {
       if (typeof url !== "string") return false;
-      // Check for Agility CMS asset URL patterns - match any subdomain
-      // Examples: cdn-usa2.aglty.io, cdn-eu.aglty.io, cdn.aglty.io, origin.aglty.io, etc.
-      return url.includes(".aglty.io") || url.includes(".agilitycms.com");
+      return (
+        url.includes(".aglty.io") ||
+        url.includes(".agilitycms.com") ||
+        assetMapper?.isKnownAssetUrl(url) === true
+      );
     };
 
     const scanForAssets = (obj: any, path: string) => {

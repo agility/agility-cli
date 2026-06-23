@@ -1,5 +1,6 @@
 import { resetState } from "core/state";
 import { AssetReferenceExtractor } from "lib/assets/asset-reference-extractor";
+import { AssetMapper } from "lib/mappers/asset-mapper";
 import { AssetReference, SourceEntities, SyncAnalysisContext } from "types/syncAnalysis";
 
 beforeEach(() => {
@@ -22,6 +23,11 @@ const makeContext = (overrides: Partial<SyncAnalysisContext> = {}): SyncAnalysis
   elements: [],
   ...overrides,
 });
+
+// Lightweight AssetMapper stub — the extractor only ever calls isKnownAssetUrl.
+// Avoids the real constructor, which loads mapping files from disk.
+const makeAssetMapper = (isKnownAssetUrl: jest.Mock): AssetMapper =>
+  ({ isKnownAssetUrl } as unknown as AssetMapper);
 
 // ─── extractAssetReferences / extractReferences ───────────────────────────────
 
@@ -164,6 +170,65 @@ describe("AssetReferenceExtractor.extractAssetReferences", () => {
       expect(refs[0].url).toBe("https://cdn.aglty.io/guid/assets/bg.jpg");
     });
   });
+
+  describe("custom CDN hosts via assetMapper.isKnownAssetUrl", () => {
+    const CUSTOM_CDN_URL = "https://media.contoso.com/guid/assets/photo.jpg";
+
+    it("does NOT recognize a custom-CDN URL when no assetMapper is supplied", () => {
+      const refs = extractor.extractAssetReferences({ image: CUSTOM_CDN_URL });
+      expect(refs).toHaveLength(0);
+    });
+
+    it("recognizes a custom-CDN URL when the assetMapper reports it as known", () => {
+      const isKnownAssetUrl = jest.fn().mockReturnValue(true);
+      const refs = extractor.extractAssetReferences({ image: CUSTOM_CDN_URL }, makeAssetMapper(isKnownAssetUrl));
+
+      expect(refs).toHaveLength(1);
+      expect(refs[0]).toEqual<AssetReference>({ url: CUSTOM_CDN_URL, fieldPath: "image" });
+      expect(isKnownAssetUrl).toHaveBeenCalledWith(CUSTOM_CDN_URL);
+    });
+
+    it("ignores a non-asset URL when the assetMapper reports it as unknown", () => {
+      const isKnownAssetUrl = jest.fn().mockReturnValue(false);
+      const refs = extractor.extractAssetReferences(
+        { link: "https://example.com/page" },
+        makeAssetMapper(isKnownAssetUrl)
+      );
+
+      expect(refs).toHaveLength(0);
+      expect(isKnownAssetUrl).toHaveBeenCalledWith("https://example.com/page");
+    });
+
+    it("still matches built-in aglty.io domains without consulting the assetMapper", () => {
+      const isKnownAssetUrl = jest.fn().mockReturnValue(false);
+      const refs = extractor.extractAssetReferences(
+        { image: "https://cdn.aglty.io/guid/assets/photo.jpg" },
+        makeAssetMapper(isKnownAssetUrl)
+      );
+
+      expect(refs).toHaveLength(1);
+      // Short-circuits on the .aglty.io check before reaching the mapper.
+      expect(isKnownAssetUrl).not.toHaveBeenCalled();
+    });
+
+    it("recognizes a known custom-CDN URL nested inside an object's url property", () => {
+      const isKnownAssetUrl = jest.fn().mockReturnValue(true);
+      const refs = extractor.extractAssetReferences(
+        { attachment: { url: CUSTOM_CDN_URL } },
+        makeAssetMapper(isKnownAssetUrl)
+      );
+
+      const assetRef = refs.find((r) => r.url === CUSTOM_CDN_URL);
+      expect(assetRef).toBeDefined();
+      expect(assetRef!.fieldPath).toBe("attachment.url");
+    });
+
+    it("treats an undefined isKnownAssetUrl result as not-an-asset (=== true guard)", () => {
+      const isKnownAssetUrl = jest.fn().mockReturnValue(undefined);
+      const refs = extractor.extractAssetReferences({ image: CUSTOM_CDN_URL }, makeAssetMapper(isKnownAssetUrl));
+      expect(refs).toHaveLength(0);
+    });
+  });
 });
 
 // ─── extractReferences (public alias) ────────────────────────────────────────
@@ -173,6 +238,18 @@ describe("AssetReferenceExtractor.extractReferences", () => {
     const extractor = new AssetReferenceExtractor();
     const fields = { image: "https://cdn.aglty.io/guid/assets/pic.jpg" };
     expect(extractor.extractReferences(fields)).toEqual(extractor.extractAssetReferences(fields));
+  });
+
+  it("forwards the assetMapper through to extractAssetReferences", () => {
+    const extractor = new AssetReferenceExtractor();
+    const isKnownAssetUrl = jest.fn().mockReturnValue(true);
+    const customUrl = "https://media.contoso.com/guid/assets/pic.jpg";
+
+    const refs = extractor.extractReferences({ image: customUrl }, makeAssetMapper(isKnownAssetUrl));
+
+    expect(refs).toHaveLength(1);
+    expect(refs[0].url).toBe(customUrl);
+    expect(isKnownAssetUrl).toHaveBeenCalledWith(customUrl);
   });
 });
 
