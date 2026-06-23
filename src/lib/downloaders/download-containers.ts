@@ -1,5 +1,5 @@
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getLoggerForGuid, getState, state } from "../../core/state";
+import { getApiClient, getLoggerForGuid } from "../../core/state";
 import * as path from "path";
 import ansiColors from "ansi-colors";
 // import { ChangeDelta } from "../shared/change-delta-tracker";
@@ -7,25 +7,24 @@ import * as fs from "fs";
 import { parse } from "date-fns";
 
 export async function downloadAllContainers(
-  guid: string,
+  guid: string
   // changeDelta: ChangeDelta
 ): Promise<void> {
   const fileOps = new fileOperations(guid);
-  const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
   const logger = getLoggerForGuid(guid); // Use GUID-specific logger
-  
+
   if (!logger) {
     console.warn(`⚠️  No logger found for GUID ${guid}, skipping container logging`);
     return;
   }
-  
+
   logger.startTimer();
 
-  const containersFolderPath = fileOps.getDataFolderPath('containers');
+  const containersFolderPath = fileOps.getDataFolderPath("containers");
 
   // Use fileOperations to create containers folder
-  fileOps.createFolder('containers');
+  fileOps.createFolder("containers");
 
   let totalContainers = 0; // Define totalContainers in a broader scope for the catch block
   const startTime = Date.now(); // Track start time for performance measurement
@@ -36,10 +35,10 @@ export async function downloadAllContainers(
       if (!fs.existsSync(filePath)) {
         return { exists: false };
       }
-      const content = JSON.parse(fs.readFileSync(filePath, 'utf8'));
+      const content = JSON.parse(fs.readFileSync(filePath, "utf8"));
       return {
         lastModifiedDate: content.lastModifiedDate,
-        exists: true
+        exists: true,
       };
     } catch (error) {
       return { exists: false };
@@ -47,17 +46,16 @@ export async function downloadAllContainers(
   }
 
   // Helper function to check if container needs download based on lastModifiedDate
-  function shouldDownloadContainer(apiContainer: any, localInfo: { lastModifiedDate?: string; exists: boolean }): { shouldDownload: boolean; reason: string } {
-    if (state.update === false) {
-      return { shouldDownload: false, reason: '' };
-    }
-
+  function shouldDownloadContainer(
+    apiContainer: any,
+    localInfo: { lastModifiedDate?: string; exists: boolean }
+  ): { shouldDownload: boolean; reason: string } {
     if (!localInfo.exists) {
-      return { shouldDownload: true, reason: 'new file' };
+      return { shouldDownload: true, reason: "new file" };
     }
 
     if (!localInfo.lastModifiedDate || !apiContainer.lastModifiedDate) {
-      return { shouldDownload: true, reason: 'missing date info' };
+      return { shouldDownload: true, reason: "missing date info" };
     }
     //the date format is: 07/23/2025 08:22PM (MM/DD/YYYY hh:mma) so we need to convert it to a Date object
     // Note: This assumes the date is in the format MM/DD/YYYY hh:mma
@@ -65,11 +63,11 @@ export async function downloadAllContainers(
     const apiDateTime = parse(apiContainer.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
     const localeDateTime = parse(localInfo.lastModifiedDate, "MM/dd/yyyy hh:mma", new Date());
 
-    if (apiDateTime > localeDateTime && state.update === true) {
-      return { shouldDownload: true, reason: 'content changed' };
+    if (apiDateTime > localeDateTime) {
+      return { shouldDownload: true, reason: "content changed" };
     }
 
-    return { shouldDownload: false, reason: 'unchanged' };
+    return { shouldDownload: false, reason: "unchanged" };
   }
 
   try {
@@ -82,8 +80,8 @@ export async function downloadAllContainers(
     const apiContainerIds = new Set(containers.map((c) => c.contentViewID.toString()));
     if (fs.existsSync(containersFolderPath)) {
       for (const file of fs.readdirSync(containersFolderPath)) {
-        if (!file.endsWith('.json')) continue;
-        const containerId = file.replace('.json', '');
+        if (!file.endsWith(".json")) continue;
+        const containerId = file.replace(".json", "");
         if (!apiContainerIds.has(containerId)) {
           fs.unlinkSync(path.join(containersFolderPath, file));
           logger.info(`Removed deleted container file: ${file}`);
@@ -113,19 +111,19 @@ export async function downloadAllContainers(
           containerRef,
           containerID,
           containerName,
-          reason: downloadDecision.reason
+          reason: downloadDecision.reason,
         });
       } else {
         skippableContainers.push({
           containerRef,
           containerID,
           containerName,
-          reason: downloadDecision.reason
+          reason: downloadDecision.reason,
         });
       }
     }
 
-    if(skippableContainers.length > 0){
+    if (skippableContainers.length > 0) {
       logger.changeDetectionSummary("container", downloadableContainers.length, skippableContainers.length);
     }
 
@@ -159,11 +157,11 @@ export async function downloadAllContainers(
 
           // Export container JSON
           fileOps.exportFiles(`containers`, containerID.toString(), container);
-          logger.container.downloaded(container,);
+          logger.container.downloaded(container);
 
           return { success: true, container };
         } catch (error: any) {
-          logger.container.error(null, `ID: ${containerID} - ${error.message || 'Unknown error'}`);
+          logger.container.error(null, `ID: ${containerID} - ${error.message || "Unknown error"}`);
           return { success: false, containerRef, error };
         }
       });
@@ -187,7 +185,6 @@ export async function downloadAllContainers(
     logger.endTimer();
     const errorCount = downloadableContainers.length - downloadedCount;
     logger.summary("pull", downloadedCount, skippedCount, errorCount);
-
   } catch (error: any) {
     logger.error(`Error in downloadAllContainers: ${error.message || error}`);
     throw error;

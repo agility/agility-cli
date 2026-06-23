@@ -1,8 +1,8 @@
-import { fileOperations } from '../../../core/fileOperations';
-import { getState } from '../../../core/state';
-import ansiColors from 'ansi-colors';
+import { fileOperations } from "../../../core/fileOperations";
+import { getState } from "../../../core/state";
+import ansiColors from "ansi-colors";
 
-export type ConsoleMode = 'headless' | 'verbose' | 'plain';
+export type ConsoleMode = "headless" | "verbose" | "plain";
 
 export interface ConsoleState {
   mode: ConsoleMode;
@@ -23,10 +23,10 @@ export class ConsoleManager {
 
   constructor() {
     this.state = {
-      mode: 'plain',
+      mode: "plain",
       originalLog: console.log,
       originalError: console.error,
-      isRedirected: false
+      isRedirected: false,
     };
   }
 
@@ -39,14 +39,14 @@ export class ConsoleManager {
     this.redirectionHandlers = handlers;
 
     switch (mode) {
-      case 'headless':
+      case "headless":
         this.setupHeadlessMode();
         break;
-      case 'verbose':
+      case "verbose":
         this.setupVerboseMode();
         break;
       // Remove blessed case - no longer supported
-      case 'plain':
+      case "plain":
         this.setupPlainMode();
         break;
     }
@@ -119,7 +119,7 @@ export class ConsoleManager {
    * Format console arguments into a single message string
    */
   private formatMessage(args: any[]): string {
-    return args.map(arg => String(arg)).join(" ");
+    return args.map((arg) => String(arg)).join(" ");
   }
 
   /**
@@ -222,7 +222,7 @@ export class ConsoleManager {
   /**
    * Finalize log file and return path
    */
-  finalizeLogFile(operationType: 'pull' | 'push' | 'sync'): string | null {
+  finalizeLogFile(operationType: "pull" | "push" | "sync"): string | null {
     if (!this.fileOps) return null;
     return this.fileOps.finalizeLogFile(operationType);
   }
@@ -240,4 +240,4 @@ export class ConsoleManager {
   getConsoleState(): ConsoleState {
     return { ...this.state };
   }
-} 
+}

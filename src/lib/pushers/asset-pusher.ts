@@ -16,7 +16,7 @@ function extractErrorMessage(error: any): string {
   // Check for direct axios response data first (our direct axios calls)
   if (error?.response?.data) {
     const data = error.response.data;
-    if (typeof data === 'string') return data;
+    if (typeof data === "string") return data;
     if (data.exceptionMessage) return data.exceptionMessage; // Agility API format
     if (data.message) return data.message;
     if (data.error) return data.error;
@@ -27,7 +27,7 @@ function extractErrorMessage(error: any): string {
   // Check for SDK-wrapped axios response data
   if (error?.innerError?.response?.data) {
     const data = error.innerError.response.data;
-    if (typeof data === 'string') return data;
+    if (typeof data === "string") return data;
     if (data.exceptionMessage) return data.exceptionMessage;
     if (data.message) return data.message;
     if (data.error) return data.error;
@@ -93,19 +93,18 @@ export async function pushAssets(
       // root level folder needs to be "/", otherwise the variable is OK to use.
       let folderPath = containerFolderPath === "." ? "/" : containerFolderPath;
 
-
       // Use simplified change detection pattern
       const existingMapping = referenceMapper.getAssetMapping(media, "source");
-      
+
       // Also check if asset already exists in target by originKey (path+filename)
-      const targetAssetByOriginKey = targetData.find(t => t.originKey === media.originKey);
-      
+      const targetAssetByOriginKey = targetData.find((t) => t.originKey === media.originKey);
+
       // Debug logging for asset matching (verbose mode)
       if (state.verbose && !existingMapping && !targetAssetByOriginKey) {
         // Show first few target originKeys for comparison
-        const sampleTargetKeys = targetData.slice(0, 3).map(t => t.originKey);
+        const sampleTargetKeys = targetData.slice(0, 3).map((t) => t.originKey);
       }
-      
+
       // If no mapping but asset exists by originKey in target, create mapping and skip
       if (!existingMapping && targetAssetByOriginKey) {
         referenceMapper.addMapping(media, targetAssetByOriginKey);
@@ -113,16 +112,25 @@ export async function pushAssets(
         skipped++;
         continue;
       }
-      
+
       const shouldCreate = existingMapping === null && !targetAssetByOriginKey;
 
       // get the target asset, check if the source and targets need updates
-      const targetAsset: mgmtApi.Media = targetData.find(targetAsset => targetAsset.mediaID === existingMapping?.targetMediaID) || null;
-      const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetAsset);
+      const targetAsset: mgmtApi.Media =
+        targetData.find((targetAsset) => targetAsset.mediaID === existingMapping?.targetMediaID) || null;
+      const hasTargetChanges = existingMapping !== null && referenceMapper.hasTargetChanged(targetAsset);
       const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(media);
-      const shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
-      const shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
 
+      const isConflict = existingMapping !== null && hasTargetChanges && hasSourceChanges;
+      const isOverwrite = state.overwrite;
+      const shouldSkip = existingMapping !== null && !hasTargetChanges && !hasSourceChanges;
+      // Update if:
+      //  We have existing mapping
+      //  AND We are not skipping because target AND source have no changes
+      //  AND Either IF
+      //       We have no conflict
+      //       OR we are in overwrite mode (force update even if conflict)
+      const shouldUpdate = existingMapping !== null && !shouldSkip && (!isConflict || isOverwrite);
 
       if (shouldCreate) {
         // Asset needs to be created (doesn't exist in target)
@@ -160,8 +168,7 @@ export async function pushAssets(
     } catch (error: any) {
       const errorMsg = extractErrorMessage(error);
       logger.asset.error(media, errorMsg, targetGuid[0]);
-      
-      
+
       failed++;
       currentStatus = "error";
       overallStatus = "error";
@@ -197,23 +204,22 @@ async function createAsset(
   // Handle gallery if present
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, sourceGuid, targetGuid);
 
-  const fs = require('fs');
-  const pathModule = require('path');
-  
+  const fs = require("fs");
+  const pathModule = require("path");
+
   // Resolve to absolute path from workspace root
   const resolvedPath = pathModule.resolve(process.cwd(), absoluteLocalFilePath);
-  
+
   // Check file exists and has content
   if (!fs.existsSync(resolvedPath)) {
     throw new Error(`Local asset file not found: ${resolvedPath}`);
   }
-  
+
   const fileStats = fs.statSync(resolvedPath);
   if (fileStats.size === 0) {
     throw new Error(`Local asset file is empty (0 bytes): ${resolvedPath}`);
   }
 
-  
   // Build form data with file stream using resolved absolute path
   const form = new FormData();
   const fileStream = fs.createReadStream(resolvedPath);
@@ -221,24 +227,23 @@ async function createAsset(
 
   // Make direct axios call with form-data headers (SDK bug workaround)
   // The SDK's executePost doesn't include form.getHeaders() which is required for multipart uploads
-  const axios = require('axios');
-  
+  const axios = require("axios");
+
   // Get the base URL from the API client's options
   const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
   const token = (apiClient as any)._options?.token;
-  
+
   const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}`;
   const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
-  
+
   const response = await axios.post(url, form, {
     headers: {
       ...form.getHeaders(), // Critical: include multipart boundary
-      'Authorization': `Bearer ${token}`,
-      'Cache-Control': 'no-cache'
+      Authorization: `Bearer ${token}`,
+      "Cache-Control": "no-cache",
     },
     maxContentLength: Infinity,
     maxBodyLength: Infinity,
-    httpsAgent: state.local ? new (require('https').Agent)({ rejectUnauthorized: false }) : undefined
   });
 
   const uploadedMediaArray = response.data as mgmtApi.Media[];
@@ -258,13 +263,13 @@ async function createAsset(
  * Determine base URL for a GUID (fallback if not available from SDK)
  */
 function determineBaseUrl(guid: string): string {
-  const separator = guid.split('-');
-  if (separator[1] === 'd') return "https://mgmt-dev.aglty.io";
-  if (separator[1] === 'u') return "https://mgmt.aglty.io";
-  if (separator[1] === 'us2') return "https://mgmt-usa2.aglty.io";
-  if (separator[1] === 'c') return "https://mgmt-ca.aglty.io";
-  if (separator[1] === 'e') return "https://mgmt-eu.aglty.io";
-  if (separator[1] === 'a') return "https://mgmt-aus.aglty.io";
+  const separator = guid.split("-");
+  if (separator[1] === "d") return "https://mgmt-dev.aglty.io";
+  if (separator[1] === "u") return "https://mgmt.aglty.io";
+  if (separator[1] === "us2") return "https://mgmt-usa2.aglty.io";
+  if (separator[1] === "c") return "https://mgmt-ca.aglty.io";
+  if (separator[1] === "e") return "https://mgmt-eu.aglty.io";
+  if (separator[1] === "a") return "https://mgmt-aus.aglty.io";
   return "https://mgmt.aglty.io";
 }
 
@@ -284,46 +289,45 @@ async function updateAsset(
 ): Promise<mgmtApi.Media> {
   // Handle gallery if present
   let targetMediaGroupingID = await resolveGalleryMapping(media, apiClient, sourceGuid, targetGuid);
-  
-  const fs = require('fs');
-  const pathModule = require('path');
-  
+
+  const fs = require("fs");
+  const pathModule = require("path");
+
   // Resolve to absolute path from workspace root
   const resolvedPath = pathModule.resolve(process.cwd(), absoluteLocalFilePath);
-  
+
   // Check file exists and has content
   if (!fs.existsSync(resolvedPath)) {
     throw new Error(`Local asset file not found: ${resolvedPath}`);
   }
-  
+
   const fileStats = fs.statSync(resolvedPath);
   if (fileStats.size === 0) {
     throw new Error(`Local asset file is empty (0 bytes): ${resolvedPath}`);
   }
-  
+
   // Build form data with file stream using resolved absolute path
   const form = new FormData();
   const fileStream = fs.createReadStream(resolvedPath);
   form.append("files", fileStream, media.fileName);
 
   // Make direct axios call with form-data headers (SDK bug workaround)
-  const axios = require('axios');
-  
+  const axios = require("axios");
+
   const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
   const token = (apiClient as any)._options?.token;
-  
+
   const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}`;
   const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
-  
+
   const response = await axios.post(url, form, {
     headers: {
       ...form.getHeaders(),
-      'Authorization': `Bearer ${token}`,
-      'Cache-Control': 'no-cache'
+      Authorization: `Bearer ${token}`,
+      "Cache-Control": "no-cache",
     },
     maxContentLength: Infinity,
     maxBodyLength: Infinity,
-    httpsAgent: state.local ? new (require('https').Agent)({ rejectUnauthorized: false }) : undefined
   });
 
   const uploadedMediaArray = response.data as mgmtApi.Media[];
@@ -331,7 +335,7 @@ async function updateAsset(
   if (!uploadedMediaArray || uploadedMediaArray.length === 0) {
     throw new Error(`API did not return uploaded media details for ${media.fileName}`);
   }
-  
+
   const uploadedMedia = uploadedMediaArray[0];
 
   logger.asset.uploaded(media, "uploaded", targetGuid);

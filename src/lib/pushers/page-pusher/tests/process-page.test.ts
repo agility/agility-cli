@@ -1,21 +1,21 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-import { resetState, setState } from 'core/state';
-import { processPage } from '../process-page';
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import { resetState, setState } from "core/state";
+import { processPage } from "../process-page";
 
 // Mock all modules that make real network or disk calls from within processPage
-jest.mock('../find-page-in-other-locale', () => ({
+jest.mock("../find-page-in-other-locale", () => ({
   findPageInOtherLocale: jest.fn().mockResolvedValue(null),
 }));
 
-jest.mock('lib/pushers/batch-polling', () => ({
+jest.mock("lib/pushers/batch-polling", () => ({
   pollBatchUntilComplete: jest.fn(),
   extractPageBatchResults: jest.fn(),
 }));
 
-import { findPageInOtherLocale } from '../find-page-in-other-locale';
-import { pollBatchUntilComplete, extractPageBatchResults } from 'lib/pushers/batch-polling';
+import { findPageInOtherLocale } from "../find-page-in-other-locale";
+import { pollBatchUntilComplete, extractPageBatchResults } from "lib/pushers/batch-polling";
 
 const mockFindInOtherLocale = findPageInOtherLocale as jest.Mock;
 const mockPoll = pollBatchUntilComplete as jest.Mock;
@@ -24,7 +24,7 @@ const mockExtract = extractPageBatchResults as jest.Mock;
 let tmpDir: string;
 
 beforeAll(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agility-pp-'));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agility-pp-"));
 });
 
 afterAll(() => {
@@ -33,10 +33,10 @@ afterAll(() => {
 
 beforeEach(() => {
   resetState();
-  setState({ rootPath: tmpDir, sourceGuid: ['src'], targetGuid: ['tgt'] });
-  jest.spyOn(console, 'log').mockImplementation(() => {});
-  jest.spyOn(console, 'warn').mockImplementation(() => {});
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  setState({ rootPath: tmpDir, sourceGuid: ["src"], targetGuid: ["tgt"] });
+  jest.spyOn(console, "log").mockImplementation(() => {});
+  jest.spyOn(console, "warn").mockImplementation(() => {});
+  jest.spyOn(console, "error").mockImplementation(() => {});
   mockFindInOtherLocale.mockResolvedValue(null);
   mockPoll.mockResolvedValue({ failedItems: [], successItems: [] });
   mockExtract.mockReturnValue({ successfulItems: [], failedItems: [] });
@@ -51,14 +51,14 @@ afterEach(() => {
 function makePage(overrides: Partial<any> = {}): any {
   return {
     pageID: 1,
-    name: 'Test Page',
-    pageType: 'static',
-    templateName: 'MainTemplate',
-    title: 'Test Page Title',
-    menuText: 'Test',
+    name: "Test Page",
+    pageType: "static",
+    templateName: "MainTemplate",
+    title: "Test Page Title",
+    menuText: "Test",
     zones: {},
     properties: { state: 2, versionID: 10 },
-    path: '/test',
+    path: "/test",
     ...overrides,
   };
 }
@@ -77,12 +77,12 @@ function makePageMapper(overrides: Partial<any> = {}): any {
 
 function makeTemplateMapper(): any {
   return {
-    getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+    getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
     getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
   };
 }
 
-function makeApiClient(sitemap: any[] = [{ name: 'website', digitalChannelID: 1 }]): any {
+function makeApiClient(sitemap: any[] = [{ name: "website", digitalChannelID: 1 }]): any {
   return {
     pageMethods: {
       getSitemap: jest.fn().mockResolvedValue(sitemap),
@@ -104,11 +104,11 @@ function makeLogger(): any {
 
 function makeProps(overrides: Partial<any> = {}): any {
   return {
-    channel: 'website',
+    channel: "website",
     page: makePage(),
-    sourceGuid: 'src',
-    targetGuid: 'tgt',
-    locale: 'en-us',
+    sourceGuid: "src",
+    targetGuid: "tgt",
+    locale: "en-us",
     apiClient: makeApiClient(),
     overwrite: false,
     insertBeforePageId: null,
@@ -120,14 +120,14 @@ function makeProps(overrides: Partial<any> = {}): any {
 }
 
 // Mock TemplateMapper and ContentItemMapper at the module level
-jest.mock('lib/mappers/template-mapper', () => ({
+jest.mock("lib/mappers/template-mapper", () => ({
   TemplateMapper: jest.fn().mockImplementation(() => ({
-    getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+    getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
     getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
   })),
 }));
 
-jest.mock('lib/mappers/content-item-mapper', () => ({
+jest.mock("lib/mappers/content-item-mapper", () => ({
   ContentItemMapper: jest.fn().mockImplementation(() => ({
     getContentItemMappingByContentID: jest.fn().mockReturnValue(null),
   })),
@@ -135,26 +135,26 @@ jest.mock('lib/mappers/content-item-mapper', () => ({
 
 // ─── guard: missing template ──────────────────────────────────────────────────
 
-describe('processPage — missing template', () => {
-  it('returns skip when template mapping is not found', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+describe("processPage — missing template", () => {
+  it("returns skip when template mapping is not found", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
       getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue(null),
       getMappedEntity: jest.fn().mockReturnValue(null),
     }));
 
     const result = await processPage(makeProps());
-    expect(result.status).toBe('skip');
+    expect(result.status).toBe("skip");
   });
 });
 
 // ─── guard: up-to-date page (no change) ───────────────────────────────────────
 
-describe('processPage — up-to-date page', () => {
-  it('returns skip when source has not changed and page exists in target', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+describe("processPage — up-to-date page", () => {
+  it("returns skip when source has not changed and page exists in target", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
-      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
       getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
     }));
 
@@ -167,17 +167,17 @@ describe('processPage — up-to-date page', () => {
     });
 
     const result = await processPage(makeProps({ pageMapper, overwrite: false }));
-    expect(result.status).toBe('skip');
+    expect(result.status).toBe("skip");
   });
 });
 
 // ─── guard: conflict without overwrite ────────────────────────────────────────
 
-describe('processPage — conflict detection', () => {
-  it('returns skip when conflict detected and overwrite is false', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+describe("processPage — conflict detection", () => {
+  it("returns skip when conflict detected and overwrite is false", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
-      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
       getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
     }));
 
@@ -187,17 +187,17 @@ describe('processPage — conflict detection', () => {
       getMappedEntity: jest.fn().mockReturnValue(existingTargetPage),
       hasSourceChanged: jest.fn().mockReturnValue(true),
       // Non-null from hasTargetChanged means conflict
-      hasTargetChanged: jest.fn().mockReturnValue('changed'),
+      hasTargetChanged: jest.fn().mockReturnValue("changed"),
     });
 
     const result = await processPage(makeProps({ pageMapper, overwrite: false }));
-    expect(result.status).toBe('skip');
+    expect(result.status).toBe("skip");
   });
 
-  it('continues (not skip) when conflict exists but overwrite is true', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+  it("continues (not skip) when conflict exists but overwrite is true", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
-      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
       getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
     }));
 
@@ -206,7 +206,7 @@ describe('processPage — conflict detection', () => {
       getPageMapping: jest.fn().mockReturnValue({ targetPageID: 99, sourcePageID: 1 }),
       getMappedEntity: jest.fn().mockReturnValue(existingTargetPage),
       hasSourceChanged: jest.fn().mockReturnValue(true),
-      hasTargetChanged: jest.fn().mockReturnValue('changed'),
+      hasTargetChanged: jest.fn().mockReturnValue("changed"),
     });
 
     // With overwrite=true, processPage will proceed to the API call
@@ -216,21 +216,21 @@ describe('processPage — conflict detection', () => {
 
     const result = await processPage(makeProps({ pageMapper, overwrite: true }));
     // Should not skip — proceeds to API path (may succeed or fail, but not "skip")
-    expect(result.status).not.toBe('skip');
+    expect(result.status).not.toBe("skip");
   });
 });
 
 // ─── folder pages (no template required) ──────────────────────────────────────
 
-describe('processPage — folder pages', () => {
-  it('does not require a template for folder pages', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+describe("processPage — folder pages", () => {
+  it("does not require a template for folder pages", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
       getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue(null),
       getMappedEntity: jest.fn().mockReturnValue(null),
     }));
 
-    const folderPage = makePage({ pageType: 'folder', templateName: '' });
+    const folderPage = makePage({ pageType: "folder", templateName: "" });
     const pageMapper = makePageMapper({
       hasSourceChanged: jest.fn().mockReturnValue(true),
     });
@@ -240,17 +240,17 @@ describe('processPage — folder pages', () => {
 
     const result = await processPage(makeProps({ page: folderPage, pageMapper }));
     // Folder pages skip the template lookup, so they reach the API path
-    expect(result.status).not.toBe('skip');
+    expect(result.status).not.toBe("skip");
   });
 });
 
 // ─── successful save via batch ─────────────────────────────────────────────────
 
-describe('processPage — successful batch save', () => {
-  it('returns success when batch completes with a valid page ID', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+describe("processPage — successful batch save", () => {
+  it("returns success when batch completes with a valid page ID", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
-      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
       getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
     }));
 
@@ -266,13 +266,13 @@ describe('processPage — successful batch save', () => {
     });
 
     const result = await processPage(makeProps({ pageMapper }));
-    expect(result.status).toBe('success');
+    expect(result.status).toBe("success");
   });
 
-  it('calls pageMapper.addMapping after a successful save', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+  it("calls pageMapper.addMapping after a successful save", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
-      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
       getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
     }));
 
@@ -293,11 +293,11 @@ describe('processPage — successful batch save', () => {
 
 // ─── failure paths ────────────────────────────────────────────────────────────
 
-describe('processPage — failure paths', () => {
-  it('returns failure when batch completes with actualPageID <= 0', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+describe("processPage — failure paths", () => {
+  it("returns failure when batch completes with actualPageID <= 0", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
-      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
       getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
     }));
 
@@ -305,17 +305,17 @@ describe('processPage — failure paths', () => {
       hasSourceChanged: jest.fn().mockReturnValue(true),
     });
 
-    mockPoll.mockResolvedValue({ failedItems: [], errorData: '' });
+    mockPoll.mockResolvedValue({ failedItems: [], errorData: "" });
     mockExtract.mockReturnValue({ successfulItems: [], failedItems: [] });
 
     const result = await processPage(makeProps({ pageMapper }));
-    expect(result.status).toBe('failure');
+    expect(result.status).toBe("failure");
   });
 
-  it('returns failure when apiClient.pageMethods.savePage throws', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+  it("returns failure when apiClient.pageMethods.savePage throws", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
-      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
       getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
     }));
 
@@ -324,17 +324,17 @@ describe('processPage — failure paths', () => {
     });
 
     const apiClient = makeApiClient();
-    apiClient.pageMethods.savePage = jest.fn().mockRejectedValue(new Error('network error'));
+    apiClient.pageMethods.savePage = jest.fn().mockRejectedValue(new Error("network error"));
 
     const result = await processPage(makeProps({ apiClient, pageMapper }));
-    expect(result.status).toBe('failure');
-    expect(result.error).toContain('network error');
+    expect(result.status).toBe("failure");
+    expect(result.error).toContain("network error");
   });
 
-  it('returns failure with unexpected response format', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+  it("returns failure with unexpected response format", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
-      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
       getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
     }));
 
@@ -347,26 +347,24 @@ describe('processPage — failure paths', () => {
     apiClient.pageMethods.savePage = jest.fn().mockResolvedValue([]);
 
     const result = await processPage(makeProps({ apiClient, pageMapper }));
-    expect(result.status).toBe('failure');
+    expect(result.status).toBe("failure");
   });
 });
 
 // ─── missing content mapping ──────────────────────────────────────────────────
 
-describe('processPage — missing content mappings', () => {
-  it('returns failure when a zone module has no content mapping', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+describe("processPage — missing content mappings", () => {
+  it("returns failure when a zone module has no content mapping", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     // Template with a section definition so the zone name is mapped through correctly
     TemplateMapper.mockImplementation(() => ({
-      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
       getMappedEntity: jest.fn().mockReturnValue({
-        contentSectionDefinitions: [
-          { pageItemTemplateReferenceName: 'Main', itemOrder: 0 },
-        ],
+        contentSectionDefinitions: [{ pageItemTemplateReferenceName: "Main", itemOrder: 0 }],
       }),
     }));
 
-    const { ContentItemMapper } = require('lib/mappers/content-item-mapper');
+    const { ContentItemMapper } = require("lib/mappers/content-item-mapper");
     ContentItemMapper.mockImplementation(() => ({
       getContentItemMappingByContentID: jest.fn().mockReturnValue(null),
     }));
@@ -374,7 +372,7 @@ describe('processPage — missing content mappings', () => {
     const pageWithContent = makePage({
       zones: {
         // Zone name matches section definition so translateZoneNames keeps it
-        Main: [{ module: 'Hero', item: { contentid: 55 } }],
+        Main: [{ module: "Hero", item: { contentid: 55 } }],
       },
     });
 
@@ -383,7 +381,7 @@ describe('processPage — missing content mappings', () => {
     });
 
     const result = await processPage(makeProps({ page: pageWithContent, pageMapper }));
-    expect(result.status).toBe('failure');
+    expect(result.status).toBe("failure");
     // Could be "missing content mappings" or "Lost all N modules" depending on code path
     expect(result.error).toBeTruthy();
   });
@@ -391,23 +389,26 @@ describe('processPage — missing content mappings', () => {
 
 // ─── channel fallback ─────────────────────────────────────────────────────────
 
-describe('processPage — channel resolution', () => {
-  it('uses first channel digitalChannelID as fallback when channel name not found', async () => {
-    const { TemplateMapper } = require('lib/mappers/template-mapper');
+describe("processPage — channel resolution", () => {
+  it("uses first channel digitalChannelID as fallback when channel name not found", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
-      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: 'Main' }),
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
       getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
     }));
 
     const pageMapper = makePageMapper({ hasSourceChanged: jest.fn().mockReturnValue(true) });
     // Sitemap has a different channel name
-    const apiClient = makeApiClient([{ name: 'other-channel', digitalChannelID: 42 }]);
+    const apiClient = makeApiClient([{ name: "other-channel", digitalChannelID: 42 }]);
 
     mockPoll.mockResolvedValue({ failedItems: [] });
-    mockExtract.mockReturnValue({ successfulItems: [{ newId: 300, newItem: { processedItemVersionID: 1 } }], failedItems: [] });
+    mockExtract.mockReturnValue({
+      successfulItems: [{ newId: 300, newItem: { processedItemVersionID: 1 } }],
+      failedItems: [],
+    });
 
-    const result = await processPage(makeProps({ apiClient, pageMapper, channel: 'website' }));
+    const result = await processPage(makeProps({ apiClient, pageMapper, channel: "website" }));
     // Should proceed (uses fallback channelID=42) — result is success or failure but not an early return
-    expect(['success', 'failure', 'skip']).toContain(result.status);
+    expect(["success", "failure", "skip"]).toContain(result.status);
   });
 });

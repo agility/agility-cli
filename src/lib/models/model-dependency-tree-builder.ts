@@ -8,26 +8,63 @@
  * Phase 21: Selective Model-Based Sync Implementation
  */
 
-import { SourceData } from '../../types/sourceData';
-import ansiColors from 'ansi-colors';
-import { SitemapHierarchy } from '../pushers/page-pusher/sitemap-hierarchy';
-import { AssetReferenceExtractor } from '../assets/asset-reference-extractor';
+import { SourceData } from "../../types/sourceData";
+import ansiColors from "ansi-colors";
+import { SitemapHierarchy } from "../pushers/page-pusher/sitemap-hierarchy";
+import { AssetReferenceExtractor } from "../assets/asset-reference-extractor";
+
+/**
+ * Expand a list of model reference names to include every model they reference through
+ * linked-content fields.
+ */
+export function resolveReferencedModels(modelNames: string[], allModels: any[]): string[] {
+  const byLower = new Map<string, any>();
+  (allModels || []).forEach((m: any) => {
+    if (m?.referenceName) byLower.set(m.referenceName.toLowerCase(), m);
+  });
+
+  const result = new Set<string>();
+  const queue: string[] = [];
+
+  const add = (name: string | undefined | null) => {
+    if (!name || typeof name !== "string") return;
+    const model = byLower.get(name.toLowerCase());
+    const canonical = model?.referenceName ?? name;
+    if (!result.has(canonical)) {
+      result.add(canonical);
+      queue.push(canonical);
+    }
+  };
+
+  (modelNames || []).forEach(add);
+
+  while (queue.length > 0) {
+    const name = queue.pop()!;
+    const model = byLower.get(name.toLowerCase());
+    if (!model || !Array.isArray(model.fields)) continue;
+    for (const field of model.fields) {
+      add(field?.settings?.ContentDefinition);
+    }
+  }
+
+  return Array.from(result);
+}
 
 export interface ModelDependencyTree {
-  models: Set<string>;        // Model reference names
+  models: Set<string>; // Model reference names
   containers: Set<number>;
-  lists: Set<number>;   // Container IDs using these models
-  content: Set<number>;       // Content item IDs of these models
-  templates: Set<number>;     // Template IDs using these containers
-  pages: Set<number>;         // Page IDs using these templates/content
-  assets: Set<string>;        // Asset URLs referenced in content/pages
-  galleries: Set<number>;     // Gallery IDs referenced in content/pages
+  lists: Set<number>; // Container IDs using these models
+  content: Set<number>; // Content item IDs of these models
+  templates: Set<number>; // Template IDs using these containers
+  pages: Set<number>; // Page IDs using these templates/content
+  assets: Set<string>; // Asset URLs referenced in content/pages
+  galleries: Set<number>; // Gallery IDs referenced in content/pages
 }
 
 export class ModelDependencyTreeBuilder {
   private static hasLoggedBreakdown = false;
   private assetExtractor: AssetReferenceExtractor;
-  
+
   constructor(private sourceData: SourceData) {
     this.assetExtractor = new AssetReferenceExtractor();
   }
@@ -44,7 +81,7 @@ export class ModelDependencyTreeBuilder {
    */
   buildDependencyTree(modelNames: string[], channel: string): ModelDependencyTree {
     if (!modelNames || modelNames.length === 0) {
-      throw new Error('Model names are required for dependency tree building');
+      throw new Error("Model names are required for dependency tree building");
     }
 
     // console.log(ansiColors.cyan(`🌳 Building dependency tree for models: ${modelNames.join(', ')}`));
@@ -57,7 +94,7 @@ export class ModelDependencyTreeBuilder {
       templates: new Set(),
       pages: new Set(),
       assets: new Set(),
-      galleries: new Set()
+      galleries: new Set(),
     };
 
     // Build dependency tree in CORRECTED logical order
@@ -75,6 +112,10 @@ export class ModelDependencyTreeBuilder {
     this.findTemplatesUsedByPages(tree);
     // 🎯 NEW: Include models for the newly discovered content
     this.findModelsForDiscoveredContent(tree);
+    // 🎯 NEW: Include models referenced by other models via linked-content fields
+    // (e.g. FooterLinks → FooterLinksLists). Without this, a selected model whose field points at
+    // another model fails to save on the target with a 404 "Definition for setting X not found".
+    this.findModelsReferencedByModels(tree);
     // 🎯 NEW: Include containers for the newly discovered models
     this.findContainersForDiscoveredModels(tree);
     // 🎯 NEW: Include containers that contain discovered content items
@@ -99,23 +140,20 @@ export class ModelDependencyTreeBuilder {
 
     // Create model reference name to ID mapping
     const modelMap = new Map<string, number>();
-    this.sourceData.models.forEach(model => {
+    this.sourceData.models.forEach((model) => {
       modelMap.set(model.referenceName, model.id);
     });
 
     // Find containers that use these models
-    modelNames.forEach(modelName => {
+    modelNames.forEach((modelName) => {
       const modelId = modelMap.get(modelName);
       if (modelId) {
-        const containers = this.sourceData.containers.filter(c =>
-          c.contentDefinitionID === modelId
-        );
-        containers.forEach(container => {
+        const containers = this.sourceData.containers.filter((c) => c.contentDefinitionID === modelId);
+        containers.forEach((container) => {
           tree.containers.add(container.contentViewID);
         });
       }
     });
-
   }
 
   /**
@@ -124,15 +162,12 @@ export class ModelDependencyTreeBuilder {
   private findContentForModels(modelNames: string[], tree: ModelDependencyTree): void {
     if (!this.sourceData.content) return;
 
-    modelNames.forEach(modelName => {
-      const contentItems = this.sourceData.content.filter(c =>
-        c.properties?.definitionName === modelName
-      );
-      contentItems.forEach(content => {
+    modelNames.forEach((modelName) => {
+      const contentItems = this.sourceData.content.filter((c) => c.properties?.definitionName === modelName);
+      contentItems.forEach((content) => {
         tree.content.add(content.contentID);
       });
     });
-
   }
 
   /**
@@ -142,7 +177,7 @@ export class ModelDependencyTreeBuilder {
     if (!this.sourceData.templates) return;
 
     // Find templates that use discovered containers through contentSectionDefinitions
-    this.sourceData.templates.forEach(template => {
+    this.sourceData.templates.forEach((template) => {
       if (template.contentSectionDefinitions) {
         template.contentSectionDefinitions.forEach((section: any) => {
           // Check if section references discovered containers
@@ -166,7 +201,7 @@ export class ModelDependencyTreeBuilder {
   private findPagesForTemplatesAndContent(tree: ModelDependencyTree): void {
     if (!this.sourceData.pages) return;
 
-    this.sourceData.pages.forEach(page => {
+    this.sourceData.pages.forEach((page) => {
       let shouldIncludePage = false;
       const pageAny = page as any; // Use defensive typing for complex Agility CMS structures
 
@@ -179,7 +214,7 @@ export class ModelDependencyTreeBuilder {
       // Check if page content references discovered content (page zones/content areas)
       if (pageAny.zones) {
         const zones = pageAny.zones;
-        if (zones && typeof zones === 'object') {
+        if (zones && typeof zones === "object") {
           // Zones is an object with zone names as keys
           Object.values(zones).forEach((zoneModules: any) => {
             if (Array.isArray(zoneModules)) {
@@ -210,10 +245,10 @@ export class ModelDependencyTreeBuilder {
   private findTemplatesUsedByPages(tree: ModelDependencyTree): void {
     if (!this.sourceData.pages) return;
 
-    this.sourceData.pages.forEach(page => {
+    this.sourceData.pages.forEach((page) => {
       if (tree.pages.has(page.pageID)) {
         const templateIds = this.extractTemplateIdsFromPage(page);
-        templateIds.forEach(id => tree.templates.add(id));
+        templateIds.forEach((id) => tree.templates.add(id));
       }
     });
 
@@ -228,15 +263,13 @@ export class ModelDependencyTreeBuilder {
 
     // Check multiple possible property names for template reference
     const templateId = page.pageTemplateID || page.templateID || page.templateId;
-    if (templateId && typeof templateId === 'number') {
+    if (templateId && typeof templateId === "number") {
       templateIds.push(templateId);
     }
 
     // Also check if templateName exists and try to resolve to ID
     if (page.templateName && this.sourceData.templates) {
-      const template = this.sourceData.templates.find(t =>
-        t.pageTemplateName === page.templateName
-      );
+      const template = this.sourceData.templates.find((t) => t.pageTemplateName === page.templateName);
       if (template && template.pageTemplateID) {
         templateIds.push(template.pageTemplateID);
       }
@@ -254,11 +287,11 @@ export class ModelDependencyTreeBuilder {
 
     const initialContentSize = tree.content.size;
 
-    this.sourceData.pages.forEach(page => {
+    this.sourceData.pages.forEach((page) => {
       if (tree.pages.has(page.pageID)) {
         // Extract all content IDs from page zones
         const contentIds = this.extractContentIdsFromPage(page);
-        contentIds.forEach(id => tree.content.add(id));
+        contentIds.forEach((id) => tree.content.add(id));
       }
     });
 
@@ -279,11 +312,11 @@ export class ModelDependencyTreeBuilder {
     const pagesToProcess = new Set<number>();
 
     // Start with all currently discovered pages
-    tree.pages.forEach(pageId => pagesToProcess.add(pageId));
+    tree.pages.forEach((pageId) => pagesToProcess.add(pageId));
 
     // Process each page and find all its ancestors
-    pagesToProcess.forEach(pageId => {
-      const page = this.sourceData.pages!.find(p => p.pageID === pageId);
+    pagesToProcess.forEach((pageId) => {
+      const page = this.sourceData.pages!.find((p) => p.pageID === pageId);
       if (page) {
         this.findAllAncestorPages(page, tree, channel);
       }
@@ -301,7 +334,11 @@ export class ModelDependencyTreeBuilder {
     if (parentPage && !tree.pages.has(parentPage.pageID)) {
       // Add this parent to the tree
       tree.pages.add(parentPage.pageID);
-      console.log(ansiColors.gray(`    📑 [ANCESTOR] Added parent page ${parentPage.name} (ID:${parentPage.pageID}) for child ${page.name} (ID:${page.pageID})`));
+      console.log(
+        ansiColors.gray(
+          `    📑 [ANCESTOR] Added parent page ${parentPage.name} (ID:${parentPage.pageID}) for child ${page.name} (ID:${page.pageID})`
+        )
+      );
 
       // Recursively find this parent's ancestors
       this.findAllAncestorPages(parentPage, tree, channel);
@@ -322,7 +359,7 @@ export class ModelDependencyTreeBuilder {
     if (!parentResult.parentId) return null;
 
     // Find the actual page object by ID
-    const parentPage = this.sourceData.pages.find(p => p.pageID === parentResult.parentId);
+    const parentPage = this.sourceData.pages.find((p) => p.pageID === parentResult.parentId);
     return parentPage || null;
   }
 
@@ -335,7 +372,7 @@ export class ModelDependencyTreeBuilder {
     const initialModelSize = tree.models.size;
 
     // Find models for all content in the tree
-    this.sourceData.content.forEach(contentItem => {
+    this.sourceData.content.forEach((contentItem) => {
       if (tree.content.has(contentItem.contentID)) {
         // Find the model for this content item
         const modelName = contentItem.properties?.definitionName;
@@ -350,6 +387,16 @@ export class ModelDependencyTreeBuilder {
   }
 
   /**
+   * Expand the model set with models referenced by other models through linked-content fields.
+   * Delegates to the shared `resolveReferencedModels` walk (transitive, de-duplicated, cycle-safe).
+   */
+  private findModelsReferencedByModels(tree: ModelDependencyTree): void {
+    if (!this.sourceData.models) return;
+    const expanded = resolveReferencedModels(Array.from(tree.models), this.sourceData.models);
+    expanded.forEach((name) => tree.models.add(name));
+  }
+
+  /**
    * Find containers for newly discovered models
    */
   private findContainersForDiscoveredModels(tree: ModelDependencyTree): void {
@@ -359,18 +406,16 @@ export class ModelDependencyTreeBuilder {
 
     // Create model reference name to ID mapping
     const modelMap = new Map<string, number>();
-    this.sourceData.models.forEach(model => {
+    this.sourceData.models.forEach((model) => {
       modelMap.set(model.referenceName, model.id);
     });
 
     // Find containers for all models in the tree
-    tree.models.forEach(modelName => {
+    tree.models.forEach((modelName) => {
       const modelId = modelMap.get(modelName);
       if (modelId) {
-        const containers = this.sourceData.containers.filter(c =>
-          c.contentDefinitionID === modelId
-        );
-        containers.forEach(container => {
+        const containers = this.sourceData.containers.filter((c) => c.contentDefinitionID === modelId);
+        containers.forEach((container) => {
           tree.containers.add(container.contentViewID);
         });
       }
@@ -393,7 +438,7 @@ export class ModelDependencyTreeBuilder {
 
     // Create a map of content reference names (lowercase) to content IDs
     const contentReferenceMap = new Map<string, number>();
-    this.sourceData.content.forEach(contentItem => {
+    this.sourceData.content.forEach((contentItem) => {
       if (tree.content.has(contentItem.contentID)) {
         const referenceName = contentItem.properties?.referenceName;
         if (referenceName) {
@@ -403,7 +448,7 @@ export class ModelDependencyTreeBuilder {
     });
 
     // Find containers with case-insensitive matching
-    this.sourceData.containers.forEach(container => {
+    this.sourceData.containers.forEach((container) => {
       const containerRefLower = container.referenceName?.toLowerCase();
       if (containerRefLower && contentReferenceMap.has(containerRefLower)) {
         tree.containers.add(container.contentViewID);
@@ -423,14 +468,14 @@ export class ModelDependencyTreeBuilder {
 
     if (page.zones) {
       const zones = page.zones;
-      if (zones && typeof zones === 'object') {
+      if (zones && typeof zones === "object") {
         // Zones is an object with zone names as keys
         Object.values(zones).forEach((zoneModules: any) => {
           if (Array.isArray(zoneModules)) {
             zoneModules.forEach((module: any) => {
               if (module.item && (module.item.contentid || module.item.contentID)) {
                 const contentId = module.item.contentid || module.item.contentID;
-                if (typeof contentId === 'number') {
+                if (typeof contentId === "number") {
                   contentIds.push(contentId);
                 }
               }
@@ -448,7 +493,7 @@ export class ModelDependencyTreeBuilder {
    */
   private findAssetsInContent(tree: ModelDependencyTree): void {
     if (!this.sourceData.content) return;
-    
+
     // Note: We don't require assets to exist in sourceData to extract URLs from content
     // The assets might not be loaded yet, but we should still extract the URLs
 
@@ -456,13 +501,13 @@ export class ModelDependencyTreeBuilder {
     let contentItemsScanned = 0;
 
     // Extract asset URLs from content items in the tree
-    this.sourceData.content.forEach(contentItem => {
+    this.sourceData.content.forEach((contentItem) => {
       if (tree.content.has(contentItem.contentID)) {
         contentItemsScanned++;
         const assetUrls = this.extractAssetUrlsFromContent(contentItem);
         if (assetUrls.length > 0) {
           totalUrlsFound += assetUrls.length;
-          assetUrls.forEach(url => {
+          assetUrls.forEach((url) => {
             tree.assets.add(url);
             // Also try to find matching asset and add all its URL variations
             // This ensures we match assets even if content has different URL format
@@ -479,13 +524,12 @@ export class ModelDependencyTreeBuilder {
       }
     });
 
-   
     // Also check pages for asset references
     if (this.sourceData.pages) {
-      this.sourceData.pages.forEach(page => {
+      this.sourceData.pages.forEach((page) => {
         if (tree.pages.has(page.pageID)) {
           const assetUrls = this.extractAssetUrlsFromPage(page);
-          assetUrls.forEach(url => {
+          assetUrls.forEach((url) => {
             tree.assets.add(url);
             // Also try to find matching asset and add all its URL variations
             const matchingAsset = this.findMatchingAsset(url);
@@ -508,34 +552,34 @@ export class ModelDependencyTreeBuilder {
    */
   private findMatchingAsset(url: string): any | null {
     if (!this.sourceData.assets || !url) return null;
-    
+
     // First try exact URL match
     let matchingAsset = this.sourceData.assets.find((asset: any) => {
-      return asset.url === url || 
-             asset.originUrl === url || 
-             asset.edgeUrl === url;
+      return asset.url === url || asset.originUrl === url || asset.edgeUrl === url;
     });
-    
+
     if (matchingAsset) return matchingAsset;
-    
+
     // If no exact match, try to match by file path
     // Extract the file path from the URL (everything after the last /)
     const urlPath = this.extractFilePathFromUrl(url);
     if (!urlPath) return null;
-    
+
     // Try to find asset by matching file path in any of its URLs
-    return this.sourceData.assets.find((asset: any) => {
-      const assetUrlPath = this.extractFilePathFromUrl(asset.url || asset.originUrl || asset.edgeUrl || '');
-      return assetUrlPath && assetUrlPath === urlPath;
-    }) || null;
+    return (
+      this.sourceData.assets.find((asset: any) => {
+        const assetUrlPath = this.extractFilePathFromUrl(asset.url || asset.originUrl || asset.edgeUrl || "");
+        return assetUrlPath && assetUrlPath === urlPath;
+      }) || null
+    );
   }
 
   /**
    * Extract file path from a URL (the path portion after the domain)
    */
   private extractFilePathFromUrl(url: string): string | null {
-    if (!url || typeof url !== 'string') return null;
-    
+    if (!url || typeof url !== "string") return null;
+
     try {
       const urlObj = new URL(url);
       return urlObj.pathname;
@@ -552,10 +596,10 @@ export class ModelDependencyTreeBuilder {
   private findGalleriesInContent(tree: ModelDependencyTree): void {
     if (!this.sourceData.content || !this.sourceData.galleries) return;
 
-    this.sourceData.content.forEach(contentItem => {
+    this.sourceData.content.forEach((contentItem) => {
       if (tree.content.has(contentItem.contentID)) {
         const galleryIds = this.extractGalleryIdsFromContent(contentItem);
-        galleryIds.forEach(id => tree.galleries.add(id));
+        galleryIds.forEach((id) => tree.galleries.add(id));
       }
     });
 
@@ -571,12 +615,11 @@ export class ModelDependencyTreeBuilder {
 
     if (contentItem.fields) {
       const assetReferences = this.assetExtractor.extractAssetReferences(contentItem.fields);
-      assetReferences.forEach(ref => {
+      assetReferences.forEach((ref) => {
         if (ref.url) {
           urls.push(ref.url);
         }
       });
-      
     }
 
     return urls;
@@ -592,7 +635,7 @@ export class ModelDependencyTreeBuilder {
     // Scan page zones for asset references
     if (page.zones) {
       const zoneReferences = this.assetExtractor.extractAssetReferences(page.zones);
-      zoneReferences.forEach(ref => {
+      zoneReferences.forEach((ref) => {
         if (ref.url) {
           urls.push(ref.url);
         }
@@ -602,7 +645,7 @@ export class ModelDependencyTreeBuilder {
     // Scan page content if it exists
     if (page.content) {
       const contentReferences = this.assetExtractor.extractAssetReferences(page.content);
-      contentReferences.forEach(ref => {
+      contentReferences.forEach((ref) => {
         if (ref.url) {
           urls.push(ref.url);
         }
@@ -625,19 +668,18 @@ export class ModelDependencyTreeBuilder {
     return galleryIds;
   }
 
-
   /**
    * Recursively scan object for gallery ID references
    */
-  private scanObjectForGalleryIds(obj: any, galleryIds: number[], path: string = ''): void {
-    if (typeof obj === 'object' && obj !== null) {
+  private scanObjectForGalleryIds(obj: any, galleryIds: number[], path: string = ""): void {
+    if (typeof obj === "object" && obj !== null) {
       // Look for gallery field patterns
-      if (obj.mediaGroupingID && typeof obj.mediaGroupingID === 'number') {
+      if (obj.mediaGroupingID && typeof obj.mediaGroupingID === "number") {
         galleryIds.push(obj.mediaGroupingID);
       }
 
       // Look for gallery reference patterns in field values
-      if (obj.galleryID && typeof obj.galleryID === 'number') {
+      if (obj.galleryID && typeof obj.galleryID === "number") {
         galleryIds.push(obj.galleryID);
       }
 
@@ -647,7 +689,7 @@ export class ModelDependencyTreeBuilder {
           this.scanObjectForGalleryIds(item, galleryIds, `${path}[${index}]`);
         });
       } else {
-        Object.keys(obj).forEach(key => {
+        Object.keys(obj).forEach((key) => {
           this.scanObjectForGalleryIds(obj[key], galleryIds, `${path}.${key}`);
         });
       }
@@ -658,8 +700,14 @@ export class ModelDependencyTreeBuilder {
    * Get a summary string of the dependency tree
    */
   private getTreeSummary(tree: ModelDependencyTree): string {
-    const total = tree.models.size + tree.containers.size + tree.content.size +
-      tree.templates.size + tree.pages.size + tree.assets.size + tree.galleries.size;
+    const total =
+      tree.models.size +
+      tree.containers.size +
+      tree.content.size +
+      tree.templates.size +
+      tree.pages.size +
+      tree.assets.size +
+      tree.galleries.size;
 
     return `${total} total entities across 7 types`;
   }
@@ -678,7 +726,7 @@ export class ModelDependencyTreeBuilder {
 
     const availableModels = new Set(models.map((m: any) => m.referenceName.toLowerCase().trim()));
 
-    modelNames.forEach(modelName => {
+    modelNames.forEach((modelName) => {
       if (availableModels.has(modelName.toLowerCase().trim())) {
         valid.push(modelName);
       } else {
@@ -700,25 +748,25 @@ export class ModelDependencyTreeBuilder {
       `   🎨 ${tree.templates.size} templates`,
       `   📑 ${tree.pages.size} pages`,
       `   🖼️  ${tree.assets.size} assets`,
-      `   🗂️  ${tree.galleries.size} galleries`
-    ].filter(line => {
+      `   🗂️  ${tree.galleries.size} galleries`,
+    ].filter((line) => {
       // Only show non-zero counts
-      const count = parseInt(line.match(/\d+/)?.[0] || '0');
+      const count = parseInt(line.match(/\d+/)?.[0] || "0");
       return count > 0;
     });
 
     if (breakdown.length > 0) {
-      console.log(ansiColors.gray(breakdown.join('\n')));
-      
+      console.log(ansiColors.gray(breakdown.join("\n")));
+
       // Add explanatory notes for missing dependencies
       if (tree.templates.size === 0 && tree.containers.size > 0) {
-        console.log(ansiColors.yellow('   ℹ️  No templates found that use these containers'));
+        console.log(ansiColors.yellow("   ℹ️  No templates found that use these containers"));
       }
       if (tree.pages.size === 0 && (tree.templates.size > 0 || tree.content.size > 0)) {
-        console.log(ansiColors.yellow('   ℹ️  No pages found that use these templates/content'));
+        console.log(ansiColors.yellow("   ℹ️  No pages found that use these templates/content"));
       }
     } else {
-      console.log(ansiColors.yellow('   ⚠️  No dependencies found'));
+      console.log(ansiColors.yellow("   ⚠️  No dependencies found"));
     }
   }
 }

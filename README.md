@@ -11,8 +11,8 @@ npm install -g @agility/cli
 
 **Note:** Authentication happens automatically when you run `pull` or `sync` commands. The `login` and `logout` commands are primarily used for troubleshooting authentication issues (see [Troubleshooting](#troubleshooting)).
 
-**Required Permissions:** You must be an Org Admin, Instance Admin, or have Manager role to perform CLI operations.
----
+## **Required Permissions:** You must be an Org Admin, Instance Admin, or have Manager role to perform CLI operations.
+
 ## Commands
 
 ### Pull Command
@@ -27,36 +27,32 @@ agility pull [options]
 
 **Core Instance Options:**
 
-| Option         | Type    | Default     | Description                                                         |
-| -------------- | ------- | ----------- | ------------------------------------------------------------------- |
-| `--sourceGuid` | string  | _(empty)_ | Source instance GUID (required for sync, can be from .env for pull) |
-| `--locales`    | string  | _(empty)_ | Comma-separated list of locales to operate on. If not specified, locales are automatically pulled from the instance |
+| Option         | Type   | Default   | Description                                                                                                                          |
+| -------------- | ------ | --------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| `--sourceGuid` | string | _(empty)_ | Source instance GUID. **Optional** — falls back to `AGILITY_GUID` from your `.env` file when omitted.                               |
+| `--locales`    | string | _(empty)_ | Comma-separated list of locales to operate on. If not specified, locales are automatically pulled from the instance                 |
+| `--channel`    | string | `website` | Channel (digital channel) to pull sitemaps for. Falls back to `AGILITY_WEBSITE` from your `.env` file.                              |
 
 **Content Selection Options:**
 
-| Option       | Type   | Default                                                      | Description                                                                                                          |
-| ------------ | ------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `--elements` | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages` | Comma-separated list of elements to process                                                                          |
-| `--models`   | string | _(empty)_                                                    | Comma-separated list of model reference names to sync (only syncs the specified models)                             |
+| Option       | Type   | Default                                                               | Description                                                                              |
+| ------------ | ------ | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `--elements` | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps` | Comma-separated list of elements to process                                             |
+| `--models`   | string | _(empty)_                                                            | Comma-separated list of model reference names to sync (only syncs the specified models) |
 
-**File System Options:**
+**Authentication & Environment Options:**
 
-| Option       | Type    | Default         | Description                      |
-| ------------ | ------- | --------------- | -------------------------------- |
-| `--rootPath` | string  | `agility-files` | Root directory for local files   |
-
-**Operation Control Options:**
-
-| Option     | Type    | Default | Description                                                                 |
-| ---------- | ------- | ------- | --------------------------------------------------------------------------- |
-| `--update` | boolean | `false`  | Set to `true` to force updating source data                 |
+| Option    | Type    | Default | Description                                                                                                                              |
+| --------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `--token` | string  | _(empty)_ | Personal Access Token for headless/CI authentication. Falls back to `AGILITY_TOKEN`. See [PAT Authentication](#personal-access-token-pat-authentication). |
+| `--dev`   | boolean | `false` | Internal/advanced: point the CLI at Agility's development environment instead of production.                                            |
 
 **UI & Output Options:**
 
-| Option       | Type    | Default | Description                  |
-| ------------ | ------- | ------- | ---------------------------- |
+| Option       | Type    | Default | Description                                                           |
+| ------------ | ------- | ------- | --------------------------------------------------------------------- |
 | `--headless` | boolean | `false` | Disable logging and console/terminal output, log to file only (CI/CD) |
-| `--verbose`  | boolean | `true`  | Detailed console output      |
+| `--verbose`  | boolean | `true`  | Detailed console output                                               |
 
 #### Pull Examples
 
@@ -67,13 +63,12 @@ agility pull --sourceGuid="abc123"
 # Pull specific elements only
 agility pull --sourceGuid="abc123" --locales="en-us" --elements="Models,Content"
 
-# Pull with update (refresh local files)
-agility pull --sourceGuid="abc123" --locales="en-us" --update=true
-
-# Pull from live environment
-agility pull --sourceGuid="abc123" --locales="en-us"
+# Pull specific locales
+agility pull --sourceGuid="abc123" --locales="en-us,fr-ca"
 ```
+
 ---
+
 ### Sync Command
 
 Synchronize content between two Agility CMS instances with intelligent dependency resolution.
@@ -86,41 +81,43 @@ agility sync [options]
 
 **Core Instance Options:**
 
-| Option         | Type    | Default     | Description                                                         |
-| -------------- | ------- | ----------- | ------------------------------------------------------------------- |
-| `--sourceGuid` | string  | _(empty)_ | Source instance GUID (required for sync)                            |
-| `--targetGuid` | string  | _(empty)_ | Target instance GUID (required for sync)                            |
-| `--locales`    | string  | _(empty)_ | Comma-separated list of locales to operate on. If not specified, locales are automatically pulled from the source instance. **Note:** For sync operations, if locales are not specified, the target instance must have all the same locales set up, or the sync will error. You can selectively sync only specific locales (e.g., `--locales="en-us"`) to avoid requiring all locales to be set up in the target instance |
+| Option         | Type   | Default   | Description                                                                                                                                                                                                                                                                                                                                                                                                               |
+| -------------- | ------ | --------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--sourceGuid` | string | _(empty)_ | Source instance GUID (required for sync)                                                                                                                                                                                                                                                                                                                                                                                  |
+| `--targetGuid` | string | _(empty)_ | Target instance GUID (required for sync)                                                                                                                                                                                                                                                                                                                                                                                  |
+| `--locales`    | string | _(empty)_ | Comma-separated list of locales to operate on. If not specified, locales are automatically pulled from the source instance. **Note:** For sync operations, if locales are not specified, the target instance must have all the same locales set up, or the sync will error. You can selectively sync only specific locales (e.g., `--locales="en-us"`) to avoid requiring all locales to be set up in the target instance |
+| `--channel`    | string | `website` | Channel (digital channel) whose sitemap is synced. Falls back to `AGILITY_WEBSITE` from your `.env` file.                                                                                                                                                                                                                                                                                                                  |
 
 **Content Selection Options:**
 
-| Option             | Type   | Default                                                      | Description                                                                                                          |
-| ------------------ | ------ | ------------------------------------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
-| `--elements`       | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages` | Comma-separated list of elements to process                                                                          |
-| `--models`         | string | _(empty)_                                                    | Comma-separated list of model reference names to sync (only syncs the specified models)                             |
-| `--models-with-deps` | string | _(empty)_                                                    | Comma-separated list of model reference names to sync with dependencies (includes content, assets, galleries, containers, and lists, but not pages) |
-
-**File System Options:**
-
-| Option       | Type    | Default         | Description                      |
-| ------------ | ------- | --------------- | -------------------------------- |
-| `--rootPath` | string  | `agility-files` | Root directory for local files   |
+| Option               | Type   | Default                                                               | Description                                                                                                                                                            |
+| -------------------- | ------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--elements`         | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps` | Comma-separated list of elements to process                                                                                                                          |
+| `--models`           | string | _(empty)_                                                            | Comma-separated list of model reference names to sync (only syncs the specified models)                                                                              |
+| `--models-with-deps` | string | _(empty)_                                                            | Comma-separated list of model reference names to sync with their full dependency tree — includes dependent content, pages, templates, assets, galleries, and containers |
+| `--contentIDs`       | string | _(empty)_                                                            | Comma-separated list of target content IDs to process directly, bypassing the mappings lookup (e.g. `--contentIDs=121,1221`)                                          |
+| `--pageIDs`          | string | _(empty)_                                                            | Comma-separated list of target page IDs to process directly, bypassing the mappings lookup (e.g. `--pageIDs=12,45`)                                                   |
 
 **Operation Control Options:**
 
-| Option           | Type    | Default | Description                                                                                                                                    |
-| ---------------- | ------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--update`       | boolean | `false` | Download fresh data from source instance before operations, if left false, incremental sync is performed to only get changed data.           |
-| `--overwrite`    | boolean | `false` | Force update existing items in target instance instead of creating new items with -1 IDs. Default: false (Warning: may cause duplicate items in lists, overwriting existing content) |
-| `--autoPublish`  | string  | _(disabled)_ | Automatically publish synced items that were published in the source instance. Values: `content`, `pages`, `both`. If flag is provided without a value, defaults to `both`. Items that are only in staging (not published) in the source are skipped. |
+| Option          | Type    | Default      | Description                                                                                                                                                                                                                                           |
+| --------------- | ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--overwrite`   | boolean | `false`      | Conflict-scoped override. By default, when a target item has its own changes that conflict with the source, the CLI skips it to avoid data loss. With `--overwrite`, those conflicting target items are overwritten with the source version. Non-conflicting updates are applied either way. |
+| `--autoPublish` | string  | _(disabled)_ | Automatically publish synced items that were published in the source instance. Values: `content`, `pages`, `both`. If flag is provided without a value, defaults to `both`. Items that are only in staging (not published) in the source are skipped. |
+
+**Authentication & Environment Options:**
+
+| Option    | Type    | Default | Description                                                                                                                              |
+| --------- | ------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `--token` | string  | _(empty)_ | Personal Access Token for headless/CI authentication. Falls back to `AGILITY_TOKEN`. See [PAT Authentication](#personal-access-token-pat-authentication). |
+| `--dev`   | boolean | `false` | Internal/advanced: point the CLI at Agility's development environment instead of production.                                            |
 
 **UI & Output Options:**
 
-| Option       | Type    | Default | Description                                                                    |
-| ------------ | ------- | ------- | ------------------------------------------------------------------------------ |
-| `--headless` | boolean | `false` | Disable logging and console/terminal output, log to file only (CI/CD)          |
-| `--verbose`  | boolean | `true`  | Detailed console output                                                        |
-
+| Option       | Type    | Default | Description                                                           |
+| ------------ | ------- | ------- | --------------------------------------------------------------------- |
+| `--headless` | boolean | `false` | Disable logging and console/terminal output, log to file only (CI/CD) |
+| `--verbose`  | boolean | `true`  | Detailed console output                                               |
 
 #### Sync Examples
 
@@ -134,13 +131,13 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --locales="en-us"
 # Sync specific elements only
 agility sync --sourceGuid="abc123" --targetGuid="def456" --elements="Assets"
 
-# Force update existing items
+# Overwrite target items that conflict with the source (forces conflicting updates through)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite
 
 # Sync only specified models (models only, no dependencies)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,BlogCategory"
 
-# Sync models with dependencies (includes content, assets, galleries, containers, lists, but not pages)
+# Sync models with their full dependency tree (content, pages, templates, assets, galleries, containers)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="BlogPost,BlogCategory"
 
 # Sync and auto-publish everything that was published in source
@@ -152,7 +149,9 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish=content
 # Sync and auto-publish only pages
 agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish=pages
 ```
+
 ---
+
 ## Advanced Topics
 
 ### Auto-Publish
@@ -161,11 +160,11 @@ The `--autoPublish` flag lets you automatically publish synced content and/or pa
 
 #### Modes
 
-| Value     | Behavior                                      |
-| --------- | --------------------------------------------- |
+| Value     | Behavior                                                                             |
+| --------- | ------------------------------------------------------------------------------------ |
 | `both`    | Publish both content items and pages (default when flag is provided without a value) |
-| `content` | Publish only content items                    |
-| `pages`   | Publish only pages                            |
+| `content` | Publish only content items                                                           |
+| `pages`   | Publish only pages                                                                   |
 
 #### How It Works
 
@@ -210,17 +209,17 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,Blog
 
 #### --models-with-deps
 
-The `--models-with-deps` parameter syncs the specified models **plus their dependencies**. It includes:
-- Content items based on those models
-- Assets referenced by the content
-- Galleries referenced by the content
-- Containers
-- Lists
+The `--models-with-deps` parameter syncs the specified models **plus their full dependency tree**. It includes:
 
-**Note:** Pages are **not** included when using `--models-with-deps`.
+- Content items based on those models
+- Pages that use those content items or their templates
+- Templates used by those pages
+- Assets referenced by the content and pages
+- Galleries referenced by the content and pages
+- Containers
 
 ```bash
-# Sync models with all dependencies (except pages)
+# Sync models with their full dependency tree (content, pages, templates, assets, galleries, containers)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="BlogPost,BlogCategory"
 ```
 
@@ -230,7 +229,7 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="Blo
 # Sync only models (no dependencies)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,BlogCategory"
 
-# Sync models with dependencies (content, assets, galleries, containers, lists - but not pages)
+# Sync models with their full dependency tree (content, pages, templates, assets, galleries, containers)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="Product,ProductCategory,ProductReview"
 ```
 
@@ -291,10 +290,11 @@ agility-files/
 ```
 
 > **⚠️ CRITICAL WARNING: Mapping File Safety**
-> 
+>
 > **If you lose your mappings, syncing again will result in duplicate content being created in the target instance.** The CLI uses mappings to identify existing content and avoid duplicates. Without mappings, it cannot determine what already exists and will create new items.
-> 
+>
 > **Recommended Practices:**
+>
 > - **Persist your mappings** through shared file storage or a repository (e.g., Git) when working on a team
 > - **Do not have multiple instances of the CLI syncing the same source→target instance pairs simultaneously** - this can cause mapping conflicts and duplicate content
 > - **Back up your `agility-files/mappings/` directory** before performing destructive operations
@@ -329,21 +329,19 @@ agility-files/
 
 For CI/CD pipelines and automation, you can configure the CLI using environment variables. Command line arguments always override environment variables when both are provided.
 
-| Environment Variable     | Command Argument  | Description                                     |
-| ------------------------ | ----------------- | ----------------------------------------------- |
-| `AGILITY_GUID`           | `--sourceGuid`    | Default source instance GUID                    |
-| `AGILITY_TARGET_GUID`    | `--targetGuid`    | Default target instance GUID                    |
-| `AGILITY_LOCALES`        | `--locales`       | Comma-separated list of locales to operate on   |
-| `AGILITY_WEBSITE`        | `--channel`       | Default channel name                            |
-| `AGILITY_ELEMENTS`       | `--elements`      | Default elements to process                     |
-| `AGILITY_MODELS`         | `--models`        | Default models to sync (comma-separated, models only)        |
-| `AGILITY_MODELS_WITH_DEPS` | `--models-with-deps` | Default models to sync with dependencies (comma-separated) |
-| `AGILITY_ROOT_PATH`      | `--rootPath`      | Default root directory                          |
-| `AGILITY_VERBOSE`        | `--verbose`       | Default verbose output setting                  |
-| `AGILITY_HEADLESS`       | `--headless`      | Default headless mode setting                   |
-| `AGILITY_UPDATE`         | `--update`        | Default fresh data setting (both pull and sync) |
-| `AGILITY_OVERWRITE`      | `--overwrite`     | Default overwrite setting (sync only)           |
-| `AGILITY_TOKEN`          | `--token`         | Personal Access Token for headless/CI authentication (see below) |
+| Environment Variable       | Command Argument     | Description                                                      |
+| -------------------------- | -------------------- | ---------------------------------------------------------------- |
+| `AGILITY_GUID`             | `--sourceGuid`       | Default source instance GUID                                     |
+| `AGILITY_TARGET_GUID`      | `--targetGuid`       | Default target instance GUID                                     |
+| `AGILITY_LOCALES`          | `--locales`          | Comma-separated list of locales to operate on                    |
+| `AGILITY_WEBSITE`          | `--channel`          | Default channel name                                             |
+| `AGILITY_ELEMENTS`         | `--elements`         | Default elements to process                                      |
+| `AGILITY_MODELS`           | `--models`           | Default models to sync (comma-separated, models only)            |
+| `AGILITY_VERBOSE`          | `--verbose`          | Default verbose output setting                                   |
+| `AGILITY_HEADLESS`         | `--headless`         | Default headless mode setting                                    |
+| `AGILITY_OVERWRITE`        | `--overwrite`        | Default overwrite setting (sync only)                            |
+| `AGILITY_DEV`              | `--dev`              | Internal/advanced: target Agility's development environment      |
+| `AGILITY_TOKEN`            | `--token`            | Personal Access Token for headless/CI authentication (see below) |
 
 ### Personal Access Token (PAT) Authentication
 
@@ -367,11 +365,13 @@ This opens a browser window to authenticate and stores your OAuth token in the s
 **Step 2 — Extract your OAuth token from the keychain**
 
 On macOS:
+
 ```bash
 security find-generic-password -s "agility-cli" -a "cli-auth-token:prod" -w | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['access_token'])"
 ```
 
 On Linux (GNOME keyring):
+
 ```bash
 secret-tool lookup service agility-cli account cli-auth-token:prod | python3 -c "import sys,json; d=json.load(sys.stdin); print(d['access_token'])"
 ```
@@ -380,13 +380,13 @@ secret-tool lookup service agility-cli account cli-auth-token:prod | python3 -c 
 
 The URL is determined by the last character(s) of your instance GUID:
 
-| GUID suffix | Base URL |
-|---|---|
-| `u` | `https://mgmt.aglty.io` |
-| `c` | `https://mgmt-ca.aglty.io` |
-| `e` | `https://mgmt-eu.aglty.io` |
-| `a` | `https://mgmt-aus.aglty.io` |
-| `us2` | `https://mgmt-usa2.aglty.io` |
+| GUID suffix | Base URL                     |
+| ----------- | ---------------------------- |
+| `u`         | `https://mgmt.aglty.io`      |
+| `c`         | `https://mgmt-ca.aglty.io`   |
+| `e`         | `https://mgmt-eu.aglty.io`   |
+| `a`         | `https://mgmt-aus.aglty.io`  |
+| `us2`       | `https://mgmt-usa2.aglty.io` |
 
 **Step 4 — Create the PAT**
 
@@ -419,6 +419,7 @@ A successful `201` response looks like:
 **Copy the `token` value immediately — it is only returned at creation time and cannot be retrieved again.**
 
 **Constraints:**
+
 - Maximum **10 active tokens** per user
 - Maximum **2-year expiry** per token
 - Tokens **cannot** be used to create or manage other tokens — OAuth login is required for token management

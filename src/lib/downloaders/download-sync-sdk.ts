@@ -14,24 +14,16 @@ export async function downloadAllSyncSDK(guid: string) {
   const channels = await getAllChannels(guid, locales[0]);
   const downloads: Promise<any>[] = [];
 
-
-
-  channels.forEach(channel => {
-    locales.forEach(locale => {
+  channels.forEach((channel) => {
+    locales.forEach((locale) => {
       downloads.push(downloadSyncSDKByLocaleAndChannel(guid, channel.channel.toLowerCase(), locale));
     });
   });
 
   await Promise.allSettled(downloads);
-  
 }
 
-export async function downloadSyncSDKByLocaleAndChannel(
-  guid: string,
-  channel: string,
-  locale: string
-): Promise<void> {
-
+export async function downloadSyncSDKByLocaleAndChannel(guid: string, channel: string, locale: string): Promise<void> {
   const fileOps = new fileOperations(guid, locale);
 
   // Get API keys for this specific GUID
@@ -40,15 +32,13 @@ export async function downloadSyncSDKByLocaleAndChannel(
 
   // Build the path to the instance-specific folder
   const instanceSpecificPath = fileOps.getDataFolderPath();
-  const syncTokenPath = fileOps.getDataFilePath('state', 'sync.json');
+  const syncTokenPath = fileOps.getDataFilePath("state", "sync.json");
 
-  const isIncrementalSync = await handleSyncToken(syncTokenPath, state.reset);
-
+  const isIncrementalSync = await handleSyncToken(syncTokenPath, false);
 
   const logger = getLoggerForGuid(guid);
   // Configure the Agility Sync client
   // NOTE: Use determineFetchUrl (not determineBaseUrl) because:
-  // - Management API uses localhost:5050 when --local is set
   // - Content Fetch/Sync API is always cloud-based (based on GUID suffix)
   // The baseUrl must include the GUID path segment for the SDK to construct correct URLs:
   // e.g., https://api-dev.aglty.io/{guid} → https://api-dev.aglty.io/{guid}/preview/{locale}/sync/items
@@ -68,13 +58,16 @@ export async function downloadSyncSDKByLocaleAndChannel(
         rootPath: instanceSpecificPath,
         logger: logger,
         // NEW: Pass change delta tracker and mode
-        isIncrementalSync: isIncrementalSync
-      }
-    }
+        isIncrementalSync: isIncrementalSync,
+      },
+    },
   };
 
   // RACE CONDITION FIX: Initialize progress tracking for this specific instance
-  if (storeInterfaceFileSystem.initializeProgress && typeof storeInterfaceFileSystem.initializeProgress === 'function') {
+  if (
+    storeInterfaceFileSystem.initializeProgress &&
+    typeof storeInterfaceFileSystem.initializeProgress === "function"
+  ) {
     storeInterfaceFileSystem.initializeProgress(instanceSpecificPath);
   }
 
@@ -87,7 +80,10 @@ export async function downloadSyncSDKByLocaleAndChannel(
   await syncClient.runSync();
 
   // Get enhanced sync stats (pass rootPath for instance isolation)
-  if (storeInterfaceFileSystem.getAndClearSavedItemStats && typeof storeInterfaceFileSystem.getAndClearSavedItemStats === 'function') {
+  if (
+    storeInterfaceFileSystem.getAndClearSavedItemStats &&
+    typeof storeInterfaceFileSystem.getAndClearSavedItemStats === "function"
+  ) {
     const syncResults = storeInterfaceFileSystem.getAndClearSavedItemStats(instanceSpecificPath);
   }
 
@@ -98,7 +94,7 @@ export async function downloadSyncSDKByLocaleAndChannel(
   try {
     if (fs.existsSync(itemsPath)) {
       const files = fs.readdirSync(itemsPath);
-      itemCount = files.filter(file => path.extname(file).toLowerCase() === '.json').length;
+      itemCount = files.filter((file) => path.extname(file).toLowerCase() === ".json").length;
       itemsFoundMessage = `Verified ${itemCount} content item(s) on disk.`;
     }
   } catch (countError: any) {

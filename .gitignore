@@ -7,6 +7,8 @@
 /dist/
 /.agility-files/
 /agility-files/
+# Catch stray agility-files directories created by tests with unpinned rootPath
+**/agility-files/
 /temp/
 /code.json
 src/apiCall.ts

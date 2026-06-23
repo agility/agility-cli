@@ -1,0 +1,12 @@
+{
+  "id": 20,
+  "displayName": "Author",
+  "referenceName": "Author",
+  "description": "Defines an author.",
+  "lastModifiedDate": "2025-01-01T00:00:00.000",
+  "lastModifiedBy": "Test",
+  "contentDefinitionTypeName": "Content List",
+  "fields": [
+    { "type": "Text", "name": "Name", "label": "Name", "required": true }
+  ]
+}

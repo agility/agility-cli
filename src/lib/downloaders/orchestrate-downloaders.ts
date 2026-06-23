@@ -1,4 +1,3 @@
-import ansiColors from "ansi-colors";
 import { DownloadOperationsRegistry } from "./download-operations-config";
 import { getState, initializeGuidLogger, finalizeGuidLogger } from "core/state";
 
@@ -28,15 +27,15 @@ export class Downloader {
    */
   async guidDownloader(guid: string, fromPush: boolean): Promise<DownloadResults> {
     const startTime = Date.now();
-    
+
     // Initialize per-GUID logger for true parallel logging (no specific entity type since operations vary)
     const guidLogger = initializeGuidLogger(guid, "pull");
-    
+
     // Log operation header with state information
     if (guidLogger) {
       guidLogger.logOperationHeader();
     }
-    
+
     const results: DownloadResults = {
       successful: [],
       failed: [],
@@ -46,7 +45,6 @@ export class Downloader {
     };
 
     try {
-
       // Execute all data elements for this GUID
       await this.downloadDataElements(guid, results, fromPush);
 
@@ -64,14 +62,12 @@ export class Downloader {
         console.error(`${guid}: Could not finalize log file - ${logError.message}`);
       }
 
-
       return results;
-
     } catch (error: any) {
-      results.failed.push({ operation: 'guid-orchestration', error: error.message });
+      results.failed.push({ operation: "guid-orchestration", error: error.message });
       results.totalDuration = Date.now() - startTime;
       console.error(`${guid}: Failed - ${error.message}`);
-      
+
       // Try to finalize log file even on error
       try {
         const logFilePath = finalizeGuidLogger(guid);
@@ -82,7 +78,7 @@ export class Downloader {
       } catch (logError: any) {
         console.error(`${guid}: Could not finalize log file - ${logError.message}`);
       }
-      
+
       return results;
     }
   }
@@ -94,51 +90,33 @@ export class Downloader {
   async instanceOrchestrator(fromPush: boolean): Promise<DownloadResults[]> {
     const state = getState();
     const allGuids = [...state.sourceGuid, ...state.targetGuid];
-    
+
     if (allGuids.length === 0) {
-      throw new Error('No GUIDs available for download operation');
+      throw new Error("No GUIDs available for download operation");
     }
 
-    // Use sequential mode when running against local API to prevent crashes
-    // Local debugging sessions can't handle as many concurrent requests
-    if (state.local) {
-      console.log(ansiColors.gray('Using sequential download mode for local API...'));
-      const successfulResults: DownloadResults[] = [];
-      
-      for (const guid of allGuids) {
-        try {
-          const result = await this.guidDownloader(guid, fromPush);
-          successfulResults.push(result);
-        } catch (error: any) {
-          console.error(`Failed download: ${guid} - ${error?.message || 'Unknown error'}`);
-        }
-      }
-      
-      return successfulResults;
-    }
-     
     // Start ALL downloads simultaneously (true parallel execution) for cloud APIs
-    const downloadTasks = allGuids.map(guid => this.guidDownloader(guid, fromPush));
-    
+    const downloadTasks = allGuids.map((guid) => this.guidDownloader(guid, fromPush));
+
     const results = await Promise.allSettled(downloadTasks);
-    
+
     // Process results and separate successful from failed
     const successfulResults: DownloadResults[] = [];
     const failedResults: Array<{ guid: string; error: string }> = [];
-    
+
     allGuids.forEach((guid, index) => {
       const result = results[index];
-      if (result.status === 'fulfilled') {
+      if (result.status === "fulfilled") {
         successfulResults.push(result.value);
       } else {
-        failedResults.push({ 
-          guid, 
-          error: result.reason?.message || 'Unknown error' 
+        failedResults.push({
+          guid,
+          error: result.reason?.message || "Unknown error",
         });
         console.error(`Failed download: ${guid} - ${result.reason?.message}`);
       }
     });
-    
+
     // Report parallel execution summary
     return successfulResults;
   }
@@ -146,11 +124,7 @@ export class Downloader {
   /**
    * Execute specific data elements for a GUID
    */
-  private async downloadDataElements(
-    guid: string, 
-    results: DownloadResults,
-    fromPush: boolean
-  ): Promise<void> {
+  private async downloadDataElements(guid: string, results: DownloadResults, fromPush: boolean): Promise<void> {
     // Get operations based on elements filter
     const operations = DownloadOperationsRegistry.getOperationsForElements(fromPush);
 
@@ -160,17 +134,16 @@ export class Downloader {
     for (const operation of operations) {
       try {
         this.config.onOperationStart?.(operation.name, guid);
-        
+
         await operation.handler(guid);
-        
+
         results.successful.push(`${operation.name} (${guid})`);
         this.config.onOperationComplete?.(operation.name, guid, true);
-        
       } catch (error: any) {
         console.log(error);
-        const errorMessage = error.message || 'Unknown error';
+        const errorMessage = error.message || "Unknown error";
         results.failed.push({ operation: operation.name, error: errorMessage });
-        
+
         this.config.onOperationComplete?.(operation.name, guid, false);
         console.error(`❌ ${guid}: ${operation.name} failed - ${errorMessage}`);
       }

@@ -1,16 +1,14 @@
-import * as fs from 'fs';
-import * as Https from 'https';
-import * as path from 'path';
-const os = require('os');
-import { state } from './state';
+import * as fs from "fs";
+import * as Https from "https";
+import * as path from "path";
+const os = require("os");
+import { state } from "./state";
 os.tmpDir = os.tmpdir;
 
 export class fileOperations {
-
   private _rootPath: string;
   private _guid: string;
   private _locale: string;
-  private _legacyFolders: boolean;
   private _resolvedRootPath: string;
   private _basePath: string;
   private _instanceLogDir: string;
@@ -21,28 +19,21 @@ export class fileOperations {
   constructor(guid: string, locale?: string) {
     this._rootPath = state.rootPath;
     this._guid = guid;
-    this._isGuidLevel = locale === undefined || locale === null || locale === ""
+    this._isGuidLevel = locale === undefined || locale === null || locale === "";
     this._locale = locale ?? "";
-    this._legacyFolders = state.legacyFolders;
 
     // Keep paths relative instead of resolving to absolute paths
     // This prevents files from being written to /Users/ directories
     this._resolvedRootPath = state.rootPath;
 
-    // Calculate paths based on legacy mode
-    if (state.legacyFolders) {
-      // Legacy mode: flat structure
-      this._basePath = this._resolvedRootPath;
-      this._mappingsPath = path.join(this._resolvedRootPath, 'mappings');
-      this._instanceLogDir = path.join(this._resolvedRootPath, 'logs');
-    } else {
-      // Normal mode: nested structure
-      this._basePath = this._isGuidLevel ? path.join(this._resolvedRootPath, this._guid) : path.join(this._resolvedRootPath, this._guid, this._locale);
-      this._mappingsPath = path.join(this._resolvedRootPath, this._guid, 'mappings');
-      this._instanceLogDir = path.join(this._basePath, 'logs');
-    }
+    // Nested folder structure: rootPath/guid[/locale]
+    this._basePath = this._isGuidLevel
+      ? path.join(this._resolvedRootPath, this._guid)
+      : path.join(this._resolvedRootPath, this._guid, this._locale);
+    this._mappingsPath = path.join(this._resolvedRootPath, this._guid, "mappings");
+    this._instanceLogDir = path.join(this._basePath, "logs");
 
-    this._currentLogFilePath = path.join(this._instanceLogDir, 'instancelog.txt');
+    this._currentLogFilePath = path.join(this._instanceLogDir, "instancelog.txt");
   }
 
   // Public getters for path access
@@ -52,10 +43,6 @@ export class fileOperations {
 
   public get mappingsPath(): string {
     return this._mappingsPath;
-  }
-
-  public get isLegacyMode(): boolean {
-    return this._legacyFolders;
   }
 
   public get resolvedRootPath(): string {
@@ -78,10 +65,10 @@ export class fileOperations {
    */
   private stripAnsiCodes(text: string): string {
     // eslint-disable-next-line no-control-regex
-    let cleaned = text.replace(/\x1b\[[0-9;]*m/g, '');
+    let cleaned = text.replace(/\x1b\[[0-9;]*m/g, "");
 
     // Clean up JSON formatting: replace \n with actual newlines for better readability
-    cleaned = cleaned.replace(/\\n/g, '\n');
+    cleaned = cleaned.replace(/\\n/g, "\n");
 
     // Remove unnecessary escaped quotes in JSON context
     cleaned = cleaned.replace(/\\"/g, '"');
@@ -97,57 +84,61 @@ export class fileOperations {
     if (obj === null || obj === undefined) {
       return obj;
     }
-    
-    if (typeof obj !== 'object') {
+
+    if (typeof obj !== "object") {
       return obj;
     }
-    
+
     // Handle arrays
     if (Array.isArray(obj)) {
-      return obj.map(item => this.sanitizeForJson(item));
+      return obj.map((item) => this.sanitizeForJson(item));
     }
-    
+
     // Skip known non-serializable types
     const constructorName = obj.constructor?.name;
-    if (constructorName === 'Agent' || 
-        constructorName === 'ClientRequest' || 
-        constructorName === 'IncomingMessage' ||
-        constructorName === 'Socket' ||
-        constructorName === 'TLSSocket') {
+    if (
+      constructorName === "Agent" ||
+      constructorName === "ClientRequest" ||
+      constructorName === "IncomingMessage" ||
+      constructorName === "Socket" ||
+      constructorName === "TLSSocket"
+    ) {
       return undefined;
     }
-    
+
     // Create a clean copy of the object
     const cleanObj: any = {};
     for (const key of Object.keys(obj)) {
       // Skip properties that are likely to contain circular references
-      if (key === 'agent' || 
-          key === '_httpMessage' || 
-          key === 'socket' || 
-          key === 'connection' ||
-          key === 'request' ||
-          key === 'response' ||
-          key === '_events' ||
-          key === '_eventsCount' ||
-          key === 'httpsAgent' ||
-          key === 'httpAgent') {
+      if (
+        key === "agent" ||
+        key === "_httpMessage" ||
+        key === "socket" ||
+        key === "connection" ||
+        key === "request" ||
+        key === "response" ||
+        key === "_events" ||
+        key === "_eventsCount" ||
+        key === "httpsAgent" ||
+        key === "httpAgent"
+      ) {
         continue;
       }
-      
+
       const value = obj[key];
-      
+
       // Skip functions
-      if (typeof value === 'function') {
+      if (typeof value === "function") {
         continue;
       }
-      
+
       // Recursively sanitize nested objects
       const sanitizedValue = this.sanitizeForJson(value);
       if (sanitizedValue !== undefined) {
         cleanObj[key] = sanitizedValue;
       }
     }
-    
+
     return cleanObj;
   }
 
@@ -178,7 +169,7 @@ export class fileOperations {
     }
 
     const fileName = path.join(directoryForFile, `${fileIdentifier}.json`);
-    
+
     // Sanitize the object to remove non-serializable properties (like HTTPS Agents)
     // This prevents "Converting circular structure to JSON" errors with --local mode
     const sanitizedObject = this.sanitizeForJson(extractedObject);
@@ -196,7 +187,7 @@ export class fileOperations {
   }
 
   createLogFile(folder: string, fileIdentifier: any, baseFolder?: string) {
-    if (baseFolder === undefined || baseFolder === '') {
+    if (baseFolder === undefined || baseFolder === "") {
       baseFolder = this._basePath;
     }
     if (!fs.existsSync(`${baseFolder}`)) {
@@ -206,7 +197,7 @@ export class fileOperations {
       fs.mkdirSync(`${baseFolder}/${folder}`);
     }
     let fileName = `${baseFolder}/${folder}/${fileIdentifier}.txt`;
-    fs.closeSync(fs.openSync(fileName, 'w'))
+    fs.closeSync(fs.openSync(fileName, "w"));
   }
 
   appendLogFile(data: string) {
@@ -234,7 +225,7 @@ export class fileOperations {
       const segments = normalizedPath.split(path.sep);
 
       // Start from the root and create each directory
-      let currentPath = '';
+      let currentPath = "";
       for (const segment of segments) {
         currentPath = path.join(currentPath, segment);
 
@@ -258,13 +249,13 @@ export class fileOperations {
         return false;
       }
     } catch (error) {
-      console.error('Error in createFolder:', error);
+      console.error("Error in createFolder:", error);
       return false;
     }
   }
 
   createBaseFolder(folder?: string) {
-    if (folder === undefined || folder === '') {
+    if (folder === undefined || folder === "") {
       folder = this._basePath;
     }
     if (!fs.existsSync(folder)) {
@@ -292,7 +283,7 @@ export class fileOperations {
         fs.mkdirSync(targetDir, { recursive: true });
       }
 
-      Https.get(url, response => {
+      Https.get(url, (response) => {
         const code = response.statusCode ?? 0;
 
         if (code >= 400) {
@@ -300,22 +291,20 @@ export class fileOperations {
         }
 
         if (code > 300 && code < 400 && !!response.headers.location) {
-          return resolve(
-            this.downloadFile(response.headers.location, targetFile)
-          );
+          return resolve(this.downloadFile(response.headers.location, targetFile));
         }
 
         const fileWriter = fs
           .createWriteStream(targetFile)
-          .on('finish', () => {
+          .on("finish", () => {
             resolve({});
           })
-          .on('error', (err) => {
+          .on("error", (err) => {
             reject(err);
           });
 
         response.pipe(fileWriter);
-      }).on('error', error => {
+      }).on("error", (error) => {
         console.error(`Error downloading from ${url}:`, error);
         reject(error);
       });
@@ -359,30 +348,38 @@ export class fileOperations {
   // Mapping file operations
   getMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string | null): string {
     // Store mappings centrally in /agility-files/mappings/ instead of per-instance
-    return path.join(this._rootPath, 'mappings', `${sourceGuid}-${targetGuid}`, locale ?? '');
+    return path.join(this._rootPath, "mappings", `${sourceGuid}-${targetGuid}`, locale ?? "");
   }
 
   getMappingFile(type: string, sourceGuid: string, targetGuid: string, locale?: string | null): any[] {
-    const centralMappingsPath = path.join(this._rootPath, 'mappings', `${sourceGuid}-${targetGuid}`, locale ?? '', type);
+    const centralMappingsPath = path.join(
+      this._rootPath,
+      "mappings",
+      `${sourceGuid}-${targetGuid}`,
+      locale ?? "",
+      type
+    );
     if (fs.existsSync(centralMappingsPath)) {
-      const fullPath = path.join(centralMappingsPath, 'mappings.json');
+      const fullPath = path.join(centralMappingsPath, "mappings.json");
       if (!fs.existsSync(fullPath)) {
         //initialize empty mappings file if it doesn't exist
         fs.writeFileSync(fullPath, "[]");
       }
-      const data = fs.readFileSync(fullPath, 'utf8');
+      const data = fs.readFileSync(fullPath, "utf8");
       const jsonData = JSON.parse(data);
       return jsonData;
-
-    }
-    else {
+    } else {
       return [];
     }
   }
 
-
-  saveMappingFile(mappingData: any[], type?: string, sourceGuid?: string, targetGuid?: string, locale?: string | null): void {
-
+  saveMappingFile(
+    mappingData: any[],
+    type?: string,
+    sourceGuid?: string,
+    targetGuid?: string,
+    locale?: string | null
+  ): void {
     const mappingRootPath = this.getMappingFilePath(sourceGuid, targetGuid, locale);
     const centralMappingsPath = path.join(mappingRootPath, type);
 
@@ -396,14 +393,13 @@ export class fileOperations {
     fs.writeFileSync(mappingFilePath, JSON.stringify(mappingData, null, 2));
   }
 
-
   /**
    * Get reverse mapping file path for fallback lookups
    * For B→A sync: when A→B mapping file exists, use it by flipping the source/target GUIDs
    */
   getReverseMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string): string {
     const localeToUse = locale || this._locale;
-    const centralMappingsPath = path.join(this._rootPath, 'mappings');
+    const centralMappingsPath = path.join(this._rootPath, "mappings");
     return path.join(centralMappingsPath, `${targetGuid}-to-${sourceGuid}-${localeToUse}.json`);
   }
 
@@ -461,7 +457,9 @@ export class fileOperations {
       try {
         const content = this.readFile(reverseMappingFilePath);
         const reverseMappingData = JSON.parse(content);
-        console.log(`[FileOps] Loaded reverse mapping file: ${targetGuid}→${sourceGuid} (for ${sourceGuid}→${targetGuid} sync)`);
+        console.log(
+          `[FileOps] Loaded reverse mapping file: ${targetGuid}→${sourceGuid} (for ${sourceGuid}→${targetGuid} sync)`
+        );
         return reverseMappingData;
       } catch (error) {
         console.error(`Error loading reverse mapping file ${reverseMappingFilePath}:`, error);
@@ -499,11 +497,9 @@ export class fileOperations {
   getFilePath(folderName?: string, fileName?: string): string {
     if (folderName && fileName) {
       return path.join(this._basePath, folderName, fileName);
-    }
-    else if (folderName) {
+    } else if (folderName) {
       return path.join(this._basePath, folderName);
-    }
-    else if (fileName) {
+    } else if (fileName) {
       return path.join(this._basePath, fileName);
     }
     return this._basePath;
@@ -512,18 +508,16 @@ export class fileOperations {
   getDataFilePath(folderName?: string, fileName?: string): string {
     if (folderName && fileName) {
       return path.join(this._basePath, folderName, fileName);
-    }
-    else if (folderName) {
+    } else if (folderName) {
       return path.join(this._basePath, folderName);
-    }
-    else if (fileName) {
+    } else if (fileName) {
       return path.join(this._basePath, fileName);
     }
     return this._basePath;
   }
 
   getNestedSitemapPath(): string {
-    return path.join(this._basePath, 'nestedsitemap', 'website.json');
+    return path.join(this._basePath, "nestedsitemap", "website.json");
   }
 
   // Path utilities
@@ -541,7 +535,7 @@ export class fileOperations {
       if (!fs.existsSync(fullPath)) {
         return null;
       }
-      const content = fs.readFileSync(fullPath, 'utf8');
+      const content = fs.readFileSync(fullPath, "utf8");
       return JSON.parse(content);
     } catch (error: any) {
       console.warn(`[FileOps] Error reading JSON file ${relativePath}: ${error.message}`);
@@ -551,7 +545,7 @@ export class fileOperations {
 
   readJsonFileAbsolute(absolutePath: string): any | null {
     try {
-      const content = fs.readFileSync(absolutePath, 'utf8');
+      const content = fs.readFileSync(absolutePath, "utf8");
       return JSON.parse(content);
     } catch (error: any) {
       return null;
@@ -559,19 +553,19 @@ export class fileOperations {
     }
   }
 
-  readJsonFilesFromFolder(folderName: string, fileExtension: string = '.json'): any[] {
+  readJsonFilesFromFolder(folderName: string, fileExtension: string = ".json"): any[] {
     try {
       const folderPath = this.getDataFolderPath(folderName);
       if (!fs.existsSync(folderPath)) {
         return [];
       }
 
-      const files = fs.readdirSync(folderPath).filter(file => file.endsWith(fileExtension));
+      const files = fs.readdirSync(folderPath).filter((file) => file.endsWith(fileExtension));
       const results: any[] = [];
 
       for (const file of files) {
         try {
-          const content = fs.readFileSync(path.join(folderPath, file), 'utf8');
+          const content = fs.readFileSync(path.join(folderPath, file), "utf8");
           const parsed = JSON.parse(content);
           results.push(parsed);
         } catch (error: any) {
@@ -595,7 +589,7 @@ export class fileOperations {
 
       let files = fs.readdirSync(folderPath);
       if (fileExtension) {
-        files = files.filter(file => file.endsWith(fileExtension));
+        files = files.filter((file) => file.endsWith(fileExtension));
       }
 
       return files;
@@ -606,7 +600,7 @@ export class fileOperations {
   }
 
   readTempFile(fileName: string) {
-    let appName = 'mgmt-cli-code';
+    let appName = "mgmt-cli-code";
     let tmpFolder = os.tmpDir();
     let tmpDir = `${tmpFolder}/${appName}`;
     let fileData = this.readFile(`${tmpDir}/${fileName}`);
@@ -614,15 +608,14 @@ export class fileOperations {
   }
 
   createTempFile(fileName: string, content: string) {
-    let appName = 'mgmt-cli-code';
+    let appName = "mgmt-cli-code";
     let tmpFolder = os.tmpDir();
     let tmpDir = `${tmpFolder}/${appName}`;
     fs.access(tmpDir, (error) => {
       if (error) {
         fs.mkdirSync(tmpDir);
         this.createFile(`${tmpDir}/${fileName}`, content);
-      }
-      else {
+      } else {
         this.createFile(`${tmpDir}/${fileName}`, content);
       }
     });
@@ -634,58 +627,54 @@ export class fileOperations {
   }
 
   readDirectory(folderName: string, baseFolder?: string) {
-    if (baseFolder === undefined || baseFolder === '') {
+    if (baseFolder === undefined || baseFolder === "") {
       baseFolder = this._basePath;
     }
     let directory = `${baseFolder}/${folderName}`;
 
     let files: string[] = [];
-    fs.readdirSync(directory).forEach(file => {
+    fs.readdirSync(directory).forEach((file) => {
       let readFile = this.readFile(`${directory}/${file}`);
       files.push(readFile);
-    })
+    });
 
     return files;
   }
 
   folderExists(folderName: string, baseFolder?: string) {
-    if (baseFolder === undefined || baseFolder === '') {
+    if (baseFolder === undefined || baseFolder === "") {
       baseFolder = this._basePath;
     }
     let directory = `${baseFolder}/${folderName}`;
     if (fs.existsSync(directory)) {
       return true;
-    }
-    else {
+    } else {
       return false;
     }
   }
 
   codeFileExists() {
-    let appName = 'mgmt-cli-code';
+    let appName = "mgmt-cli-code";
     let tmpFolder = os.tmpDir();
     let tmpDir = `${tmpFolder}/${appName}/code.json`;
     if (fs.existsSync(tmpDir)) {
       return true;
-    }
-    else {
+    } else {
       return false;
     }
   }
 
   deleteCodeFile() {
-    let appName = 'mgmt-cli-code';
+    let appName = "mgmt-cli-code";
     let tmpFolder = os.tmpDir();
     let tmpDir = `${tmpFolder}/${appName}/code.json`;
 
     if (fs.existsSync(tmpDir)) {
-
       fs.rmSync(tmpDir);
 
-      console.log('Logged out successfully');
+      console.log("Logged out successfully");
       return true;
-    }
-    else {
+    } else {
       return false;
     }
   }
@@ -719,13 +708,23 @@ export class fileOperations {
     }
   }
 
-  public finalizeLogFile(operationType: 'pull' | 'push' | 'sync'): string {
+  public finalizeLogFile(operationType: "pull" | "push" | "sync"): string {
     const now = new Date();
 
     // Create semantic filename like "2025-may-12-at-10-15-32-am.txt"
     const months = [
-      'january', 'february', 'march', 'april', 'may', 'june',
-      'july', 'august', 'september', 'october', 'november', 'december'
+      "january",
+      "february",
+      "march",
+      "april",
+      "may",
+      "june",
+      "july",
+      "august",
+      "september",
+      "october",
+      "november",
+      "december",
     ];
 
     const year = now.getFullYear();
@@ -734,10 +733,10 @@ export class fileOperations {
     const hour = now.getHours();
     const minute = now.getMinutes();
     const second = now.getSeconds();
-    const ampm = hour >= 12 ? 'pm' : 'am';
+    const ampm = hour >= 12 ? "pm" : "am";
     const hour12 = hour % 12 || 12;
 
-    const pad = (num: number) => String(num).padStart(2, '0');
+    const pad = (num: number) => String(num).padStart(2, "0");
     const semanticTimestamp = `${year}-${month}-${pad(day)}-at-${pad(hour12)}-${pad(minute)}-${pad(second)}-${ampm}`;
 
     if (!fs.existsSync(this._currentLogFilePath)) {

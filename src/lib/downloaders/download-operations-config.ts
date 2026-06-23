@@ -1,13 +1,13 @@
 // Import existing downloaders
-import { downloadAllGalleries } from './download-galleries';
-import { downloadAllAssets } from './download-assets';
-import { downloadAllModels } from './download-models';
-import { downloadAllTemplates } from './download-templates';
-import { downloadAllContainers } from './download-containers';
-import { downloadAllSyncSDK } from './download-sync-sdk';
-import { downloadAllSitemaps } from './download-sitemaps';
-import { getState } from '../../core/state';
-import ansiColors from 'ansi-colors';
+import { downloadAllGalleries } from "./download-galleries";
+import { downloadAllAssets } from "./download-assets";
+import { downloadAllModels } from "./download-models";
+import { downloadAllTemplates } from "./download-templates";
+import { downloadAllContainers } from "./download-containers";
+import { downloadAllSyncSDK } from "./download-sync-sdk";
+import { downloadAllSitemaps } from "./download-sitemaps";
+import { getState } from "../../core/state";
+import ansiColors from "ansi-colors";
 
 // Central configuration for all download operations
 export interface OperationConfig {
@@ -20,68 +20,68 @@ export interface OperationConfig {
 
 export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
   syncSDK: {
-    name: 'downloadAllSyncSDK',
-    description: 'Download content items and sitemaps via Content Sync SDK',
+    name: "downloadAllSyncSDK",
+    description: "Download content items and sitemaps via Content Sync SDK",
     handler: async (guid) => {
       // Sync SDK will handle locales internally via guidLocaleMap (user will update this)
       // For now, use default locale - this will be converted to use guidLocaleMap internally
       await downloadAllSyncSDK(guid);
     },
-    elements: ['Content', 'Sitemaps'], // NOTE: Content Sync SDK doesn't download page structures - only content items
-    dependencies: ['Models', 'Containers', 'Assets', 'Galleries', 'Templates'] // Content requires Models and Containers
+    elements: ["Content", "Sitemaps"], // NOTE: Content Sync SDK doesn't download page structures - only content items
+    dependencies: ["Models", "Containers", "Assets", "Galleries", "Templates"], // Content requires Models and Containers
   },
   galleries: {
-    name: 'downloadAllGalleries',
-    description: 'Download asset galleries and media groupings', 
+    name: "downloadAllGalleries",
+    description: "Download asset galleries and media groupings",
     handler: async (guid) => {
       await downloadAllGalleries(guid);
     },
-    elements: ['Galleries'],
+    elements: ["Galleries"],
     // dependencies: ['Assets'] // Galleries require Assets to be meaningful
   },
   assets: {
-    name: 'downloadAllAssets',
-    description: 'Download media files and asset metadata',
+    name: "downloadAllAssets",
+    description: "Download media files and asset metadata",
     handler: async (guid) => {
       await downloadAllAssets(guid);
     },
-    elements: ['Assets'],
-    dependencies: ['Galleries'] // Assets require Galleries to be meaningful
+    elements: ["Assets"],
+    dependencies: ["Galleries"], // Assets require Galleries to be meaningful
   },
   models: {
-    name: 'downloadAllModels', 
-    description: 'Download content models and field definitions',
+    name: "downloadAllModels",
+    description: "Download content models and field definitions",
     handler: async (guid) => {
       await downloadAllModels(guid);
     },
-    elements: ['Models']
+    elements: ["Models"],
   },
   templates: {
-    name: 'downloadAllTemplates',
-    description: 'Download page templates and layouts',
+    name: "downloadAllTemplates",
+    description: "Download page templates and layouts",
     handler: async (guid) => {
       await downloadAllTemplates(guid);
     },
-    elements: ['Templates'],
+    elements: ["Templates"],
     // dependencies: ['Models', 'Containers', 'Pages', 'Content'] // Templates reference Models for container definitions
   },
   containers: {
-    name: 'downloadAllContainers',
-    description: 'Download content containers and views',
+    name: "downloadAllContainers",
+    description: "Download content containers and views",
     handler: async (guid) => {
       await downloadAllContainers(guid);
     },
-    elements: ['Containers'],
-    dependencies: ['Models'] // Containers require Models to be meaningful
+    elements: ["Containers"],
+    dependencies: ["Models"], // Containers require Models to be meaningful
   },
   sitemaps: {
-    name: 'downloadAllSitemaps',
-    description: 'Download sitemaps',
+    name: "downloadAllSitemaps",
+    description: "Download sitemaps",
     handler: async (guid) => {
       await downloadAllSitemaps(guid);
     },
-    elements: ['Sitemaps']
-  }
+    elements: ["Sitemaps"],
+  },
 };
 
 export class DownloadOperationsRegistry {
@@ -90,53 +90,77 @@ export class DownloadOperationsRegistry {
    */
   static getOperationsForElements(fromPush: boolean): OperationConfig[] {
     const state = getState();
-    const elementList = state.elements ? state.elements.split(",") : 
-      ['Galleries', 'Assets', 'Models', 'Containers', 'Content', 'Templates', 'Pages', 'Sitemaps', 'Redirections'];
-    
+    const elementList = state.elements
+      ? state.elements.split(",")
+      : ["Galleries", "Assets", "Models", "Containers", "Content", "Templates", "Pages", "Sitemaps", "Redirections"];
+
     // Resolve dependencies and update state
     const { resolvedElements, autoIncluded } = this.resolveDependencies(elementList);
-    
+
     // Update state.elements with resolved dependencies if any were auto-included
     if (autoIncluded.length > 0) {
       // Update the state with resolved elements
-      const { setState } = require('../../core/state');
-      setState({ elements: resolvedElements.join(',') });
+      const { setState } = require("../../core/state");
+      setState({ elements: resolvedElements.join(",") });
     }
-    
+
     if (fromPush) {
+      // A sync/push normally downloads everything so the push pipeline has complete data for change
+      // detection. Exception: when the operation is scoped to models only — `--elements="Models"` or
+      // the simple `--models` filter — only model definitions are needed, so skip assets, galleries,
+      // content, etc. (`--models-with-deps` still needs the full renderable tree and is NOT treated as
+      // models-only here.)
+      if (this.isModelsOnlyScope(resolvedElements)) {
+        return Object.values(DOWNLOAD_OPERATIONS).filter((operation) => operation.elements.includes("Models"));
+      }
       return Object.values(DOWNLOAD_OPERATIONS);
     }
 
     // Filter operations based on resolved elements
-    const relevantOperations = Object.values(DOWNLOAD_OPERATIONS).filter(operation => {
+    const relevantOperations = Object.values(DOWNLOAD_OPERATIONS).filter((operation) => {
       // Check if any of the operation's elements are in the resolved element list
-      return operation.elements.some(element => resolvedElements.includes(element));
+      return operation.elements.some((element) => resolvedElements.includes(element));
     });
-    
+
     return relevantOperations;
+  }
+
+  /**
+   * A models-only operation needs only model definitions downloaded — no assets, galleries, content,
+   * templates, containers, or pages. True when the user scoped elements to just "Models", or used the
+   * simple `--models` filter. `--models-with-deps` is intentionally excluded: it pulls the full
+   * dependency tree (assets included) and therefore is NOT models-only.
+   */
+  private static isModelsOnlyScope(resolvedElements: string[]): boolean {
+    const state = getState();
+
+    const simpleModelsOnly =
+      !!(state.models && state.models.trim()) && !(state.modelsWithDeps && state.modelsWithDeps.trim());
+
+    const elementsModelsOnly = resolvedElements.length === 1 && resolvedElements[0] === "Models";
+
+    return simpleModelsOnly || elementsModelsOnly;
   }
 
   /**
    * Resolve element dependencies
    */
-  private static resolveDependencies(requestedElements: string[]): { 
-    resolvedElements: string[], 
-    autoIncluded: string[] 
+  private static resolveDependencies(requestedElements: string[]): {
+    resolvedElements: string[];
+    autoIncluded: string[];
   } {
     const resolvedElements = new Set(requestedElements);
     const autoIncluded: string[] = [];
-    
+
     // Check each requested element for dependencies
     for (const element of requestedElements) {
       // Find operations that provide this element
-      const operations = Object.values(DOWNLOAD_OPERATIONS).filter(op => 
-        op.elements.includes(element)
-      );
-      
+      const operations = Object.values(DOWNLOAD_OPERATIONS).filter((op) => op.elements.includes(element));
+
       // Add dependencies for each operation
-      operations.forEach(operation => {
+      operations.forEach((operation) => {
         if (operation.dependencies) {
-          operation.dependencies.forEach(dep => {
+          operation.dependencies.forEach((dep) => {
             if (!resolvedElements.has(dep)) {
               resolvedElements.add(dep);
               autoIncluded.push(dep);
@@ -145,11 +169,10 @@ export class DownloadOperationsRegistry {
         }
       });
     }
-    
+
     return {
       resolvedElements: Array.from(resolvedElements),
-      autoIncluded
+      autoIncluded,
     };
   }
-
-} 
+}

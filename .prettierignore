@@ -1,0 +1,21 @@
+# Build output and dependencies
+dist/
+node_modules/
+coverage/
+
+# Sync data — never reformat customer data
+agility-files/
+
+# Lockfiles
+package-lock.json
+
+# Generated logs
+logs/
+*.log
+
+# OS / editor cruft
+.DS_Store
+.vscode-test/
+
+# Backups
+*.backup-*

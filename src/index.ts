@@ -1,15 +1,15 @@
 #!/usr/bin/env node
 
 // Enable TypeScript path mapping at runtime
-const { register } = require('tsconfig-paths');
+const { register } = require("tsconfig-paths");
 register({
   baseUrl: __dirname,
   paths: {
-    'lib/*': ['lib/*'],
-    'core/*': ['core/*'],
-    'core': ['core'],
-    'types/*': ['types/*']
-  }
+    "lib/*": ["lib/*"],
+    "core/*": ["core/*"],
+    core: ["core"],
+    "types/*": ["types/*"],
+  },
 });
 
 import * as yargs from "yargs";
@@ -19,7 +19,16 @@ import inquirer from "inquirer";
 import searchList from "inquirer-search-list";
 inquirer.registerPrompt("search-list", searchList);
 
-import { Auth, state, setState, resetState, primeFromEnv, systemArgs, normalizeProcessArgs, normalizeArgv } from "./core";
+import {
+  Auth,
+  state,
+  setState,
+  resetState,
+  primeFromEnv,
+  systemArgs,
+  normalizeProcessArgs,
+  normalizeArgv,
+} from "./core";
 import { Pull } from "./core/pull";
 import { Push } from "./core/push";
 import { WorkflowOperation } from "./lib/workflows";
@@ -42,7 +51,9 @@ yargs.command({
     console.log(colors.white("  pull              - Pull your Agility instance locally"));
     console.log(colors.white("  push              - Push your instance to a target instance"));
     console.log(colors.white("  sync              - Sync your instance (alias for push with updates enabled)"));
-    console.log(colors.white("  workflowOperation - Perform workflow operations (publish, unpublish, approve, decline)"));
+    console.log(
+      colors.white("  workflowOperation - Perform workflow operations (publish, unpublish, approve, decline)")
+    );
     console.log(colors.white("\nFor more information, use: --help"));
     console.log("");
   },
@@ -64,7 +75,7 @@ yargs.command({
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
-      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(", ")}`));
     }
 
     setState(argv);
@@ -74,7 +85,11 @@ yargs.command({
       console.log(colors.red("You are not authorized to login."));
       return;
     } else {
-      console.log(colors.green("You are now logged in, you can now use the CLI commands such as 'pull', 'push', 'sync', 'genenv', etc."));
+      console.log(
+        colors.green(
+          "You are now logged in, you can now use the CLI commands such as 'pull', 'push', 'sync', 'genenv', etc."
+        )
+      );
       process.exit(0);
     }
   },
@@ -85,7 +100,7 @@ yargs.command({
   describe: "Log out of Agility.",
   builder: {
     // System args (commonly repeated across commands)
-    ...systemArgs
+    ...systemArgs,
   },
   handler: async function (argv) {
     resetState(); // Clear any previous command state
@@ -96,7 +111,7 @@ yargs.command({
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
-      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(", ")}`));
     }
 
     setState(argv);
@@ -105,13 +120,12 @@ yargs.command({
   },
 });
 
-
 yargs.command({
   command: "pull",
   describe: "Pull your Agility instance locally.",
   builder: {
     // System args (commonly repeated across commands)
-    ...systemArgs
+    ...systemArgs,
   },
   handler: async function (argv) {
     resetState(); // Clear any previous command state
@@ -122,13 +136,12 @@ yargs.command({
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
-      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(", ")}`));
     }
 
     setState(argv);
-    state.update = true; // Ensure updates are enabled for pull
     state.isPull = true;
-    
+
     auth = new Auth();
     const isAuthorized = await auth.init();
     if (!isAuthorized) {
@@ -136,17 +149,15 @@ yargs.command({
     }
 
     // Validate pull command requirements
-    const isValidCommand = await auth.validateCommand('pull');
+    const isValidCommand = await auth.validateCommand("pull");
     if (!isValidCommand) {
       return;
     }
 
     const pull = new Pull();
     await pull.pullInstances();
-
   },
 });
-
 
 // New 2-Pass Sync Command using the enhanced dependency system
 yargs.command({
@@ -162,10 +173,9 @@ yargs.command({
     },
 
     // System args (commonly repeated across commands)
-    ...systemArgs
+    ...systemArgs,
   },
   handler: async function (argv) {
-
     const invokedAs = Array.isArray(argv._) && argv._.length > 0 ? String(argv._[0]) : "";
     const isSync = invokedAs === "sync";
 
@@ -177,14 +187,13 @@ yargs.command({
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
-      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(", ")}`));
     }
 
     setState(argv);
 
-    // if the user is "syncing", we need to turn on the updates to the downloaders
+    // mark whether this invocation is a sync or a push
     if (isSync) {
-      state.update = true;
       state.isSync = true;
     } else {
       state.isPush = true;
@@ -197,22 +206,22 @@ yargs.command({
     }
 
     // Validate sync command requirements
-    const isValidCommand = await auth.validateCommand('push');
+    const isValidCommand = await auth.validateCommand("push");
     if (!isValidCommand) {
       return;
     }
 
     const push = new Push();
     await push.pushInstances();
-
-  }
-})
+  },
+});
 
 // Workflow operation command - performs workflow operations on content/pages from existing mappings
 yargs.command({
   command: "workflows",
   aliases: ["workflow"],
-  describe: "Perform workflow operations (publish, unpublish, approve, decline, requestApproval) on content and pages from existing mappings.",
+  describe:
+    "Perform workflow operations (publish, unpublish, approve, decline, requestApproval) on content and pages from existing mappings.",
   builder: {
     sourceGuid: {
       describe: "Source instance GUID (from the original sync).",
@@ -229,11 +238,12 @@ yargs.command({
       type: "boolean",
       default: false,
     },
-     // Workflow operation type for batch workflow operations
+    // Workflow operation type for batch workflow operations
     operationType: {
-      describe: "Workflow operation to perform: publish, unpublish, approve, decline, or requestApproval. Used with workflowOperation command.",
+      describe:
+        "Workflow operation to perform: publish, unpublish, approve, decline, or requestApproval. Used with workflowOperation command.",
       type: "string" as const,
-      alias: ["operation-type", "operationType", "OperationType", "OPERATION_TYPE", "op","type"],
+      alias: ["operation-type", "operationType", "OperationType", "OPERATION_TYPE", "op", "type"],
       choices: ["publish", "unpublish", "approve", "decline", "requestApproval"],
       // default: "publish",
       coerce: (value: string) => {
@@ -261,10 +271,10 @@ yargs.command({
           default:
             return "publish";
         }
-      }
+      },
     },
     // System args (commonly repeated across commands)
-    ...systemArgs
+    ...systemArgs,
   },
   handler: async function (argv) {
     resetState(); // Clear any previous command state
@@ -275,7 +285,7 @@ yargs.command({
     // Prime state from .env file before applying command line args
     const envPriming = primeFromEnv();
     if (envPriming.hasEnvFile && envPriming.primedValues.length > 0) {
-      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(', ')}`));
+      console.log(colors.cyan(`📄 Found .env file, primed: ${envPriming.primedValues.join(", ")}`));
     }
 
     setState(argv);
@@ -294,7 +304,7 @@ yargs.command({
     }
 
     // Validate command requirements
-    const isValidCommand = await auth.validateCommand('push');
+    const isValidCommand = await auth.validateCommand("push");
     if (!isValidCommand) {
       return;
     }
@@ -305,12 +315,11 @@ yargs.command({
     if (!result.success) {
       process.exit(1);
     }
-  }
-})
+  },
+});
 
 // Normalize process.argv to handle rich text editor character conversions
 // (e.g., em dashes, curly quotes from Word/Notepad)
 normalizeProcessArgs();
 
 yargs.parse();
-

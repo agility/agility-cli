@@ -1,14 +1,14 @@
-import { resetState } from 'core/state';
-import { ContentFieldMapper, createContentFieldMapper } from 'lib/content/content-field-mapper';
+import { resetState } from "core/state";
+import { ContentFieldMapper, createContentFieldMapper } from "lib/content/content-field-mapper";
 
 // Prevent ContentItemMapper and AssetMapper constructors from touching the filesystem
-jest.mock('lib/mappers/content-item-mapper', () => ({
+jest.mock("lib/mappers/content-item-mapper", () => ({
   ContentItemMapper: jest.fn().mockImplementation(() => ({
     getContentItemMappingByContentID: jest.fn().mockReturnValue(null),
   })),
 }));
 
-jest.mock('lib/mappers/asset-mapper', () => ({
+jest.mock("lib/mappers/asset-mapper", () => ({
   AssetMapper: jest.fn().mockImplementation(() => ({
     getAssetMappingByMediaUrl: jest.fn().mockReturnValue(null),
     remapUrlByContainer: jest.fn().mockReturnValue(null),
@@ -16,15 +16,15 @@ jest.mock('lib/mappers/asset-mapper', () => ({
 }));
 
 // Prevent AssetReferenceExtractor from causing side-effects
-jest.mock('lib/assets/asset-reference-extractor', () => ({
+jest.mock("lib/assets/asset-reference-extractor", () => ({
   AssetReferenceExtractor: jest.fn().mockImplementation(() => ({})),
 }));
 
 beforeEach(() => {
   resetState();
-  jest.spyOn(console, 'log').mockImplementation(() => {});
-  jest.spyOn(console, 'warn').mockImplementation(() => {});
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  jest.spyOn(console, "log").mockImplementation(() => {});
+  jest.spyOn(console, "warn").mockImplementation(() => {});
+  jest.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -48,34 +48,35 @@ function makeAssetMapper(overrides: any = {}): any {
   return {
     getAssetMappingByMediaUrl: jest.fn().mockReturnValue(null),
     remapUrlByContainer: jest.fn().mockReturnValue(null),
+    isKnownAssetUrl: jest.fn().mockReturnValue(false),
     ...overrides,
   };
 }
 
 // ─── createContentFieldMapper ─────────────────────────────────────────────────
 
-describe('createContentFieldMapper', () => {
-  it('returns a ContentFieldMapper instance', () => {
+describe("createContentFieldMapper", () => {
+  it("returns a ContentFieldMapper instance", () => {
     expect(createContentFieldMapper()).toBeInstanceOf(ContentFieldMapper);
   });
 });
 
 // ─── mapContentFields — null / non-object inputs ──────────────────────────────
 
-describe('ContentFieldMapper.mapContentFields', () => {
+describe("ContentFieldMapper.mapContentFields", () => {
   let mapper: ContentFieldMapper;
 
   beforeEach(() => {
     mapper = makeMapper();
   });
 
-  describe('null / non-object inputs', () => {
+  describe("null / non-object inputs", () => {
     it.each([
-      ['null', null],
-      ['undefined', undefined],
-      ['a number', 42],
-      ['a string', 'hello'],
-    ])('returns the input unchanged for %s with zero warnings/errors', (_label, input) => {
+      ["null", null],
+      ["undefined", undefined],
+      ["a number", 42],
+      ["a string", "hello"],
+    ])("returns the input unchanged for %s with zero warnings/errors", (_label, input) => {
       const result = mapper.mapContentFields(input as any);
       expect(result.mappedFields).toBe(input);
       expect(result.validationWarnings).toBe(0);
@@ -83,107 +84,104 @@ describe('ContentFieldMapper.mapContentFields', () => {
     });
   });
 
-  describe('primitive field pass-through', () => {
-    it('passes through string, number and boolean fields unchanged when no context is given', () => {
-      const fields = { title: 'Hello', count: 5, active: true };
+  describe("primitive field pass-through", () => {
+    it("passes through string, number and boolean fields unchanged when no context is given", () => {
+      const fields = { title: "Hello", count: 5, active: true };
       const result = mapper.mapContentFields(fields);
       expect(result.mappedFields).toEqual(fields);
       expect(result.validationErrors).toBe(0);
     });
   });
 
-  describe('list reference fields', () => {
-    it('passes through a referencename+fulllist field unchanged', () => {
+  describe("list reference fields", () => {
+    it("passes through a referencename+fulllist field unchanged", () => {
       const fields = {
-        items: { referencename: 'my-list', fulllist: true },
+        items: { referencename: "my-list", fulllist: true },
       };
       const result = mapper.mapContentFields(fields);
       expect(result.mappedFields.items).toEqual(fields.items);
       expect(result.validationErrors).toBe(0);
     });
 
-    it('passes through a referenceName+fullList (camelCase) field unchanged', () => {
+    it("passes through a referenceName+fullList (camelCase) field unchanged", () => {
       const fields = {
-        items: { referenceName: 'other-list', fullList: true },
+        items: { referenceName: "other-list", fullList: true },
       };
       const result = mapper.mapContentFields(fields);
       expect(result.mappedFields.items).toEqual(fields.items);
     });
   });
 
-  describe('asset attachment fields — no context', () => {
-    it('returns a warning when a single asset object has no referenceMapper context', () => {
-      const fields = { image: { url: 'https://cdn.aglty.io/guid/assets/photo.jpg', label: 'Hero' } };
+  describe("asset attachment fields — no context", () => {
+    it("returns a warning when a single asset object has no referenceMapper context", () => {
+      const fields = { image: { url: "https://cdn.aglty.io/guid/assets/photo.jpg", label: "Hero" } };
       const result = mapper.mapContentFields(fields);
       expect(result.validationWarnings).toBeGreaterThan(0);
     });
 
-    it('returns a warning for an AttachmentList array when no referenceMapper context is provided', () => {
+    it("returns a warning for an AttachmentList array when no referenceMapper context is provided", () => {
       const fields = {
-        gallery: [
-          { url: 'https://cdn.aglty.io/guid/assets/a.jpg' },
-          { url: 'https://cdn.aglty.io/guid/assets/b.jpg' },
-        ],
+        gallery: [{ url: "https://cdn.aglty.io/guid/assets/a.jpg" }, { url: "https://cdn.aglty.io/guid/assets/b.jpg" }],
       };
       const result = mapper.mapContentFields(fields);
       expect(result.validationWarnings).toBeGreaterThan(0);
     });
   });
 
-  describe('asset attachment fields — with context', () => {
-    it('maps the URL using assetMapper when an exact URL match is found', () => {
+  describe("asset attachment fields — with context", () => {
+    it("maps the URL using assetMapper when an exact URL match is found", () => {
       const assetMapper = makeAssetMapper({
         getAssetMappingByMediaUrl: jest.fn().mockReturnValue({
-          sourceUrl: 'https://cdn.aglty.io/src/assets/photo.jpg',
-          targetUrl: 'https://cdn.aglty.io/tgt/assets/photo.jpg',
+          sourceUrl: "https://cdn.aglty.io/src/assets/photo.jpg",
+          targetUrl: "https://cdn.aglty.io/tgt/assets/photo.jpg",
         }),
       });
       const context = {
         referenceMapper: makeReferenceMapper(),
         assetMapper,
       };
-      const fields = { image: { url: 'https://cdn.aglty.io/src/assets/photo.jpg', label: 'Hero' } };
+      const fields = { image: { url: "https://cdn.aglty.io/src/assets/photo.jpg", label: "Hero" } };
       const result = mapper.mapContentFields(fields, context);
-      expect(result.mappedFields.image.url).toBe('https://cdn.aglty.io/tgt/assets/photo.jpg');
+      expect(result.mappedFields.image.url).toBe("https://cdn.aglty.io/tgt/assets/photo.jpg");
       expect(result.validationErrors).toBe(0);
     });
 
-    it('leaves the URL unchanged when assetMapper returns null', () => {
+    it("leaves the URL unchanged when assetMapper returns null", () => {
       const context = {
         referenceMapper: makeReferenceMapper(),
         assetMapper: makeAssetMapper(),
       };
-      const fields = { image: { url: 'https://cdn.aglty.io/guid/assets/photo.jpg' } };
+      const fields = { image: { url: "https://cdn.aglty.io/guid/assets/photo.jpg" } };
       const result = mapper.mapContentFields(fields, context);
-      expect(result.mappedFields.image.url).toBe('https://cdn.aglty.io/guid/assets/photo.jpg');
+      expect(result.mappedFields.image.url).toBe("https://cdn.aglty.io/guid/assets/photo.jpg");
     });
 
-    it('maps URLs in an array of asset objects', () => {
+    it("maps URLs in an array of asset objects", () => {
       const assetMapper = makeAssetMapper({
         getAssetMappingByMediaUrl: jest.fn().mockImplementation((url: string) => {
-          if (url === 'https://cdn.aglty.io/src/assets/a.jpg') {
-            return { sourceUrl: url, targetUrl: 'https://cdn.aglty.io/tgt/assets/a.jpg' };
+          if (url === "https://cdn.aglty.io/src/assets/a.jpg") {
+            return { sourceUrl: url, targetUrl: "https://cdn.aglty.io/tgt/assets/a.jpg" };
           }
           return null;
         }),
       });
       const context = { referenceMapper: makeReferenceMapper(), assetMapper };
       const fields = {
-        gallery: [{ url: 'https://cdn.aglty.io/src/assets/a.jpg' }],
+        gallery: [{ url: "https://cdn.aglty.io/src/assets/a.jpg" }],
       };
       const result = mapper.mapContentFields(fields, context);
-      expect(result.mappedFields.gallery[0].url).toBe('https://cdn.aglty.io/tgt/assets/a.jpg');
+      expect(result.mappedFields.gallery[0].url).toBe("https://cdn.aglty.io/tgt/assets/a.jpg");
     });
   });
 
-  describe('content reference fields', () => {
-    it('adds a warning when a contentid field has no referenceMapper context', () => {
+  describe("content reference fields", () => {
+    it("adds a warning when a contentid field has no referenceMapper context", () => {
       const fields = { related: { contentid: 10 } };
       const result = mapper.mapContentFields(fields);
       expect(result.validationWarnings).toBeGreaterThan(0);
     });
 
-    it('maps contentid when referenceMapper finds the source content', () => {
+    it("maps contentid when referenceMapper finds the source content", () => {
       const referenceMapper = makeReferenceMapper({
         getContentItemMappingByContentID: jest.fn().mockReturnValue({ contentID: 99 }),
       });
@@ -194,7 +192,7 @@ describe('ContentFieldMapper.mapContentFields', () => {
       expect(result.validationErrors).toBe(0);
     });
 
-    it('maps contentID (capital D) when referenceMapper finds the source content', () => {
+    it("maps contentID (capital D) when referenceMapper finds the source content", () => {
       const referenceMapper = makeReferenceMapper({
         getContentItemMappingByContentID: jest.fn().mockReturnValue({ contentID: 77 }),
       });
@@ -204,7 +202,7 @@ describe('ContentFieldMapper.mapContentFields', () => {
       expect(result.mappedFields.link.contentID).toBe(77);
     });
 
-    it('increments warnings when contentid mapping is not found', () => {
+    it("increments warnings when contentid mapping is not found", () => {
       const context = {
         referenceMapper: makeReferenceMapper(),
         assetMapper: makeAssetMapper(),
@@ -214,7 +212,7 @@ describe('ContentFieldMapper.mapContentFields', () => {
       expect(result.validationWarnings).toBeGreaterThan(0);
     });
 
-    it('maps sortids by replacing each source ID with its target ID', () => {
+    it("maps sortids by replacing each source ID with its target ID", () => {
       const referenceMapper = makeReferenceMapper({
         getContentItemMappingByContentID: jest.fn().mockImplementation((id: number) => {
           const map: Record<number, number> = { 1: 101, 2: 102, 3: 103 };
@@ -222,78 +220,155 @@ describe('ContentFieldMapper.mapContentFields', () => {
         }),
       });
       const context = { referenceMapper, assetMapper: makeAssetMapper() };
-      const fields = { list: { sortids: '1,2,3' } };
+      const fields = { list: { sortids: "1,2,3" } };
       const result = mapper.mapContentFields(fields, context);
-      expect(result.mappedFields.list.sortids).toBe('101,102,103');
+      expect(result.mappedFields.list.sortids).toBe("101,102,103");
     });
 
-    it('keeps original ID when sortid mapping is not found', () => {
+    it("keeps original ID when sortid mapping is not found", () => {
       const context = {
         referenceMapper: makeReferenceMapper(),
         assetMapper: makeAssetMapper(),
       };
-      const fields = { list: { sortids: '5,6' } };
+      const fields = { list: { sortids: "5,6" } };
       const result = mapper.mapContentFields(fields, context);
-      expect(result.mappedFields.list.sortids).toBe('5,6');
+      expect(result.mappedFields.list.sortids).toBe("5,6");
     });
   });
 
-  describe('cdn URL string fields', () => {
-    it('increments validationErrors for a cdn.aglty.io string field when no context is given (mapAssetUrl throws)', () => {
+  describe("cdn URL string fields", () => {
+    it("increments validationErrors for a cdn.aglty.io string field when no context is given (mapAssetUrl throws)", () => {
       // mapAssetUrl unconditionally accesses context.assetMapper, so passing no context throws,
       // which the outer catch in mapContentFields turns into an error increment.
-      const fields = { heroUrl: 'https://cdn.aglty.io/guid/assets/img.jpg' };
+      const fields = { heroUrl: "https://cdn.aglty.io/guid/assets/img.jpg" };
       const result = mapper.mapContentFields(fields);
       expect(result.validationErrors).toBeGreaterThan(0);
     });
 
-    it('maps a top-level cdn.aglty.io string field using assetMapper container remapping', () => {
+    it("maps a top-level cdn.aglty.io string field using assetMapper container remapping", () => {
       const assetMapper = makeAssetMapper({
-        getAssetMappingByMediaUrl: jest.fn().mockReturnValue({ sourceUrl: 'mismatch', targetUrl: 'x' }),
-        remapUrlByContainer: jest.fn().mockReturnValue('https://cdn.aglty.io/tgt/assets/img.jpg'),
+        getAssetMappingByMediaUrl: jest.fn().mockReturnValue({ sourceUrl: "mismatch", targetUrl: "x" }),
+        remapUrlByContainer: jest.fn().mockReturnValue("https://cdn.aglty.io/tgt/assets/img.jpg"),
       });
       const context = { referenceMapper: makeReferenceMapper(), assetMapper };
-      const fields = { heroUrl: 'https://cdn.aglty.io/src/assets/img.jpg' };
+      const fields = { heroUrl: "https://cdn.aglty.io/src/assets/img.jpg" };
       const result = mapper.mapContentFields(fields, context);
-      expect(result.mappedFields.heroUrl).toBe('https://cdn.aglty.io/tgt/assets/img.jpg');
+      expect(result.mappedFields.heroUrl).toBe("https://cdn.aglty.io/tgt/assets/img.jpg");
+    });
+
+    it("detects a regional .aglty.io subdomain (cdn-usa2.aglty.io) as an asset URL", () => {
+      // Regression check: the old `includes("cdn.aglty.io")` check missed cdn-usa2.aglty.io.
+      const assetMapper = makeAssetMapper({
+        getAssetMappingByMediaUrl: jest.fn().mockReturnValue({ sourceUrl: "different", targetUrl: "x" }),
+        remapUrlByContainer: jest.fn().mockReturnValue("https://cdn-usa2.aglty.io/tgt/file.json"),
+      });
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper };
+      const fields = { config: "https://cdn-usa2.aglty.io/src/mobile/config.json" };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.config).toBe("https://cdn-usa2.aglty.io/tgt/file.json");
+    });
+
+    it("detects a *.agilitycms.com subdomain as an asset URL", () => {
+      const assetMapper = makeAssetMapper({
+        getAssetMappingByMediaUrl: jest.fn().mockReturnValue({ sourceUrl: "different", targetUrl: "x" }),
+        remapUrlByContainer: jest.fn().mockReturnValue("https://cdndev.agilitycms.com/tgt/file.jpg"),
+      });
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper };
+      const fields = { hero: "https://cdndev.agilitycms.com/src/folder/photo.jpg" };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.hero).toBe("https://cdndev.agilitycms.com/tgt/file.jpg");
+    });
+
+    it("detects a custom CDN URL via assetMapper.isKnownAssetUrl()", () => {
+      // Customer using a custom CDN host (cdn.ilotteryservices.com). The string
+      // does NOT include .aglty.io/.agilitycms.com, so detection falls through
+      // to the asset mapper, which recognizes it from its loaded container URLs.
+      const assetMapper = makeAssetMapper({
+        isKnownAssetUrl: jest.fn().mockReturnValue(true),
+        getAssetMappingByMediaUrl: jest.fn().mockReturnValue({ sourceUrl: "different", targetUrl: "x" }),
+        remapUrlByContainer: jest.fn().mockReturnValue("https://cdn.ilotteryservices.com/0e9b1234/mobile/file.json"),
+      });
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper };
+      const fields = { config: "https://cdn.ilotteryservices.com/8f5ad099/mobile/file.json" };
+      const result = mapper.mapContentFields(fields, context);
+      expect(assetMapper.isKnownAssetUrl).toHaveBeenCalledWith(fields.config);
+      expect(result.mappedFields.config).toBe("https://cdn.ilotteryservices.com/0e9b1234/mobile/file.json");
+    });
+
+    it("leaves an unrecognized string field unchanged", () => {
+      const assetMapper = makeAssetMapper(); // isKnownAssetUrl returns false by default
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper };
+      const fields = { description: "Just a regular text value, not a URL" };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.description).toBe("Just a regular text value, not a URL");
+      // Non-asset string should not trigger the asset-URL mapping path
+      expect(assetMapper.getAssetMappingByMediaUrl).not.toHaveBeenCalled();
     });
   });
 
-  describe('nested object fields', () => {
-    it('recursively processes nested plain objects', () => {
+  describe("URL link object fields (href/target/text)", () => {
+    it("remaps the href of an Agility URL field that points at a source asset URL", () => {
+      // Agility's "URL" field type produces an object of shape { href, target, text }.
+      // It does NOT have a `.url` key, so it is not caught by isAssetAttachmentField.
+      // The href value pointing at a source CDN should be remapped to the target CDN.
+      const assetMapper = makeAssetMapper({
+        getAssetMappingByMediaUrl: jest
+          .fn()
+          .mockReturnValue({
+            sourceUrl: "https://cdn-eu.aglty.io/jules-eu-a/pikachu.png",
+            targetUrl: "https://cdn-aus.aglty.io/jules-aus-a/pikachu.png",
+          }),
+      });
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper };
+      const fields = {
+        url: {
+          href: "https://cdn-eu.aglty.io/jules-eu-a/pikachu.png",
+          target: "",
+          text: "",
+        },
+      };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.url.href).toBe("https://cdn-aus.aglty.io/jules-aus-a/pikachu.png");
+      expect(result.mappedFields.url.target).toBe("");
+      expect(result.mappedFields.url.text).toBe("");
+    });
+  });
+
+  describe("nested object fields", () => {
+    it("recursively processes nested plain objects", () => {
       const fields = {
         section: {
-          title: 'Section Title',
+          title: "Section Title",
           count: 3,
         },
       };
       const result = mapper.mapContentFields(fields);
-      expect(result.mappedFields.section.title).toBe('Section Title');
+      expect(result.mappedFields.section.title).toBe("Section Title");
       expect(result.mappedFields.section.count).toBe(3);
       expect(result.validationErrors).toBe(0);
     });
 
-    it('recursively processes nested arrays of primitives', () => {
-      const fields = { tags: ['a', 'b', 'c'] };
+    it("recursively processes nested arrays of primitives", () => {
+      const fields = { tags: ["a", "b", "c"] };
       const result = mapper.mapContentFields(fields);
-      expect(result.mappedFields.tags).toEqual(['a', 'b', 'c']);
+      expect(result.mappedFields.tags).toEqual(["a", "b", "c"]);
     });
   });
 
-  describe('error handling', () => {
-    it('increments validationErrors and keeps original value when a field mapping throws', () => {
+  describe("error handling", () => {
+    it("increments validationErrors and keeps original value when a field mapping throws", () => {
       const badMapper = makeMapper();
       // Make the internal mapSingleField throw by feeding a context whose assetMapper throws
       const context = {
         referenceMapper: makeReferenceMapper(),
         assetMapper: {
           getAssetMappingByMediaUrl: jest.fn().mockImplementation(() => {
-            throw new Error('boom');
+            throw new Error("boom");
           }),
           remapUrlByContainer: jest.fn(),
         } as any,
       };
-      const fields = { heroUrl: 'https://cdn.aglty.io/guid/assets/img.jpg' };
+      const fields = { heroUrl: "https://cdn.aglty.io/guid/assets/img.jpg" };
       const result = badMapper.mapContentFields(fields, context);
       expect(result.validationErrors).toBeGreaterThan(0);
       expect(result.mappedFields.heroUrl).toBe(fields.heroUrl);

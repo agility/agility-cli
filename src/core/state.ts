@@ -3,17 +3,15 @@
  * Simple state object that gets populated from argv and referenced throughout the app
  */
 
-import * as mgmtApi from '@agility/management-sdk';
-import fs from 'fs';
-import path from 'path';
-import { Logs, OperationType, EntityType } from './logs';
-import { Options } from '@agility/management-sdk';
+import * as mgmtApi from "@agility/management-sdk";
+import fs from "fs";
+import path from "path";
+import { Logs, OperationType, EntityType } from "./logs";
+import { Options } from "@agility/management-sdk";
 
 export interface State {
   // Environment modes
   dev: boolean;
-  local: boolean;
-  preprod: boolean;
 
   // UI modes
   headless: boolean;
@@ -22,33 +20,24 @@ export interface State {
   // Instance/Connection
   sourceGuid: string[]; // Array of source GUIDs
   targetGuid: string[]; // Array of target GUIDs
-  locale: string[];     // Array of locales (for backward compatibility / user-specified)
+  locale: string[]; // Array of locales (for backward compatibility / user-specified)
   availableLocales: string[]; // Detected locales from getLocales() during auth
   guidLocaleMap: Map<string, string[]>; // Per-GUID locale mapping for matrix operations
   channel: string;
-  preview: boolean;
+  preview: boolean; // Always true - operations read from preview environment
   elements: string;
 
   // File system
-  rootPath: string;
-  legacyFolders: boolean;
+  rootPath: string; // Fixed root path for all file operations ("agility-files")
 
   // Network/Security
-  insecure: boolean;
-  baseUrl?: string;
-
-  // Debug/Analysis
-  test: boolean;
+  baseUrl?: string; // Resolved Management API URL (derived, not user-set)
 
   // Operation control
   overwrite: boolean;
-  force: boolean; // New: Override target safety conflicts
-  reset: boolean;
-  update: boolean;
 
   // Workflow operation control
   operationType?: string; // Workflow operation: publish, unpublish, approve, decline, requestApproval
-  dryRun: boolean; // Preview mode - show what would be processed without executing
   autoPublish: string; // Auto-publish after sync: 'content', 'pages', 'both', or '' (disabled)
 
   // Explicit ID overrides (bypass mappings lookup)
@@ -104,8 +93,6 @@ export interface State {
 export const state: State = {
   // Environment modes
   dev: false,
-  local: false,
-  preprod: false,
 
   // UI modes
   headless: false,
@@ -124,22 +111,13 @@ export const state: State = {
 
   // File system
   rootPath: "agility-files",
-  legacyFolders: false,
 
   // Network/Security
-  insecure: false,
   baseUrl: undefined,
-
-  // Debug/Analysis
-  test: false,
 
   // Operation control
   overwrite: false,
-  force: false,
-  reset: false,
-  update: true,
-  dryRun: false,
-  autoPublish: '', // Empty string = disabled
+  autoPublish: "", // Empty string = disabled
 
   // Explicit ID overrides (bypass mappings lookup)
   explicitContentIDs: [],
@@ -178,8 +156,6 @@ export const state: State = {
 export function setState(argv: any) {
   // Environment modes
   if (argv.dev !== undefined) state.dev = argv.dev;
-  if (argv.local !== undefined) state.local = argv.local;
-  if (argv.preprod !== undefined) state.preprod = argv.preprod;
 
   // UI modes
   if (argv.headless !== undefined) state.headless = argv.headless;
@@ -187,9 +163,10 @@ export function setState(argv: any) {
 
   // Instance/Connection - Multi-GUID parsing logic
   if (argv.sourceGuid !== undefined) {
-    if (argv.sourceGuid.includes(',')) {
+    if (argv.sourceGuid.includes(",")) {
       // Multi-GUID specification
-      state.sourceGuid = argv.sourceGuid.split(',')
+      state.sourceGuid = argv.sourceGuid
+        .split(",")
         .map((g: string) => g.trim())
         .filter((g: string) => g.length > 0);
     } else {
@@ -199,9 +176,10 @@ export function setState(argv: any) {
   }
 
   if (argv.targetGuid !== undefined) {
-    if (argv.targetGuid.includes(',')) {
+    if (argv.targetGuid.includes(",")) {
       // Multi-GUID specification
-      state.targetGuid = argv.targetGuid.split(',')
+      state.targetGuid = argv.targetGuid
+        .split(",")
         .map((g: string) => g.trim())
         .filter((g: string) => g.length > 0);
     } else {
@@ -211,61 +189,50 @@ export function setState(argv: any) {
   }
 
   // Multi-locale parsing logic
-  if (argv.locale !== undefined) {
-    if (argv.locale.trim() === "") {
+  if (argv.locales !== undefined) {
+    if (argv.locales.trim() === "") {
       // Empty string = auto-detection
       state.locale = [];
-    } else if (argv.locale.includes(',') || argv.locale.includes(' ')) {
+    } else if (argv.locales.includes(",") || argv.locales.includes(" ")) {
       // Multi-locale specification
-      state.locale = argv.locale.split(/[,\s]+/)
+      state.locale = argv.locales
+        .split(/[,\s]+/)
         .map((l: string) => l.trim())
         .filter((l: string) => l.length > 0);
     } else {
       // Single locale
-      state.locale = [argv.locale];
+      state.locale = [argv.locales];
     }
   }
 
   if (argv.channel !== undefined) state.channel = argv.channel;
-  if (argv.preview !== undefined) state.preview = argv.preview;
   if (argv.elements !== undefined) state.elements = argv.elements;
 
-  // File system
+  // File system - the --rootPath CLI flag was removed, so this is only set
+  // programmatically (e.g. tests overriding the root for an isolated temp dir).
   if (argv.rootPath !== undefined) state.rootPath = argv.rootPath;
-  if (argv.legacyFolders !== undefined) state.legacyFolders = argv.legacyFolders;
-
-  // Network/Security
-  if (argv.insecure !== undefined) state.insecure = argv.insecure;
-  if (argv.baseUrl !== undefined) state.baseUrl = argv.baseUrl;
-
-  // Debug/Analysis
-  if (argv.test !== undefined) state.test = argv.test;
 
   // Operation control
   if (argv.overwrite !== undefined) state.overwrite = argv.overwrite;
-  if (argv.force !== undefined) state.force = argv.force;
-  if (argv.reset !== undefined) state.reset = argv.reset;
-  if (argv.update !== undefined) state.update = argv.update;
 
   // Workflow operation control
   if (argv.operationType !== undefined) state.operationType = argv.operationType;
-  if (argv.dryRun !== undefined) state.dryRun = argv.dryRun;
   if (argv.autoPublish !== undefined) state.autoPublish = argv.autoPublish;
 
   // Explicit ID overrides - parse comma-separated strings into number arrays
   if (argv.contentIDs !== undefined && argv.contentIDs !== "") {
     state.explicitContentIDs = String(argv.contentIDs)
-      .split(',')
+      .split(",")
       .map((id: string) => parseInt(id.trim(), 10))
       .filter((id: number) => !isNaN(id) && id > 0);
   }
   if (argv.pageIDs !== undefined && argv.pageIDs !== "") {
     state.explicitPageIDs = String(argv.pageIDs)
-      .split(',')
+      .split(",")
       .map((id: string) => parseInt(id.trim(), 10))
       .filter((id: number) => !isNaN(id) && id > 0);
   }
-  
+
   // Direct array assignment for programmatic use (e.g., auto-publish)
   if (argv.explicitContentIDs !== undefined && Array.isArray(argv.explicitContentIDs)) {
     state.explicitContentIDs = argv.explicitContentIDs;
@@ -286,161 +253,105 @@ export function setState(argv: any) {
 }
 
 /**
- * Configure SSL verification based on CLI mode
- */
-export function configureSSL() {
-  if (state.local) {
-    process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
-    console.warn("\nWarning: SSL certificate verification is disabled for development/local mode");
-  }
-}
-
-/**
  * Prime state from .env file before setState() is called
  * This allows .env values to be overridden by command line arguments
  */
 export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } {
-  const envFiles = ['.env', '.env.local', '.env.development', '.env.production'];
+  const envFiles = [".env", ".env.local", ".env.development", ".env.production"];
   const primedValues: string[] = [];
 
   // Match KEY=value only on uncommented lines (line start or after newline, optional whitespace, no #)
-  const uncommentedLine = (key: string) => new RegExp(`(?:^|\\n)\\s*${key}=([^\\n]+)`, 'm');
+  const uncommentedLine = (key: string) => new RegExp(`(?:^|\\n)\\s*${key}=([^\\n]+)`, "m");
 
   for (const envFile of envFiles) {
     const envPath = path.join(process.cwd(), envFile);
     if (fs.existsSync(envPath)) {
-      const envContent = fs.readFileSync(envPath, 'utf8');
+      const envContent = fs.readFileSync(envPath, "utf8");
 
       // Parse all relevant environment variables (uncommented lines only)
       const envVars = {
-        AGILITY_GUID: envContent.match(uncommentedLine('AGILITY_GUID')),
-        AGILITY_TARGET_GUID: envContent.match(uncommentedLine('AGILITY_TARGET_GUID')),
-        AGILITY_WEBSITE: envContent.match(uncommentedLine('AGILITY_WEBSITE')),
-        AGILITY_LOCALES: envContent.match(uncommentedLine('AGILITY_LOCALES')),
-        AGILITY_TEST: envContent.match(uncommentedLine('AGILITY_TEST')),
-        AGILITY_OVERWRITE: envContent.match(uncommentedLine('AGILITY_OVERWRITE')),
+        AGILITY_GUID: envContent.match(uncommentedLine("AGILITY_GUID")),
+        AGILITY_TARGET_GUID: envContent.match(uncommentedLine("AGILITY_TARGET_GUID")),
+        AGILITY_WEBSITE: envContent.match(uncommentedLine("AGILITY_WEBSITE")),
+        AGILITY_LOCALES: envContent.match(uncommentedLine("AGILITY_LOCALES")),
+        AGILITY_OVERWRITE: envContent.match(uncommentedLine("AGILITY_OVERWRITE")),
 
-        AGILITY_PREVIEW: envContent.match(uncommentedLine('AGILITY_PREVIEW')),
-        AGILITY_VERBOSE: envContent.match(uncommentedLine('AGILITY_VERBOSE')),
-        AGILITY_HEADLESS: envContent.match(uncommentedLine('AGILITY_HEADLESS')),
-        AGILITY_ELEMENTS: envContent.match(uncommentedLine('AGILITY_ELEMENTS')),
-        AGILITY_ROOT_PATH: envContent.match(uncommentedLine('AGILITY_ROOT_PATH')),
-        AGILITY_BASE_URL: envContent.match(uncommentedLine('AGILITY_BASE_URL')),
-        AGILITY_DEV: envContent.match(uncommentedLine('AGILITY_DEV')),
-        AGILITY_LOCAL: envContent.match(uncommentedLine('AGILITY_LOCAL')),
-        AGILITY_PREPROD: envContent.match(uncommentedLine('AGILITY_PREPROD')),
-        AGILITY_LEGACY_FOLDERS: envContent.match(uncommentedLine('AGILITY_LEGACY_FOLDERS')),
-        AGILITY_INSECURE: envContent.match(uncommentedLine('AGILITY_INSECURE')),
+        AGILITY_VERBOSE: envContent.match(uncommentedLine("AGILITY_VERBOSE")),
+        AGILITY_HEADLESS: envContent.match(uncommentedLine("AGILITY_HEADLESS")),
+        AGILITY_ELEMENTS: envContent.match(uncommentedLine("AGILITY_ELEMENTS")),
+        AGILITY_DEV: envContent.match(uncommentedLine("AGILITY_DEV")),
 
-        AGILITY_MODELS: envContent.match(uncommentedLine('AGILITY_MODELS')),
-        AGILITY_TOKEN: envContent.match(uncommentedLine('AGILITY_TOKEN')),
+        AGILITY_MODELS: envContent.match(uncommentedLine("AGILITY_MODELS")),
+        AGILITY_TOKEN: envContent.match(uncommentedLine("AGILITY_TOKEN")),
       };
 
       // Only prime state values that aren't already set from command line
       if (envVars.AGILITY_GUID && envVars.AGILITY_GUID[1] && state.sourceGuid.length === 0) {
         state.sourceGuid = [envVars.AGILITY_GUID[1].trim()];
-        primedValues.push('sourceGuid');
+        primedValues.push("sourceGuid");
       }
 
       if (envVars.AGILITY_WEBSITE && envVars.AGILITY_WEBSITE[1] && !state.channel) {
         state.channel = envVars.AGILITY_WEBSITE[1].trim();
-        primedValues.push('channel');
+        primedValues.push("channel");
       }
 
       if (envVars.AGILITY_LOCALES && envVars.AGILITY_LOCALES[1] && state.locale.length === 0) {
-        state.locale = envVars.AGILITY_LOCALES[1].trim().split(',');
-        primedValues.push('locale');
+        state.locale = envVars.AGILITY_LOCALES[1].trim().split(",");
+        primedValues.push("locale");
       }
 
       // Handle boolean flags - prefer command line args over .env
-      if (envVars.AGILITY_TEST && envVars.AGILITY_TEST[1] && state.test === undefined) {
-        state.test = envVars.AGILITY_TEST[1].trim().toLowerCase() === 'true';
-        primedValues.push('test');
-      }
-
       if (envVars.AGILITY_OVERWRITE && envVars.AGILITY_OVERWRITE[1] && state.overwrite === undefined) {
-        state.overwrite = envVars.AGILITY_OVERWRITE[1].trim().toLowerCase() === 'true';
-        primedValues.push('overwrite');
-      }
-
-      if (envVars.AGILITY_PREVIEW && envVars.AGILITY_PREVIEW[1] && state.preview === undefined) {
-        state.preview = envVars.AGILITY_PREVIEW[1].trim().toLowerCase() === 'true';
-        primedValues.push('preview');
+        state.overwrite = envVars.AGILITY_OVERWRITE[1].trim().toLowerCase() === "true";
+        primedValues.push("overwrite");
       }
 
       if (envVars.AGILITY_VERBOSE && envVars.AGILITY_VERBOSE[1] && state.verbose === undefined) {
-        state.verbose = envVars.AGILITY_VERBOSE[1].trim().toLowerCase() === 'true';
-        primedValues.push('verbose');
+        state.verbose = envVars.AGILITY_VERBOSE[1].trim().toLowerCase() === "true";
+        primedValues.push("verbose");
       }
 
       if (envVars.AGILITY_HEADLESS && envVars.AGILITY_HEADLESS[1] && state.headless === undefined) {
-        state.headless = envVars.AGILITY_HEADLESS[1].trim().toLowerCase() === 'true';
-        primedValues.push('headless');
+        state.headless = envVars.AGILITY_HEADLESS[1].trim().toLowerCase() === "true";
+        primedValues.push("headless");
       }
 
       if (envVars.AGILITY_ELEMENTS && envVars.AGILITY_ELEMENTS[1] && !state.elements) {
         state.elements = envVars.AGILITY_ELEMENTS[1].trim();
-        primedValues.push('elements');
-      }
-
-      if (envVars.AGILITY_ROOT_PATH && envVars.AGILITY_ROOT_PATH[1] && !state.rootPath) {
-        state.rootPath = envVars.AGILITY_ROOT_PATH[1].trim();
-        primedValues.push('rootPath');
-      }
-
-      if (envVars.AGILITY_BASE_URL && envVars.AGILITY_BASE_URL[1] && !state.baseUrl) {
-        state.baseUrl = envVars.AGILITY_BASE_URL[1].trim();
-        primedValues.push('baseUrl');
+        primedValues.push("elements");
       }
 
       // Additional system args
       if (envVars.AGILITY_TARGET_GUID && envVars.AGILITY_TARGET_GUID[1] && state.targetGuid.length === 0) {
         state.targetGuid = [envVars.AGILITY_TARGET_GUID[1].trim()];
-        primedValues.push('targetGuid');
+        primedValues.push("targetGuid");
       }
 
       if (envVars.AGILITY_DEV && envVars.AGILITY_DEV[1] && state.dev === undefined) {
-        state.dev = envVars.AGILITY_DEV[1].trim().toLowerCase() === 'true';
-        primedValues.push('dev');
-      }
-
-      if (envVars.AGILITY_LOCAL && envVars.AGILITY_LOCAL[1] && state.local === undefined) {
-        state.local = envVars.AGILITY_LOCAL[1].trim().toLowerCase() === 'true';
-        primedValues.push('local');
-      }
-
-      if (envVars.AGILITY_PREPROD && envVars.AGILITY_PREPROD[1] && state.preprod === undefined) {
-        state.preprod = envVars.AGILITY_PREPROD[1].trim().toLowerCase() === 'true';
-        primedValues.push('preprod');
-      }
-
-      if (envVars.AGILITY_LEGACY_FOLDERS && envVars.AGILITY_LEGACY_FOLDERS[1] && state.legacyFolders === undefined) {
-        state.legacyFolders = envVars.AGILITY_LEGACY_FOLDERS[1].trim().toLowerCase() === 'true';
-        primedValues.push('legacyFolders');
-      }
-
-      if (envVars.AGILITY_INSECURE && envVars.AGILITY_INSECURE[1] && state.insecure === undefined) {
-        state.insecure = envVars.AGILITY_INSECURE[1].trim().toLowerCase() === 'true';
-        primedValues.push('insecure');
+        state.dev = envVars.AGILITY_DEV[1].trim().toLowerCase() === "true";
+        primedValues.push("dev");
       }
 
       if (envVars.AGILITY_MODELS && envVars.AGILITY_MODELS[1] && !state.models) {
         state.models = envVars.AGILITY_MODELS[1].trim();
-        primedValues.push('models');
+        primedValues.push("models");
       }
 
       if (envVars.AGILITY_TOKEN && envVars.AGILITY_TOKEN[1] && !state.token) {
         // Strip quotes from token value if present
         let tokenValue = envVars.AGILITY_TOKEN[1].trim();
-        if ((tokenValue.startsWith('"') && tokenValue.endsWith('"')) ||
-            (tokenValue.startsWith("'") && tokenValue.endsWith("'"))) {
+        if (
+          (tokenValue.startsWith('"') && tokenValue.endsWith('"')) ||
+          (tokenValue.startsWith("'") && tokenValue.endsWith("'"))
+        ) {
           tokenValue = tokenValue.slice(1, -1).trim();
         }
         // Only prime token when we actually have a non-empty value
         if (tokenValue.length > 0) {
           state.token = tokenValue;
           process.env.AGILITY_TOKEN = tokenValue;
-          primedValues.push('token');
+          primedValues.push("token");
         }
       }
 
@@ -460,8 +371,6 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
 export function resetState() {
   // Environment modes
   state.dev = false;
-  state.local = false;
-  state.preprod = false;
 
   // UI modes
   state.headless = false;
@@ -480,25 +389,16 @@ export function resetState() {
 
   // File system
   state.rootPath = "agility-files";
-  state.legacyFolders = false;
 
   // Network/Security
-  state.insecure = false;
   state.baseUrl = undefined;
-
-  // Debug/Analysis
-  state.test = false;
 
   // Operation control
   state.overwrite = false;
-  state.force = false;
-  state.reset = false;
-  state.update = true;
 
   // Workflow operation control
   state.operationType = undefined;
-  state.dryRun = false;
-  state.autoPublish = '';
+  state.autoPublish = "";
 
   // Explicit ID overrides
   state.explicitContentIDs = [];
@@ -551,8 +451,8 @@ export function getApiClient(): mgmtApi.ApiClient {
     // throw new Error('Management API options not initialized. Call auth.init() first.');
   }
 
-  if(!state.mgmtApiOptions && !state.token) {
-    throw new Error('Management API options not initialized. Call auth.init() first.');
+  if (!state.mgmtApiOptions && !state.token) {
+    throw new Error("Management API options not initialized. Call auth.init() first.");
   } else if (!state.mgmtApiOptions && state.token) {
     state.mgmtApiOptions = new Options();
     state.mgmtApiOptions.token = state.token;
@@ -597,7 +497,7 @@ export function getUIMode() {
  * Get API keys for a specific GUID
  */
 export function getApiKeysForGuid(guid: string): { previewKey: string; fetchKey: string } | null {
-  const apiKeyEntry = state.apiKeys.find(item => item.guid === guid);
+  const apiKeyEntry = state.apiKeys.find((item) => item.guid === guid);
   return apiKeyEntry ? { previewKey: apiKeyEntry.previewKey, fetchKey: apiKeyEntry.fetchKey } : null;
 }
 
@@ -619,7 +519,7 @@ export function validateLocaleFormat(locale: string): boolean {
 /**
  * Validate array of locales and return valid/invalid splits
  */
-export function validateLocales(locales: string[]): { valid: string[], invalid: string[] } {
+export function validateLocales(locales: string[]): { valid: string[]; invalid: string[] } {
   const valid: string[] = [];
   const invalid: string[] = [];
 
@@ -639,15 +539,15 @@ export function validateLocales(locales: string[]): { valid: string[], invalid: 
  */
 export function initializeLogger(operationType: OperationType): Logs {
   state.logger = new Logs(operationType);
-  
+
   // Configure based on current state
   state.logger.configure({
     logToConsole: !state.headless,
     logToFile: true,
     showColors: !state.headless,
-    useStructuredFormat: true
+    useStructuredFormat: true,
   });
-  
+
   return state.logger;
 }
 
@@ -658,17 +558,17 @@ export function initializeGuidLogger(guid: string, operationType: OperationType,
   if (!state.loggerRegistry) {
     state.loggerRegistry = new Map();
   }
-  
+
   const logger = new Logs(operationType, entityType, guid);
-  
+
   // Configure based on current state
   logger.configure({
     logToConsole: !state.headless,
     logToFile: true,
     showColors: !state.headless,
-    useStructuredFormat: true
+    useStructuredFormat: true,
   });
-  
+
   state.loggerRegistry.set(guid, logger);
   return logger;
 }
@@ -680,13 +580,13 @@ export function getLoggerForGuid(guid: string): Logs | null {
   if (!state.loggerRegistry) {
     return null;
   }
-  
+
   const logger = state.loggerRegistry.get(guid);
   if (logger && !logger.getGuid()) {
     // Ensure the logger has the GUID set
     logger.setGuid(guid);
   }
-  
+
   return logger || null;
 }
 
@@ -717,13 +617,13 @@ export function finalizeGuidLogger(guid: string): string | null {
  */
 export function finalizeAllGuidLoggers(): string[] {
   const results: string[] = [];
-  
+
   if (state.loggerRegistry) {
     const entries = Array.from(state.loggerRegistry.entries());
-    
+
     for (const [guid, logger] of entries) {
       const logCount = logger.getLogCount();
-      
+
       if (logCount > 0) {
         const result = logger.saveLogs();
         if (result) {
@@ -734,7 +634,7 @@ export function finalizeAllGuidLoggers(): string[] {
     }
     state.loggerRegistry.clear();
   }
-  
+
   return results;
 }
 
@@ -745,7 +645,7 @@ export function finalizeLogger(): string | null {
   if (state.logger) {
     const result = state.logger.saveLogs();
     state.logger = undefined;
-    
+
     // Return result without automatically displaying it
     // The calling code will handle display if needed
     return result;
@@ -764,7 +664,6 @@ export function endTimer(): void {
     state.logger.endTimer();
   }
 }
-
 
 /**
  * Clear the current logger from state
@@ -786,12 +685,7 @@ export function clearLogger(): void {
  * @param error - The error message
  * @param locale - The locale being processed
  */
-export function registerFailedContent(
-  contentID: number,
-  referenceName: string,
-  error: string,
-  locale: string
-): void {
+export function registerFailedContent(contentID: number, referenceName: string, error: string, locale: string): void {
   state.failedContentRegistry.set(contentID, { referenceName, error, locale });
 }
 
@@ -800,7 +694,9 @@ export function registerFailedContent(
  * @param contentID - The source content ID to look up
  * @returns The failure info if found, or undefined
  */
-export function getFailedContent(contentID: number): { referenceName: string; error: string; locale: string } | undefined {
+export function getFailedContent(
+  contentID: number
+): { referenceName: string; error: string; locale: string } | undefined {
   return state.failedContentRegistry.get(contentID);
 }
 
@@ -817,10 +713,10 @@ export function clearFailedContentRegistry(): void {
  * - prod: app.agilitycms.com
  */
 export function getCmsAppUrl(): string {
-  if (state.dev || state.local || state.preprod) {
-    return 'https://app-qa.publishwithagility.com';
+  if (state.dev) {
+    return "https://app-qa.publishwithagility.com";
   }
-  return 'https://app.agilitycms.com';
+  return "https://app.agilitycms.com";
 }
 
 /**
@@ -843,9 +739,9 @@ export function getContentCmsLink(guid: string, locale: string, contentID: numbe
  * Check if a content item file exists in source data
  */
 export function contentExistsInSourceData(guid: string, locale: string, contentID: number): boolean {
-  const fs = require('fs');
-  const path = require('path');
-  const contentPath = path.resolve(state.rootPath, guid, locale, 'item', `${contentID}.json`);
+  const fs = require("fs");
+  const path = require("path");
+  const contentPath = path.resolve(state.rootPath, guid, locale, "item", `${contentID}.json`);
   return fs.existsSync(contentPath);
 }
 
@@ -856,8 +752,8 @@ export function contentExistsInSourceData(guid: string, locale: string, contentI
  * Returns the locale where it exists, or null if not found anywhere.
  */
 export function contentExistsInOtherLocale(guid: string, currentLocale: string, contentID: number): string | null {
-  const fs = require('fs');
-  const path = require('path');
+  const fs = require("fs");
+  const path = require("path");
 
   const validLocales = (state.availableLocales || []).filter((l) => l !== currentLocale);
   if (validLocales.length === 0) return null;
@@ -866,7 +762,7 @@ export function contentExistsInOtherLocale(guid: string, currentLocale: string, 
   if (!fs.existsSync(guidPath)) return null;
 
   for (const locale of validLocales) {
-    const contentPath = path.join(guidPath, locale, 'item', `${contentID}.json`);
+    const contentPath = path.join(guidPath, locale, "item", `${contentID}.json`);
     if (fs.existsSync(contentPath)) {
       return locale;
     }

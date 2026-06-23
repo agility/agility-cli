@@ -142,15 +142,15 @@ describe("changeDetection — update path", () => {
 // ─── overwrite mode ───────────────────────────────────────────────────────────
 
 describe("changeDetection — overwrite mode", () => {
-  it("returns shouldUpdate=true in overwrite mode even when source is not newer", () => {
+  it("returns shouldUpdate=false in overwrite mode when source is not newer", () => {
     setState({ overwrite: true, sourceGuid: "src-guid", targetGuid: "tgt-guid" });
     const source = makeContent(1, 5);
     const target = makeContent(100, 5);
     const mapping = makeMapping({ sourceVersionID: 5, targetVersionID: 5 });
     const result = changeDetection(source, target, mapping, "en-us");
-    expect(result.shouldUpdate).toBe(true);
-    expect(result.shouldSkip).toBe(false);
-    expect(result.reason).toMatch(/overwrite/i);
+    expect(result.shouldUpdate).toBe(false);
+    expect(result.shouldSkip).toBe(true);
+    expect(result.reason).toMatch(/Entity exists and is up to date/i);
   });
 
   it("returns conflict=false in overwrite flag is present when changes to source and target", () => {

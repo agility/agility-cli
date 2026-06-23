@@ -1,12 +1,12 @@
-import * as fs from 'fs';
-import * as os from 'os';
-import * as path from 'path';
-import { resetState, setState, state, initializeGuidLogger } from 'core/state';
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import { resetState, setState, state, initializeGuidLogger } from "core/state";
 
 let tmpDir: string;
 
 beforeAll(() => {
-  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'agility-tpl-'));
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agility-tpl-"));
 });
 
 afterAll(() => {
@@ -15,11 +15,11 @@ afterAll(() => {
 
 beforeEach(() => {
   resetState();
-  setState({ rootPath: tmpDir, sourceGuid: 'src-tpl-u', targetGuid: 'tgt-tpl-u', token: 'test-token' });
-  initializeGuidLogger('src-tpl-u', 'push');
-  jest.spyOn(console, 'log').mockImplementation(() => {});
-  jest.spyOn(console, 'warn').mockImplementation(() => {});
-  jest.spyOn(console, 'error').mockImplementation(() => {});
+  setState({ rootPath: tmpDir, sourceGuid: "src-tpl-u", targetGuid: "tgt-tpl-u", token: "test-token" });
+  initializeGuidLogger("src-tpl-u", "push");
+  jest.spyOn(console, "log").mockImplementation(() => {});
+  jest.spyOn(console, "warn").mockImplementation(() => {});
+  jest.spyOn(console, "error").mockImplementation(() => {});
 });
 
 afterEach(() => {
@@ -44,30 +44,30 @@ function makeTemplate(overrides: Record<string, any> = {}): any {
 
 // ─── pushTemplates — empty sourceData guard ───────────────────────────────────
 
-describe('pushTemplates — empty sourceData guard', () => {
-  it('returns success with zeros when sourceData is empty', async () => {
+describe("pushTemplates — empty sourceData guard", () => {
+  it("returns success with zeros when sourceData is empty", async () => {
     state.cachedApiClient = {
       pageMethods: { savePageTemplate: jest.fn() },
     } as any;
 
-    const { pushTemplates } = await import('../template-pusher');
-    const result = await pushTemplates([], [], 'en-us');
+    const { pushTemplates } = await import("../template-pusher");
+    const result = await pushTemplates([], [], "en-us");
 
-    expect(result.status).toBe('success');
+    expect(result.status).toBe("success");
     expect(result.successful).toBe(0);
     expect(result.failed).toBe(0);
     expect(result.skipped).toBe(0);
   });
 
-  it('returns success with zeros when sourceData is null', async () => {
+  it("returns success with zeros when sourceData is null", async () => {
     state.cachedApiClient = {
       pageMethods: { savePageTemplate: jest.fn() },
     } as any;
 
-    const { pushTemplates } = await import('../template-pusher');
-    const result = await pushTemplates(null as any, [], 'en-us');
+    const { pushTemplates } = await import("../template-pusher");
+    const result = await pushTemplates(null as any, [], "en-us");
 
-    expect(result.status).toBe('success');
+    expect(result.status).toBe("success");
     expect(result.successful).toBe(0);
   });
 
@@ -76,97 +76,96 @@ describe('pushTemplates — empty sourceData guard', () => {
       pageMethods: { savePageTemplate: jest.fn() },
     } as any;
 
-    const consoleSpy = jest.spyOn(console, 'log');
-    const { pushTemplates } = await import('../template-pusher');
-    await pushTemplates([], [], 'en-us');
+    const consoleSpy = jest.spyOn(console, "log");
+    const { pushTemplates } = await import("../template-pusher");
+    await pushTemplates([], [], "en-us");
 
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining('No templates'));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("No sourceTemplates found to process."));
   });
 });
 
-// ─── pushTemplates — skip when template exists in target by name ───────────────
+// ─── pushTemplates — throw when template exists in target by name ──────────────
 
-describe('pushTemplates — skip when template exists in target by name (no mapping)', () => {
-  it('skips template that exists in target by name and creates mapping', async () => {
+describe("pushTemplates — throw when template exists in target by name (no mapping)", () => {
+  it("throws a mapping inconsistency error and does not save", async () => {
     const savePageTemplate = jest.fn().mockResolvedValue(makeTemplate());
     state.cachedApiClient = {
       pageMethods: { savePageTemplate },
     } as any;
 
-    const { pushTemplates } = await import('../template-pusher');
+    const { pushTemplates } = await import("../template-pusher");
 
-    const sourceTpl = makeTemplate({ pageTemplateName: 'SharedTemplate' });
-    const targetTpl = makeTemplate({ pageTemplateName: 'SharedTemplate' });
+    const sourceTpl = makeTemplate({ pageTemplateName: "SharedTemplate" });
+    const targetTpl = makeTemplate({ pageTemplateName: "SharedTemplate" });
 
-    const result = await pushTemplates([sourceTpl], [targetTpl], 'en-us');
-
-    expect(result.skipped).toBe(1);
-    expect(result.successful).toBe(0);
+    await expect(pushTemplates([sourceTpl], [targetTpl], "en-us")).rejects.toThrow(
+      `Page template validation failed: mapping inconsistency for template "SharedTemplate"`
+    );
     expect(savePageTemplate).not.toHaveBeenCalled();
   });
 });
 
 // ─── pushTemplates — create path ──────────────────────────────────────────────
 
-describe('pushTemplates — create new template', () => {
-  it('calls savePageTemplate when no existing mapping and not in target by name', async () => {
+describe("pushTemplates — create new template", () => {
+  it("calls savePageTemplate when no existing mapping and not in target by name", async () => {
     const savedTpl = makeTemplate({ pageTemplateID: 99 });
     const savePageTemplate = jest.fn().mockResolvedValue(savedTpl);
     state.cachedApiClient = {
       pageMethods: { savePageTemplate },
     } as any;
 
-    const { pushTemplates } = await import('../template-pusher');
+    const { pushTemplates } = await import("../template-pusher");
 
-    const sourceTpl = makeTemplate({ pageTemplateName: 'UniqueNewTemplate' });
+    const sourceTpl = makeTemplate({ pageTemplateName: "UniqueNewTemplate" });
 
-    const result = await pushTemplates([sourceTpl], [], 'en-us');
+    const result = await pushTemplates([sourceTpl], [], "en-us");
 
     expect(savePageTemplate).toHaveBeenCalledTimes(1);
     expect(result.successful).toBe(1);
     expect(result.failed).toBe(0);
   });
 
-  it('counts as failed when savePageTemplate throws', async () => {
-    const savePageTemplate = jest.fn().mockRejectedValue(new Error('API error'));
+  it("counts as failed when savePageTemplate throws", async () => {
+    const savePageTemplate = jest.fn().mockRejectedValue(new Error("API error"));
     state.cachedApiClient = {
       pageMethods: { savePageTemplate },
     } as any;
 
-    const { pushTemplates } = await import('../template-pusher');
+    const { pushTemplates } = await import("../template-pusher");
 
-    const sourceTpl = makeTemplate({ pageTemplateName: 'ErrorTemplate' });
+    const sourceTpl = makeTemplate({ pageTemplateName: "ErrorTemplate" });
 
-    const result = await pushTemplates([sourceTpl], [], 'en-us');
+    const result = await pushTemplates([sourceTpl], [], "en-us");
 
     expect(result.failed).toBe(1);
     expect(result.successful).toBe(0);
-    expect(result.status).toBe('error');
+    expect(result.status).toBe("error");
   });
 });
 
 // ─── pushTemplates — result shape ────────────────────────────────────────────
 
-describe('pushTemplates — result shape', () => {
-  it('returns status, successful, failed, skipped fields', async () => {
+describe("pushTemplates — result shape", () => {
+  it("returns status, successful, failed, skipped fields", async () => {
     state.cachedApiClient = {
       pageMethods: { savePageTemplate: jest.fn() },
     } as any;
 
-    const { pushTemplates } = await import('../template-pusher');
-    const result = await pushTemplates([], [], 'en-us');
+    const { pushTemplates } = await import("../template-pusher");
+    const result = await pushTemplates([], [], "en-us");
 
-    expect(result).toHaveProperty('status');
-    expect(result).toHaveProperty('successful');
-    expect(result).toHaveProperty('failed');
-    expect(result).toHaveProperty('skipped');
+    expect(result).toHaveProperty("status");
+    expect(result).toHaveProperty("successful");
+    expect(result).toHaveProperty("failed");
+    expect(result).toHaveProperty("skipped");
   });
 });
 
 // ─── pushTemplates — overwrite mode ──────────────────────────────────────────
 
-describe('pushTemplates — overwrite mode', () => {
-  it('calls savePageTemplate for new template regardless of overwrite setting', async () => {
+describe("pushTemplates — overwrite mode", () => {
+  it("calls savePageTemplate for new template regardless of overwrite setting", async () => {
     state.overwrite = false;
 
     const savedTpl = makeTemplate({ pageTemplateID: 88 });
@@ -175,12 +174,12 @@ describe('pushTemplates — overwrite mode', () => {
       pageMethods: { savePageTemplate },
     } as any;
 
-    const { pushTemplates } = await import('../template-pusher');
+    const { pushTemplates } = await import("../template-pusher");
 
     // Template not in target, no mapping — goes through create path
-    const sourceTpl = makeTemplate({ pageTemplateName: 'NewUniqueTemplate2' });
+    const sourceTpl = makeTemplate({ pageTemplateName: "NewUniqueTemplate2" });
 
-    const result = await pushTemplates([sourceTpl], [], 'en-us');
+    const result = await pushTemplates([sourceTpl], [], "en-us");
 
     expect(savePageTemplate).toHaveBeenCalledTimes(1);
     expect(result.successful).toBe(1);

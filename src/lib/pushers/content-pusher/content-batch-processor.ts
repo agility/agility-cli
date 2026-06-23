@@ -39,13 +39,13 @@ export class ContentBatchProcessor {
   async processBatches(
     contentItems: mgmtApi.ContentItem[],
     logger: Logs,
-    batchType?: string,
+    batchType?: string
   ): Promise<BatchProcessingResult> {
     const batchSize = this.config.batchSize!;
     const contentBatches = this.createContentBatches(contentItems, batchSize);
 
     console.log(
-      `Processing ${contentItems.length || 0} content items in ${contentBatches.length} bulk ${batchType || ""} batches`,
+      `Processing ${contentItems.length || 0} content items in ${contentBatches.length} bulk ${batchType || ""} batches`
     );
 
     let totalSuccessCount = 0;
@@ -69,12 +69,8 @@ export class ContentBatchProcessor {
 
       const progress = Math.round((batchNumber / contentBatches.length) * 100);
       console.log(
-        `[${progress}%] Bulk batch ${batchNumber}/${contentBatches.length}: Processing ${contentBatch.length} ${batchType} content items (ETA: ${etaMinutes}m)...`,
+        `[${progress}%] Bulk batch ${batchNumber}/${contentBatches.length}: Processing ${contentBatch.length} ${batchType} content items (ETA: ${etaMinutes}m)...`
       );
-
-      // if (onProgress) {
-      // 	onProgress(batchNumber, contentBatches.length, processedSoFar, contentItems.length, "processing");
-      // }
 
       try {
         // Prepare content payloads for bulk upload
@@ -93,7 +89,7 @@ export class ContentBatchProcessor {
           contentPayloads,
           this.config.targetGuid,
           this.config.locale,
-          true, // returnBatchID flag
+          true // returnBatchID flag
         );
 
         // Extract batch ID from array response
@@ -108,7 +104,7 @@ export class ContentBatchProcessor {
           contentPayloads, // Pass original payloads for FIFO error matching
           300, // maxAttempts
           2000, // intervalMs
-          batchType || "Content", // Use provided batch type or default to 'Content'
+          batchType || "Content" // Use provided batch type or default to 'Content'
         );
 
         // Extract results from completed batch using only items that were actually sent to the API.
@@ -126,11 +122,11 @@ export class ContentBatchProcessor {
 
         // Log staging items being skipped from auto-publish
         const stagingItems = successfulItems.filter((item) => item.originalItem?.properties?.state !== 2);
-        if (stagingItems.length > 0) {
+        if (stagingItems.length > 0 && state.autoPublish) {
           console.log(
             ansiColors.gray(
-              `    📋 Skipping auto-publish for ${stagingItems.length} content item(s) (not published in source)`,
-            ),
+              `    📋 Skipping auto-publish for ${stagingItems.length} content item(s) (not published in source)`
+            )
           );
         }
 
@@ -169,7 +165,7 @@ export class ContentBatchProcessor {
               item.originalContent,
               `Type: ${batchType} -  created`,
               this.config.locale,
-              state.targetGuid[0],
+              state.targetGuid[0]
             );
           });
         }
@@ -191,17 +187,6 @@ export class ContentBatchProcessor {
             // Don't fail the entire batch due to callback errors
           }
         }
-
-        // if (onProgress) {
-        // 	onProgress(
-        // 		batchNumber,
-        // 		contentBatches.length,
-        // 		processedSoFar + contentBatch.length,
-        // 		contentItems.length,
-        // 		"success"
-        // 	);
-        // }
-
         // Add small delay between batches to prevent API throttling
         if (i < contentBatches.length - 1) {
           await new Promise((resolve) => setTimeout(resolve, 100));
@@ -218,20 +203,8 @@ export class ContentBatchProcessor {
 
         totalFailureCount += failedBatchItems.length;
         allFailedItems.push(...failedBatchItems);
-
-        // if (onProgress) {
-        // 	onProgress(
-        // 		batchNumber,
-        // 		contentBatches.length,
-        // 		processedSoFar + contentBatch.length,
-        // 		contentItems.length,
-        // 		"error"
-        // 	);
-        // }
       }
     }
-
-    // console.log(`🎯 Content batch processing complete: ${totalSuccessCount} success, ${totalFailureCount} failed`);
 
     // Filter final publishableIds to only include items Published (state === 2) in source
     const publishableItems = allSuccessfulItems.filter((item) => {
@@ -267,7 +240,7 @@ export class ContentBatchProcessor {
   private async prepareContentPayloads(
     contentBatch: mgmtApi.ContentItem[],
     sourceGuid: string,
-    targetGuid: string,
+    targetGuid: string
   ): Promise<{ payloads: any[]; skippedCount: number; includedItems: mgmtApi.ContentItem[] }> {
     const payloads: any[] = [];
     const includedItems: mgmtApi.ContentItem[] = [];
@@ -285,7 +258,7 @@ export class ContentBatchProcessor {
         //see if it's already mapped
         const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(
           contentItem.contentID,
-          "source",
+          "source"
         );
 
         const payload = {
@@ -299,7 +272,7 @@ export class ContentBatchProcessor {
         //map the content item to the target instance
         const modelMapping = modelMapper.getModelMappingByReferenceName(
           contentItem.properties.definitionName,
-          "source",
+          "source"
         );
 
         try {
@@ -320,7 +293,7 @@ export class ContentBatchProcessor {
             ].join("\n   ");
 
             throw new Error(
-              `Source model not found for content definition: ${contentItem.properties.definitionName}\n   ${errorDetails}`,
+              `Source model not found for content definition: ${contentItem.properties.definitionName}\n   ${errorDetails}`
             );
           }
 
@@ -340,7 +313,7 @@ export class ContentBatchProcessor {
           // STEP 3: Find container using reference mapper (simplified)
           const containerMapping = containerMapper.getContainerMappingByReferenceName(
             contentItem.properties.referenceName,
-            "source",
+            "source"
           );
 
           if (!containerMapping) {
@@ -352,7 +325,7 @@ export class ContentBatchProcessor {
           // STEP 4: Check if content already exists using reference mapper (since filtering already happened)
           const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(
             contentItem.contentID,
-            "source",
+            "source"
           );
           const existingTargetContentItem = this.config.referenceMapper.getMappedEntity(existingMapping, "target");
           const isTargetContentItemDeleted = existingMapping && existingTargetContentItem == null;
@@ -363,7 +336,6 @@ export class ContentBatchProcessor {
           } else {
             existingContentID = existingTargetContentItem ? existingTargetContentItem.contentID : -1;
           }
-
 
           if (!existingMapping && !existingTargetContentItem) {
             //see if this content item has been mapped in another locale
@@ -389,7 +361,7 @@ export class ContentBatchProcessor {
           // Only log field mapper issues if there are actual errors (not warnings)
           if (mappingResult.validationErrors > 0) {
             console.warn(
-              `⚠️ Field mapping errors for ${contentItem.properties.referenceName}: ${mappingResult.validationErrors} errors`,
+              `⚠️ Field mapping errors for ${contentItem.properties.referenceName}: ${mappingResult.validationErrors} errors`
             );
           }
 
@@ -445,8 +417,8 @@ export class ContentBatchProcessor {
         } catch (error: any) {
           console.error(
             ansiColors.yellow(
-              `✗ Orphaned content item ${contentItem.contentID}, skipping - ${error.message || "payload preparation failed"}.`,
-            ),
+              `✗ Orphaned content item ${contentItem.contentID}, skipping - ${error.message || "payload preparation failed"}.`
+            )
           );
 
           // Track skipped item and continue with the rest of the batch
@@ -475,7 +447,11 @@ export class ContentBatchProcessor {
         },
       } as mgmtApi.ContentItem;
 
-      this.config.referenceMapper.addMapping(sourceContentItem, targetContentItemWithId);
+      try {
+        this.config.referenceMapper.addMapping(sourceContentItem, targetContentItemWithId);
+      } catch (error) {
+        console.error(`Unable to create mappings: ${error.message}`);
+      }
     });
   }
 }

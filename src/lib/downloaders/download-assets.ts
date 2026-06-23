@@ -8,7 +8,6 @@ import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllAssets(guid: string): Promise<void> {
   const fileOps = new fileOperations(guid);
-  const update = state.update; // Use state.update instead of parameter
   const apiClient = getApiClient();
   const logger = getLoggerForGuid(guid); // Use GUID-specific logger
 
@@ -42,10 +41,6 @@ export async function downloadAllAssets(guid: string): Promise<void> {
     apiAsset: any,
     localInfo: { dateModified?: string; exists: boolean }
   ): { shouldDownload: boolean; reason: string } {
-    if (state.update === false) {
-      return { shouldDownload: false, reason: "" };
-    }
-
     if (!localInfo.exists) {
       return { shouldDownload: true, reason: "new file" };
     }
