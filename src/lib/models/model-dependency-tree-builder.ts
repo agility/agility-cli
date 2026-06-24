@@ -30,9 +30,13 @@ export class ModelDependencyTreeBuilder {
   private assetExtractor: AssetReferenceExtractor;
   private assetMapper: AssetMapper;
 
-  constructor(private sourceData: SourceData, targetGuid: string, sourceGuid: string) {
+  constructor(
+    private sourceData: SourceData,
+    targetGuid: string,
+    sourceGuid: string
+  ) {
     this.assetExtractor = new AssetReferenceExtractor();
-    this.assetMapper = new AssetMapper(targetGuid, sourceGuid);
+    this.assetMapper = new AssetMapper(sourceGuid, targetGuid);
   }
 
   /**
