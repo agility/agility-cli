@@ -138,7 +138,6 @@ export class ContentFieldMapper {
     return (
       value.includes(".aglty.io") ||
       value.includes(".agilitycms.com") ||
-      value.includes(".ilotteryservices.com") ||
       context?.assetMapper?.isKnownAssetUrl(value) === true
     );
   }

@@ -123,7 +123,7 @@ export class GuidDataLoader {
 
     // Apply model filtering if requested
     if (filterOptions) {
-      return await this.applyModelFiltering(guidEntities, filterOptions, locale);
+      return await this.applyModelFiltering(guidEntities, filterOptions, locale, state.targetGuid[0], state.sourceGuid[0]);
     }
 
     return guidEntities;
@@ -135,7 +135,9 @@ export class GuidDataLoader {
   private async applyModelFiltering(
     guidEntities: GuidEntities,
     filterOptions: ModelFilterOptions,
-    locale: string
+    locale: string,
+    targetGuid: string,
+    sourceGuid: string
   ): Promise<GuidEntities> {
     // Determine which filtering mode to use
     let modelNames: string[] = [];
@@ -174,7 +176,7 @@ export class GuidDataLoader {
 
     // Import and use ModelDependencyTreeBuilder with complete data
     const { ModelDependencyTreeBuilder } = await import("../models/model-dependency-tree-builder");
-    const treeBuilder = new ModelDependencyTreeBuilder(useFullDependencyTree ? completeEntities! : guidEntities);
+    const treeBuilder = new ModelDependencyTreeBuilder(useFullDependencyTree ? completeEntities! : guidEntities, targetGuid, sourceGuid);
 
     // Validate that specified models exist
     const validation = treeBuilder.validateModels(modelNames, (completeEntities ?? guidEntities).models);

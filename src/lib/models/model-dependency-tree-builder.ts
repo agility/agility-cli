@@ -12,6 +12,7 @@ import { SourceData } from "../../types/sourceData";
 import ansiColors from "ansi-colors";
 import { SitemapHierarchy } from "../pushers/page-pusher/sitemap-hierarchy";
 import { AssetReferenceExtractor } from "../assets/asset-reference-extractor";
+import { AssetMapper } from "lib/mappers/asset-mapper";
 
 export interface ModelDependencyTree {
   models: Set<string>; // Model reference names
@@ -27,9 +28,11 @@ export interface ModelDependencyTree {
 export class ModelDependencyTreeBuilder {
   private static hasLoggedBreakdown = false;
   private assetExtractor: AssetReferenceExtractor;
+  private assetMapper: AssetMapper;
 
-  constructor(private sourceData: SourceData) {
+  constructor(private sourceData: SourceData, targetGuid: string, sourceGuid: string) {
     this.assetExtractor = new AssetReferenceExtractor();
+    this.assetMapper = new AssetMapper(targetGuid, sourceGuid);
   }
 
   /**
@@ -563,7 +566,7 @@ export class ModelDependencyTreeBuilder {
     const urls: string[] = [];
 
     if (contentItem.fields) {
-      const assetReferences = this.assetExtractor.extractAssetReferences(contentItem.fields);
+      const assetReferences = this.assetExtractor.extractAssetReferences(contentItem.fields, this.assetMapper);
       assetReferences.forEach((ref) => {
         if (ref.url) {
           urls.push(ref.url);
@@ -583,7 +586,7 @@ export class ModelDependencyTreeBuilder {
 
     // Scan page zones for asset references
     if (page.zones) {
-      const zoneReferences = this.assetExtractor.extractAssetReferences(page.zones);
+      const zoneReferences = this.assetExtractor.extractAssetReferences(page.zones, this.assetMapper);
       zoneReferences.forEach((ref) => {
         if (ref.url) {
           urls.push(ref.url);
@@ -593,7 +596,7 @@ export class ModelDependencyTreeBuilder {
 
     // Scan page content if it exists
     if (page.content) {
-      const contentReferences = this.assetExtractor.extractAssetReferences(page.content);
+      const contentReferences = this.assetExtractor.extractAssetReferences(page.content, this.assetMapper);
       contentReferences.forEach((ref) => {
         if (ref.url) {
           urls.push(ref.url);

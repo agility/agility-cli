@@ -27,14 +27,14 @@ export class AssetReferenceExtractor implements ReferenceExtractionService {
   /**
    * Extract asset references from content fields
    */
-  extractReferences(fields: any): AssetReference[] {
-    return this.extractAssetReferences(fields);
+  extractReferences(fields: any, assetMapper?: AssetMapper): AssetReference[] {
+    return this.extractAssetReferences(fields, assetMapper);
   }
 
   /**
    * Extract asset references from content fields
    */
-  extractAssetReferences(fields: any): AssetReference[] {
+  extractAssetReferences(fields: any, assetMapper?: AssetMapper): AssetReference[] {
     const references: AssetReference[] = [];
 
     if (!fields || typeof fields !== "object") {
@@ -49,7 +49,7 @@ export class AssetReferenceExtractor implements ReferenceExtractionService {
       return (
         url.includes(".aglty.io") ||
         url.includes(".agilitycms.com") ||
-        url.includes(".ilotteryservices.com")
+        assetMapper?.isKnownAssetUrl(url) === true
       );
     };
 
