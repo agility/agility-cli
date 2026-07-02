@@ -4,7 +4,6 @@ module.exports = {
   // Default: unit tests only (exclude integration tests)
   testMatch: ["**/src/**/tests/**/*.test.ts"],
   testPathIgnorePatterns: ["/node_modules/", "/dist/", "/src/index.ts", "integration\\.test\\.ts"],
-  setupFilesAfterEnv: ["<rootDir>/src/tests/setup.ts"],
   // Map TypeScript path aliases to actual paths
   moduleNameMapper: {
     "^core/(.*)$": "<rootDir>/src/core/$1",

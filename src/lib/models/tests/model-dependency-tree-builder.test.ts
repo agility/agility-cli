@@ -94,6 +94,13 @@ function makeSourceData(overrides: Partial<any> = {}): any {
   };
 }
 
+const TEST_TARGET_GUID = "target-guid";
+const TEST_SOURCE_GUID = "source-guid";
+
+function makeBuilder(sourceData: any): ModelDependencyTreeBuilder {
+  return new ModelDependencyTreeBuilder(sourceData, TEST_TARGET_GUID, TEST_SOURCE_GUID);
+}
+
 // ─── resetLoggingFlags ────────────────────────────────────────────────────────
 
 describe("ModelDependencyTreeBuilder.resetLoggingFlags", () => {
@@ -102,7 +109,7 @@ describe("ModelDependencyTreeBuilder.resetLoggingFlags", () => {
   });
 
   it("allows the breakdown log to fire again on a fresh builder", () => {
-    const builder = new ModelDependencyTreeBuilder(
+    const builder = makeBuilder(
       makeSourceData({ models: [makeModel(1, "Post")], content: [makeContent(10, "Post")] })
     );
     const logSpy = jest.spyOn(console, "log");
@@ -125,7 +132,7 @@ describe("ModelDependencyTreeBuilder.resetLoggingFlags", () => {
 
 describe("ModelDependencyTreeBuilder constructor", () => {
   it("does not throw with a valid sourceData object", () => {
-    expect(() => new ModelDependencyTreeBuilder(makeSourceData())).not.toThrow();
+    expect(() => makeBuilder(makeSourceData())).not.toThrow();
   });
 });
 
@@ -135,7 +142,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — guard clauses", () 
   let builder: ModelDependencyTreeBuilder;
 
   beforeEach(() => {
-    builder = new ModelDependencyTreeBuilder(makeSourceData());
+    builder = makeBuilder(makeSourceData());
   });
 
   it("throws when modelNames is null", () => {
@@ -155,7 +162,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — guard clauses", () 
 
 describe("ModelDependencyTreeBuilder.buildDependencyTree — empty source data", () => {
   it("returns tree with only the requested model names when source data is empty", () => {
-    const builder = new ModelDependencyTreeBuilder(makeSourceData());
+    const builder = makeBuilder(makeSourceData());
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.models).toEqual(new Set(["Post"]));
@@ -168,13 +175,13 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — empty source data",
   });
 
   it("seeds the models set with all supplied model names", () => {
-    const builder = new ModelDependencyTreeBuilder(makeSourceData());
+    const builder = makeBuilder(makeSourceData());
     const tree = builder.buildDependencyTree(["Alpha", "Beta", "Gamma"], "website");
     expect(tree.models).toEqual(new Set(["Alpha", "Beta", "Gamma"]));
   });
 
   it("returns a tree with all required keys", () => {
-    const builder = new ModelDependencyTreeBuilder(makeSourceData());
+    const builder = makeBuilder(makeSourceData());
     const tree = builder.buildDependencyTree(["M"], "website");
     const keys: Array<keyof ModelDependencyTree> = [
       "models",
@@ -198,7 +205,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — container discovery
       models: [makeModel(1, "Post")],
       containers: [makeContainer(100, 1)],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.containers.has(100)).toBe(true);
@@ -209,7 +216,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — container discovery
       models: [makeModel(1, "Post"), makeModel(2, "Author")],
       containers: [makeContainer(100, 1), makeContainer(200, 2)],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.containers.has(100)).toBe(true);
@@ -221,7 +228,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — container discovery
       models: [makeModel(1, "Post")],
       containers: [makeContainer(100, 1), makeContainer(101, 1)],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.containers.has(100)).toBe(true);
@@ -230,13 +237,13 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — container discovery
 
   it("handles missing containers array gracefully", () => {
     const sourceData = makeSourceData({ models: [makeModel(1, "Post")], containers: undefined });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     expect(() => builder.buildDependencyTree(["Post"], "website")).not.toThrow();
   });
 
   it("handles missing models array gracefully", () => {
     const sourceData = makeSourceData({ models: undefined, containers: [makeContainer(100, 1)] });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     expect(() => builder.buildDependencyTree(["Post"], "website")).not.toThrow();
   });
 
@@ -245,7 +252,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — container discovery
       models: [makeModel(1, "Post")],
       containers: [makeContainer(100, 1)],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["NonExistent"], "website");
     expect(tree.containers.size).toBe(0);
   });
@@ -258,7 +265,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — content discovery",
     const sourceData = makeSourceData({
       content: [makeContent(10, "Post"), makeContent(11, "Post"), makeContent(12, "Author")],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.content.has(10)).toBe(true);
@@ -268,7 +275,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — content discovery",
 
   it("handles missing content array gracefully", () => {
     const sourceData = makeSourceData({ content: undefined });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     expect(() => builder.buildDependencyTree(["Post"], "website")).not.toThrow();
   });
 
@@ -276,7 +283,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — content discovery",
     const sourceData = makeSourceData({
       content: [makeContent(10, "Post"), makeContent(20, "Author")],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post", "Author"], "website");
 
     expect(tree.content.has(10)).toBe(true);
@@ -293,7 +300,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — template discovery 
       containers: [makeContainer(100, 1)],
       templates: [makeTemplate(500, [{ contentViewID: 100 }])],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.templates.has(500)).toBe(true);
@@ -305,7 +312,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — template discovery 
       containers: [makeContainer(100, 1)],
       templates: [makeTemplate(501, [{ itemContainerID: 100 }])],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.templates.has(501)).toBe(true);
@@ -317,7 +324,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — template discovery 
       containers: [makeContainer(100, 1)],
       templates: [makeTemplate(500, [{ contentViewID: 999 }])],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.templates.has(500)).toBe(false);
@@ -329,7 +336,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — template discovery 
       containers: [makeContainer(100, 1)],
       templates: undefined,
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     expect(() => builder.buildDependencyTree(["Post"], "website")).not.toThrow();
   });
 
@@ -342,7 +349,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — template discovery 
       ],
       pages: [{ pageID: 300, name: "blog", templateName: "MainLayout" }],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.templates.has(600)).toBe(true);
@@ -359,7 +366,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — page discovery", ()
       templates: [makeTemplate(500, [{ contentViewID: 100 }])],
       pages: [makePage(300, { pageTemplateID: 500 })],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.pages.has(300)).toBe(true);
@@ -371,7 +378,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — page discovery", ()
       content: [makeContent(10, "Post")],
       pages: [makePage(300, { zones })],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.pages.has(300)).toBe(true);
@@ -383,7 +390,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — page discovery", ()
       content: [makeContent(20, "Widget")],
       pages: [makePage(400, { zones })],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Widget"], "website");
 
     expect(tree.pages.has(400)).toBe(true);
@@ -396,7 +403,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — page discovery", ()
       templates: [makeTemplate(500, [{ contentViewID: 100 }])],
       pages: [makePage(300, { pageTemplateID: 500 }), makePage(999, { pageTemplateID: 888 })],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.pages.has(300)).toBe(true);
@@ -405,7 +412,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — page discovery", ()
 
   it("handles missing pages array gracefully", () => {
     const sourceData = makeSourceData({ pages: undefined });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     expect(() => builder.buildDependencyTree(["Post"], "website")).not.toThrow();
   });
 });
@@ -419,7 +426,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — content pulled from
       content: [makeContent(10, "Post"), makeContent(99, "Promo")],
       pages: [makePage(300, { zones })],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.content.has(99)).toBe(true);
@@ -431,7 +438,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — content pulled from
       content: [makeContent(10, "Post")],
       pages: [makePage(300, { zones })],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     // Should not throw
     expect(() => builder.buildDependencyTree(["Post"], "website")).not.toThrow();
   });
@@ -447,7 +454,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — model back-discover
       models: [makeModel(1, "Post"), makeModel(2, "Promo")],
       pages: [makePage(300, { zones })],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.models.has("Promo")).toBe(true);
@@ -465,7 +472,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — container discovery
       ],
       content: [makeContent(10, "Post", "news1_postlist")],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.containers.has(100)).toBe(true);
@@ -480,7 +487,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — container discovery
       containers: [makeContainer(200, 99, "unrelated_container")],
       content: [makeContent(10, "Post", "news1_postlist")],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.containers.has(200)).toBe(false);
@@ -494,7 +501,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — asset discovery", (
     const sourceData = makeSourceData({
       content: [makeContent(10, "Post", "ref-10", { image: "https://cdn.aglty.io/my-img.jpg" })],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.assets.has("https://cdn.aglty.io/my-img.jpg")).toBe(true);
@@ -511,7 +518,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — asset discovery", (
         ),
       ],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.assets.has("https://origin.aglty.io/my-img.jpg")).toBe(true);
@@ -525,7 +532,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — asset discovery", (
         makeContent(20, "Other", "ref-20", { image: "https://cdn.aglty.io/excluded.jpg" }),
       ],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.assets.has("https://cdn.aglty.io/included.jpg")).toBe(true);
@@ -534,7 +541,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — asset discovery", (
 
   it("handles missing content array gracefully for asset discovery", () => {
     const sourceData = makeSourceData({ content: undefined });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     expect(() => builder.buildDependencyTree(["Post"], "website")).not.toThrow();
   });
 
@@ -542,7 +549,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — asset discovery", (
     const sourceData = makeSourceData({
       content: [makeContent(10, "Post", "ref-10", { banner: "https://static.agilitycms.com/banner.png" })],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.assets.has("https://static.agilitycms.com/banner.png")).toBe(true);
@@ -557,7 +564,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — gallery discovery",
       content: [makeContent(10, "Post", "ref-10", { gallery: { mediaGroupingID: 55 } })],
       galleries: [makeGallery(55)],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.galleries.has(55)).toBe(true);
@@ -568,7 +575,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — gallery discovery",
       content: [makeContent(10, "Post", "ref-10", { pics: { galleryID: 77 } })],
       galleries: [makeGallery(77)],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.galleries.has(77)).toBe(true);
@@ -582,7 +589,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — gallery discovery",
       ],
       galleries: [makeGallery(99)],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.galleries.has(99)).toBe(false);
@@ -593,7 +600,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — gallery discovery",
       content: [makeContent(10, "Post", "ref-10", { g: { mediaGroupingID: 55 } })],
       galleries: undefined,
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     expect(() => builder.buildDependencyTree(["Post"], "website")).not.toThrow();
   });
 
@@ -602,7 +609,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — gallery discovery",
       content: [makeContent(10, "Post", "ref-10", { items: [{ mediaGroupingID: 42 }] })],
       galleries: [makeGallery(42)],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.galleries.has(42)).toBe(true);
@@ -624,7 +631,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — ancestor page disco
       content: [makeContent(10, "Post")],
       pages: [makePage(300, { zones, name: "child-page" }), makePage(200, { name: "parent-page" })],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.pages.has(300)).toBe(true);
@@ -641,7 +648,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — ancestor page disco
       content: [makeContent(10, "Post")],
       pages: [makePage(300, { zones })],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.pages.size).toBe(1);
@@ -663,7 +670,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — ancestor page disco
         makePage(100, { name: "grandparent" }),
       ],
     });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.pages.has(100)).toBe(true);
@@ -677,7 +684,7 @@ describe("ModelDependencyTreeBuilder.buildDependencyTree — ancestor page disco
 describe("ModelDependencyTreeBuilder.buildDependencyTree — breakdown log deduplication", () => {
   it("only logs the breakdown once across multiple calls on the same builder", () => {
     const sourceData = makeSourceData({ content: [makeContent(10, "Post")] });
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const logSpy = jest.spyOn(console, "log");
 
     builder.buildDependencyTree(["Post"], "website");
@@ -694,7 +701,7 @@ describe("ModelDependencyTreeBuilder.validateModels", () => {
   let builder: ModelDependencyTreeBuilder;
 
   beforeEach(() => {
-    builder = new ModelDependencyTreeBuilder(makeSourceData());
+    builder = makeBuilder(makeSourceData());
   });
 
   it("returns all names as invalid when models list is empty", () => {
@@ -759,7 +766,7 @@ describe("ModelDependencyTreeBuilder — full pipeline integration", () => {
       assets: [makeAsset("https://cdn.aglty.io/hero.jpg")],
     });
 
-    const builder = new ModelDependencyTreeBuilder(sourceData);
+    const builder = makeBuilder(sourceData);
     const tree = builder.buildDependencyTree(["Post"], "website");
 
     expect(tree.models.has("Post")).toBe(true);
