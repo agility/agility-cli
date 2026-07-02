@@ -260,43 +260,6 @@ export class WorkflowOperation {
       console.log(ansiColors.gray(`Content items to ${operationName}: ${contentIds.length}`));
       console.log(ansiColors.gray(`Pages to ${operationName}: ${pageIds.length}`));
 
-      // DRY RUN: Show preview and exit without executing
-      if (state.dryRun) {
-        console.log(ansiColors.yellow("\n" + "═".repeat(50)));
-        console.log(ansiColors.yellow(`🔍 DRY RUN PREVIEW - ${operationName.toUpperCase()}`));
-        console.log(ansiColors.yellow("═".repeat(50)));
-        console.log(ansiColors.gray("\nThe following items would be processed:"));
-
-        if (contentIds.length > 0) {
-          console.log(ansiColors.cyan(`\n📄 Content Items (${contentIds.length}):`));
-          const displayContentIds = contentIds.slice(0, 20);
-          displayContentIds.forEach((id) => console.log(ansiColors.white(`    • ID: ${id}`)));
-          if (contentIds.length > 20) {
-            console.log(ansiColors.gray(`    ... and ${contentIds.length - 20} more content items`));
-          }
-        }
-
-        if (pageIds.length > 0) {
-          console.log(ansiColors.cyan(`\n📑 Pages (${pageIds.length}):`));
-          const displayPageIds = pageIds.slice(0, 20);
-          displayPageIds.forEach((id) => console.log(ansiColors.white(`    • ID: ${id}`)));
-          if (pageIds.length > 20) {
-            console.log(ansiColors.gray(`    ... and ${pageIds.length - 20} more pages`));
-          }
-        }
-
-        console.log(ansiColors.yellow("\n" + "─".repeat(50)));
-        console.log(ansiColors.yellow("⚠️  DRY RUN COMPLETE - No changes were made"));
-        console.log(ansiColors.gray(`Remove --dryRun flag to execute the ${operationName} operation`));
-        console.log(ansiColors.yellow("─".repeat(50)));
-
-        result.contentProcessed = contentIds.length;
-        result.pagesProcessed = pageIds.length;
-        result.elapsedTime = Date.now() - startTime;
-        finalizeLogger();
-        return result;
-      }
-
       // Execute workflow operation
       console.log(ansiColors.cyan("\n" + "─".repeat(50)));
       console.log(ansiColors.cyan(`🚀 ${operationName.toUpperCase()} PHASE (${modeDescription})`));

@@ -80,14 +80,14 @@ describe("pushTemplates — empty sourceData guard", () => {
     const { pushTemplates } = await import("../template-pusher");
     await pushTemplates([], [], "en-us");
 
-    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("No templates"));
+    expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("No sourceTemplates found to process."));
   });
 });
 
-// ─── pushTemplates — skip when template exists in target by name ───────────────
+// ─── pushTemplates — throw when template exists in target by name ──────────────
 
-describe("pushTemplates — skip when template exists in target by name (no mapping)", () => {
-  it("skips template that exists in target by name and creates mapping", async () => {
+describe("pushTemplates — throw when template exists in target by name (no mapping)", () => {
+  it("throws a mapping inconsistency error and does not save", async () => {
     const savePageTemplate = jest.fn().mockResolvedValue(makeTemplate());
     state.cachedApiClient = {
       pageMethods: { savePageTemplate },
@@ -98,10 +98,9 @@ describe("pushTemplates — skip when template exists in target by name (no mapp
     const sourceTpl = makeTemplate({ pageTemplateName: "SharedTemplate" });
     const targetTpl = makeTemplate({ pageTemplateName: "SharedTemplate" });
 
-    const result = await pushTemplates([sourceTpl], [targetTpl], "en-us");
-
-    expect(result.skipped).toBe(1);
-    expect(result.successful).toBe(0);
+    await expect(pushTemplates([sourceTpl], [targetTpl], "en-us")).rejects.toThrow(
+      `Page template validation failed: mapping inconsistency for template "SharedTemplate"`
+    );
     expect(savePageTemplate).not.toHaveBeenCalled();
   });
 });

@@ -14,7 +14,6 @@ export class assets {
     options: mgmtApi.Options,
     multibar: cliProgress.MultiBar,
     fileOps: fileOperations,
-    legacyFolders: boolean = false,
     progressCallback?: (processed: number, total: number, status?: "success" | "error" | "progress") => void
   ) {
     this._options = options;

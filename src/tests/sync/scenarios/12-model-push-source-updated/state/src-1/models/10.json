@@ -1,0 +1,14 @@
+{
+  "id": 10,
+  "displayName": "Post",
+  "referenceName": "Post",
+  "description": "Defines a blog post (source bumped a field).",
+  "lastModifiedDate": "2025-06-01T00:00:00.000",
+  "lastModifiedBy": "Test",
+  "contentDefinitionTypeName": "Content List",
+  "fields": [
+    { "type": "Text", "name": "Title", "label": "Title", "required": true },
+    { "type": "Text", "name": "Slug", "label": "URL Slug", "required": true },
+    { "type": "Text", "name": "Subtitle", "label": "Subtitle", "required": false }
+  ]
+}

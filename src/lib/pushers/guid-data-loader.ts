@@ -13,7 +13,13 @@
 import * as fs from "fs";
 import ansiColors from "ansi-colors";
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getState } from "../../core/state";
+import { getState } from "../../core/state";
+import * as mgmtApi from "@agility/management-sdk";
+
+// Shared model→model reference resolver, defined alongside the dependency-tree builder so both the
+// --models (here) and --models-with-deps (tree builder) paths use the same logic. 
+import { resolveReferencedModels } from "../models/model-dependency-tree-builder";
+export { resolveReferencedModels };
 
 export interface ModelFilterOptions {
   models?: string[]; // Simple model filtering
@@ -22,7 +28,7 @@ export interface ModelFilterOptions {
 
 export interface GuidEntities {
   pages: any[];
-  templates: any[];
+  templates: mgmtApi.PageModel[];
   containers: any[];
   lists: any[];
   models: any[];
@@ -203,12 +209,17 @@ export class GuidDataLoader {
       );
     }
 
+    // --models (simple): pull ONLY the requested models plus the models they reference through
+    // linked-content fields (e.g. FooterLinks → FooterLinksLists), transitively. No content, pages,
+    // containers, or assets. Referenced models must be included or the model push fails on the target
+    // with a 404 "Definition for setting X not found".
+    if (!useFullDependencyTree) {
+      const expandedModels = resolveReferencedModels(validation.valid, (completeEntities ?? guidEntities).models);
+      return this.filterGuidEntitiesByModels(guidEntities, expandedModels);
+    }
+
     // Build dependency tree and filter all related entities using complete data
     const dependencyTree = treeBuilder.buildDependencyTree(validation.valid, locale);
-
-    if (!useFullDependencyTree) {
-      return this.filterGuidEntitiesByModels(guidEntities, validation.valid);
-    }
 
     return await this.filterGuidEntitiesByDependencyTree(completeEntities, dependencyTree, locale);
   }

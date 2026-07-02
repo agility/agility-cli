@@ -1,0 +1,16 @@
+{
+  "contentID": 5000,
+  "properties": {
+    "referenceName": "Posts",
+    "definitionName": "Post",
+    "versionID": 100,
+    "state": 2,
+    "itemOrder": 0
+  },
+  "fields": {
+    "title": "Hello World",
+    "slug": "hello-world"
+  },
+  "seo": null,
+  "scripts": null
+}

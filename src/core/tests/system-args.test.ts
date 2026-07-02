@@ -6,30 +6,18 @@ describe("systemArgs – required keys exist", () => {
   const expectedKeys = [
     "token",
     "dev",
-    "local",
-    "preprod",
     "headless",
     "verbose",
-    "rootPath",
-    "legacyFolders",
-    "locale",
+    "locales",
     "channel",
-    "preview",
     "elements",
-    "insecure",
-    "baseUrl",
     "models",
     "modelsWithDeps",
-    "test",
-    "dryRun",
     "contentIDs",
     "pageIDs",
     "sourceGuid",
     "targetGuid",
     "overwrite",
-    "force",
-    "update",
-    "reset",
     "autoPublish",
   ];
 
@@ -38,24 +26,31 @@ describe("systemArgs – required keys exist", () => {
   });
 });
 
+describe("systemArgs – removed keys do not exist", () => {
+  const removedKeys = [
+    "local",
+    "preprod",
+    "rootPath",
+    "legacyFolders",
+    "locale",
+    "preview",
+    "insecure",
+    "baseUrl",
+    "test",
+    "dryRun",
+    "force",
+    "update",
+    "reset",
+  ];
+
+  it.each(removedKeys)('no longer exposes "%s"', (key) => {
+    expect(systemArgs).not.toHaveProperty(key);
+  });
+});
+
 describe("systemArgs – types", () => {
   it('boolean args declare type "boolean"', () => {
-    const boolArgs = [
-      "dev",
-      "local",
-      "preprod",
-      "headless",
-      "verbose",
-      "legacyFolders",
-      "preview",
-      "insecure",
-      "test",
-      "dryRun",
-      "overwrite",
-      "force",
-      "update",
-      "reset",
-    ];
+    const boolArgs = ["dev", "headless", "verbose", "overwrite"];
     for (const key of boolArgs) {
       expect((systemArgs as any)[key].type).toBe("boolean");
     }
@@ -64,11 +59,9 @@ describe("systemArgs – types", () => {
   it('string args declare type "string"', () => {
     const strArgs = [
       "token",
-      "rootPath",
-      "locale",
+      "locales",
       "channel",
       "elements",
-      "baseUrl",
       "models",
       "modelsWithDeps",
       "contentIDs",
@@ -83,16 +76,8 @@ describe("systemArgs – types", () => {
 });
 
 describe("systemArgs – defaults", () => {
-  it('rootPath defaults to "agility-files"', () => {
-    expect(systemArgs.rootPath.default).toBe("agility-files");
-  });
-
   it('channel defaults to "website"', () => {
     expect(systemArgs.channel.default).toBe("website");
-  });
-
-  it("preview defaults to true", () => {
-    expect(systemArgs.preview.default).toBe(true);
   });
 
   it("headless defaults to false", () => {
@@ -101,18 +86,6 @@ describe("systemArgs – defaults", () => {
 
   it("overwrite defaults to false", () => {
     expect(systemArgs.overwrite.default).toBe(false);
-  });
-
-  it("force defaults to false", () => {
-    expect(systemArgs.force.default).toBe(false);
-  });
-
-  it("test defaults to false", () => {
-    expect(systemArgs.test.default).toBe(false);
-  });
-
-  it("dryRun defaults to false", () => {
-    expect(systemArgs.dryRun.default).toBe(false);
   });
 
   it("elements includes all expected element types", () => {
@@ -167,20 +140,16 @@ describe("systemArgs.autoPublish coerce", () => {
 // ─── aliases ─────────────────────────────────────────────────────────────────
 
 describe("systemArgs – aliases", () => {
-  it('locale has "locales" alias', () => {
-    expect((systemArgs.locale as any).alias).toContain("locales");
-  });
-
-  it('dryRun has "dry-run" alias', () => {
-    expect((systemArgs.dryRun as any).alias).toContain("dry-run");
+  it('locales has "LOCALES" alias', () => {
+    expect((systemArgs.locales as any).alias).toContain("LOCALES");
   });
 
   it('autoPublish has "auto-publish" alias', () => {
     expect((systemArgs.autoPublish as any).alias).toContain("auto-publish");
   });
 
-  it('models has "model" alias', () => {
-    expect((systemArgs.models as any).alias).toContain("model");
+  it('models no longer has a "model" alias', () => {
+    expect((systemArgs.models as any).alias).toBeUndefined();
   });
 
   it('sourceGuid has "source-guid" alias', () => {
@@ -189,5 +158,26 @@ describe("systemArgs – aliases", () => {
 
   it('targetGuid has "target-guid" alias', () => {
     expect((systemArgs.targetGuid as any).alias).toContain("target-guid");
+  });
+
+  // Regression guard: yargs silently drops an option from `--help` when its
+  // alias array contains the option's own key name. Keep keys out of aliases.
+  it("no option lists its own key name as an alias", () => {
+    for (const [key, def] of Object.entries(systemArgs)) {
+      const alias = (def as any).alias;
+      if (alias) {
+        const aliases = Array.isArray(alias) ? alias : [alias];
+        expect(aliases).not.toContain(key);
+      }
+    }
+  });
+});
+
+describe("systemArgs – help text", () => {
+  it("every option has a non-empty describe (shown in --help)", () => {
+    for (const def of Object.values(systemArgs)) {
+      expect(typeof (def as any).describe).toBe("string");
+      expect((def as any).describe.length).toBeGreaterThan(0);
+    }
   });
 });

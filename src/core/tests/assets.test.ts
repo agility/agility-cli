@@ -58,12 +58,6 @@ describe("assets constructor", () => {
     const fileOps = new fileOperations("test-guid", "en-us");
     const multibar = makeMultibarStub();
     const cb = jest.fn();
-    expect(() => new assets({} as any, multibar, fileOps, false, cb)).not.toThrow();
-  });
-
-  it("accepts legacyFolders flag", () => {
-    const fileOps = new fileOperations("test-guid", "en-us");
-    const multibar = makeMultibarStub();
-    expect(() => new assets({} as any, multibar, fileOps, true)).not.toThrow();
+    expect(() => new assets({} as any, multibar, fileOps, cb)).not.toThrow();
   });
 });

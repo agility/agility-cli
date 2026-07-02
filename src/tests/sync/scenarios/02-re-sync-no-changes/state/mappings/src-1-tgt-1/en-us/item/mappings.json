@@ -1,0 +1,10 @@
+[
+  {
+    "sourceGuid": "src-1",
+    "targetGuid": "tgt-1",
+    "sourceContentID": 1000,
+    "targetContentID": 5000,
+    "sourceVersionID": 1,
+    "targetVersionID": 100
+  }
+]

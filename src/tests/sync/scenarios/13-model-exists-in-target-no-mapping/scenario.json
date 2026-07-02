@@ -1,0 +1,16 @@
+{
+  "name": "13-model-exists-in-target-no-mapping",
+  "description": "Setup: target has model 'Post' (custom, non-default) with the same referenceName as source, but no local mapping file exists. Behavior corrected by PROD-2211 (Fix 3, map-on-adopt): a custom model that already exists on the target by (referenceName, contentDefinitionTypeID) but has no mapping row is adopted — pushModels writes the mapping (source 10 -> target 50) and skips the model. No saveModel call is made. This replaces the earlier silent-drop gap (documented in FINDINGS.md Finding 5), where the model fell through every condition without a mapping, leaving downstream containers unable to resolve their target model. The mapping now self-heals on re-sync.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "pushes": "models",
+  "expect": {
+    "apiCalls": {
+      "saveModel": 0
+    },
+    "mappings": {
+      "model": [{ "sourceID": 10, "targetID": 50, "sourceReferenceName": "Post" }]
+    }
+  }
+}

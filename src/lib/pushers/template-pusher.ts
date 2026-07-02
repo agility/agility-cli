@@ -1,32 +1,22 @@
 import * as mgmtApi from "@agility/management-sdk";
-import ansiColors from "ansi-colors";
-import { state, getState, getApiClient, getLoggerForGuid } from "../../core/state";
+import { state, getLoggerForGuid } from "../../core/state";
 import { TemplateMapper } from "lib/mappers/template-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContainerMapper } from "lib/mappers/container-mapper";
-import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { FailureDetail, PusherResult } from "types/sourceData";
 
-/**
- * Enhanced template finder with proper target safety and conflict resolution
- * Logic Flow: Target Safety FIRST → Change Delta SECOND → Conflict Resolution
- */
 
 export async function pushTemplates(
-  sourceData: any,
-  targetData: any,
+  sourceTemplates: mgmtApi.PageModel[],
+  targetTemplates: mgmtApi.PageModel[],
   locale: string
-  // onProgress?: (processed: number, total: number, status?: 'success' | 'error') => void
 ): Promise<PusherResult> {
-  // Extract data from sourceData - unified parameter pattern
-  const templates: mgmtApi.PageModel[] = sourceData || [];
-  const { sourceGuid, targetGuid, cachedApiClient: apiClient, overwrite } = state;
+
+  const { sourceGuid, cachedApiClient: apiClient } = state;
   const logger = getLoggerForGuid(sourceGuid[0]);
 
-  // console.log(`[Template Debug] Starting template processing. Found ${templates ? templates.length : 0} templates to process.`);
-
-  if (!templates || templates.length === 0) {
-    console.log("No templates found to process.");
+  if (!sourceTemplates || sourceTemplates.length === 0) {
+    console.log("No sourceTemplates found to process.");
     return { status: "success", successful: 0, failed: 0, skipped: 0 };
   }
 
@@ -34,101 +24,103 @@ export async function pushTemplates(
   let failed = 0;
   let skipped = 0;
   let processedCount = 0;
-  const totalTemplates = templates.length;
   let overallStatus: "success" | "error" = "success";
   const failureDetails: FailureDetail[] = [];
 
-  for (let i = 0; i < templates.length; i++) {
-    let template = templates[i];
-    let originalID = template.pageTemplateID;
-    let currentStatus: "success" | "error" = "success";
-    let templateProcessed = false;
-    let payload: mgmtApi.PageModel | null = null;
+  for (let i = 0; i < sourceTemplates.length; i++) {
+    let sourceTemplate = sourceTemplates[i];
 
     const { sourceGuid, targetGuid } = state;
     const referenceMapper = new TemplateMapper(sourceGuid[0], targetGuid[0]);
 
-    let existingMapping = referenceMapper.getTemplateMapping(template, "source");
-    let targetTemplate =
-      targetData.find((targetTemplate) => targetTemplate.pageTemplateID === existingMapping?.targetPageTemplateID) ||
-      null;
-    if (!targetTemplate) {
-      // Try to get the template via the mapper
-      targetTemplate = referenceMapper.getMappedEntity(existingMapping, "target");
+    let existingMapping = referenceMapper.getTemplateMapping(sourceTemplate, "source");
+    let targetTemplate: mgmtApi.PageModel | null = null;
+
+    // If we have a mapping, try to get the target template via the target template id from the mapping
+    if(existingMapping){
+      targetTemplate = targetTemplates.find((t) => t.pageTemplateID === existingMapping.targetPageTemplateID) ?? null;
     }
 
     // Handle templates that exist in target but have no mapping (match by name)
-    // This ensures downstream pages can find their template mappings
     if (!existingMapping && !targetTemplate) {
-      targetTemplate = targetData.find((t) => t.pageTemplateName === template.pageTemplateName) || null;
+      targetTemplate = targetTemplates.find((t) => t.pageTemplateName === sourceTemplate.pageTemplateName) ?? null;
       if (targetTemplate) {
-        // Create the mapping for existing target template
-        referenceMapper.addMapping(template, targetTemplate);
-        logger.template.skipped(template, "exists in target, mapping created", targetGuid[0]);
-        skipped++;
-        processedCount++;
-        continue; // Skip to next template - mapping is now created
+          logger.template.error(
+            sourceTemplate,
+            new Error(
+              `A target template named "${targetTemplate.pageTemplateName}" with ID: ${targetTemplate.pageTemplateID} exists but is not mapped to source ID ${sourceTemplate.pageTemplateID} (likely a rename or reassignment of the source template).`
+            ),
+            targetGuid[0]
+          );
+          throw new Error(
+            `Page template validation failed: mapping inconsistency for template "${sourceTemplate.pageTemplateName}" (ID: ${sourceTemplate.pageTemplateID}). ` +
+              `A mapping exists for the target template, but the source template ID does not match — this likely indicates ` +
+              `a rename or reassignment on the source. Stopping sync to avoid a partial push; review the template mappings and re-run. Please contact AgilityCMS Support to resolve this issue`
+          );
       }
     }
 
-    const isTargetSafe = existingMapping !== null && referenceMapper.hasTargetChanged(targetTemplate);
-    const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(template);
-    let shouldUpdate = existingMapping !== null && isTargetSafe && hasSourceChanges;
-    let shouldSkip = existingMapping !== null && !isTargetSafe && !hasSourceChanges;
+    // Templates have no lastModifiedDate, so compare the source and target
+    // structure directly: identical -> skip, different -> update (source wins),
+    // mapped but missing on target -> fall through and recreate.
+    const templateChanged = referenceMapper.hasTemplateChanged(sourceTemplate, targetTemplate);
 
-    if (overwrite && existingMapping && targetTemplate) {
-      shouldUpdate = true;
-      shouldSkip = false;
-    }
+    const shouldUpdate = existingMapping !== null && targetTemplate !== null && templateChanged;
+    const shouldSkip = existingMapping !== null && targetTemplate !== null && !templateChanged;
 
     if (shouldSkip) {
-      if (targetTemplate) {
-        referenceMapper.addMapping(template, targetTemplate);
-      }
-      logger.template.skipped(template, "up to date, skipping", targetGuid[0]);
+      logger.template.skipped(sourceTemplate, "Up to date, skipping", targetGuid[0]);
       skipped++;
-    } else {
-      let targetId = shouldUpdate ? targetTemplate.pageTemplateID : -1;
+    }
+    else {
+      let targetId = shouldUpdate ? targetTemplate?.pageTemplateID : -1;
 
       // Prepare payload
-      const mappedSections = template.contentSectionDefinitions.map((def) => {
-        const mappedDef = { ...def };
-        mappedDef.pageItemTemplateID = shouldUpdate ? def.pageItemTemplateID : -1;
-        mappedDef.pageTemplateID = targetId;
-        mappedDef.contentViewID = shouldUpdate ? def.contentViewID : 0;
+      const mappedSections = sourceTemplate.contentSectionDefinitions.map((sourceContentSecDef) => {
+        const mappedDef = { ...sourceContentSecDef };
 
-        if (def.contentDefinitionID) {
+        // Find the target section data to use for updates
+        const targetSection = shouldUpdate ? targetTemplate?.contentSectionDefinitions?.find((targetContentSecDef) => targetContentSecDef.pageItemTemplateReferenceName === sourceContentSecDef.pageItemTemplateReferenceName) : null;
+
+        mappedDef.pageItemTemplateID = shouldUpdate ? targetSection?.pageItemTemplateID ?? -1 : -1;
+        mappedDef.pageTemplateID = targetId;
+        mappedDef.contentViewID = shouldUpdate ? targetSection?.contentViewID ?? -1 : -1;
+
+        // should have the models by now
+        if (sourceContentSecDef.contentDefinitionID) {
           const modelMappers = new ModelMapper(sourceGuid[0], targetGuid[0]);
-          const modelMapping = modelMappers.getModelMappingByID(def.contentDefinitionID, "source");
+          const modelMapping = modelMappers.getModelMappingByID(sourceContentSecDef.contentDefinitionID, "source");
           if (modelMapping?.targetID) mappedDef.contentDefinitionID = modelMapping.targetID;
         }
-        if (def.itemContainerID) {
+
+        // should have the containers by now
+        if (sourceContentSecDef.itemContainerID) {
           const containerMappers = new ContainerMapper(sourceGuid[0], targetGuid[0]);
-          const containerMapping = containerMappers.getContainerMappingByContentViewID(def.itemContainerID, "source");
+          const containerMapping = containerMappers.getContainerMappingByContentViewID(sourceContentSecDef.itemContainerID, "source");
           if (containerMapping?.targetContentViewID) mappedDef.itemContainerID = containerMapping.targetContentViewID;
         }
+
         return mappedDef;
       });
 
       const payload = {
-        ...template,
+        ...sourceTemplate,
         pageTemplateID: targetId,
         contentSectionDefinitions: mappedSections,
       };
 
       try {
         const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid[0], locale, payload);
-        referenceMapper.addMapping(template, savedTemplate);
+        referenceMapper.addMapping(sourceTemplate, savedTemplate);
         const action = shouldUpdate ? "updated" : "created";
-        logger.template[action](template, action, targetGuid[0]);
+        logger.template[action](sourceTemplate, action, targetGuid[0]);
         successful++;
       } catch (error: any) {
-        logger.template.error(template, error, targetGuid[0]);
+        logger.template.error(sourceTemplate, error, targetGuid[0]);
         failed++;
-        currentStatus = "error";
         overallStatus = "error";
         failureDetails.push({
-          name: template.pageTemplateName,
+          name: sourceTemplate.pageTemplateName,
           error: error?.message || String(error),
           guid: sourceGuid[0],
         });

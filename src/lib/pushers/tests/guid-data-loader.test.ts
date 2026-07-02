@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { resetState, setState, state } from "core/state";
-import { GuidDataLoader } from "../guid-data-loader";
+import { GuidDataLoader, resolveReferencedModels } from "../guid-data-loader";
 
 let tmpDir: string;
 
@@ -211,6 +211,64 @@ describe("GuidDataLoader.validateDataStructure", () => {
   });
 });
 
+// ─── resolveReferencedModels (PROD-2187: --models pulls referenced models) ───
+
+describe("resolveReferencedModels", () => {
+  const contentField = (refName: string) => ({ type: "Content", settings: { ContentDefinition: refName } });
+  const model = (referenceName: string, refs: string[] = []) => ({
+    referenceName,
+    fields: refs.map(contentField),
+  });
+
+  it("returns just the requested model when it references nothing", () => {
+    const all = [model("FooterLinksLists")];
+    expect(resolveReferencedModels(["FooterLinksLists"], all)).toEqual(["FooterLinksLists"]);
+  });
+
+  it("includes a model referenced via a linked-content field (FooterLinks → FooterLinksLists)", () => {
+    const all = [model("FooterLinks", ["FooterLinksLists"]), model("FooterLinksLists")];
+    const result = resolveReferencedModels(["FooterLinks"], all);
+    expect(result).toEqual(expect.arrayContaining(["FooterLinks", "FooterLinksLists"]));
+    expect(result).toHaveLength(2);
+  });
+
+  it("resolves references transitively (A → B → C)", () => {
+    const all = [model("A", ["B"]), model("B", ["C"]), model("C")];
+    const result = resolveReferencedModels(["A"], all);
+    expect(result).toEqual(expect.arrayContaining(["A", "B", "C"]));
+    expect(result).toHaveLength(3);
+  });
+
+  it("terminates on a reference cycle (A → B → A)", () => {
+    const all = [model("A", ["B"]), model("B", ["A"])];
+    const result = resolveReferencedModels(["A"], all);
+    expect(result.sort()).toEqual(["A", "B"]);
+  });
+
+  it("matches case-insensitively but returns the canonical reference name", () => {
+    const all = [model("FooterLinks", ["FooterLinksLists"]), model("FooterLinksLists")];
+    const result = resolveReferencedModels(["footerlinks"], all);
+    expect(result).toEqual(expect.arrayContaining(["FooterLinks", "FooterLinksLists"]));
+  });
+
+  it("keeps a requested model even if it is not found in the model set", () => {
+    expect(resolveReferencedModels(["Ghost"], [])).toEqual(["Ghost"]);
+  });
+
+  it("ignores fields with empty/absent ContentDefinition", () => {
+    const all = [
+      {
+        referenceName: "M",
+        fields: [
+          { type: "Text", settings: {} },
+          { type: "Content", settings: { ContentDefinition: "" } },
+        ],
+      },
+    ];
+    expect(resolveReferencedModels(["M"], all)).toEqual(["M"]);
+  });
+});
+
 // ─── loadGuidEntities — with prepared filesystem ─────────────────────────────
 
 describe("GuidDataLoader.loadGuidEntities", () => {
@@ -290,5 +348,48 @@ describe("GuidDataLoader.loadGuidEntities", () => {
     await expect(loader.loadGuidEntities("en-us", { models: ["NonExistentModel"] })).rejects.toThrow(
       /Model validation failed/
     );
+  });
+
+  it("--models pulls the requested model AND its referenced models, but no content/pages/containers", async () => {
+    // Lay down models on disk: FooterLinks references FooterLinksLists via a linked-content field.
+    const guid = "models-only-refs-guid-u";
+    const modelsDir = path.join(tmpDir, guid, "models");
+    fs.mkdirSync(modelsDir, { recursive: true });
+    fs.writeFileSync(
+      path.join(modelsDir, "157.json"),
+      JSON.stringify({
+        id: 157,
+        referenceName: "FooterLinks",
+        contentDefinitionTypeID: 1,
+        fields: [{ name: "footerLinks", type: "Content", settings: { ContentDefinition: "FooterLinksLists" } }],
+      })
+    );
+    fs.writeFileSync(
+      path.join(modelsDir, "158.json"),
+      JSON.stringify({ id: 158, referenceName: "FooterLinksLists", contentDefinitionTypeID: 1, fields: [] })
+    );
+    // A model that was NOT requested and is unrelated — must NOT be pulled in.
+    fs.writeFileSync(
+      path.join(modelsDir, "999.json"),
+      JSON.stringify({ id: 999, referenceName: "Unrelated", contentDefinitionTypeID: 1, fields: [] })
+    );
+
+    state.elements = "Models";
+    state.isSync = false;
+    state.modelsWithDeps = "";
+
+    const loader = new GuidDataLoader(guid);
+    const entities = await loader.loadGuidEntities("en-us", { models: ["FooterLinks"] });
+
+    const names = entities.models.map((m: any) => m.referenceName).sort();
+    expect(names).toEqual(["FooterLinks", "FooterLinksLists"]); // referenced model included, Unrelated excluded
+
+    // Models-only: nothing else is pulled.
+    expect(entities.containers).toHaveLength(0);
+    expect(entities.content).toHaveLength(0);
+    expect(entities.pages).toHaveLength(0);
+    expect(entities.templates).toHaveLength(0);
+    expect(entities.assets).toHaveLength(0);
+    expect(entities.galleries).toHaveLength(0);
   });
 });

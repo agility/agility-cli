@@ -1,0 +1,26 @@
+{
+  "name": "10-multi-item-batch-with-skip",
+  "description": "Three source items, one of which has a definitionName with no model mapping. The orphan reaches processBatches, throws inside prepareContentPayloads, and is skipped — leaving only the surviving two items in the payload. PROD-1024 regression: extractBatchResults must align API results against the surviving payloads, not the original batch. If alignment is wrong, the wrong sourceContentID gets the wrong targetContentID.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "expect": {
+    "apiCalls": {
+      "saveContentItems": 1
+    },
+    "mappings": {
+      "item": [
+        {
+          "sourceContentID": 1000,
+          "targetContentID": 9001
+        },
+        {
+          "sourceContentID": 1200,
+          "targetContentID": 9002
+        }
+      ]
+    },
+    "noDuplicateMappingsBySourceID": true
+  },
+  "base": "_base"
+}

@@ -1,0 +1,18 @@
+{
+  "name": "12-model-push-source-updated",
+  "description": "Brightstar Case 7: model exists in both source and target with a mapping, but the source's lastModifiedDate is newer than the target's. pushModels should detect hasSourceChanged, take the updateExistingModel path (no stub create), call saveModel exactly once with the existing target ID (50), and leave the model mapping intact — sourceID 10 → targetID 50 — with only the lastModifiedDate fields touched.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "pushes": "models",
+  "expect": {
+    "apiCalls": {
+      "saveModel": 1
+    },
+    "mappings": {
+      "model": [
+        { "sourceID": 10, "targetID": 50, "sourceReferenceName": "Post" }
+      ]
+    }
+  }
+}

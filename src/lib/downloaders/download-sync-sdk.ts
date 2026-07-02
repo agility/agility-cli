@@ -34,12 +34,11 @@ export async function downloadSyncSDKByLocaleAndChannel(guid: string, channel: s
   const instanceSpecificPath = fileOps.getDataFolderPath();
   const syncTokenPath = fileOps.getDataFilePath("state", "sync.json");
 
-  const isIncrementalSync = await handleSyncToken(syncTokenPath, state.reset);
+  const isIncrementalSync = await handleSyncToken(syncTokenPath, false);
 
   const logger = getLoggerForGuid(guid);
   // Configure the Agility Sync client
   // NOTE: Use determineFetchUrl (not determineBaseUrl) because:
-  // - Management API uses localhost:5050 when --local is set
   // - Content Fetch/Sync API is always cloud-based (based on GUID suffix)
   // The baseUrl must include the GUID path segment for the SDK to construct correct URLs:
   // e.g., https://api-dev.aglty.io/{guid} → https://api-dev.aglty.io/{guid}/preview/{locale}/sync/items

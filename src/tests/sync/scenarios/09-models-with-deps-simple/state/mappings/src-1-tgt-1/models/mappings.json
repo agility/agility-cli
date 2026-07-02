@@ -1,0 +1,22 @@
+[
+  {
+    "sourceGuid": "src-1",
+    "targetGuid": "tgt-1",
+    "sourceID": 10,
+    "targetID": 50,
+    "sourceReferenceName": "Post",
+    "targetReferenceName": "Post",
+    "sourceLastModifiedDate": "2025-01-01T00:00:00.000",
+    "targetLastModifiedDate": "2025-01-01T00:00:00.000"
+  },
+  {
+    "sourceGuid": "src-1",
+    "targetGuid": "tgt-1",
+    "sourceID": 20,
+    "targetID": 60,
+    "sourceReferenceName": "Author",
+    "targetReferenceName": "Author",
+    "sourceLastModifiedDate": "2025-01-01T00:00:00.000",
+    "targetLastModifiedDate": "2025-01-01T00:00:00.000"
+  }
+]

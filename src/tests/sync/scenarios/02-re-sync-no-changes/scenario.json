@@ -1,0 +1,22 @@
+{
+  "name": "02-re-sync-no-changes",
+  "description": "Mapping exists, target item file exists, source version matches mapped version. Filter should skip the item entirely — no API call, mapping unchanged.",
+  "sourceGuid": "src-1",
+  "targetGuid": "tgt-1",
+  "locale": "en-us",
+  "expect": {
+    "apiCalls": {
+      "saveContentItems": 0
+    },
+    "mappings": {
+      "item": [
+        {
+          "sourceContentID": 1000,
+          "targetContentID": 5000
+        }
+      ]
+    },
+    "noDuplicateMappingsBySourceID": true
+  },
+  "base": "_base"
+}

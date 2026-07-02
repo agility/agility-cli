@@ -23,28 +23,10 @@ describe("Auth.getEnv", () => {
     expect(auth.getEnv()).toBe("prod");
   });
 
-  it('returns "local" when state.local is true', () => {
-    setState({ local: true });
-    const auth = new Auth();
-    expect(auth.getEnv()).toBe("local");
-  });
-
   it('returns "dev" when state.dev is true', () => {
     setState({ dev: true });
     const auth = new Auth();
     expect(auth.getEnv()).toBe("dev");
-  });
-
-  it('returns "preprod" when state.preprod is true', () => {
-    setState({ preprod: true });
-    const auth = new Auth();
-    expect(auth.getEnv()).toBe("preprod");
-  });
-
-  it("local takes priority over dev", () => {
-    setState({ local: true, dev: true });
-    const auth = new Auth();
-    expect(auth.getEnv()).toBe("local");
   });
 });
 
@@ -95,22 +77,10 @@ describe("Auth.determineBaseUrl", () => {
     expect(auth.determineBaseUrl("my-instance-us2")).toBe("https://mgmt-usa2.aglty.io");
   });
 
-  it("returns localhost when state.local is true", () => {
-    setState({ local: true });
-    const auth = new Auth();
-    expect(auth.determineBaseUrl("any-guid")).toBe("https://localhost:5050");
-  });
-
   it("returns dev URL when state.dev is true", () => {
     setState({ dev: true });
     const auth = new Auth();
     expect(auth.determineBaseUrl("any-guid")).toBe("https://mgmt-dev.aglty.io");
-  });
-
-  it("respects state.baseUrl override", () => {
-    setState({ baseUrl: "https://custom.example.com" });
-    const auth = new Auth();
-    expect(auth.determineBaseUrl("any-guid-u")).toBe("https://custom.example.com");
   });
 
   it("returns default US URL when no GUID is given and no state flags", () => {
@@ -158,12 +128,6 @@ describe("Auth.determineFetchUrl", () => {
     expect(auth.determineFetchUrl("my-guid-us2")).toBe("https://api-usa2.aglty.io");
   });
 
-  it("does NOT switch to localhost even when state.local is true (fetch API is always cloud)", () => {
-    setState({ local: true });
-    const auth = new Auth();
-    expect(auth.determineFetchUrl("my-guid-u")).toBe("https://api.aglty.io");
-  });
-
   it("returns default US fetch URL when no guid provided", () => {
     const auth = new Auth();
     expect(auth.determineFetchUrl()).toBe("https://api.aglty.io");
@@ -195,21 +159,6 @@ describe("Auth.getBaseUrl", () => {
   });
 });
 
-// ─── shouldSkipPermissionCheck ────────────────────────────────────────────────
-
-describe("Auth.shouldSkipPermissionCheck", () => {
-  it("returns false by default", () => {
-    const auth = new Auth();
-    expect(auth.shouldSkipPermissionCheck()).toBe(false);
-  });
-
-  it("returns true when state.test is true", () => {
-    setState({ test: true });
-    const auth = new Auth();
-    expect(auth.shouldSkipPermissionCheck()).toBe(true);
-  });
-});
-
 // ─── generateCode ─────────────────────────────────────────────────────────────
 
 describe("Auth.generateCode", () => {
@@ -226,26 +175,6 @@ describe("Auth.generateCode", () => {
       codes.add(await auth.generateCode());
     }
     expect(codes.size).toBeGreaterThan(1);
-  });
-});
-
-// ─── setInsecureMode ──────────────────────────────────────────────────────────
-
-describe("Auth insecure mode", () => {
-  it("defaults to secure mode", () => {
-    const auth = new Auth();
-    // createHttpsAgent is private, but we can verify the constructor accepts the flag
-    expect(() => new Auth(false)).not.toThrow();
-  });
-
-  it("can be constructed in insecure mode", () => {
-    expect(() => new Auth(true)).not.toThrow();
-  });
-
-  it("setInsecureMode does not throw", () => {
-    const auth = new Auth();
-    expect(() => auth.setInsecureMode(true)).not.toThrow();
-    expect(() => auth.setInsecureMode(false)).not.toThrow();
   });
 });
 
