@@ -312,20 +312,90 @@ describe("AssetMapper.isKnownAssetUrl", () => {
     expect(mapper.isKnownAssetUrl("https://unrelated.example.com/file.jpg")).toBe(false);
   });
 
-  it("ignores mappings whose container URLs are undefined", () => {
+  it("returns false when a mapping has no container URLs and no asset URLs", () => {
     const mapper = makeMapper();
     const src = makeAsset({
       mediaID: 1,
+      edgeUrl: undefined as any,
       containerEdgeUrl: undefined as any,
       containerOriginUrl: undefined as any,
     });
     const tgt = makeAsset({
       mediaID: 2,
+      edgeUrl: undefined as any,
       containerEdgeUrl: undefined as any,
       containerOriginUrl: undefined as any,
     });
     mapper.addMapping(src, tgt);
     expect(mapper.isKnownAssetUrl("https://cdn.aglty.io/anything.jpg")).toBe(false);
+  });
+
+  // Legacy fallback: mapping files written before container URLs were tracked
+  // only stored the full per-asset sourceUrl/targetUrl. Detection must still
+  // work off the URL origin so custom-CDN assets are recognized without a re-map.
+  describe("legacy mapping files (no container URLs)", () => {
+    it("recognizes a custom-CDN URL via the source asset URL origin", () => {
+      const mapper = makeMapper();
+      // Simulate a legacy entry: container URLs absent, only edge/origin asset URLs.
+      const src = makeAsset({
+        mediaID: 1,
+        edgeUrl: "https://cdn.ilotteryservices.com/brightstar-tns-cat/acl/en-us1.json",
+        containerEdgeUrl: undefined as any,
+        containerOriginUrl: undefined as any,
+      });
+      const tgt = makeAsset({
+        mediaID: 2,
+        edgeUrl: "https://cdn-usa2.aglty.io/de5185c3/acl/en-us1.json",
+        containerEdgeUrl: undefined as any,
+        containerOriginUrl: undefined as any,
+      });
+      mapper.addMapping(src, tgt);
+
+      // A different file on the same custom CDN host is recognized.
+      expect(
+        mapper.isKnownAssetUrl(
+          "https://cdn.ilotteryservices.com/brightstar-tns-cat/mobile/configuration/draw-games/quickPickConfig.json"
+        )
+      ).toBe(true);
+    });
+
+    it("recognizes a URL via the target asset URL origin", () => {
+      const mapper = makeMapper();
+      const src = makeAsset({
+        mediaID: 1,
+        edgeUrl: "https://cdn.ilotteryservices.com/brightstar-tns-cat/acl/en-us1.json",
+        containerEdgeUrl: undefined as any,
+        containerOriginUrl: undefined as any,
+      });
+      const tgt = makeAsset({
+        mediaID: 2,
+        edgeUrl: "https://cdn-usa2.aglty.io/de5185c3/acl/en-us1.json",
+        containerEdgeUrl: undefined as any,
+        containerOriginUrl: undefined as any,
+      });
+      mapper.addMapping(src, tgt);
+
+      expect(mapper.isKnownAssetUrl("https://cdn-usa2.aglty.io/de5185c3/mobile/other.json")).toBe(true);
+    });
+
+    it("does not match a URL on an unrelated host", () => {
+      const mapper = makeMapper();
+      const src = makeAsset({
+        mediaID: 1,
+        edgeUrl: "https://cdn.ilotteryservices.com/brightstar-tns-cat/acl/en-us1.json",
+        containerEdgeUrl: undefined as any,
+        containerOriginUrl: undefined as any,
+      });
+      const tgt = makeAsset({
+        mediaID: 2,
+        edgeUrl: "https://cdn-usa2.aglty.io/de5185c3/acl/en-us1.json",
+        containerEdgeUrl: undefined as any,
+        containerOriginUrl: undefined as any,
+      });
+      mapper.addMapping(src, tgt);
+
+      expect(mapper.isKnownAssetUrl("https://cdn.competitor.com/brightstar-tns-cat/file.json")).toBe(false);
+    });
   });
 });
 

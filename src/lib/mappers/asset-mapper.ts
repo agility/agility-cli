@@ -102,6 +102,10 @@ export class AssetMapper {
    * Returns true if the given URL starts with any container edge/origin URL
    * known to the mapper (source or target). Lets callers identify asset URLs
    * without hardcoding CDN domains — supports custom CDN hosts.
+   *
+   * Falls back to the URL origin (protocol + host) of the per-asset
+   * sourceUrl/targetUrl for legacy mapping files written before container URLs
+   * were tracked, so custom-CDN assets are still recognized without a re-map.
    */
   isKnownAssetUrl(url: string): boolean {
     if (!url || typeof url !== "string") return false;
@@ -114,8 +118,33 @@ export class AssetMapper {
         mapping.targetContainerOriginUrl,
       ].filter((containerUrl): containerUrl is string => typeof containerUrl === "string");
 
-      return knownContainerUrls.some((containerUrl) => url.startsWith(containerUrl));
+      if (knownContainerUrls.length > 0) {
+        // New-format mapping: match strictly on the container prefix so assets
+        // from a different account on the same CDN host are not falsely matched.
+        return knownContainerUrls.some((containerUrl) => url.startsWith(containerUrl));
+      }
+
+      // Legacy fallback: this mapping predates container-URL tracking and only
+      // stored the full asset URLs (sourceUrl/targetUrl). Match on the URL
+      // origin so any asset on the same CDN host is recognized without a re-map.
+      const legacyOrigins = [mapping.sourceUrl, mapping.targetUrl]
+        .map((assetUrl) => this.getUrlOrigin(assetUrl))
+        .filter((origin): origin is string => origin !== null);
+
+      return legacyOrigins.some((origin) => url.startsWith(origin));
     });
+  }
+
+  /**
+   * Extract the origin (protocol + host) from a URL, or null if it can't be parsed.
+   */
+  private getUrlOrigin(url: string | undefined): string | null {
+    if (!url || typeof url !== "string") return null;
+    try {
+      return new URL(url).origin;
+    } catch {
+      return null;
+    }
   }
 
   getMappedEntity(mapping: AssetMapping, type: "source" | "target"): mgmtApi.Media | null {

@@ -33,7 +33,7 @@ export function applyModelsWithDepsFilter(opts: {
     lists: [],
   };
 
-  const builder = new ModelDependencyTreeBuilder(sourceData);
+  const builder = new ModelDependencyTreeBuilder(sourceData, opts.sourceGuid, opts.sourceGuid);
 
   const validation = builder.validateModels(opts.modelsWithDeps, models);
   if (validation.invalid.length > 0) {
