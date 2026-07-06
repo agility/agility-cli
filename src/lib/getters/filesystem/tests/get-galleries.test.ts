@@ -34,10 +34,20 @@ function makeFileOps(subDir: string): fileOperations {
 }
 
 describe("getGalleriesFromFileSystem", () => {
-  it("throws or returns empty when galleries folder does not exist", () => {
+  it("returns empty and creates the folder when galleries folder does not exist", () => {
     const fileOps = makeFileOps("galleries-missing");
-    // getFolderContents (readdirSync) throws when directory does not exist
-    expect(() => getGalleriesFromFileSystem(fileOps)).toThrow();
+    const galleriesDir = path.join(fileOps.instancePath, "galleries");
+    expect(fs.existsSync(galleriesDir)).toBe(false);
+
+    // A models-only sync skips downloading galleries, so the folder is absent.
+    // getFolderContents creates it on demand and returns [] instead of throwing
+    // ENOENT, which previously crashed the push phase (PROD-2277).
+    let result: any;
+    expect(() => {
+      result = getGalleriesFromFileSystem(fileOps);
+    }).not.toThrow();
+    expect(result).toEqual([]);
+    expect(fs.existsSync(galleriesDir)).toBe(true);
   });
 
   it("returns an empty array when galleries folder is empty", () => {
