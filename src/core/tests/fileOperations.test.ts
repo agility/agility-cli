@@ -251,6 +251,31 @@ describe("listFilesInFolder", () => {
   });
 });
 
+// ─── getFolderContents ────────────────────────────────────────────────────────
+
+describe("getFolderContents", () => {
+  it("lists the entries of an existing folder", () => {
+    const dir = path.join(tmpDir, "fc-guid", "galleries");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "1.json"), "{}");
+    fs.writeFileSync(path.join(dir, "2.json"), "{}");
+
+    const ops = new fileOperations("fc-guid");
+    expect(ops.getFolderContents(dir).sort()).toEqual(["1.json", "2.json"]);
+  });
+
+  it("creates the folder and returns [] when it does not exist (models-only sync regression)", () => {
+    const dir = path.join(tmpDir, "fc-missing-guid", "galleries");
+    expect(fs.existsSync(dir)).toBe(false);
+
+    const ops = new fileOperations("fc-missing-guid");
+    expect(ops.getFolderContents(dir)).toEqual([]);
+    // The folder is created on demand so a scoped run that skipped downloading
+    // galleries does not crash later in the push pipeline with ENOENT.
+    expect(fs.existsSync(dir)).toBe(true);
+  });
+});
+
 // ─── saveMappingFile / getMappingFile ─────────────────────────────────────────
 
 describe("saveMappingFile / getMappingFile", () => {
