@@ -271,6 +271,14 @@ export class fileOperations {
   }
 
   getFolderContents(folder: string) {
+    // A scoped run (e.g. a models-only sync) legitimately skips downloading some
+    // element types, so their instance subfolder is never created. Create the
+    // folder on demand and return an empty listing instead of throwing ENOENT,
+    // matching how readJsonFilesFromFolder/listFilesInFolder already degrade.
+    if (!fs.existsSync(folder)) {
+      fs.mkdirSync(folder, { recursive: true });
+      return [];
+    }
     return fs.readdirSync(folder);
   }
 
