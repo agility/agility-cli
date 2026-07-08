@@ -87,14 +87,6 @@ export const systemArgs = {
     alias: ["pre-flight", "Preflight", "PREFLIGHT", "PreFlight"],
     default: false,
   },
-  preflightJson: {
-    describe:
-      "Emit the --preflight report as machine-readable JSON instead of the human-readable summary.",
-    demandOption: false,
-    type: "boolean" as const,
-    alias: ["preflight-json", "preflightjson", "PreflightJson", "PREFLIGHT_JSON"],
-    default: false,
-  },
 
   // **Explicit ID Override for Workflow Operations**
   contentIDs: {
@@ -196,7 +188,6 @@ export interface SystemArgs {
   generate?: boolean;
   operationType?: string; // Workflow operation: publish, unpublish, approve, decline, requestApproval
   preflight?: boolean; // Preflight mode - report planned sync actions without writing to target/mappings
-  preflightJson?: boolean; // Emit the preflight report as machine-readable JSON
   verbose?: boolean;
   overwrite?: boolean;
   elements?: string;

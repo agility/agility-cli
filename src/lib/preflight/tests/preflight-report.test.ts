@@ -199,55 +199,6 @@ describe("getPhaseSummaries", () => {
   });
 });
 
-// ─── toJSON ───────────────────────────────────────────────────────────────────
-
-describe("toJSON", () => {
-  it("returns the correct shape with preflight: true", () => {
-    setState({ preflight: true });
-    preflightReport.record({ phase: "Models", action: "create", name: "m1" });
-
-    const result = preflightReport.toJSON();
-    expect(result.preflight).toBe(true);
-    expect(result).toHaveProperty("totals");
-    expect(result).toHaveProperty("hasConflicts");
-    expect(result).toHaveProperty("phases");
-  });
-
-  it("totals and hasConflicts are consistent with entries", () => {
-    setState({ preflight: true });
-    preflightReport.record({ phase: "Content", action: "conflict", name: "c1" });
-    preflightReport.record({ phase: "Content", action: "create", name: "c2" });
-
-    const result = preflightReport.toJSON();
-    expect(result.totals).toEqual({ create: 1, update: 0, skip: 0, conflict: 1 });
-    expect(result.hasConflicts).toBe(true);
-  });
-
-  it("hasConflicts is false when no conflicts exist", () => {
-    setState({ preflight: true });
-    preflightReport.record({ phase: "Models", action: "create", name: "m1" });
-
-    const result = preflightReport.toJSON();
-    expect(result.hasConflicts).toBe(false);
-  });
-
-  it("phases array matches getPhaseSummaries()", () => {
-    setState({ preflight: true });
-    preflightReport.record({ phase: "Templates", action: "skip", name: "t1" });
-
-    const result = preflightReport.toJSON();
-    expect(result.phases).toEqual(preflightReport.getPhaseSummaries());
-  });
-
-  it("returns zero-count totals and empty phases when no entries recorded", () => {
-    setState({ preflight: true });
-    const result = preflightReport.toJSON();
-    expect(result.totals).toEqual({ create: 0, update: 0, skip: 0, conflict: 0 });
-    expect(result.phases).toEqual([]);
-    expect(result.hasConflicts).toBe(false);
-  });
-});
-
 // ─── renderTable ──────────────────────────────────────────────────────────────
 
 describe("renderTable", () => {
@@ -311,62 +262,14 @@ describe("renderTable", () => {
 // ─── print ────────────────────────────────────────────────────────────────────
 
 describe("print", () => {
-  it("outputs JSON when state.preflightJson is true", () => {
-    setState({ preflight: true, preflightJson: true });
-    preflightReport.record({ phase: "Models", action: "create", name: "m1" });
-
-    preflightReport.print();
-
-    const calls = (console.log as jest.Mock).mock.calls;
-    expect(calls.length).toBeGreaterThanOrEqual(1);
-
-    // Find the call that contains the JSON preflight output
-    const jsonCall = calls.find((args: any[]) => {
-      try {
-        const parsed = JSON.parse(args[0]);
-        return parsed.preflight === true;
-      } catch {
-        return false;
-      }
-    });
-    expect(jsonCall).toBeDefined();
-
-    const parsed = JSON.parse(jsonCall[0]);
-    expect(parsed.preflight).toBe(true);
-    expect(parsed).toHaveProperty("totals");
-    expect(parsed).toHaveProperty("hasConflicts");
-    expect(parsed).toHaveProperty("phases");
-  });
-
-  it("outputs the rendered table when state.preflightJson is false", () => {
-    setState({ preflight: true, preflightJson: false });
+  it("outputs the rendered table", () => {
+    setState({ preflight: true });
     preflightReport.record({ phase: "Models", action: "create", name: "m1" });
 
     preflightReport.print();
 
     const allOutput = (console.log as jest.Mock).mock.calls.flat().join("\n");
     expect(allOutput).toContain("PREFLIGHT");
-  });
-
-  it("JSON output is valid JSON that can be parsed", () => {
-    setState({ preflight: true, preflightJson: true });
-    preflightReport.record({ phase: "Pages", action: "conflict", name: "home-page" });
-
-    preflightReport.print();
-
-    const calls = (console.log as jest.Mock).mock.calls;
-    const jsonCall = calls.find((args: any[]) => {
-      try {
-        const parsed = JSON.parse(args[0]);
-        return parsed.preflight === true;
-      } catch {
-        return false;
-      }
-    });
-    expect(jsonCall).toBeDefined();
-
-    const parsed = JSON.parse(jsonCall[0]);
-    expect(parsed.hasConflicts).toBe(true);
-    expect(parsed.totals.conflict).toBe(1);
+    expect(allOutput).toContain("TOTAL");
   });
 });

@@ -5,7 +5,7 @@
  * in `--preflight` mode. Each pusher records the outcome of its change-detection
  * (create / update / skip / conflict) here instead of writing to the target
  * instance or mapping files. At the end of the run the report is rendered as a
- * human-readable table (default) or JSON (`--preflight-json`).
+ * human-readable table.
  *
  * This is a process-level singleton because the push pipeline threads `state`
  * globally rather than passing context objects down to each pusher.
@@ -108,21 +108,6 @@ class PreflightReport {
     return totals;
   }
 
-  /** Machine-readable representation (for --json). */
-  toJSON(): {
-    preflight: true;
-    totals: Record<PreflightAction, number>;
-    hasConflicts: boolean;
-    phases: PreflightPhaseSummary[];
-  } {
-    return {
-      preflight: true,
-      totals: this.getTotals(),
-      hasConflicts: this.hasConflicts(),
-      phases: this.getPhaseSummaries(),
-    };
-  }
-
   /** Human-readable, colorized per-phase summary. */
   renderTable(): string {
     const lines: string[] = [];
@@ -176,13 +161,9 @@ class PreflightReport {
     return lines.join("\n");
   }
 
-  /** Print the report to stdout in the configured format. */
+  /** Print the report to stdout. */
   print(): void {
-    if (state.preflightJson) {
-      console.log(JSON.stringify(this.toJSON(), null, 2));
-    } else {
-      console.log(this.renderTable());
-    }
+    console.log(this.renderTable());
   }
 }
 
