@@ -8,6 +8,7 @@ const FormData = require("form-data");
 import { fileOperations } from "../../core/fileOperations";
 import path from "path";
 import { GalleryMapper } from "lib/mappers/gallery-mapper";
+import { preflightReport } from "../preflight/preflight-report";
 
 /**
  * Extract meaningful error message from API errors
@@ -109,6 +110,12 @@ export async function pushAssets(
       if (!existingMapping && targetAssetByOriginKey) {
         referenceMapper.addMapping(media, targetAssetByOriginKey);
         logger.asset.skipped(media, "already exists in target by path", targetGuid[0]);
+        preflightReport.record({
+          phase: "Assets",
+          action: "skip",
+          name: media.fileName,
+          detail: "already exists in target by path",
+        });
         skipped++;
         continue;
       }
@@ -134,36 +141,54 @@ export async function pushAssets(
 
       if (shouldCreate) {
         // Asset needs to be created (doesn't exist in target)
-        const createdAsset = await createAsset(
-          media,
-          absoluteLocalFilePath,
-          folderPath,
-          apiClient,
-          sourceGuid[0],
-          targetGuid[0],
-          referenceMapper,
-          logger
-        );
-        referenceMapper.addMapping(media, createdAsset);
+        if (state.preflight) {
+          preflightReport.record({ phase: "Assets", action: "create", name: media.fileName });
+        } else {
+          const createdAsset = await createAsset(
+            media,
+            absoluteLocalFilePath,
+            folderPath,
+            apiClient,
+            sourceGuid[0],
+            targetGuid[0],
+            referenceMapper,
+            logger
+          );
+          referenceMapper.addMapping(media, createdAsset);
+        }
         successful++;
       } else if (shouldUpdate) {
         // Asset exists but needs updating
-        const updatedAsset = await updateAsset(
-          media,
-          absoluteLocalFilePath,
-          folderPath,
-          apiClient,
-          sourceGuid[0],
-          targetGuid[0],
-          referenceMapper,
-          logger
-        );
-        referenceMapper.addMapping(media, updatedAsset);
+        if (state.preflight) {
+          preflightReport.record({ phase: "Assets", action: "update", name: media.fileName });
+        } else {
+          const updatedAsset = await updateAsset(
+            media,
+            absoluteLocalFilePath,
+            folderPath,
+            apiClient,
+            sourceGuid[0],
+            targetGuid[0],
+            referenceMapper,
+            logger
+          );
+          referenceMapper.addMapping(media, updatedAsset);
+        }
         successful++;
       } else if (shouldSkip) {
         // Asset exists and is up to date - skip
         logger.asset.skipped(media, "up to date, skipping", targetGuid[0]);
+        preflightReport.record({ phase: "Assets", action: "skip", name: media.fileName, detail: "up to date" });
         skipped++;
+      } else if (isConflict) {
+        // Conflict: both source and target changed and --overwrite was not set.
+        // The real sync silently does nothing here; surface it in preflight.
+        preflightReport.record({
+          phase: "Assets",
+          action: "conflict",
+          name: media.fileName,
+          detail: "target changed; use --overwrite to force",
+        });
       }
     } catch (error: any) {
       const errorMsg = extractErrorMessage(error);

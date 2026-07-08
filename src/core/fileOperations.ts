@@ -391,6 +391,13 @@ export class fileOperations {
     const mappingRootPath = this.getMappingFilePath(sourceGuid, targetGuid, locale);
     const centralMappingsPath = path.join(mappingRootPath, type);
 
+    // Preflight (PROD-2203): never persist mapping changes. Pushers already
+    // short-circuit before reaching here, but this is a hard safety net so no
+    // mapping file can be written while previewing a sync.
+    if (state.preflight) {
+      return;
+    }
+
     const mappingFilePath = path.join(centralMappingsPath, `mappings.json`);
 
     if (!fs.existsSync(centralMappingsPath)) {

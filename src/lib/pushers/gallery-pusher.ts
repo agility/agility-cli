@@ -3,6 +3,7 @@ import ansiColors from "ansi-colors";
 import { Logs } from "core/logs";
 import { state, getState, getApiClient, getLoggerForGuid } from "core/state";
 import { GalleryMapper } from "lib/mappers/gallery-mapper";
+import { preflightReport } from "../preflight/preflight-report";
 
 /**
  * Extract meaningful error message from API errors
@@ -76,6 +77,12 @@ export async function pushGalleries(
         // Gallery exists in target by name but no mapping - add mapping and skip
         referenceMapper.addMapping(sourceGallery, targetGalleryByName);
         logger.gallery.skipped(sourceGallery, "already exists in target by name", targetGuid[0]);
+        preflightReport.record({
+          phase: "Galleries",
+          action: "skip",
+          name: sourceGallery.name,
+          detail: "already exists in target by name",
+        });
         skipped++;
         continue;
       }
@@ -84,7 +91,11 @@ export async function pushGalleries(
 
       if (shouldCreate) {
         // Gallery needs to be created (doesn't exist in target)
-        await createGallery(sourceGallery, apiClient, targetGuid[0], referenceMapper, logger);
+        if (state.preflight) {
+          preflightReport.record({ phase: "Galleries", action: "create", name: sourceGallery.name });
+        } else {
+          await createGallery(sourceGallery, apiClient, targetGuid[0], referenceMapper, logger);
+        }
         successful++;
       } else if (existingMapping) {
         const targetGallery = targetGalleryById || targetGalleryByName;
@@ -100,19 +111,39 @@ export async function pushGalleries(
 
         if (shouldUpdate) {
           // Gallery exists but needs updating
-          await updateGallery(
-            sourceGallery,
-            existingMapping.targetMediaGroupingID,
-            apiClient,
-            targetGuid[0],
-            referenceMapper,
-            logger
-          );
+          if (state.preflight) {
+            preflightReport.record({ phase: "Galleries", action: "update", name: sourceGallery.name });
+          } else {
+            await updateGallery(
+              sourceGallery,
+              existingMapping.targetMediaGroupingID,
+              apiClient,
+              targetGuid[0],
+              referenceMapper,
+              logger
+            );
+          }
           successful++;
         } else if (shouldSkip) {
           // Gallery exists and is up to date - skip
           logger.gallery.skipped(sourceGallery, "up to date, skipping", targetGuid[0]);
+          preflightReport.record({
+            phase: "Galleries",
+            action: "skip",
+            name: sourceGallery.name,
+            detail: "up to date",
+          });
           skipped++;
+        } else {
+          // Neither update nor skip: target changed while source also changed and
+          // --overwrite was not set. The real sync silently does nothing here; in
+          // preflight we surface it as a conflict so it isn't missed.
+          preflightReport.record({
+            phase: "Galleries",
+            action: "conflict",
+            name: sourceGallery.name,
+            detail: "target changed; use --overwrite to force",
+          });
         }
       }
     } catch (error: any) {
