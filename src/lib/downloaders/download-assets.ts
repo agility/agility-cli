@@ -206,9 +206,6 @@ export async function downloadAllAssets(guid: string): Promise<void> {
         if (result.success) {
           totalSuccessfullyDownloaded++;
         }
-
-        // Update progress (include skipped assets in total processed)
-        const totalProcessed = totalAttemptedToProcess + skippableAssets.length;
       }
     }
 
