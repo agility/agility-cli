@@ -1,3 +1,57 @@
+# Only the compiled dist/ (plus README, LICENSE, package.json) should ship.
+# .npmignore takes precedence over .gitignore, so this must be kept in sync
+# with .gitignore to keep non-runtime files out of the published package.
+
+# --- Source (dist/ is what runs, per "main": "dist/index.js") ---
 /src/
+
+# --- Agility working directories (created at runtime by the CLI/tests) ---
 /.agility-files/
 /agility-files/
+**/agility-files/
+
+# --- Dependencies / build output that isn't published ---
+/node_modules
+/.pnp
+.pnp.js
+/build
+/temp/
+
+# --- Environment files ---
+.env
+.env.*
+
+# --- Test artifacts & config ---
+/coverage
+*.test.ts
+*.integration.test.ts
+jest.config.js
+tsconfig.test.json
+
+# --- Build / TypeScript config (not needed at runtime) ---
+tsconfig.json
+tsconfig*.json
+*.map
+
+# --- Lint / format config ---
+eslint.config.js
+.prettierrc
+.prettierignore
+
+# --- CI / repo tooling ---
+.github/
+.claude/
+.vscode/
+.cursor/
+*.workspace
+/.cert
+code.json
+structure.txt
+changelog.md
+
+# --- OS / editor / log junk ---
+.DS_Store
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*

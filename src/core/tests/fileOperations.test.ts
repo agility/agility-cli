@@ -3,6 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import { fileOperations } from "../fileOperations";
 import { resetState, setState } from "../state";
+import { preflightReport } from "../../lib/preflight/preflight-report";
 
 let tmpDir: string;
 
@@ -16,6 +17,7 @@ afterAll(() => {
 
 beforeEach(() => {
   resetState();
+  preflightReport.reset();
   setState({ rootPath: tmpDir });
   jest.spyOn(console, "log").mockImplementation(() => {});
   jest.spyOn(console, "warn").mockImplementation(() => {});
@@ -251,6 +253,31 @@ describe("listFilesInFolder", () => {
   });
 });
 
+// ─── getFolderContents ────────────────────────────────────────────────────────
+
+describe("getFolderContents", () => {
+  it("lists the entries of an existing folder", () => {
+    const dir = path.join(tmpDir, "fc-guid", "galleries");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, "1.json"), "{}");
+    fs.writeFileSync(path.join(dir, "2.json"), "{}");
+
+    const ops = new fileOperations("fc-guid");
+    expect(ops.getFolderContents(dir).sort()).toEqual(["1.json", "2.json"]);
+  });
+
+  it("creates the folder and returns [] when it does not exist (models-only sync regression)", () => {
+    const dir = path.join(tmpDir, "fc-missing-guid", "galleries");
+    expect(fs.existsSync(dir)).toBe(false);
+
+    const ops = new fileOperations("fc-missing-guid");
+    expect(ops.getFolderContents(dir)).toEqual([]);
+    // The folder is created on demand so a scoped run that skipped downloading
+    // galleries does not crash later in the push pipeline with ENOENT.
+    expect(fs.existsSync(dir)).toBe(true);
+  });
+});
+
 // ─── saveMappingFile / getMappingFile ─────────────────────────────────────────
 
 describe("saveMappingFile / getMappingFile", () => {
@@ -298,5 +325,71 @@ describe("cliFolderExists", () => {
   it("returns false when instancePath does not exist", () => {
     const ops = new fileOperations("no-cf-guid", "en-us");
     expect(ops.cliFolderExists()).toBe(false);
+  });
+});
+
+// ─── saveMappingFile — preflight guard (PROD-2203) ────────────────────────────
+
+describe("saveMappingFile — preflight guard", () => {
+  it("writes the mapping file to disk when preflight is disabled", () => {
+    const ops = new fileOperations("pf-s-guid", "en-us");
+    const mappingData = [{ sourceID: 10, targetID: 200 }];
+
+    ops.saveMappingFile(mappingData, "content", "pf-s-guid", "pf-t-guid", "en-us");
+
+    const expectedDir = path.join(tmpDir, "mappings", "pf-s-guid-pf-t-guid", "en-us", "content");
+    const expectedFile = path.join(expectedDir, "mappings.json");
+    expect(fs.existsSync(expectedFile)).toBe(true);
+    const written = JSON.parse(fs.readFileSync(expectedFile, "utf8"));
+    expect(written).toEqual(mappingData);
+  });
+
+  it("does NOT write any file to disk when preflight is enabled", () => {
+    setState({ preflight: true });
+    const ops = new fileOperations("pf2-s-guid", "en-us");
+    const mappingData = [{ sourceID: 11, targetID: 201 }];
+
+    ops.saveMappingFile(mappingData, "content", "pf2-s-guid", "pf2-t-guid", "en-us");
+
+    const expectedDir = path.join(tmpDir, "mappings", "pf2-s-guid-pf2-t-guid", "en-us", "content");
+    const expectedFile = path.join(expectedDir, "mappings.json");
+    expect(fs.existsSync(expectedFile)).toBe(false);
+  });
+
+  it("does NOT create the mapping directory when preflight is enabled", () => {
+    setState({ preflight: true });
+    const ops = new fileOperations("pf3-s-guid", "en-us");
+
+    ops.saveMappingFile([{ sourceID: 1, targetID: 2 }], "models", "pf3-s-guid", "pf3-t-guid", "en-us");
+
+    const expectedDir = path.join(tmpDir, "mappings", "pf3-s-guid-pf3-t-guid", "en-us", "models");
+    expect(fs.existsSync(expectedDir)).toBe(false);
+  });
+
+  it("does not overwrite an existing mapping file when preflight is enabled", () => {
+    // First write normally to establish an existing file
+    const ops = new fileOperations("pf4-s-guid", "en-us");
+    const originalData = [{ sourceID: 50, targetID: 500 }];
+    ops.saveMappingFile(originalData, "content", "pf4-s-guid", "pf4-t-guid", "en-us");
+
+    const expectedFile = path.join(
+      tmpDir,
+      "mappings",
+      "pf4-s-guid-pf4-t-guid",
+      "en-us",
+      "content",
+      "mappings.json"
+    );
+    expect(fs.existsSync(expectedFile)).toBe(true);
+
+    // Now enable preflight and attempt to overwrite with different data
+    setState({ preflight: true });
+    const newOps = new fileOperations("pf4-s-guid", "en-us");
+    const newData = [{ sourceID: 99, targetID: 999 }];
+    newOps.saveMappingFile(newData, "content", "pf4-s-guid", "pf4-t-guid", "en-us");
+
+    // File should still contain the original data
+    const written = JSON.parse(fs.readFileSync(expectedFile, "utf8"));
+    expect(written).toEqual(originalData);
   });
 });

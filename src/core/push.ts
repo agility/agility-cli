@@ -12,6 +12,7 @@ import { markPushStart } from "../lib/incremental";
 
 import { Pushers, PushResults } from "../lib/pushers/orchestrate-pushers";
 import { Pull } from "./pull";
+import { preflightReport } from "../lib/preflight/preflight-report";
 
 export class Push {
   private pushers: Pushers;
@@ -26,6 +27,9 @@ export class Push {
 
     // Clear failed content registry from any previous sync
     clearFailedContentRegistry();
+
+    // Preflight (PROD-2203): start each run with a clean report of planned actions
+    preflightReport.reset();
 
     // Initialize logger for push operation
     // Determine if this is a sync operation by checking if both source and target GUIDs exist
@@ -142,7 +146,8 @@ export class Push {
       let autoPublishErrors: Array<{ locale: string; type: string; error: string }> = [];
 
       // Auto-publish if enabled (failures are expected and shouldn't block publish)
-      if (isSync && autoPublish) {
+      // Preflight (PROD-2203): never auto-publish — nothing was written to the target.
+      if (isSync && autoPublish && !state.preflight) {
         autoPublishErrors = await this.executeAutoPublish(results, autoPublish);
       }
 
@@ -207,6 +212,15 @@ export class Push {
         logFilePaths.forEach((path) => {
           console.log(`  ${path}`);
         });
+      }
+
+      // Preflight (PROD-2203): print the report of actions that WOULD have been
+      // taken, and signal conflicts via a non-zero exit code so automation can gate on it.
+      if (state.preflight) {
+        preflightReport.print();
+        if (preflightReport.hasConflicts()) {
+          process.exitCode = 1;
+        }
       }
 
       // Only exit if not called from another operation

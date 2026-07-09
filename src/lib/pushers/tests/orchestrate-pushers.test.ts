@@ -259,3 +259,105 @@ describe("Pushers.executePushOperation — callbacks", () => {
     expect(onOperationComplete).toHaveBeenCalledWith("pushModels", "src-u", "tgt-u", true);
   });
 });
+
+// ─── PROD-2202: models pushed first (validation fails fast, before galleries/assets) ─────
+
+describe("Pushers.instanceOrchestrator — models-first ordering (PROD-2202)", () => {
+  // Non-empty data for every element type so every push operation is actually invoked
+  // (executePushOperation skips an op whose dataKey array is empty).
+  function makeEntities(): any {
+    return {
+      pages: [{ pageID: 1 }],
+      templates: [{ pageTemplateID: 1, pageTemplateName: "T" }],
+      containers: [{ contentViewID: 1 }],
+      lists: [],
+      models: [{ id: 1, referenceName: "ModelA" }],
+      content: [{ contentID: 1 }],
+      assets: [{ mediaID: 1 }],
+      galleries: [{ galleryID: 1 }],
+    };
+  }
+
+  // Replace every real pusher handler with a no-op success so no live push runs, and
+  // return the handler-name→spy map so tests can assert which ran (and which did not).
+  async function stubAllHandlers(): Promise<Record<string, jest.SpyInstance>> {
+    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    const spies: Record<string, jest.SpyInstance> = {};
+    for (const key of Object.keys(PUSH_OPERATIONS)) {
+      spies[PUSH_OPERATIONS[key].name] = jest
+        .spyOn(PUSH_OPERATIONS[key], "handler")
+        .mockResolvedValue({ status: "success", successful: 0, failed: 0, skipped: 0 } as any);
+    }
+    return spies;
+  }
+
+  async function stubDataLoader(): Promise<void> {
+    const { GuidDataLoader } = await import("../guid-data-loader");
+    jest.spyOn(GuidDataLoader.prototype, "loadGuidEntities").mockResolvedValue(makeEntities());
+  }
+
+  it("invokes the models push before galleries and assets", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us" });
+    await stubDataLoader();
+    await stubAllHandlers();
+
+    const order: string[] = [];
+    const pushers = new Pushers({
+      onOperationStart: (name) => order.push(name),
+    });
+
+    await pushers.instanceOrchestrator();
+
+    // Models is the very first operation, and precedes both galleries and assets.
+    expect(order[0]).toBe("pushModels");
+    expect(order.indexOf("pushModels")).toBeLessThan(order.indexOf("pushGalleries"));
+    expect(order.indexOf("pushModels")).toBeLessThan(order.indexOf("pushAssets"));
+  });
+
+  it("preserves the downstream relative order after models (Models→Galleries→Assets→Containers→…)", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us" });
+    await stubDataLoader();
+    await stubAllHandlers();
+
+    const order: string[] = [];
+    const pushers = new Pushers({ onOperationStart: (name) => order.push(name) });
+
+    await pushers.instanceOrchestrator();
+
+    // Guid-level ops run in this order; content/pages run afterwards in the locale loop.
+    expect(order).toEqual([
+      "pushModels",
+      "pushGalleries",
+      "pushAssets",
+      "pushContainers",
+      "pushTemplates",
+      "pushContent",
+      "pushPages",
+    ]);
+  });
+
+  it("a model-validation failure aborts the sync before galleries or assets are pushed", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us" });
+    await stubDataLoader();
+    const spies = await stubAllHandlers();
+
+    // Models validation halts the sync (the rename/reassignment mismatch surfaced by pushModels).
+    spies["pushModels"].mockRejectedValue(new Error("Model validation failed: mapping inconsistency for model"));
+
+    const pushers = new Pushers();
+    const results = await pushers.instanceOrchestrator();
+
+    // The models handler ran and threw; galleries/assets were never reached — the target is untouched.
+    expect(spies["pushModels"]).toHaveBeenCalledTimes(1);
+    expect(spies["pushGalleries"]).not.toHaveBeenCalled();
+    expect(spies["pushAssets"]).not.toHaveBeenCalled();
+
+    // The failure is recorded on the guid orchestration result and carries the validation message.
+    expect(results[0].failed).toEqual([
+      expect.objectContaining({
+        operation: "guid-orchestration",
+        error: expect.stringContaining("Model validation failed"),
+      }),
+    ]);
+  });
+});

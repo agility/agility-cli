@@ -78,6 +78,16 @@ export const systemArgs = {
     default: "",
   },
 
+  // Preflight (dry-run preview) args
+  preflight: {
+    describe:
+      "Preflight mode (sync/push only): run the full source-pull, target-pull, dependency analysis and change detection, then report the creates/updates/skips/conflicts that a real sync would produce — WITHOUT writing anything to the target instance or mapping files. Exits non-zero if conflicts are detected.",
+    demandOption: false,
+    type: "boolean" as const,
+    alias: ["pre-flight", "Preflight", "PREFLIGHT", "PreFlight"],
+    default: false,
+  },
+
   // **Explicit ID Override for Workflow Operations**
   contentIDs: {
     describe:
@@ -177,6 +187,7 @@ export interface SystemArgs {
   clean?: boolean;
   generate?: boolean;
   operationType?: string; // Workflow operation: publish, unpublish, approve, decline, requestApproval
+  preflight?: boolean; // Preflight mode - report planned sync actions without writing to target/mappings
   verbose?: boolean;
   overwrite?: boolean;
   elements?: string;

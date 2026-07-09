@@ -2,6 +2,8 @@
  * Shared TypeScript interfaces and types for sync analysis system
  */
 
+import { AssetMapper } from "lib/mappers/asset-mapper";
+
 /**
  * Model tracking to prevent duplicates across all chain displays
  */
@@ -52,7 +54,7 @@ export interface ReferenceExtractionService extends SyncAnalysisService {
   /**
    * Extract references from the given data structure
    */
-  extractReferences(data: any): any[];
+  extractReferences(data: any, assetMapper?: AssetMapper): any[];
 }
 
 /**

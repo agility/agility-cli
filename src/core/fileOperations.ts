@@ -271,6 +271,14 @@ export class fileOperations {
   }
 
   getFolderContents(folder: string) {
+    // A scoped run (e.g. a models-only sync) legitimately skips downloading some
+    // element types, so their instance subfolder is never created. Create the
+    // folder on demand and return an empty listing instead of throwing ENOENT,
+    // matching how readJsonFilesFromFolder/listFilesInFolder already degrade.
+    if (!fs.existsSync(folder)) {
+      fs.mkdirSync(folder, { recursive: true });
+      return [];
+    }
     return fs.readdirSync(folder);
   }
 
@@ -382,6 +390,13 @@ export class fileOperations {
   ): void {
     const mappingRootPath = this.getMappingFilePath(sourceGuid, targetGuid, locale);
     const centralMappingsPath = path.join(mappingRootPath, type);
+
+    // Preflight (PROD-2203): never persist mapping changes. Pushers already
+    // short-circuit before reaching here, but this is a hard safety net so no
+    // mapping file can be written while previewing a sync.
+    if (state.preflight) {
+      return;
+    }
 
     const mappingFilePath = path.join(centralMappingsPath, `mappings.json`);
 

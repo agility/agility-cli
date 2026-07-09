@@ -39,10 +39,18 @@ export async function downloadAllAssets(guid: string): Promise<void> {
   // Helper function to check if asset needs download based on dateModified
   function shouldDownloadAsset(
     apiAsset: any,
-    localInfo: { dateModified?: string; exists: boolean }
+    localInfo: { dateModified?: string; exists: boolean },
+    binaryExists: boolean
   ): { shouldDownload: boolean; reason: string } {
     if (!localInfo.exists) {
       return { shouldDownload: true, reason: "new file" };
+    }
+
+    // Guard against a poisoned cache: metadata JSON exists but its binary was
+    // never written (e.g. an interrupted pull). Change detection would
+    // otherwise skip forever, and a later push fails with "asset file not found".
+    if (!binaryExists) {
+      return { shouldDownload: true, reason: "missing binary" };
     }
 
     if (!localInfo.dateModified || !apiAsset.dateModified) {
@@ -118,7 +126,12 @@ export async function downloadAllAssets(guid: string): Promise<void> {
     for (const asset of allAssets) {
       const assetJsonPath = path.join(fileOps.getDataFolderPath("assets"), `${asset.mediaID}.json`);
       const localInfo = getLocalAssetInfo(assetJsonPath);
-      const downloadDecision = shouldDownloadAsset(asset, localInfo);
+      // Assets with an originUrl have a binary on disk; verify it exists so a
+      // metadata-only cache entry doesn't cause a permanent skip.
+      const binaryExists = asset.originUrl
+        ? fs.existsSync(path.join(fileOps.getDataFolderPath("assets"), getAssetFilePath(asset.originUrl)))
+        : true;
+      const downloadDecision = shouldDownloadAsset(asset, localInfo, binaryExists);
 
       if (downloadDecision.shouldDownload) {
         downloadableAssets.push({ asset, reason: downloadDecision.reason });
@@ -153,9 +166,6 @@ export async function downloadAllAssets(guid: string): Promise<void> {
       const downloadPromises = batch.map(async (item) => {
         const { asset, reason } = item;
         try {
-          // Export asset JSON metadata
-          fileOps.exportFiles(`assets`, asset.mediaID.toString(), asset);
-
           // Download actual file if it has an originUrl
           if (asset.originUrl) {
             const filePath = getAssetFilePath(asset.originUrl);
@@ -163,6 +173,9 @@ export async function downloadAllAssets(guid: string): Promise<void> {
             const success = await fileOps.downloadFile(asset.originUrl, assetFilesPath);
 
             if (success) {
+              // Write the metadata JSON only after the binary lands on disk, so
+              // an interrupted pull can't leave a metadata-only (poisoned) entry.
+              fileOps.exportFiles(`assets`, asset.mediaID.toString(), asset);
               const sizeDisplay = asset.size ? formatFileSize(asset.size) : "";
               logger.asset.downloaded(asset);
               return { success: true, asset };
@@ -171,7 +184,8 @@ export async function downloadAllAssets(guid: string): Promise<void> {
               throw new Error("Download failed");
             }
           } else {
-            // Asset without downloadable file - just metadata
+            // Asset without downloadable file - just metadata, safe to write now
+            fileOps.exportFiles(`assets`, asset.mediaID.toString(), asset);
             logger.warning("Asset without downloadable file", asset);
             // logger.asset.downloaded(asset);
             return { success: true, asset };
@@ -192,9 +206,6 @@ export async function downloadAllAssets(guid: string): Promise<void> {
         if (result.success) {
           totalSuccessfullyDownloaded++;
         }
-
-        // Update progress (include skipped assets in total processed)
-        const totalProcessed = totalAttemptedToProcess + skippableAssets.length;
       }
     }
 

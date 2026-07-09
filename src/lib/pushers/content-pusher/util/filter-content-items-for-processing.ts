@@ -4,6 +4,7 @@ import { findContentInTargetInstance } from "./find-content-in-target-instance";
 import { ApiClient, ContentItem } from "@agility/management-sdk";
 import { Logs } from "core/logs";
 import { state } from "core";
+import { preflightReport } from "../../../preflight/preflight-report";
 
 /**
  * Filter content items for processing
@@ -63,20 +64,30 @@ export async function filterContentItemsForProcessing({
         }
         itemsToSkip.push(contentItem);
         conflictCount++;
+        preflightReport.record({
+          phase: "Content",
+          action: "conflict",
+          name: itemName,
+          locale,
+          detail: reason || "changes detected in both source and target",
+        });
         continue;
       } else if (shouldCreate) {
         // Content doesn't exist - include it for creation
         itemsToProcess.push(contentItem);
         createCount++;
+        preflightReport.record({ phase: "Content", action: "create", name: itemName, locale });
       } else if (shouldUpdate) {
         // Content exists but needs updating
         itemsToProcess.push(contentItem);
         updateCount++;
+        preflightReport.record({ phase: "Content", action: "update", name: itemName, locale });
       } else if (shouldSkip) {
         // Content exists and is up to date - skip
         logger.content.skipped(contentItem, "up to date, skipping", locale, targetGuid);
         itemsToSkip.push(contentItem);
         skipCount++;
+        preflightReport.record({ phase: "Content", action: "skip", name: itemName, locale, detail: "up to date" });
       }
     } catch (error: any) {
       // If we can't check, err on the side of processing it
