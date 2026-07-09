@@ -356,3 +356,126 @@ describe("pushModels — exists in target without mapping, non-default (PROD-221
     expect(result.skipped).toBe(0);
   });
 });
+
+// ─── PROD-2250: mapped-before-unmapped model processing order ────────────────
+
+describe("pushModels — mapped-before-unmapped ordering (PROD-2250)", () => {
+  // Spies on ModelMapper#getModelMappingByID so we can observe the ORDER source
+  // models are walked through the main categorization loop, without depending
+  // on which downstream branch (create/update/skip) each model takes.
+  function spyOnSourceMappingLookupOrder(ModelMapperClass: any): number[] {
+    const callOrder: number[] = [];
+    const original = ModelMapperClass.prototype.getModelMappingByID;
+    jest.spyOn(ModelMapperClass.prototype, "getModelMappingByID").mockImplementation(function (
+      this: any,
+      id: number,
+      type: "source" | "target"
+    ) {
+      if (type === "source") callOrder.push(id);
+      return original.call(this, id, type);
+    });
+    return callOrder;
+  }
+
+  // Unique target IDs per saveModel call avoid mapping-row collisions — both
+  // within a single run and across the tests in this describe block, since the
+  // mapping file persists on disk for the shared source/target GUID pair until
+  // afterAll removes tmpDir. Counter is shared (not reset per test) on purpose.
+  let uniqueTargetIdCounter = 90000;
+  function makeUniqueSaveModel() {
+    return jest
+      .fn()
+      .mockImplementation(async (payload: any) =>
+        makeModel({ id: ++uniqueTargetIdCounter, referenceName: payload.referenceName })
+      );
+  }
+
+  it("processes already-mapped source models before brand-new unmapped ones", async () => {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+
+    const fixedDateB = new Date(2024, 0, 1).toISOString();
+    const fixedDateD = new Date(2024, 5, 1).toISOString();
+
+    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    const sourceB = makeModel({ id: 102, referenceName: "ModelB-Mapped", lastModifiedDate: fixedDateB });
+    const targetB = makeModel({ id: 1020, referenceName: "ModelB-Mapped", lastModifiedDate: fixedDateB });
+    seeder.addMapping(sourceB, targetB);
+    const sourceD = makeModel({ id: 104, referenceName: "ModelD-Mapped", lastModifiedDate: fixedDateD });
+    const targetD = makeModel({ id: 1040, referenceName: "ModelD-Mapped", lastModifiedDate: fixedDateD });
+    seeder.addMapping(sourceD, targetD);
+
+    const modelA = makeModel({ id: 101, referenceName: "ModelA-Unmapped" });
+    const modelC = makeModel({ id: 103, referenceName: "ModelC-Unmapped" });
+
+    const saveModel = makeUniqueSaveModel();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const callOrder = spyOnSourceMappingLookupOrder(ModelMapper);
+
+    const { pushModels } = await import("../model-pusher");
+    // Interleaved input: unmapped, mapped, unmapped, mapped.
+    await pushModels([modelA, sourceB, modelC, sourceD], [targetB, targetD]);
+
+    // The first 4 calls are the partition pass (walks input order); the last 4
+    // are the main categorization loop, which walks the reordered list —
+    // already-mapped models first, then the unmapped ones.
+    expect(callOrder).toHaveLength(8);
+    expect(callOrder.slice(0, 4)).toEqual([101, 102, 103, 104]);
+    expect(callOrder.slice(-4)).toEqual([102, 104, 101, 103]);
+  });
+
+  it("preserves each group's original relative order when multiple models share mapped/unmapped status", async () => {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+
+    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    // Intentionally descending / non-sorted IDs so preserved order can't be mistaken for a sort.
+    const mappedSources = [402, 401, 400].map((id) =>
+      makeModel({ id, referenceName: `Mapped-${id}`, lastModifiedDate: new Date(2024, 0, 1).toISOString() })
+    );
+    const mappedTargets = mappedSources.map((s) =>
+      makeModel({ id: s.id * 10, referenceName: s.referenceName, lastModifiedDate: s.lastModifiedDate })
+    );
+    mappedSources.forEach((s, i) => seeder.addMapping(s, mappedTargets[i]));
+
+    const unmappedSources = [301, 305, 309].map((id) => makeModel({ id, referenceName: `Unmapped-${id}` }));
+
+    const sourceData = [
+      unmappedSources[0],
+      mappedSources[0],
+      unmappedSources[1],
+      mappedSources[1],
+      unmappedSources[2],
+      mappedSources[2],
+    ];
+
+    const saveModel = makeUniqueSaveModel();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const callOrder = spyOnSourceMappingLookupOrder(ModelMapper);
+
+    const { pushModels } = await import("../model-pusher");
+    await pushModels(sourceData, mappedTargets);
+
+    expect(callOrder.slice(-6)).toEqual([402, 401, 400, 301, 305, 309]);
+  });
+
+  it("leaves processing order unchanged on a clean run with no existing mappings", async () => {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+
+    const sourceData = [11, 12, 13, 14].map((id) => makeModel({ id, referenceName: `Clean-${id}` }));
+
+    const saveModel = makeUniqueSaveModel();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const callOrder = spyOnSourceMappingLookupOrder(ModelMapper);
+
+    const { pushModels } = await import("../model-pusher");
+    const result = await pushModels(sourceData, []);
+
+    // No existingMappedModels group; ordering and outcome match a plain input-order run.
+    expect(callOrder.slice(-4)).toEqual([11, 12, 13, 14]);
+    expect(result.failed).toBe(0);
+    expect(result.skipped).toBe(0);
+    expect(result.successful).toBe(4);
+  });
+});
