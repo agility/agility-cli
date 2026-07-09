@@ -176,11 +176,18 @@ export class Pushers {
     // Collect individual failure details
     const failureDetails: FailureDetail[] = [];
 
-    // DEPENDENCY-OPTIMIZED ORDER: Galleries → Assets → Models → Containers → Content → Templates → Pages
+    // PROD-2202: Models run FIRST so the model-mapping validation (the rename/reassignment
+    // mismatch detection in pushModels) fails the sync before any galleries or assets are
+    // written to the target. A doomed sync therefore aborts immediately, without touching the
+    // target instance with gallery/asset uploads — failing fast and leaving the target untouched.
+    // Models depend on nothing that follows, so hoisting them ahead of galleries/assets is
+    // dependency-safe; the remaining relative order is unchanged (Containers→Content→Templates→
+    // Pages still follow Models, since each depends on Models being pushed first).
+    // ORDER: Models → Galleries → Assets → Containers → Content → Templates → Pages
     const pusherConfig = [
+      PUSH_OPERATIONS.models,
       PUSH_OPERATIONS.galleries,
       PUSH_OPERATIONS.assets,
-      PUSH_OPERATIONS.models,
       PUSH_OPERATIONS.containers,
       PUSH_OPERATIONS.content,
       PUSH_OPERATIONS.templates,
