@@ -104,6 +104,7 @@ agility sync [options]
 | --------------- | ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--overwrite`   | boolean | `false`      | Conflict-scoped override. By default, when a target item has its own changes that conflict with the source, the CLI skips it to avoid data loss. With `--overwrite`, those conflicting target items are overwritten with the source version. Non-conflicting updates are applied either way. |
 | `--autoPublish` | string  | _(disabled)_ | Automatically publish synced items that were published in the source instance. Values: `content`, `pages`, `both`. If flag is provided without a value, defaults to `both`. Items that are only in staging (not published) in the source are skipped. |
+| `--preflight`   | boolean | `false`      | Dry-run preview. Runs the full source-pull, target-pull, dependency analysis and change detection, then reports the creates/updates/skips/conflicts a real sync would produce — **without writing anything** to the target instance or mapping files. Exits non-zero when conflicts are detected, so CI can gate a real sync on a clean preflight. |
 
 **Authentication & Environment Options:**
 
@@ -133,6 +134,9 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --elements="Assets"
 
 # Overwrite target items that conflict with the source (forces conflicting updates through)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite
+
+# Preview what a sync would do without writing anything (exits non-zero if conflicts are found)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --preflight
 
 # Sync only specified models (models only, no dependencies)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,BlogCategory"
