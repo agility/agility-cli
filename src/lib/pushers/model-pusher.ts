@@ -83,7 +83,24 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   let shouldSkip: { model: mgmtApi.Model; reason: string }[] = [];
   let stubCreated = [];
 
+  // PROD-2250: process source models that already have a mapping before brand-new
+  // (unmapped) models. Reconciling existing target models first — using their known
+  // mapping — avoids ordering issues where a net-new model is created before its
+  // already-mapped dependencies have been reconciled, and keeps the mappings file
+  // consistent. Each group preserves its original relative order; the mapper is
+  // already loaded so the membership check is O(1). A clean run (empty mappings)
+  // yields an empty existingMappedModels, so ordering/output is unchanged.
+  const existingMappedModels: mgmtApi.Model[] = [];
+  const newUnmappedModels: mgmtApi.Model[] = [];
   for (const sourceModel of models) {
+    const isAlreadyMapped = sourceModel.id
+      ? !!referenceMapper.getModelMappingByID(sourceModel.id, "source")
+      : false;
+    (isAlreadyMapped ? existingMappedModels : newUnmappedModels).push(sourceModel);
+  }
+  const orderedModels = [...existingMappedModels, ...newUnmappedModels];
+
+  for (const sourceModel of orderedModels) {
     if (!sourceModel.id || !sourceModel.referenceName) {
       logger.model.error(
         sourceModel,
