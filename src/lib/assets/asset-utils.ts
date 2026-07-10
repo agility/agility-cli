@@ -68,3 +68,38 @@ export function getAssetFilePath(originUrl: string): string {
     return "error-parsing-asset-path";
   }
 }
+
+export interface FocalPoint {
+  focalX?: string;
+  focalY?: string;
+}
+
+/**
+ * Extract focal point (focalX/focalY) from an image's response headers.
+ *
+ * Agility surfaces focal point via the CDN media endpoint as the
+ * `agility-focal-x` / `agility-focal-y` headers. These are the only headers we
+ * trust: the raw blob/S3 object-metadata headers are not a reliable source, so
+ * an image must be served through the CDN for its focal point to be captured.
+ *
+ * Node lower-cases all incoming header names, so we look up lower-cased keys.
+ */
+export function extractFocalPointFromHeaders(headers: Record<string, any> | undefined | null): FocalPoint {
+  if (!headers) return {};
+
+  const readHeader = (name: string): string | undefined => {
+    const value = headers[name];
+    if (value === undefined || value === null) return undefined;
+    // Node may hand back a string[] for repeated headers; take the first entry.
+    const raw = Array.isArray(value) ? value[0] : value;
+    const trimmed = `${raw}`.trim();
+    return trimmed !== "" ? trimmed : undefined;
+  };
+
+  const focal: FocalPoint = {};
+  const focalX = readHeader("agility-focal-x");
+  const focalY = readHeader("agility-focal-y");
+  if (focalX !== undefined) focal.focalX = focalX;
+  if (focalY !== undefined) focal.focalY = focalY;
+  return focal;
+}
