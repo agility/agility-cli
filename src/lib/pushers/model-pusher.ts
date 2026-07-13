@@ -102,7 +102,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
   for (const sourceModel of orderedModels) {
     if (!sourceModel.id || !sourceModel.referenceName) {
-      logger.model.error(
+      logger.model.skipped(
         sourceModel,
         "Model is missing required properties (id or referenceName), skipping",
         targetGuid[0]
