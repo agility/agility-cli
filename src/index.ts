@@ -208,11 +208,26 @@ yargs.command({
     // Validate sync command requirements
     const isValidCommand = await auth.validateCommand("push");
     if (!isValidCommand) {
-      return;
+      // PROD-2310: a failed precondition (e.g. a requested locale missing on the target)
+      // is an abort with zero work done — it must exit non-zero so CI can detect it,
+      // instead of returning silently with exit code 0.
+      process.exit(1);
     }
 
     const push = new Push();
-    await push.pushInstances();
+    try {
+      // PROD-2310: honor the sync result. The handler previously ignored the returned
+      // { success }, so a sync with failed items or failed auto-publish still exited 0.
+      const result = await push.pushInstances();
+      if (!result.success) {
+        process.exit(1);
+      }
+    } catch (error) {
+      // PROD-2310: a hard-stop abort (e.g. model-validation failure) throws out of
+      // pushInstances. The error is already logged inside pushInstances; exit non-zero
+      // here rather than relying on unhandled-rejection behavior for the exit code.
+      process.exit(1);
+    }
   },
 });
 

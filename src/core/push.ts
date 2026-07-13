@@ -14,6 +14,18 @@ import { Pushers, PushResults } from "../lib/pushers/orchestrate-pushers";
 import { Pull } from "./pull";
 import { preflightReport } from "../lib/preflight/preflight-report";
 
+/**
+ * PROD-2310: Decide whether a set of auto-publish errors should fail the sync exit code.
+ * Real publish failures ("publish") and a fatal auto-publish crash ("fatal") are
+ * unambiguous failures that CI must detect. "mapping"/"refresh" entries are post-publish
+ * bookkeeping that PROD-2311 may reclassify, so they are NOT treated as hard failures here.
+ */
+export function hasBlockingAutoPublishErrors(
+  autoPublishErrors: Array<{ locale: string; type: string; error: string }>
+): boolean {
+  return autoPublishErrors.some((e) => e.type === "publish" || e.type === "fatal");
+}
+
 export class Push {
   private pushers: Pushers;
 
@@ -130,14 +142,16 @@ export class Push {
         }
       });
 
-      // Calculate overall success - check both operation failures and item failures
-      const success = totalFailed === 0 && totalSyncFailures === 0;
+      // Calculate sync-phase success - check both operation failures and item failures.
+      // PROD-2310: this reflects only the sync/push phase. Auto-publish runs AFTER this
+      // point, so its errors are folded into the final `success` below (before we return).
+      const syncSuccess = totalFailed === 0 && totalSyncFailures === 0;
 
       // Use the orchestrator summary function to handle completion logic
       // But DON'T show log files yet - we'll show them at the very end
       const logger = getLogger();
       if (logger) {
-        logger.orchestratorSummary(results, totalElapsedTime, success, []); // Empty array = no log files shown yet
+        logger.orchestratorSummary(results, totalElapsedTime, syncSuccess, []); // Empty array = no log files shown yet
       }
 
       finalizeLogger(); // Finalize global logger if it exists
@@ -150,6 +164,14 @@ export class Push {
       if (isSync && autoPublish && !state.preflight) {
         autoPublishErrors = await this.executeAutoPublish(results, autoPublish);
       }
+
+      // PROD-2310: Fold auto-publish failures into the returned success signal so the
+      // entry point can exit non-zero. Real publish failures ("publish") and a fatal
+      // auto-publish crash ("fatal") are unambiguous failures that CI must detect; they
+      // previously never affected the exit code. "mapping"/"refresh" entries are
+      // post-publish bookkeeping that PROD-2311 may reclassify, so they are deliberately
+      // NOT treated as hard failures here (see PROD-2311 follow-up).
+      const success = syncSuccess && !hasBlockingAutoPublishErrors(autoPublishErrors);
 
       // Final error summary - show if there were ANY failures (sync or auto-publish)
       const hasFailures = totalSyncFailures > 0 || syncErrors.length > 0 || autoPublishErrors.length > 0;
