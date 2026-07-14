@@ -154,6 +154,85 @@ describe("pushContainers — RichTextArea special case", () => {
   });
 });
 
+// ─── pushContainers — PROD-2307 adopt-by-referenceName ────────────────────────
+
+describe("pushContainers — adopt existing target container by referenceName (PROD-2307)", () => {
+  it("adopts an unmapped target container that matches by referenceName instead of creating", async () => {
+    const saveContainer = jest.fn();
+    state.cachedApiClient = { containerMethods: { saveContainer } } as any;
+
+    const { ContainerMapper } = await import("lib/mappers/container-mapper");
+    const addMappingSpy = jest.spyOn(ContainerMapper.prototype, "addMapping");
+
+    const { pushContainers } = await import("../container-pusher");
+
+    // Source has no mapping row (fresh cache); target already has a same-named container.
+    const source = makeContainer({ referenceName: "AdoptMe", contentDefinitionID: 500 });
+    const target = makeContainer({ referenceName: "AdoptMe", contentDefinitionID: 500 });
+
+    const result = await pushContainers([source], [target]);
+
+    // Adopted, not created.
+    expect(saveContainer).not.toHaveBeenCalled();
+    expect(addMappingSpy).toHaveBeenCalledTimes(1);
+    expect(result.skipped).toBe(1);
+    expect(result.successful).toBe(0);
+    expect(result.failed).toBe(0);
+  });
+
+  it("matches referenceName case-insensitively", async () => {
+    const saveContainer = jest.fn();
+    state.cachedApiClient = { containerMethods: { saveContainer } } as any;
+
+    const { pushContainers } = await import("../container-pusher");
+
+    const source = makeContainer({ referenceName: "MixedCase", contentDefinitionID: 500 });
+    const target = makeContainer({ referenceName: "mixedcase", contentDefinitionID: 500 });
+
+    const result = await pushContainers([source], [target]);
+
+    expect(saveContainer).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+  });
+
+  it("still creates when no target container matches by referenceName", async () => {
+    const created = makeContainer({ contentViewID: 777, contentDefinitionID: 1 });
+    const saveContainer = jest.fn().mockResolvedValue(created);
+    state.cachedApiClient = { containerMethods: { saveContainer } } as any;
+
+    const { pushContainers } = await import("../container-pusher");
+
+    // contentDefinitionID=1 → RichTextArea special case makes targetModelID valid, so create proceeds.
+    const source = makeContainer({ referenceName: "BrandNew", contentDefinitionID: 1 });
+    const nonMatch = makeContainer({ referenceName: "SomethingElse" });
+
+    const result = await pushContainers([source], [nonMatch]);
+
+    expect(saveContainer).toHaveBeenCalledTimes(1);
+    expect(result.successful).toBe(1);
+  });
+
+  it("does not write a mapping during preflight (dry run), but still records the adopt as a skip", async () => {
+    state.preflight = true;
+    const saveContainer = jest.fn();
+    state.cachedApiClient = { containerMethods: { saveContainer } } as any;
+
+    const { ContainerMapper } = await import("lib/mappers/container-mapper");
+    const addMappingSpy = jest.spyOn(ContainerMapper.prototype, "addMapping");
+
+    const { pushContainers } = await import("../container-pusher");
+
+    const source = makeContainer({ referenceName: "PreflightAdopt", contentDefinitionID: 500 });
+    const target = makeContainer({ referenceName: "PreflightAdopt", contentDefinitionID: 500 });
+
+    const result = await pushContainers([source], [target]);
+
+    expect(saveContainer).not.toHaveBeenCalled();
+    expect(addMappingSpy).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+  });
+});
+
 // ─── pushContainers — result shape ────────────────────────────────────────────
 
 describe("pushContainers — result shape", () => {
