@@ -88,7 +88,7 @@ export async function pushContainers(
 
         if (!targetContainer) {
           // Container exists and is up to date - skip
-          logger.container.error(
+          logger.container.skipped(
             sourceContainer,
             `target container: ${existingMapping.targetReferenceName} was deleted, skipping!`,
             targetGuid[0]
