@@ -151,10 +151,20 @@ export class Push {
         autoPublishErrors = await this.executeAutoPublish(results, autoPublish);
       }
 
-      // Final error summary - show if there were ANY failures (sync or auto-publish)
-      const hasFailures = totalSyncFailures > 0 || syncErrors.length > 0 || autoPublishErrors.length > 0;
+      // Split auto-publish outcomes: genuine publish failures (blocking) vs
+      // post-publish mapping/refresh bookkeeping notices (non-blocking). PROD-2311
+      const genuinePublishErrors = autoPublishErrors.filter(
+        ({ type }) => type === "publish" || type === "fatal"
+      );
+      const mappingWarnings = autoPublishErrors.filter(
+        ({ type }) => type === "mapping" || type === "refresh"
+      );
 
-      if (hasFailures) {
+      // Final error summary - show only if there were genuine (blocking) failures
+      const hasBlockingFailures =
+        totalSyncFailures > 0 || syncErrors.length > 0 || genuinePublishErrors.length > 0;
+
+      if (hasBlockingFailures) {
         console.log(ansiColors.red("\n" + "═".repeat(50)));
         console.log(ansiColors.red("⚠️  ERROR SUMMARY"));
         console.log(ansiColors.red("═".repeat(50)));
@@ -196,14 +206,24 @@ export class Push {
           });
         }
 
-        // Show auto-publish errors
-        if (autoPublishErrors.length > 0) {
+        // Show genuine auto-publish failures (publish/fatal)
+        if (genuinePublishErrors.length > 0) {
           console.log(ansiColors.red(`\n  Auto-Publish Errors:`));
-          autoPublishErrors.forEach(({ locale, type, error }) => {
+          genuinePublishErrors.forEach(({ locale, type, error }) => {
             const localeDisplay = locale ? `[${locale}]` : "";
             console.log(ansiColors.red(`    • ${localeDisplay} ${type}: ${error}`));
           });
         }
+      }
+
+      // PROD-2311: post-publish mapping/version bookkeeping notices are NOT publish
+      // failures — show them under a non-blocking header so they don't read as broken.
+      if (mappingWarnings.length > 0) {
+        console.log(ansiColors.yellow(`\n  Mapping Update Warnings (non-blocking):`));
+        mappingWarnings.forEach(({ locale, type, error }) => {
+          const localeDisplay = locale ? `[${locale}]` : "";
+          console.log(ansiColors.yellow(`    • ${localeDisplay} ${type}: ${error}`));
+        });
       }
 
       // Show log file paths at the very end
