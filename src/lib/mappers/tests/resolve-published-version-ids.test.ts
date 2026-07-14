@@ -67,6 +67,22 @@ describe("resolvePublishedVersionIDs", () => {
     expect(result.unchangedUpdates).toEqual([3]);
   });
 
+  it("flags a never-observed item as missing even with a non-zero baseline (created items carry a create-time version)", async () => {
+    const fetchItem = jest.fn().mockResolvedValue(null); // never on the CDN
+
+    const result = await resolvePublishedVersionIDs([{ id: 8, baseline: 42 }], fetchItem, {
+      guid: "g",
+      maxIterations: 3,
+      deps: makeDeps(),
+    });
+
+    // Classification keys off "never observed", not baseline === 0, so a created
+    // item that already had a create-time versionID is still surfaced (not kept silently).
+    expect(result.resolved.size).toBe(0);
+    expect(result.missingCreates).toEqual([8]);
+    expect(result.unchangedUpdates).toEqual([]);
+  });
+
   it("backs off with sleep when no sync is in progress, then resolves on a later poll", async () => {
     const fetchItem = jest
       .fn()

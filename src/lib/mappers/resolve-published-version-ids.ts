@@ -55,9 +55,9 @@ export interface VersionResolutionItem {
 export interface VersionResolutionResult {
   /** id -> the freshly observed item (versionID diverged from baseline). */
   resolved: Map<number, ObservedItem>;
-  /** New items (baseline 0) that never appeared before the timeout — surface as non-blocking warnings. */
+  /** Items never observed on the Fetch layer before the timeout (e.g. a created item that never propagated) — surface as non-blocking warnings. */
   missingCreates: number[];
-  /** Updated items whose versionID never diverged (e.g. no-op republish) — keep the baseline silently. */
+  /** Items observed but whose versionID never diverged from baseline (e.g. no-op republish) — keep the existing mapping value silently. */
   unchangedUpdates: number[];
 }
 
@@ -107,6 +107,9 @@ export async function resolvePublishedVersionIDs(
   const resolved = new Map<number, ObservedItem>();
   // id -> baseline for the items still awaiting divergence
   const remaining = new Map<number, number>(items.map((i) => [i.id, i.baseline]));
+  // ids observed on the Fetch layer at least once (present, even if not yet diverged).
+  // Used to distinguish "never appeared" (warn) from "appeared but unchanged" (keep silently).
+  const seen = new Set<number>();
 
   const deadline = deps.now() + timeoutMs;
   let iterations = 0;
@@ -124,6 +127,7 @@ export async function resolvePublishedVersionIDs(
     // Fetch each remaining item; resolve the ones that have diverged.
     for (const [id, baseline] of Array.from(remaining.entries())) {
       const observed = await fetchItem(id);
+      if (observed) seen.add(id);
       if (observed && observed.versionID !== baseline) {
         resolved.set(id, observed);
         remaining.delete(id);
@@ -141,16 +145,21 @@ export async function resolvePublishedVersionIDs(
     }
   }
 
-  // Classify whatever never diverged.
+  // Classify whatever never diverged by whether we ever OBSERVED it on the Fetch
+  // layer — not by baseline. Newly-created items already carry a non-zero
+  // create-time targetVersionID in the mapping (addMapping), so baseline === 0 is
+  // not a reliable "is new" signal; "never observed" is.
   const missingCreates: number[] = [];
   const unchangedUpdates: number[] = [];
-  for (const [id, baseline] of Array.from(remaining.entries())) {
-    if (baseline === 0) {
-      // New item that never appeared on the Fetch API — a real problem, warn.
+  for (const id of Array.from(remaining.keys())) {
+    if (!seen.has(id)) {
+      // Never appeared on the Fetch API within the timeout (e.g. a created item
+      // that never propagated) — a real problem, surface as a non-blocking warning.
       missingCreates.push(id);
     } else {
-      // Existing item whose version never changed (e.g. no-op republish). The
-      // baseline is already correct, so keep it silently — no drift, no error.
+      // Observed, but its versionID never diverged from the baseline (e.g. a
+      // no-op republish). The mapping's existing value is already correct, so
+      // keep it silently — no drift, no error.
       unchangedUpdates.push(id);
     }
   }

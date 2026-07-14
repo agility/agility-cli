@@ -113,7 +113,7 @@ export async function updateContentMappingsAfterPublish(
     // are non-blocking mapping warnings (the content itself did publish).
     for (const targetContentId of missingCreates) {
       errors.push(
-        `target content item ${targetContentId} did not appear on the Fetch API within ${POLL_TIMEOUT_SECONDS}s after publish; mapping version left unset`
+        `target content item ${targetContentId} did not appear on the Fetch API within ${POLL_TIMEOUT_SECONDS}s after publish; mapping version not updated`
       );
     }
     // Note: unchangedUpdates (baseline never diverged, e.g. no-op republish) are
@@ -182,7 +182,7 @@ export async function updatePageMappingsAfterPublish(
 
     for (const targetPageId of missingCreates) {
       errors.push(
-        `target page ${targetPageId} did not appear on the Fetch API within ${POLL_TIMEOUT_SECONDS}s after publish; mapping version left unset`
+        `target page ${targetPageId} did not appear on the Fetch API within ${POLL_TIMEOUT_SECONDS}s after publish; mapping version not updated`
       );
     }
 
