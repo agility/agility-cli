@@ -53,10 +53,10 @@ export const systemArgs = {
   },
   elements: {
     describe:
-      "Comma-separated list of elements to process (Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps)",
+      "Comma-separated list of elements to process (Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps,UrlRedirections)",
     demandOption: false,
     type: "string" as const,
-    default: "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps",
+    default: "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps,UrlRedirections",
   },
 
   // **NEW: Selective Model-Based Sync Parameter (Task 103)**
