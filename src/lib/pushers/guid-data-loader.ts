@@ -35,6 +35,7 @@ export interface GuidEntities {
   content: any[];
   assets: any[];
   galleries: any[];
+  urlRedirections: any[];
 }
 
 export class GuidDataLoader {
@@ -62,7 +63,7 @@ export class GuidDataLoader {
     // Element filtering happens at the processing level, not the loading level
     const needsCompleteData = state.isSync || state.modelsWithDeps;
     const elements = needsCompleteData
-      ? ["Galleries", "Assets", "Models", "Containers", "Content", "Templates", "Pages", "Sitemaps"]
+      ? ["Galleries", "Assets", "Models", "Containers", "Content", "Templates", "Pages", "Sitemaps", "UrlRedirections"]
       : state.elements.split(",");
 
     const guidFileOps = new fileOperations(this.guid);
@@ -78,6 +79,7 @@ export class GuidDataLoader {
       content: [],
       pages: [],
       templates: [],
+      urlRedirections: [],
     };
 
     // Load different entity types using pure getters for consistent architecture
@@ -125,6 +127,13 @@ export class GuidDataLoader {
       const { getPagesFromFileSystem } = await import("../getters/filesystem/get-pages");
       const pages = getPagesFromFileSystem(localeFileOps);
       guidEntities.pages = Array.isArray(pages) ? pages : [];
+    }
+
+    if (elements.includes("UrlRedirections")) {
+      const { getUrlRedirectionsFromFileSystem } = await import("../getters/filesystem/get-url-redirections");
+      // Redirections are instance-wide but stored per-locale by the sync SDK — one locale's file is the full set
+      const urlRedirections = getUrlRedirectionsFromFileSystem(localeFileOps);
+      guidEntities.urlRedirections = Array.isArray(urlRedirections) ? urlRedirections : [];
     }
 
     // Apply model filtering if requested
@@ -315,6 +324,8 @@ export class GuidDataLoader {
       pages: filteredPages,
       assets: filteredAssets,
       galleries: filteredGalleries,
+      // Redirections are never part of a model dependency tree
+      urlRedirections: [],
     };
   }
 
@@ -333,6 +344,7 @@ export class GuidDataLoader {
       pages: [],
       assets: [],
       galleries: [],
+      urlRedirections: [],
     };
   }
 
@@ -356,6 +368,7 @@ export class GuidDataLoader {
       content: guidEntities.content.length,
       assets: guidEntities.assets.length,
       galleries: guidEntities.galleries.length,
+      urlRedirections: guidEntities.urlRedirections.length,
     };
   }
 
@@ -394,6 +407,7 @@ export class GuidDataLoader {
       content: [],
       pages: [],
       templates: [],
+      urlRedirections: [],
     };
 
     // Load ALL entity types regardless of state.elements for complete dependency analysis
@@ -428,6 +442,10 @@ export class GuidDataLoader {
     const { getPagesFromFileSystem } = await import("../getters/filesystem/get-pages");
     const pages = getPagesFromFileSystem(localeFileOps);
     guidEntities.pages = Array.isArray(pages) ? pages : [];
+
+    const { getUrlRedirectionsFromFileSystem } = await import("../getters/filesystem/get-url-redirections");
+    const urlRedirections = getUrlRedirectionsFromFileSystem(localeFileOps);
+    guidEntities.urlRedirections = Array.isArray(urlRedirections) ? urlRedirections : [];
 
     return guidEntities;
   }

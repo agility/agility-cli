@@ -183,12 +183,16 @@ export class Pushers {
     // Models depend on nothing that follows, so hoisting them ahead of galleries/assets is
     // dependency-safe; the remaining relative order is unchanged (Containers→Content→Templates→
     // Pages still follow Models, since each depends on Models being pushed first).
-    // ORDER: Models → Galleries → Assets → Containers → Content → Templates → Pages
+    // URL redirections depend on nothing, so they run BEFORE templates: the template pusher
+    // deliberately throws on mapping inconsistencies (rename protection), which aborts the rest
+    // of the guid-level loop — redirections must not be collateral damage of that stop.
+    // ORDER: Models → Galleries → Assets → Containers → URL Redirections → Content → Templates → Pages
     const pusherConfig = [
       PUSH_OPERATIONS.models,
       PUSH_OPERATIONS.galleries,
       PUSH_OPERATIONS.assets,
       PUSH_OPERATIONS.containers,
+      PUSH_OPERATIONS.urlRedirections,
       PUSH_OPERATIONS.content,
       PUSH_OPERATIONS.templates,
       PUSH_OPERATIONS.pages,
