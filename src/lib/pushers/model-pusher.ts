@@ -20,10 +20,15 @@ function modelTypeMatches(a: mgmtApi.Model, b: mgmtApi.Model): boolean {
   return aType === bType;
 }
 
-/** Human-readable model kind for messages. 1 = content, 2 = component/module. */
+/**
+ * Human-readable model kind for messages. contentDefinitionTypeID: 2 = component/module; content
+ * models report 0 (content item) or 1 (content list) — both are "content" for the user's purposes.
+ */
 function modelKindName(model: mgmtApi.Model): string {
   const t = (model as any)?.contentDefinitionTypeID;
-  return t === 1 ? "content" : t === 2 ? "component/module" : `type ${t}`;
+  if (t === 2) return "component/module";
+  if (t === 0 || t === 1) return "content";
+  return `type ${t}`;
 }
 
 /**
