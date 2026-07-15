@@ -1,5 +1,5 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { getApiClient, state, getLoggerForGuid } from "../../core/state";
+import { getApiClient, state, getLoggerForGuid, registerBlockedModel } from "../../core/state";
 import { PusherResult, FailureDetail } from "../../types/sourceData";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
@@ -31,7 +31,7 @@ function modelKindName(model: mgmtApi.Model): string {
  * sides but as different kinds (content vs component/module). Agility forbids content and component
  * models from sharing a reference name, so this can never be created; the user must reconcile it.
  */
-function crossKindCollisionMessage(source: mgmtApi.Model, target: mgmtApi.Model): string {
+function crossModelTypeCollisionMessage(source: mgmtApi.Model, target: mgmtApi.Model): string {
   return (
     `Model "${source.referenceName}" is a ${modelKindName(source)} model on the source, but a ` +
     `${modelKindName(target)} model with that reference name already exists on the target. ` +
@@ -103,7 +103,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   let shouldSkip: { model: mgmtApi.Model; reason: string }[] = [];
   let stubCreated = [];
   // PROD-2315: same reference name on both sides but a different kind (content vs component).
-  const crossKindConflicts: { model: mgmtApi.Model; target: mgmtApi.Model }[] = [];
+  const crossModelTypeConflicts: { model: mgmtApi.Model; target: mgmtApi.Model }[] = [];
 
   // PROD-2250: process source models that already have a mapping before brand-new
   // (unmapped) models. Reconciling existing target models first — using their known
@@ -207,14 +207,14 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     // targetModelByReference, so it would otherwise fall through to "create" and hit a guaranteed
     // server 409 (Agility forbids content + component models sharing a name). Because
     // targetModelByReference used modelTypeMatches — which returns true when either side's type is
-    // unknown — crossKindTarget is non-null ONLY when both types are known and differ. Type-unknown
+    // unknown — crossModelTypeTarget is non-null ONLY when both types are known and differ. Type-unknown
     // pulls are unaffected and keep today's behavior.
-    const crossKindTarget =
+    const crossModelTypeTarget =
       !sourceMapping && !targetModelByReference
         ? targetData.find((t) => t.referenceName === sourceModel.referenceName) || null
         : null;
-    if (crossKindTarget) {
-      crossKindConflicts.push({ model: sourceModel, target: crossKindTarget });
+    if (crossModelTypeTarget) {
+      crossModelTypeConflicts.push({ model: sourceModel, target: crossModelTypeTarget });
       continue;
     }
 
@@ -278,12 +278,12 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       });
     }
     // PROD-2315: preview cross-kind collisions as conflicts (a real run would fail them).
-    for (const { model, target } of crossKindConflicts) {
+    for (const { model, target } of crossModelTypeConflicts) {
       preflightReport.record({
         phase: "Models",
         action: "conflict",
         name: model.referenceName,
-        detail: crossKindCollisionMessage(model, target),
+        detail: crossModelTypeCollisionMessage(model, target),
       });
     }
     return {
@@ -348,11 +348,14 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   // PROD-2315: cross-kind reference-name collisions can never be created (Agility forbids content and
   // component models sharing a name). Fail them with an actionable message that reaches the ERROR
   // SUMMARY, rather than attempting a create that is guaranteed to 409.
-  for (const { model, target } of crossKindConflicts) {
-    const message = crossKindCollisionMessage(model, target);
+  for (const { model, target } of crossModelTypeConflicts) {
+    const message = crossModelTypeCollisionMessage(model, target);
     logger.model.error(model, new Error(message), targetGuid[0]);
     failed++;
     failureDetails.push({ name: model.referenceName, error: message, guid: sourceGuid[0] });
+    // PROD-2315 (Tier 2): record the block so dependent containers/content/pages can attribute
+    // their own skips/failures to this collision instead of a generic "mapping not found".
+    registerBlockedModel(model.referenceName, model.id, message);
   }
 
   return {

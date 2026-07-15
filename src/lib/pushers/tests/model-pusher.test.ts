@@ -487,6 +487,7 @@ describe("pushModels — mapped-before-unmapped ordering (PROD-2250)", () => {
 
 describe("pushModels — cross-kind reference-name collision (PROD-2315)", () => {
   it("fails a same-name model of a different kind with an actionable message instead of creating it", async () => {
+    stateModule.clearBlockedModelRegistry();
     const saveModel = jest.fn();
     jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
 
@@ -507,6 +508,11 @@ describe("pushModels — cross-kind reference-name collision (PROD-2315)", () =>
     expect(result.failureDetails![0].name).toBe("LinkCard");
     expect(result.failureDetails![0].error).toMatch(/component\/module model on the source/);
     expect(result.failureDetails![0].error).toMatch(/content model with that reference name already exists/);
+
+    // PROD-2315 (Tier 2): the block is registered so dependents can attribute their own failures.
+    const blocked = stateModule.getBlockedModel("LinkCard");
+    expect(blocked).toBeDefined();
+    expect(blocked!.sourceModelID).toBe(sourceModel.id);
   });
 
   it("does NOT flag a same-name model when the kinds are unknown (falls back to adopt-by-reference)", async () => {

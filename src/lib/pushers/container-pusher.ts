@@ -1,6 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import { ApiClient } from "@agility/management-sdk";
-import { getLoggerForGuid, state } from "core/state";
+import { getLoggerForGuid, state, getBlockedModelByID } from "core/state";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
@@ -36,6 +36,32 @@ export async function pushContainers(
 
   const containerMapper = new ContainerMapper(sourceGuid[0], targetGuid[0]);
   const modelMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
+
+  // PROD-2315 (Tier 2): a container whose model mapping is missing is normally logged as a generic
+  // "Target model mapping not found". If the model is missing because of a cross-kind reference-name
+  // collision, attribute the skip to that collision (and surface it in the grouped ERROR SUMMARY).
+  const recordModelMappingSkip = (container: mgmtApi.Container) => {
+    const blocked = getBlockedModelByID(container.contentDefinitionID);
+    if (blocked) {
+      const detail = `blocked by model conflict "${blocked.referenceName}": ${blocked.reason}`;
+      logger.container.skipped(container, detail, targetGuid[0]);
+      preflightReport.record({ phase: "Containers", action: "skip", name: container.referenceName, detail });
+      failureDetails.push({
+        name: container.referenceName,
+        error: detail,
+        guid: sourceGuid[0],
+        blockedBy: blocked.referenceName,
+      });
+    } else {
+      logger.container.skipped(container, "Target model mapping not found", targetGuid[0]);
+      preflightReport.record({
+        phase: "Containers",
+        action: "skip",
+        name: container.referenceName,
+        detail: "target model mapping not found",
+      });
+    }
+  };
 
   for (const sourceContainer of sourceContainers) {
     //SPECIAL CASE for fixed Agility containers
@@ -114,13 +140,7 @@ export async function pushContainers(
         }
 
         if (targetModelID < 1) {
-          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0]);
-          preflightReport.record({
-            phase: "Containers",
-            action: "skip",
-            name: sourceContainer.referenceName,
-            detail: "target model mapping not found",
-          });
+          recordModelMappingSkip(sourceContainer);
           skipped++;
         } else if (shouldSkip) {
           // Container exists and is up to date - skip
@@ -187,13 +207,7 @@ export async function pushContainers(
       if (shouldCreate) {
         // Container doesn't exist - create new one
         if (targetModelID < 1) {
-          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0]);
-          preflightReport.record({
-            phase: "Containers",
-            action: "skip",
-            name: sourceContainer.referenceName,
-            detail: "target model mapping not found",
-          });
+          recordModelMappingSkip(sourceContainer);
           skipped++;
         } else if (state.preflight) {
           // Preflight: would create, but skip the write.

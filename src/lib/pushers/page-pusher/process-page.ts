@@ -24,7 +24,13 @@ interface Props {
   logger: Logs;
 }
 
-export type PageProcessResult = { status: "success" | "skip" | "failure"; error?: string; contentID?: number };
+export type PageProcessResult = {
+  status: "success" | "skip" | "failure";
+  error?: string;
+  contentID?: number;
+  // PROD-2315: reference name of a model whose cross-kind collision blocked the referenced content.
+  blockedBy?: string;
+};
 
 export async function processPage({
   channel,
@@ -195,6 +201,7 @@ export async function processPage({
     // Track first missing content mapping for error summary
     let firstMissingContentError: string | null = null;
     let firstMissingContentID: number | null = null;
+    let firstBlockedByModel: string | null = null;
 
     for (const [zoneName, zoneModules] of Object.entries(mappedZones)) {
       const newZoneContent = [];
@@ -255,6 +262,9 @@ export async function processPage({
                 if (!firstMissingContentError) {
                   firstMissingContentError = mappingError;
                   firstMissingContentID = sourceContentId;
+                  // PROD-2315: if the referenced content failed because its model is blocked, carry
+                  // the blocking model up so the page failure can be grouped in the ERROR SUMMARY.
+                  firstBlockedByModel = failedContent?.blockedByModel || null;
                 }
               }
             } else {
@@ -304,6 +314,7 @@ export async function processPage({
           status: "failure",
           error: firstMissingContentError || `${missingMappings} missing content mappings`,
           contentID: firstMissingContentID || undefined,
+          blockedBy: firstBlockedByModel || undefined,
         };
       }
     }

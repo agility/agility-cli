@@ -4,6 +4,8 @@ import {
   getLogger,
   state,
   clearFailedContentRegistry,
+  clearBlockedModelRegistry,
+  getBlockedModel,
   getPageCmsLink,
   getContentCmsLink,
 } from "./state";
@@ -39,6 +41,8 @@ export class Push {
 
     // Clear failed content registry from any previous sync
     clearFailedContentRegistry();
+    // PROD-2315: clear blocked-model registry (cross-kind collisions) from any previous sync
+    clearBlockedModelRegistry();
 
     // Preflight (PROD-2203): start each run with a clean report of planned actions
     preflightReport.reset();
@@ -123,6 +127,7 @@ export class Push {
         contentID?: number;
         guid?: string;
         locale?: string;
+        blockedBy?: string;
       }> = [];
 
       results.forEach((result: PushResults) => {
@@ -181,10 +186,16 @@ export class Push {
         console.log(ansiColors.red("⚠️  ERROR SUMMARY"));
         console.log(ansiColors.red("═".repeat(50)));
 
+        // PROD-2315: split out failures caused by an unresolved model reference-name collision so
+        // they can be grouped into one line per blocking model, instead of repeating the same cause
+        // across every dependent container/content/page (the "1 collision → 9 failures" cascade).
+        const blockedFailures = syncFailureDetails.filter((f) => f.blockedBy);
+        const normalFailures = syncFailureDetails.filter((f) => !f.blockedBy);
+
         // Show sync failure details line by line with links
-        if (syncFailureDetails.length > 0) {
-          console.log(ansiColors.red(`\n  Sync Failures (${syncFailureDetails.length}):`));
-          syncFailureDetails.forEach(({ name, error, type, pageID, contentID, guid, locale }) => {
+        if (normalFailures.length > 0) {
+          console.log(ansiColors.red(`\n  Sync Failures (${normalFailures.length}):`));
+          normalFailures.forEach(({ name, error, type, pageID, contentID, guid, locale }) => {
             // Format: [guid][locale] • name: error
             const prefix = guid && locale ? `[${guid}][${locale}]` : guid ? `[${guid}]` : "";
             console.log(ansiColors.red(`    ${prefix} • ${name}: ${error}`));
@@ -204,9 +215,27 @@ export class Push {
               console.log(ansiColors.gray(`      ${link}`));
             }
           });
-        } else if (totalSyncFailures > 0) {
+        } else if (totalSyncFailures > 0 && blockedFailures.length === 0) {
           // Fallback if no detailed failure info available
           console.log(ansiColors.red(`  Sync: ${totalSyncFailures} items failed (see details above)`));
+        }
+
+        // PROD-2315: grouped view of everything blocked by an unresolved model collision — one line
+        // per model with the shared cause, then the affected items indented beneath it.
+        if (blockedFailures.length > 0) {
+          const byModel = new Map<string, typeof blockedFailures>();
+          blockedFailures.forEach((f) => {
+            const key = f.blockedBy as string;
+            const group = byModel.get(key) || [];
+            group.push(f);
+            byModel.set(key, group);
+          });
+          console.log(ansiColors.red(`\n  Blocked by model conflicts (${blockedFailures.length}):`));
+          Array.from(byModel.entries()).forEach(([model, items]) => {
+            const reason = getBlockedModel(model)?.reason || "unresolved model reference-name conflict";
+            console.log(ansiColors.red(`    • ${model}: ${items.length} dependent item(s) not synced — ${reason}`));
+            items.forEach((it) => console.log(ansiColors.gray(`        - ${it.type || "container"}: ${it.name}`)));
+          });
         }
 
         // Show detailed sync errors (operation-level)
