@@ -1,7 +1,7 @@
 // Removed finder imports - using mapper directly
 import ansiColors from "ansi-colors";
 // Removed ContentBatchProcessor import - individual pusher only handles individual processing
-import { getLoggerForGuid, state, registerFailedContent, getBlockedModel } from "core/state";
+import { getLoggerForGuid, state, registerFailedContent } from "core/state";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { filterContentItemsForProcessing } from "./util/filter-content-items-for-processing";
 import { getContentItemTypes } from "./util/get-content-item-types";
@@ -51,7 +51,6 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
     contentID?: number;
     guid?: string;
     locale?: string;
-    blockedBy?: string;
   }> = [];
 
   try {
@@ -60,27 +59,6 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
     // Account for pre-classification skips (missing mappings)
     if (skippedItems && skippedItems.length > 0) {
       totalSkipped += skippedItems.length;
-
-      // PROD-2315 (Tier 2): if an item was skipped because its model is blocked by a cross-kind
-      // reference-name collision, attribute it to that collision. Registering it in the failed-content
-      // registry makes any page that references it inherit the real cause (process-page consults the
-      // registry), and the tagged failure detail lets the ERROR SUMMARY group these under one line.
-      for (const item of skippedItems) {
-        const blocked = getBlockedModel(item.properties?.definitionName || "");
-        if (!blocked) continue;
-        const name = item.properties?.referenceName || String(item.contentID);
-        const error = `blocked by model conflict "${blocked.referenceName}": ${blocked.reason}`;
-        registerFailedContent(item.contentID, name, error, locale, blocked.referenceName);
-        allFailureDetails.push({
-          name,
-          error,
-          type: "content",
-          contentID: item.contentID,
-          guid: sourceGuidStr,
-          locale,
-          blockedBy: blocked.referenceName,
-        });
-      }
     }
 
     // Process linked content items second (with dependencies)

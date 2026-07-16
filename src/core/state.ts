@@ -86,12 +86,7 @@ export interface State {
 
   // Failed content registry - tracks content items that failed during sync
   // Used by page pusher to provide better error messages when content mappings are missing
-  failedContentRegistry: Map<number, { referenceName: string; error: string; locale: string; blockedByModel?: string }>;
-
-  // PROD-2315: models that cannot be synced due to a cross-kind reference-name collision (a content
-  // and a component model sharing a name). Keyed by referenceName.toLowerCase(). Dependent
-  // containers/content/pages consult this to attribute their own skips/failures to the real cause.
-  blockedModelRegistry: Map<string, { referenceName: string; sourceModelID?: number; reason: string }>;
+  failedContentRegistry: Map<number, { referenceName: string; error: string; locale: string }>;
 }
 
 // Global state - populated from argv and referenced throughout the app
@@ -153,9 +148,6 @@ export const state: State = {
 
   // Failed content registry - tracks content items that failed during sync
   failedContentRegistry: new Map(),
-
-  // PROD-2315: blocked-model registry (cross-kind reference-name collisions)
-  blockedModelRegistry: new Map(),
 };
 
 /**
@@ -696,14 +688,8 @@ export function clearLogger(): void {
  * @param error - The error message
  * @param locale - The locale being processed
  */
-export function registerFailedContent(
-  contentID: number,
-  referenceName: string,
-  error: string,
-  locale: string,
-  blockedByModel?: string
-): void {
-  state.failedContentRegistry.set(contentID, { referenceName, error, locale, blockedByModel });
+export function registerFailedContent(contentID: number, referenceName: string, error: string, locale: string): void {
+  state.failedContentRegistry.set(contentID, { referenceName, error, locale });
 }
 
 /**
@@ -713,7 +699,7 @@ export function registerFailedContent(
  */
 export function getFailedContent(
   contentID: number
-): { referenceName: string; error: string; locale: string; blockedByModel?: string } | undefined {
+): { referenceName: string; error: string; locale: string } | undefined {
   return state.failedContentRegistry.get(contentID);
 }
 
@@ -722,35 +708,6 @@ export function getFailedContent(
  */
 export function clearFailedContentRegistry(): void {
   state.failedContentRegistry.clear();
-}
-
-/**
- * PROD-2315: register a model that cannot be synced due to a cross-kind reference-name collision.
- * @param referenceName - The model's reference name (used as the key, case-insensitively)
- * @param sourceModelID - The source model ID, so containers can look up by contentDefinitionID
- * @param reason - The human-readable collision reason (surfaced on dependent failures)
- */
-export function registerBlockedModel(referenceName: string, sourceModelID: number | undefined, reason: string): void {
-  state.blockedModelRegistry.set(referenceName.toLowerCase(), { referenceName, sourceModelID, reason });
-}
-
-/** Look up a blocked model by reference name (case-insensitive). */
-export function getBlockedModel(
-  referenceName: string
-): { referenceName: string; sourceModelID?: number; reason: string } | undefined {
-  return state.blockedModelRegistry.get(referenceName.toLowerCase());
-}
-
-/** Look up a blocked model by its source model ID (used by the container pusher via contentDefinitionID). */
-export function getBlockedModelByID(
-  sourceModelID: number
-): { referenceName: string; sourceModelID?: number; reason: string } | undefined {
-  return Array.from(state.blockedModelRegistry.values()).find((entry) => entry.sourceModelID === sourceModelID);
-}
-
-/** Clear the blocked-model registry (should be called at the start of each sync). */
-export function clearBlockedModelRegistry(): void {
-  state.blockedModelRegistry.clear();
 }
 
 /**

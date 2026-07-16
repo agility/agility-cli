@@ -41,9 +41,6 @@ export interface FailureDetail {
   contentID?: number; // Source content ID for content links
   guid?: string; // Source instance GUID
   locale?: string; // Locale code
-  // PROD-2315: reference name of a model whose cross-kind collision blocked this entity. Dependents
-  // tagged with the same value are collapsed into one line in the ERROR SUMMARY.
-  blockedBy?: string;
 }
 
 /**

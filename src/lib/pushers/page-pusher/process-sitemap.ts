@@ -21,7 +21,6 @@ interface ReturnType {
     contentID?: number;
     guid?: string;
     locale?: string;
-    blockedBy?: string; // PROD-2315: model collision that blocked this page's content
   }>;
 }
 
@@ -156,7 +155,6 @@ export async function processSitemap({
         contentID: pageRes.contentID, // Include contentID for linking to the missing content
         guid: sourceGuid,
         locale,
-        blockedBy: pageRes.blockedBy, // PROD-2315: group page failures caused by a model collision
       });
     }
 

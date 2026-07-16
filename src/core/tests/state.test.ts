@@ -13,10 +13,6 @@ import {
   registerFailedContent,
   getFailedContent,
   clearFailedContentRegistry,
-  registerBlockedModel,
-  getBlockedModel,
-  getBlockedModelByID,
-  clearBlockedModelRegistry,
   initializeLogger,
   initializeGuidLogger,
   getLoggerForGuid,
@@ -327,41 +323,6 @@ describe("failed content registry", () => {
     registerFailedContent(1, "ref", "err", "en-us");
     clearFailedContentRegistry();
     expect(getFailedContent(1)).toBeUndefined();
-  });
-
-  it("carries the blocking model when provided (PROD-2315)", () => {
-    registerFailedContent(7, "ref", "err", "en-us", "LinkCard");
-    expect(getFailedContent(7)?.blockedByModel).toBe("LinkCard");
-  });
-});
-
-// ─── Blocked model registry (PROD-2315) ───────────────────────────────────────
-
-describe("blocked model registry (PROD-2315)", () => {
-  it("registers and retrieves a blocked model by reference name (case-insensitive)", () => {
-    registerBlockedModel("LinkCard", 182, "cross-kind conflict");
-    expect(getBlockedModel("linkcard")).toEqual({
-      referenceName: "LinkCard",
-      sourceModelID: 182,
-      reason: "cross-kind conflict",
-    });
-  });
-
-  it("retrieves a blocked model by its source model ID", () => {
-    registerBlockedModel("LinkCard", 182, "cross-kind conflict");
-    expect(getBlockedModelByID(182)?.referenceName).toBe("LinkCard");
-  });
-
-  it("returns undefined for an unknown name or ID", () => {
-    expect(getBlockedModel("nope")).toBeUndefined();
-    expect(getBlockedModelByID(9999)).toBeUndefined();
-  });
-
-  it("clears the registry", () => {
-    registerBlockedModel("LinkCard", 182, "cross-kind conflict");
-    clearBlockedModelRegistry();
-    expect(getBlockedModel("LinkCard")).toBeUndefined();
-    expect(getBlockedModelByID(182)).toBeUndefined();
   });
 });
 
