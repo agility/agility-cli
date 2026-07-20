@@ -1,5 +1,8 @@
 import { resetState } from "core/state";
-import { hasUnresolvedContentReferences } from "../has-unresolved-content-references";
+import {
+  hasUnresolvedContentReferences,
+  collectUnresolvedContentReferences,
+} from "../has-unresolved-content-references";
 
 beforeEach(() => {
   resetState();
@@ -168,5 +171,54 @@ describe("hasUnresolvedContentReferences — combination cases", () => {
     const result = hasUnresolvedContentReferences(obj, mapper);
     expect(result).toBe(true);
     expect(mapper.getContentItemMappingByContentID).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── collectUnresolvedContentReferences ────────────────────────────────────────
+
+describe("collectUnresolvedContentReferences", () => {
+  it("returns an empty array when there are no references", () => {
+    expect(collectUnresolvedContentReferences({ title: "Hello" }, makeMapper(false))).toEqual([]);
+  });
+
+  it("returns an empty array for non-object input", () => {
+    expect(collectUnresolvedContentReferences(null, makeMapper(false))).toEqual([]);
+    expect(collectUnresolvedContentReferences("x", makeMapper(false))).toEqual([]);
+  });
+
+  it("collects an unresolved contentid with its field path", () => {
+    const result = collectUnresolvedContentReferences({ link: { contentid: 5 } }, makeMapper(false));
+    expect(result).toEqual([{ path: "link.contentid", contentID: 5 }]);
+  });
+
+  it("collects a nested contentID with a dotted path", () => {
+    const result = collectUnresolvedContentReferences({ nested: { deeper: { contentID: 77 } } }, makeMapper(false));
+    expect(result).toEqual([{ path: "nested.deeper.contentID", contentID: 77 }]);
+  });
+
+  it("uses array index notation in the path", () => {
+    const mapper = makePartialMapper([1]);
+    const result = collectUnresolvedContentReferences({ items: [{ contentid: 1 }, { contentid: 99 }] }, mapper);
+    expect(result).toEqual([{ path: "items[1].contentid", contentID: 99 }]);
+  });
+
+  it("collects every unresolved sortid (does not early-exit)", () => {
+    const mapper = makePartialMapper([2]);
+    const result = collectUnresolvedContentReferences({ list: { sortids: "1,2,3" } }, mapper);
+    expect(result).toEqual([
+      { path: "list.sortids", contentID: 1 },
+      { path: "list.sortids", contentID: 3 },
+    ]);
+  });
+
+  it("ignores non-positive IDs (0 / -1 = no reference selected)", () => {
+    const mapper = makeMapper(false);
+    expect(collectUnresolvedContentReferences({ a: { contentid: 0 }, b: { contentID: -1 } }, mapper)).toEqual([]);
+    expect(mapper.getContentItemMappingByContentID).not.toHaveBeenCalled();
+  });
+
+  it("returns an empty array when all references resolve", () => {
+    const result = collectUnresolvedContentReferences({ link: { contentid: 5 }, list: { sortids: "1,2" } }, makeMapper(true));
+    expect(result).toEqual([]);
   });
 });

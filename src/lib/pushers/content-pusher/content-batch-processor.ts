@@ -17,6 +17,7 @@ import {
   buildDeletedLinkedListMessage,
 } from "./util/detect-deleted-linked-list-references";
 import { fileOperations } from "core/fileOperations";
+import { collectUnresolvedContentReferences } from "./util/has-unresolved-content-references";
 import { Logs } from "core/logs";
 import { state } from "core/state";
 /******
@@ -376,6 +377,29 @@ export class ContentBatchProcessor {
 
           const targetContainer = containerMapper.getMappedEntity(containerMapping, "target");
 
+          // STEP 3.5: Guard against unresolved content references (PROD-2309).
+          // If a linked/nested content reference has no source→target mapping (e.g. a stale or
+          // incomplete mapping), the field mapper leaves the SOURCE contentID in the payload; the
+          // server's batch engine then dereferences a non-existent item and throws a
+          // NullReferenceException, which reaches the operator as an opaque
+          // "Object reference not set to an instance of an object." Skip the item here with a
+          // precise, actionable reason instead of shipping a payload that is guaranteed to fail.
+          const unresolvedRefs = collectUnresolvedContentReferences(
+            contentItem.fields || {},
+            this.config.referenceMapper
+          );
+          if (unresolvedRefs.length > 0) {
+            const detail = unresolvedRefs
+              .slice(0, 5)
+              .map((r) => `${r.path} → source contentID ${r.contentID}`)
+              .join("; ");
+            const more = unresolvedRefs.length > 5 ? ` (+${unresolvedRefs.length - 5} more)` : "";
+            throw new Error(
+              `Unresolved content reference(s) not present in the target mapping: ${detail}${more}. ` +
+                `Skipping to avoid a server-side NullReferenceException.`
+            );
+          }
+
           // STEP 4: Check if content already exists using reference mapper (since filtering already happened)
           const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(
             contentItem.contentID,
@@ -471,7 +495,7 @@ export class ContentBatchProcessor {
         } catch (error: any) {
           console.error(
             ansiColors.yellow(
-              `✗ Orphaned content item ${contentItem.contentID}, skipping - ${error.message || "payload preparation failed"}.`
+              `✗ Skipping content item ${contentItem.contentID} (${contentItem.properties?.referenceName ?? "unknown"}) - ${error.message || "payload preparation failed"}`
             )
           );
 
