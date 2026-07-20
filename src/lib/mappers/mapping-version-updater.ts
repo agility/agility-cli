@@ -2,25 +2,18 @@
  * Mapping Version Updater
  *
  * After publishing, updates the mappings with the new targetVersionIDs.
- * PROD-2311: versionIDs are resolved by polling the Fetch layer until each item
- * diverges from its pre-publish baseline (see resolve-published-version-ids.ts),
- * rather than reading a start-of-run filesystem snapshot that misses same-run creations.
+ * PROD-2311: versionIDs are read directly from the Management API right after
+ * publish, instead of a start-of-run filesystem snapshot that misses items
+ * created during the same run. The Management API is strongly consistent (no
+ * CDN propagation delay), so a single call per item is enough — no polling.
  */
 
-import { getLogger } from "../../core/state";
+import * as mgmtApi from "@agility/management-sdk";
+import { getApiClient, getLogger } from "../../core/state";
 import { ContentItemMapper } from "./content-item-mapper";
 import { PageMapper } from "./page-mapper";
 import ansiColors from "ansi-colors";
 import { MappingUpdateResult } from "../../types";
-import {
-  resolvePublishedVersionIDs,
-  makeContentVersionFetcher,
-  makePageVersionFetcher,
-  POLL_TIMEOUT_MS,
-} from "./resolve-published-version-ids";
-
-/** Human-readable timeout for the "did not appear" warning message (PROD-2311). */
-const POLL_TIMEOUT_SECONDS = Math.round(POLL_TIMEOUT_MS / 1000);
 
 // Re-export type for convenience
 export { MappingUpdateResult };
@@ -74,25 +67,18 @@ export async function updateContentMappingsAfterPublish(
 
   try {
     const contentMapper = new ContentItemMapper(sourceGuid, targetGuid, locale);
+    const apiClient = getApiClient();
 
-    // PROD-2311: resolve each published item's fresh versionID by polling the
-    // Fetch layer until it diverges from its pre-publish baseline, instead of
-    // reading the start-of-run filesystem snapshot (which misses items created
-    // during this same run). Baseline = mapping's current targetVersionID (0 = new).
-    const items = uniqueContentIds.map((id) => ({
-      id,
-      baseline: contentMapper.getContentItemMappingByContentID(id, "target")?.targetVersionID ?? 0,
-    }));
+    for (const targetContentId of uniqueContentIds) {
+      let targetItem: mgmtApi.ContentItem;
+      try {
+        targetItem = await apiClient.contentMethods.getContentItem(targetContentId, targetGuid, locale);
+      } catch (error: any) {
+        errors.push(`Target content item ${targetContentId} not found on target instance: ${error.message}`);
+        continue;
+      }
 
-    const fetchItem = makeContentVersionFetcher(targetGuid, locale);
-    const { resolved, missingCreates } = await resolvePublishedVersionIDs(items, fetchItem, {
-      guid: targetGuid,
-      mode: "preview",
-    });
-
-    // Record the diverged versionIDs into the mappings.
-    for (const [targetContentId, observed] of Array.from(resolved.entries())) {
-      const result = contentMapper.updateTargetVersionID(targetContentId, observed.versionID);
+      const result = contentMapper.updateTargetVersionID(targetContentId, targetItem.properties.versionID);
       if (result.success) {
         updated++;
         changes.push({
@@ -100,24 +86,14 @@ export async function updateContentMappingsAfterPublish(
           oldVersion: result.oldVersionID!,
           newVersion: result.newVersionID!,
           changed: result.oldVersionID !== result.newVersionID,
-          name: observed.name,
-          refName: observed.refName,
-          modelName: observed.modelName,
+          name: targetItem.fields?.title || targetItem.fields?.name || `Item ${targetContentId}`,
+          refName: targetItem.properties?.referenceName,
+          modelName: targetItem.properties?.definitionName,
         });
       } else {
         errors.push(`No mapping found for target content ID ${targetContentId}`);
       }
     }
-
-    // New items that never propagated to the Fetch API within the timeout. These
-    // are non-blocking mapping warnings (the content itself did publish).
-    for (const targetContentId of missingCreates) {
-      errors.push(
-        `target content item ${targetContentId} did not appear on the Fetch API within ${POLL_TIMEOUT_SECONDS}s after publish; mapping version not updated`
-      );
-    }
-    // Note: unchangedUpdates (baseline never diverged, e.g. no-op republish) are
-    // intentionally left as-is — the existing targetVersionID is already correct.
 
     return { updated, errors, changes };
   } catch (error: any) {
@@ -149,22 +125,18 @@ export async function updatePageMappingsAfterPublish(
 
   try {
     const pageMapper = new PageMapper(sourceGuid, targetGuid, locale);
+    const apiClient = getApiClient();
 
-    // PROD-2311: resolve fresh versionIDs by polling the Fetch layer until each
-    // page diverges from its pre-publish baseline (see updateContentMappingsAfterPublish).
-    const items = uniquePageIds.map((id) => ({
-      id,
-      baseline: pageMapper.getPageMappingByPageID(id, "target")?.targetVersionID ?? 0,
-    }));
+    for (const targetPageId of uniquePageIds) {
+      let targetPage: mgmtApi.PageItem;
+      try {
+        targetPage = await apiClient.pageMethods.getPage(targetPageId, targetGuid, locale);
+      } catch (error: any) {
+        errors.push(`Target page ${targetPageId} not found on target instance: ${error.message}`);
+        continue;
+      }
 
-    const fetchItem = makePageVersionFetcher(targetGuid, locale);
-    const { resolved, missingCreates } = await resolvePublishedVersionIDs(items, fetchItem, {
-      guid: targetGuid,
-      mode: "preview",
-    });
-
-    for (const [targetPageId, observed] of Array.from(resolved.entries())) {
-      const result = pageMapper.updateTargetVersionID(targetPageId, observed.versionID);
+      const result = pageMapper.updateTargetVersionID(targetPageId, targetPage.properties.versionID);
       if (result.success) {
         updated++;
         changes.push({
@@ -172,18 +144,12 @@ export async function updatePageMappingsAfterPublish(
           oldVersion: result.oldVersionID!,
           newVersion: result.newVersionID!,
           changed: result.oldVersionID !== result.newVersionID,
-          name: observed.name,
-          refName: observed.refName,
+          name: targetPage.title || targetPage.name || `Page ${targetPageId}`,
+          refName: targetPage.name ? `/${targetPage.name}` : undefined,
         });
       } else {
         errors.push(`No mapping found for target page ID ${targetPageId}`);
       }
-    }
-
-    for (const targetPageId of missingCreates) {
-      errors.push(
-        `target page ${targetPageId} did not appear on the Fetch API within ${POLL_TIMEOUT_SECONDS}s after publish; mapping version not updated`
-      );
     }
 
     return { updated, errors, changes };
