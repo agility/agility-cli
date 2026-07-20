@@ -1,4 +1,4 @@
-import { Push } from "../push";
+import { Push, hasBlockingAutoPublishErrors } from "../push";
 import { resetState, setState } from "../state";
 
 beforeEach(() => {
@@ -38,5 +38,41 @@ describe("Push.pushInstances", () => {
     } else {
       expect(result).toBeDefined();
     }
+  });
+});
+
+// ─── PROD-2310: auto-publish errors feed the exit code ───────────────────────
+
+describe("hasBlockingAutoPublishErrors", () => {
+  it("returns false for an empty error set", () => {
+    expect(hasBlockingAutoPublishErrors([])).toBe(false);
+  });
+
+  it("returns true when a real publish failure is present", () => {
+    expect(
+      hasBlockingAutoPublishErrors([{ locale: "en-us", type: "publish", error: "boom" }])
+    ).toBe(true);
+  });
+
+  it("returns true when a fatal auto-publish error is present", () => {
+    expect(hasBlockingAutoPublishErrors([{ locale: "all", type: "fatal", error: "crash" }])).toBe(true);
+  });
+
+  it("does not treat post-publish bookkeeping (mapping/refresh) as blocking", () => {
+    expect(
+      hasBlockingAutoPublishErrors([
+        { locale: "en-us", type: "mapping", error: "stale" },
+        { locale: "en-us", type: "refresh", error: "skipped" },
+      ])
+    ).toBe(false);
+  });
+
+  it("returns true when a real failure is mixed with bookkeeping errors", () => {
+    expect(
+      hasBlockingAutoPublishErrors([
+        { locale: "en-us", type: "mapping", error: "stale" },
+        { locale: "en-us", type: "publish", error: "boom" },
+      ])
+    ).toBe(true);
   });
 });

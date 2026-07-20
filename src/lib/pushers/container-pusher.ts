@@ -78,6 +78,45 @@ export async function pushContainers(
       // if no mapping found, we should be creating the container
       shouldCreate = existingMapping === null;
 
+      // PROD-2307: before creating, adopt an existing target container that matches by
+      // referenceName but has no mapping row (e.g. a fresh machine / wiped mapping cache,
+      // or a create that succeeded server-side but was never mapped). Container reference
+      // names are unique per instance, so a name match is a safe identity. This mirrors the
+      // model-pusher PROD-2211 map-on-adopt path: without it, a mapping-less run re-creates
+      // containers and drops the mapping row that downstream content/pages rely on.
+      if (shouldCreate) {
+        const targetByRef =
+          targetData?.find(
+            (tc: mgmtApi.Container) =>
+              tc.referenceName?.toLowerCase() === sourceContainer.referenceName?.toLowerCase()
+          ) || null;
+
+        if (targetByRef) {
+          if (targetModelID >= 1 && targetByRef.contentDefinitionID !== targetModelID) {
+            // Pathological: same reference name, different model. Adopt on the (unique) name,
+            // but surface the mismatch so it can be investigated.
+            logger.log(
+              "WARN",
+              `Adopting existing target container "${sourceContainer.referenceName}" by referenceName, ` +
+                `but its model (${targetByRef.contentDefinitionID}) differs from the mapped source model (${targetModelID}).`
+            );
+          }
+
+          if (!state.preflight) {
+            containerMapper.addMapping(sourceContainer, targetByRef);
+          }
+          logger.container.skipped(sourceContainer, "already exists on target; mapping row created", targetGuid[0]);
+          preflightReport.record({
+            phase: "Containers",
+            action: "skip",
+            name: sourceContainer.referenceName,
+            detail: "adopted existing target container (mapping row created)",
+          });
+          skipped++;
+          continue; // finally{} still runs (processedCount++); no create/update this run
+        }
+      }
+
       if (!shouldCreate) {
         // get the target container, check if the source and targets need updates
         const targetContainer: mgmtApi.Container =
@@ -88,7 +127,7 @@ export async function pushContainers(
 
         if (!targetContainer) {
           // Container exists and is up to date - skip
-          logger.container.error(
+          logger.container.skipped(
             sourceContainer,
             `target container: ${existingMapping.targetReferenceName} was deleted, skipping!`,
             targetGuid[0]
