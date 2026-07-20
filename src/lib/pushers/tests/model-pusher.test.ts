@@ -340,9 +340,8 @@ describe("pushModels — exists in target without mapping, non-default (PROD-221
     expect(mapper.getModelMappingByID(501, "source")?.targetID).toBe(10);
   });
 
-  it("does NOT adopt a same-name target model of a different type (type-blind lookup)", async () => {
-    const createdStub = makeModel({ id: 888, referenceName: "PromoBanner", contentDefinitionTypeID: 2 });
-    const saveModel = jest.fn().mockResolvedValue(createdStub);
+  it("does NOT adopt a same-name target model of a different type; flags it as a cross-kind collision (type-blind lookup + PROD-2315)", async () => {
+    const saveModel = jest.fn();
     jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
 
     const { pushModels } = await import("../model-pusher");
@@ -352,7 +351,11 @@ describe("pushModels — exists in target without mapping, non-default (PROD-221
 
     const result = await pushModels([sourceModel], [targetContentList]);
 
-    expect(saveModel).toHaveBeenCalled(); // goes through create, not adopted
+    // Not adopted (types differ), and — PROD-2315 — no longer blindly created: recognized as a
+    // forbidden cross-kind reference-name collision and failed with an actionable message rather
+    // than attempting a create that is guaranteed to 409.
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.failed).toBe(1);
     expect(result.skipped).toBe(0);
   });
 });
@@ -477,5 +480,103 @@ describe("pushModels — mapped-before-unmapped ordering (PROD-2250)", () => {
     expect(result.failed).toBe(0);
     expect(result.skipped).toBe(0);
     expect(result.successful).toBe(4);
+  });
+});
+
+// ─── pushModels — cross-kind reference-name collision (PROD-2315) ──────────────
+
+describe("pushModels — cross-kind reference-name collision (PROD-2315)", () => {
+  it("fails a same-name model of a different kind with an actionable message instead of creating it", async () => {
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    // Source LinkCard is a component (type 2); target LinkCard is a content model (type 1).
+    const sourceModel = makeModel({ referenceName: "LinkCard", contentDefinitionTypeID: 2 });
+    const targetModel = makeModel({ id: 500, referenceName: "LinkCard", contentDefinitionTypeID: 1 });
+
+    const result = await pushModels([sourceModel], [targetModel]);
+
+    // Guaranteed-409 create is never attempted…
+    expect(saveModel).not.toHaveBeenCalled();
+    // …and it is reported as a failure with an actionable message.
+    expect(result.failed).toBe(1);
+    expect(result.successful).toBe(0);
+    expect(result.failureDetails).toHaveLength(1);
+    expect(result.failureDetails![0].name).toBe("LinkCard");
+    expect(result.failureDetails![0].error).toMatch(/component\/module model on the source/);
+    expect(result.failureDetails![0].error).toMatch(/content model with that reference name already exists/);
+  });
+
+  it("does NOT flag a same-name model when the kinds are unknown (falls back to adopt-by-reference)", async () => {
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    // Neither side has contentDefinitionTypeID → modelTypeMatches() is true → adopt, not a collision.
+    const now = new Date().toISOString();
+    const sourceModel = makeModel({ referenceName: "AmbiguousKind", lastModifiedDate: now });
+    const targetModel = makeModel({ id: 501, referenceName: "AmbiguousKind", lastModifiedDate: now });
+
+    const result = await pushModels([sourceModel], [targetModel]);
+
+    expect(saveModel).not.toHaveBeenCalled(); // adopted, not created
+    expect(result.failed).toBe(0);
+  });
+
+  it("does NOT flag a same-name same-kind model (still adopts by reference, PROD-2211)", async () => {
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    const now = new Date().toISOString();
+    const sourceModel = makeModel({ referenceName: "SameKind", contentDefinitionTypeID: 1, lastModifiedDate: now });
+    const targetModel = makeModel({ id: 502, referenceName: "SameKind", contentDefinitionTypeID: 1, lastModifiedDate: now });
+
+    const result = await pushModels([sourceModel], [targetModel]);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.failed).toBe(0);
+  });
+
+  it("previews the collision as a conflict under --preflight without calling saveModel", async () => {
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    state.preflight = true;
+
+    const { pushModels } = await import("../model-pusher");
+
+    const sourceModel = makeModel({ referenceName: "LinkCard", contentDefinitionTypeID: 2 });
+    const targetModel = makeModel({ id: 503, referenceName: "LinkCard", contentDefinitionTypeID: 1 });
+
+    const result = await pushModels([sourceModel], [targetModel]);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.status).toBe("success"); // preflight is a dry run
+  });
+});
+
+// ─── pushModels — create failure surfaces the server error (PROD-2315) ─────────
+
+describe("pushModels — create failure surfaces the server error (PROD-2315)", () => {
+  it("includes the server error message in failureDetails when a create fails", async () => {
+    const saveModel = jest
+      .fn()
+      .mockRejectedValue(new Error("A content model with the reference name 'Foo' already exists."));
+    // getContentModules returns [] (default) so findTargetModelAfterSave finds no recovery.
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    const sourceModel = makeModel({ referenceName: "Foo" });
+
+    const result = await pushModels([sourceModel], []);
+
+    expect(result.failed).toBe(1);
+    expect(result.failureDetails).toHaveLength(1);
+    expect(result.failureDetails![0].error).toMatch(/A content model with the reference name 'Foo' already exists\./);
   });
 });

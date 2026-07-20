@@ -12,6 +12,12 @@ import {
   ContentBatchConfig,
 } from "./util/types";
 import { findContentInOtherLocale } from "./util/find-content-in-other-locale";
+import {
+  findDeletedLinkedListReferences,
+  buildDeletedLinkedListMessage,
+} from "./util/detect-deleted-linked-list-references";
+import { fileOperations } from "core/fileOperations";
+import { collectUnresolvedContentReferences } from "./util/has-unresolved-content-references";
 import { Logs } from "core/logs";
 import { state } from "core/state";
 /******
@@ -24,12 +30,60 @@ import { state } from "core/state";
  */
 export class ContentBatchProcessor {
   private config: ContentBatchConfig;
+  // PROD-2306: lazily-built, lower-cased set of linked-list/container reference names
+  // that still exist in the source. Used to tell a *deleted* linked-list reference apart
+  // from a merely "missing" one when clarifying create failures.
+  private liveSourceContainerRefNames?: Set<string>;
 
   constructor(config: ContentBatchConfig) {
     this.config = {
       ...config,
       batchSize: config.batchSize || 250, // Default batch size
     };
+  }
+
+  /**
+   * PROD-2306: Build (and cache) the set of container/linked-list reference names still
+   * present in the source. When a source linked list is deleted, the pull removes its
+   * container file, so absence here is the signal that a reference is deleted-not-missing.
+   * Returns null when no source containers were pulled at all (e.g. containers out of scope),
+   * so we don't misreport every reference as deleted.
+   */
+  private getLiveSourceContainerRefNames(): Set<string> | null {
+    if (this.liveSourceContainerRefNames === undefined) {
+      const refNames = new Set<string>();
+      try {
+        const sourceFileOps = new fileOperations(this.config.sourceGuid);
+        const containers = sourceFileOps.readJsonFilesFromFolder("containers");
+        for (const container of containers) {
+          if (container?.referenceName) {
+            refNames.add(String(container.referenceName).toLowerCase());
+          }
+        }
+      } catch {
+        // Best-effort: if we can't read source containers, skip clarification.
+      }
+      this.liveSourceContainerRefNames = refNames;
+    }
+    return this.liveSourceContainerRefNames.size > 0 ? this.liveSourceContainerRefNames : null;
+  }
+
+  /**
+   * PROD-2306: If a failed content item references a linked list that was deleted in the
+   * source, replace the misleading server error (surfaced verbatim, e.g. "... does not
+   * exist") with a clear, actionable message. Detection is proactive — based on the
+   * reference being absent from the live source containers — rather than string-matching
+   * the server text.
+   */
+  private clarifyFailedItemError(contentItem: mgmtApi.ContentItem, originalError: string): string {
+    const liveRefNames = this.getLiveSourceContainerRefNames();
+    if (!liveRefNames) return originalError;
+
+    const deletedRefs = findDeletedLinkedListReferences(contentItem?.fields, liveRefNames);
+    if (deletedRefs.length === 0) return originalError;
+
+    const itemRefName = contentItem?.properties?.referenceName || "unknown";
+    return buildDeletedLinkedListMessage(itemRefName, deletedRefs, originalError);
   }
 
   /**
@@ -141,7 +195,8 @@ export class ContentBatchProcessor {
           })),
           failedItems: failedItems.map((item) => ({
             originalContent: item.originalItem,
-            error: item.error,
+            // PROD-2306: clarify the error when the item references a deleted linked list.
+            error: this.clarifyFailedItemError(item.originalItem as mgmtApi.ContentItem, item.error),
           })),
           publishableIds: publishableSuccessItems.map((item) => item.newId),
         };
@@ -322,6 +377,29 @@ export class ContentBatchProcessor {
 
           const targetContainer = containerMapper.getMappedEntity(containerMapping, "target");
 
+          // STEP 3.5: Guard against unresolved content references (PROD-2309).
+          // If a linked/nested content reference has no source→target mapping (e.g. a stale or
+          // incomplete mapping), the field mapper leaves the SOURCE contentID in the payload; the
+          // server's batch engine then dereferences a non-existent item and throws a
+          // NullReferenceException, which reaches the operator as an opaque
+          // "Object reference not set to an instance of an object." Skip the item here with a
+          // precise, actionable reason instead of shipping a payload that is guaranteed to fail.
+          const unresolvedRefs = collectUnresolvedContentReferences(
+            contentItem.fields || {},
+            this.config.referenceMapper
+          );
+          if (unresolvedRefs.length > 0) {
+            const detail = unresolvedRefs
+              .slice(0, 5)
+              .map((r) => `${r.path} → source contentID ${r.contentID}`)
+              .join("; ");
+            const more = unresolvedRefs.length > 5 ? ` (+${unresolvedRefs.length - 5} more)` : "";
+            throw new Error(
+              `Unresolved content reference(s) not present in the target mapping: ${detail}${more}. ` +
+                `Skipping to avoid a server-side NullReferenceException.`
+            );
+          }
+
           // STEP 4: Check if content already exists using reference mapper (since filtering already happened)
           const existingMapping = this.config.referenceMapper.getContentItemMappingByContentID(
             contentItem.contentID,
@@ -417,7 +495,7 @@ export class ContentBatchProcessor {
         } catch (error: any) {
           console.error(
             ansiColors.yellow(
-              `✗ Orphaned content item ${contentItem.contentID}, skipping - ${error.message || "payload preparation failed"}.`
+              `✗ Skipping content item ${contentItem.contentID} (${contentItem.properties?.referenceName ?? "unknown"}) - ${error.message || "payload preparation failed"}`
             )
           );
 
