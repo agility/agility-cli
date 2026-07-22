@@ -1,5 +1,5 @@
 import { resetState } from "core/state";
-import { getAssetFilePath } from "lib/assets/asset-utils";
+import { getAssetFilePath, extractFocalPointFromHeaders } from "lib/assets/asset-utils";
 
 beforeEach(() => {
   resetState();
@@ -108,5 +108,56 @@ describe("getAssetFilePath", () => {
     ])("getAssetFilePath(%s) === %s", (input, expected) => {
       expect(getAssetFilePath(input)).toBe(expected);
     });
+  });
+});
+
+// ─── extractFocalPointFromHeaders ─────────────────────────────────────────────
+
+describe("extractFocalPointFromHeaders", () => {
+  it("reads the CDN focal point headers (agility-focal-x/-y)", () => {
+    const result = extractFocalPointFromHeaders({
+      "agility-focal-x": "0.25",
+      "agility-focal-y": "0.75",
+    });
+    expect(result).toEqual({ focalX: "0.25", focalY: "0.75" });
+  });
+
+  it("ignores blob/S3 object-metadata headers (only trusts the CDN headers)", () => {
+    const result = extractFocalPointFromHeaders({
+      "x-ms-meta-focalx": "10",
+      "x-ms-meta-focaly": "20",
+      "x-amz-meta-focalx": "5",
+      "x-amz-meta-focaly": "6",
+    });
+    expect(result).toEqual({});
+  });
+
+  it("returns only the axis that is present", () => {
+    const result = extractFocalPointFromHeaders({ "agility-focal-x": "0.4" });
+    expect(result).toEqual({ focalX: "0.4" });
+  });
+
+  it("ignores blank / whitespace-only header values", () => {
+    const result = extractFocalPointFromHeaders({ "agility-focal-x": "  ", "agility-focal-y": "" });
+    expect(result).toEqual({});
+  });
+
+  it("trims surrounding whitespace from values", () => {
+    const result = extractFocalPointFromHeaders({ "agility-focal-x": " 0.3 " });
+    expect(result).toEqual({ focalX: "0.3" });
+  });
+
+  it("takes the first entry when a header arrives as an array", () => {
+    const result = extractFocalPointFromHeaders({ "agility-focal-x": ["0.1", "0.9"] as any });
+    expect(result).toEqual({ focalX: "0.1" });
+  });
+
+  it("returns an empty object when there are no focal headers", () => {
+    expect(extractFocalPointFromHeaders({ "content-type": "image/png" })).toEqual({});
+  });
+
+  it("returns an empty object for undefined/null headers", () => {
+    expect(extractFocalPointFromHeaders(undefined)).toEqual({});
+    expect(extractFocalPointFromHeaders(null)).toEqual({});
   });
 });

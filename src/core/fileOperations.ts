@@ -282,7 +282,7 @@ export class fileOperations {
     return fs.readdirSync(folder);
   }
 
-  async downloadFile(url: string, targetFile: string) {
+  async downloadFile(url: string, targetFile: string): Promise<{ headers: Record<string, any> }> {
     return await new Promise((resolve, reject) => {
       // Ensure the target directory exists
       const targetDir = path.dirname(targetFile);
@@ -305,7 +305,9 @@ export class fileOperations {
         const fileWriter = fs
           .createWriteStream(targetFile)
           .on("finish", () => {
-            resolve({});
+            // Surface the response headers so callers can capture image metadata
+            // (e.g. focal point) that the CDN/blob returns as headers.
+            resolve({ headers: response.headers });
           })
           .on("error", (err) => {
             reject(err);

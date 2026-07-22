@@ -11,6 +11,35 @@ import { GalleryMapper } from "lib/mappers/gallery-mapper";
 import { preflightReport } from "../preflight/preflight-report";
 
 /**
+ * Build the focal-point query string (`&focalX=..&focalY=..`) for an asset upload.
+ *
+ * Focal point is captured from the image response headers during download and
+ * persisted onto the per-asset JSON (assets/{mediaID}.json). We read it back
+ * here so the target instance stores the same focal point as the source.
+ * Returns an empty string when the asset has no focal point.
+ */
+export function buildFocalPointQuery(media: mgmtApi.Media, sourceGuid: string): string {
+  try {
+    const fileOps = new fileOperations(sourceGuid);
+    const stored = fileOps.readJsonFile(`assets/${media.mediaID}.json`);
+    if (!stored) return "";
+
+    const params: string[] = [];
+    const focalX = stored.focalX;
+    const focalY = stored.focalY;
+    if (focalX !== undefined && focalX !== null && `${focalX}`.trim() !== "") {
+      params.push(`focalX=${encodeURIComponent(`${focalX}`.trim())}`);
+    }
+    if (focalY !== undefined && focalY !== null && `${focalY}`.trim() !== "") {
+      params.push(`focalY=${encodeURIComponent(`${focalY}`.trim())}`);
+    }
+    return params.length > 0 ? `&${params.join("&")}` : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Extract meaningful error message from API errors
  */
 function extractErrorMessage(error: any): string {
@@ -258,7 +287,8 @@ async function createAsset(
   const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
   const token = (apiClient as any)._options?.token;
 
-  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}`;
+  const focalPointQuery = buildFocalPointQuery(media, sourceGuid);
+  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}${focalPointQuery}`;
   const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
 
   const response = await axios.post(url, form, {
@@ -342,7 +372,8 @@ async function updateAsset(
   const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
   const token = (apiClient as any)._options?.token;
 
-  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}`;
+  const focalPointQuery = buildFocalPointQuery(media, sourceGuid);
+  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}${focalPointQuery}`;
   const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
 
   const response = await axios.post(url, form, {
