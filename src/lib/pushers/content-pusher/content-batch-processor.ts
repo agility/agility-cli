@@ -377,7 +377,24 @@ export class ContentBatchProcessor {
 
           const targetContainer = containerMapper.getMappedEntity(containerMapping, "target");
 
-          // STEP 3.5: Guard against unresolved content references (PROD-2309).
+          // STEP 3.5a: Guard against a stale container mapping (PROD-2309 follow-up).
+          // The mapping row can outlive the target container it points to (e.g. the container
+          // was deleted/soft-deleted on the target since the last successful mapping) — the
+          // container's local cache file is gone, so getMappedEntity returns null here.
+          // Previously this fell through and the payload silently reused the SOURCE reference
+          // name (properties.referenceName fallback below), which doesn't resolve to any live
+          // container on the target; the server's batch engine then throws the same opaque
+          // NullReferenceException. Skip here instead, with a reason that makes clear it's the
+          // container — not a content reference — that's missing.
+          if (!targetContainer) {
+            throw new Error(
+              `Target container for '${contentItem.properties.referenceName}' (target contentViewID ${containerMapping.targetContentViewID}) ` +
+                `no longer exists on the target — it may have been deleted since the last sync. ` +
+                `Skipping to avoid a server-side NullReferenceException. Recreate the container or clear its mapping to resume syncing this content.`
+            );
+          }
+
+          // STEP 3.5b: Guard against unresolved content references (PROD-2309).
           // If a linked/nested content reference has no source→target mapping (e.g. a stale or
           // incomplete mapping), the field mapper leaves the SOURCE contentID in the payload; the
           // server's batch engine then dereferences a non-existent item and throws a
