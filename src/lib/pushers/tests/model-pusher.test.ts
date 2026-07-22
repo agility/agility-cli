@@ -17,6 +17,11 @@ afterAll(() => {
 beforeEach(() => {
   resetState();
   setState({ rootPath: tmpDir, sourceGuid: "src-model-u", targetGuid: "tgt-model-u", token: "test-token" });
+  // Mapping files are stored centrally at <rootPath>/mappings and would otherwise ACCUMULATE across
+  // tests (shared tmpDir + fixed guids), leaking one test's seeded mappings into the next. Clear them
+  // so each test starts from an empty mapping — required now that pushModels validates the whole
+  // mapping for duplicate reference names (PROD-1492).
+  fs.rmSync(path.join(tmpDir, "mappings"), { recursive: true, force: true });
   initializeGuidLogger("src-model-u", "push");
   jest.spyOn(console, "log").mockImplementation(() => {});
   jest.spyOn(console, "warn").mockImplementation(() => {});
@@ -199,6 +204,49 @@ describe("pushModels — source-side rename orphans a mapping and halts the sync
     // shared target-118 mapping, leaving 248 with no mapping. The integrity gate must detect this
     // and stop the whole sync with a "Model validation failed" error — before any model is written.
     await expect(pushModels([renamedModel, reusedNameModel], [targetModel])).rejects.toThrow(/Model validation failed/);
+
+    expect(saveModel).not.toHaveBeenCalled();
+  });
+});
+
+// ─── pushModels — duplicate reference-name mapping halts the sync (PROD-1492) ──────
+
+describe("pushModels — deleted-and-recreated model leaves a duplicate mapping and halts the sync (PROD-1492)", () => {
+  it('throws "Model validation failed" (and writes nothing) when two mapping records share a reference name with different source IDs', async () => {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+
+    // Seed the mapping exactly as it looks after a deleted-and-recreated source model:
+    //   dead source 46 -> target 138  and  live source 48 -> target 139, both named "PromoBanner".
+    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    seeder.addMapping(
+      { id: 46, referenceName: "PromoBanner", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
+      { id: 138, referenceName: "PromoBanner", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any
+    );
+    seeder.addMapping(
+      { id: 48, referenceName: "PromoBanner", lastModifiedDate: new Date(2025, 5, 1).toISOString() } as any,
+      { id: 139, referenceName: "PromoBanner", lastModifiedDate: new Date(2025, 5, 1).toISOString() } as any
+    );
+
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 999 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    // Only the live model (48) still exists on the source; the dead record (46) is the stale duplicate.
+    const liveModel = makeModel({
+      id: 48,
+      referenceName: "PromoBanner",
+      lastModifiedDate: new Date(2025, 5, 1).toISOString(),
+    });
+    const targetModel = makeModel({
+      id: 139,
+      referenceName: "PromoBanner",
+      lastModifiedDate: new Date(2025, 5, 1).toISOString(),
+    });
+
+    // The integrity gate must detect the duplicate reference name and stop the whole sync with a
+    // "Model validation failed" error — before any model is written.
+    await expect(pushModels([liveModel], [targetModel])).rejects.toThrow(/Model validation failed/);
 
     expect(saveModel).not.toHaveBeenCalled();
   });

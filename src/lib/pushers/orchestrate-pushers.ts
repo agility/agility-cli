@@ -247,8 +247,10 @@ export class Pushers {
         }
       }
     } catch (error: any) {
-      // Re-throw validation errors immediately to stop sync
-      if (error?.message?.includes("Model validation failed")) {
+      // Re-throw validation errors immediately to stop sync.
+      // Matches any "<X> validation failed" halt (e.g. "Model validation failed",
+      // "Page template validation failed") so every guard stops a partial push.
+      if (error?.message?.includes("validation failed")) {
         throw error;
       }
       // For other errors, log but don't stop (legacy behavior for guid-level ops)
