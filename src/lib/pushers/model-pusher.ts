@@ -91,6 +91,29 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
   const referenceMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
 
+  // PROD-1492: fail fast on stale duplicate model mappings. When a source model is deleted and
+  // recreated (new ID, same reference name), the mapping ends up with two records sharing that name
+  // — one pointing at the dead source model, one at the live one. The content-side lookup is
+  // first-match-wins, so it can latch onto the dead record and SILENTLY skip that model's content
+  // (no per-item log), after which every page referencing it fails with "No content mapping".
+  // The ID-based rename guard below misses this because the two records have DIFFERENT source IDs
+  // (a duplicate reference name, not a duplicate ID). Throw a "Model validation failed" error so the
+  // orchestrator halts the sync before any partial push, rather than dropping content unnoticed.
+  const duplicateMappings = referenceMapper.getDuplicateSourceReferenceNames();
+  if (duplicateMappings.length > 0) {
+    const detail = duplicateMappings
+      .map((d) => `"${d.referenceName}" (source IDs: ${d.sourceIDs.join(", ")})`)
+      .join("; ");
+    throw new Error(
+      `Model validation failed: duplicate model mapping detected for ${detail}. ` +
+        `Two mapping records share a reference name but point at different source model IDs — ` +
+        `this indicates a model that was deleted and recreated on the source, leaving a stale mapping. ` +
+        `Continuing would silently skip that model's content and fail the pages that reference it. ` +
+        `Stopping sync to avoid a partial push; remove the stale target model and re-sync. ` +
+        `Please contact AgilityCMS Support to resolve this issue`
+    );
+  }
+
   const apiClient = getApiClient();
 
   let successful = 0;
