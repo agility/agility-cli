@@ -160,6 +160,7 @@ describe("ContentBatchProcessor.processBatches — batch-level API failure", () 
       payloads: [{}, {}],
       skippedCount: 0,
       includedItems: [makeContentItem(1), makeContentItem(2)],
+      failedItems: [],
     });
 
     const result = await processor.processBatches([makeContentItem(1), makeContentItem(2)], makeLogger(), "Test");
@@ -181,6 +182,7 @@ describe("ContentBatchProcessor.processBatches — batch-level API failure", () 
       payloads: [{}],
       skippedCount: 0,
       includedItems: [makeContentItem(1)],
+      failedItems: [],
     });
 
     await processor.processBatches([makeContentItem(1)], makeLogger(), "Test");
@@ -200,6 +202,7 @@ describe("ContentBatchProcessor.processBatches — successful batch", () => {
       payloads: [{}, {}],
       skippedCount: 0,
       includedItems: [item1, item2],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({
@@ -226,6 +229,7 @@ describe("ContentBatchProcessor.processBatches — successful batch", () => {
       payloads: [{}, {}],
       skippedCount: 0,
       includedItems: [item1, item2],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({
@@ -253,6 +257,7 @@ describe("ContentBatchProcessor.processBatches — publishableIds", () => {
       payloads: [{}, {}],
       skippedCount: 0,
       includedItems: [publishedItem, stagingItem],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({
@@ -280,6 +285,7 @@ describe("ContentBatchProcessor.processBatches — publishableIds", () => {
       payloads: [{}],
       skippedCount: 0,
       includedItems: [stagingItem],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({
@@ -302,6 +308,7 @@ describe("ContentBatchProcessor.processBatches — publishableIds", () => {
       payloads: [{}],
       skippedCount: 0,
       includedItems: [stagingItem],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({
@@ -322,6 +329,7 @@ describe("ContentBatchProcessor.processBatches — publishableIds", () => {
       payloads: [{}, {}],
       skippedCount: 0,
       includedItems: stagingItems,
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({
@@ -350,6 +358,7 @@ describe("ContentBatchProcessor.processBatches — onBatchComplete", () => {
       payloads: [{}],
       skippedCount: 0,
       includedItems: [item],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({ successfulItems: [], failedItems: [] });
@@ -368,6 +377,7 @@ describe("ContentBatchProcessor.processBatches — onBatchComplete", () => {
       payloads: [{}],
       skippedCount: 0,
       includedItems: [item],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({ successfulItems: [], failedItems: [] });
@@ -387,6 +397,7 @@ describe("ContentBatchProcessor.processBatches — batch splitting", () => {
       payloads: [],
       skippedCount: 0,
       includedItems: [],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({ successfulItems: [], failedItems: [] });
@@ -405,6 +416,7 @@ describe("ContentBatchProcessor.processBatches — batch splitting", () => {
       payloads: [],
       skippedCount: 1, // 1 skip per batch
       includedItems: [],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({ successfulItems: [], failedItems: [] });
@@ -431,6 +443,7 @@ describe("ContentBatchProcessor — referenceMapper.addMapping side effect", () 
       payloads: [{}],
       skippedCount: 0,
       includedItems: [item],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({
@@ -453,6 +466,7 @@ describe("ContentBatchProcessor — referenceMapper.addMapping side effect", () 
       payloads: [{}],
       skippedCount: 0,
       includedItems: [item],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({ successfulItems: [], failedItems: [] });
@@ -475,6 +489,7 @@ describe("ContentBatchProcessor.processBatches — failed item logging", () => {
       payloads: [{}],
       skippedCount: 0,
       includedItems: [item],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({
@@ -496,6 +511,7 @@ describe("ContentBatchProcessor.processBatches — failed item logging", () => {
       payloads: [{}],
       skippedCount: 0,
       includedItems: [item],
+      failedItems: [],
     });
 
     mockExtract.mockReturnValue({
@@ -505,5 +521,118 @@ describe("ContentBatchProcessor.processBatches — failed item logging", () => {
 
     await processor.processBatches([item], logger, "Test");
     expect(logger.content.created).toHaveBeenCalledTimes(1);
+  });
+});
+
+// ─── prepareContentPayloads — stale container mapping (PROD-2309 follow-up) ──
+//
+// The mapping row can outlive the target container it points to (e.g. the container was
+// deleted/soft-deleted on the target since the last successful mapping). Exercises the real
+// ModelMapper/ContainerMapper file-based lookups (not mocked) so the guard is proven against
+// the actual mapping-file shapes these classes read/write.
+
+function writeMappingFile(root: string, sourceGuid: string, targetGuid: string, type: string, rows: any[]): void {
+  const dir = path.join(root, "mappings", `${sourceGuid}-${targetGuid}`, type);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, "mappings.json"), JSON.stringify(rows));
+}
+
+function writeEntityFile(root: string, guid: string, folder: string, id: number, data: any): void {
+  const dir = path.join(root, guid, folder);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(data));
+}
+
+describe("ContentBatchProcessor.prepareContentPayloads — stale container mapping", () => {
+  function seedModelAndContainerMapping(
+    root: string,
+    sourceGuid: string,
+    targetGuid: string,
+    opts: { createTargetContainerFile: boolean }
+  ) {
+    writeEntityFile(root, sourceGuid, "models", 1, {
+      id: 1,
+      referenceName: "TestModel",
+      fields: [],
+    });
+    writeMappingFile(root, sourceGuid, targetGuid, "models", [
+      {
+        sourceGuid,
+        targetGuid,
+        sourceID: 1,
+        targetID: 1,
+        sourceReferenceName: "TestModel",
+        targetReferenceName: "TestModel",
+        sourceLastModifiedDate: "07/01/2026 12:00PM",
+        targetLastModifiedDate: "07/01/2026 12:00PM",
+      },
+    ]);
+
+    writeMappingFile(root, sourceGuid, targetGuid, "containers", [
+      {
+        sourceGuid,
+        targetGuid,
+        sourceContentViewID: 10,
+        targetContentViewID: 999,
+        sourceReferenceName: "ref-1",
+        targetReferenceName: "ref-1",
+        sourceLastModifiedDate: "07/01/2026 12:00PM",
+        targetLastModifiedDate: "07/01/2026 12:00PM",
+      },
+    ]);
+
+    if (opts.createTargetContainerFile) {
+      writeEntityFile(root, targetGuid, "containers", 999, {
+        contentViewID: 999,
+        referenceName: "ref-1",
+      });
+    }
+    // else: mapping row exists but the target container's cache file is absent —
+    // simulates the container having been deleted on the target since the last sync.
+  }
+
+  it("fails the item (not a skip) and does not ship a payload when the target container is gone", async () => {
+    const sourceGuid = "pcp-stale-src";
+    const targetGuid = "pcp-stale-tgt";
+    seedModelAndContainerMapping(tmpDir, sourceGuid, targetGuid, { createTargetContainerFile: false });
+
+    const referenceMapper = new ContentItemMapper(sourceGuid, targetGuid, "en-us");
+    const processor = new ContentBatchProcessor(makeConfig({ sourceGuid, targetGuid, referenceMapper }));
+    const item = makeContentItem(1);
+    item.properties.referenceName = "ref-1";
+    item.properties.definitionName = "TestModel";
+
+    const consoleErrorSpy = jest.spyOn(console, "error");
+    const result = await (processor as any).prepareContentPayloads([item], sourceGuid, targetGuid);
+
+    expect(result.payloads).toHaveLength(0);
+    expect(result.includedItems).toHaveLength(0);
+    // PROD-2310: this item never reaches the target, so it must count as a failure —
+    // not a skip — so it fails the sync exit code.
+    expect(result.skippedCount).toBe(0);
+    expect(result.failedItems).toHaveLength(1);
+    expect(result.failedItems[0].error).toEqual(expect.stringContaining("no longer exists on the target"));
+    expect(consoleErrorSpy).toHaveBeenCalledWith(
+      expect.stringContaining("no longer exists on the target")
+    );
+  });
+
+  it("ships the payload normally when the target container still exists", async () => {
+    const sourceGuid = "pcp-live-src";
+    const targetGuid = "pcp-live-tgt";
+    seedModelAndContainerMapping(tmpDir, sourceGuid, targetGuid, { createTargetContainerFile: true });
+
+    const referenceMapper = new ContentItemMapper(sourceGuid, targetGuid, "en-us");
+    const processor = new ContentBatchProcessor(makeConfig({ sourceGuid, targetGuid, referenceMapper }));
+    const item = makeContentItem(1);
+    item.properties.referenceName = "ref-1";
+    item.properties.definitionName = "TestModel";
+
+    const result = await (processor as any).prepareContentPayloads([item], sourceGuid, targetGuid);
+
+    expect(result.skippedCount).toBe(0);
+    expect(result.payloads).toHaveLength(1);
+    expect(result.includedItems).toHaveLength(1);
+    expect(result.payloads[0].properties.referenceName).toBe("ref-1");
   });
 });

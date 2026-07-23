@@ -97,6 +97,17 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
         targetGuid[0]
       );
       status = "error";
+      // PROD-2310: a channel-level throw means every page under it failed to sync.
+      // `status` alone is display-only (never read by the exit-code path) — record a
+      // failure so this isn't silently invisible to totalSyncFailures/the exit code.
+      failed++;
+      failureDetails.push({
+        name: `Channel ${channel}`,
+        error: errorMessage,
+        type: "page",
+        guid: sourceGuid[0],
+        locale,
+      });
     }
   }
 

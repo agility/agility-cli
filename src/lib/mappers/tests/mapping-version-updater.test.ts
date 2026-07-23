@@ -2,29 +2,19 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { resetState, setState } from "core/state";
+import * as stateModule from "core/state";
 
-// Mock the filesystem getters to avoid real I/O beyond what we control
-jest.mock("lib/getters/filesystem/get-content-items", () => ({
-  getContentItemsFromFileSystem: jest.fn(),
-}));
-jest.mock("lib/getters/filesystem/get-pages", () => ({
-  getPagesFromFileSystem: jest.fn(),
-}));
+// Mock the API client so no real network calls happen
+const mockGetContentItem = jest.fn();
+const mockGetPage = jest.fn();
 
-// Import after mocks are in place
-import { getContentItemsFromFileSystem } from "lib/getters/filesystem/get-content-items";
-import { getPagesFromFileSystem } from "lib/getters/filesystem/get-pages";
 import {
   updateContentMappingsAfterPublish,
   updatePageMappingsAfterPublish,
   updateMappingsAfterPublish,
-  VersionChangeDetail,
 } from "lib/mappers/mapping-version-updater";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { PageMapper } from "lib/mappers/page-mapper";
-
-const mockGetContentItems = getContentItemsFromFileSystem as jest.MockedFunction<typeof getContentItemsFromFileSystem>;
-const mockGetPages = getPagesFromFileSystem as jest.MockedFunction<typeof getPagesFromFileSystem>;
 
 let tmpDir: string;
 
@@ -45,8 +35,12 @@ beforeEach(() => {
   jest.spyOn(console, "log").mockImplementation(() => {});
   jest.spyOn(console, "warn").mockImplementation(() => {});
   jest.spyOn(console, "error").mockImplementation(() => {});
-  mockGetContentItems.mockReturnValue([]);
-  mockGetPages.mockReturnValue([]);
+  mockGetContentItem.mockReset();
+  mockGetPage.mockReset();
+  jest.spyOn(stateModule, "getApiClient").mockReturnValue({
+    contentMethods: { getContentItem: mockGetContentItem },
+    pageMethods: { getPage: mockGetPage },
+  } as any);
 });
 
 afterEach(() => {
@@ -99,25 +93,26 @@ describe("updateContentMappingsAfterPublish", () => {
     const result = await updateContentMappingsAfterPublish([], SRC, TGT, LOCALE);
     expect(result.updated).toBe(0);
     expect(result.errors).toHaveLength(0);
+    expect(mockGetContentItem).not.toHaveBeenCalled();
   });
 
   it("deduplicates published content IDs before processing", async () => {
-    mockGetContentItems.mockReturnValue([]);
+    mockGetContentItem.mockRejectedValue(new Error("not found"));
     const result = await updateContentMappingsAfterPublish([100, 100, 100], SRC, TGT, LOCALE);
-    // 100 is not found in filesystem → one error, not three
+    // 100 is not found on the target → one error, not three
     expect(result.errors).toHaveLength(1);
+    expect(mockGetContentItem).toHaveBeenCalledTimes(1);
   });
 
-  it("records an error when a content item is not found in target filesystem", async () => {
-    mockGetContentItems.mockReturnValue([]);
+  it("records an error when a content item is not found on the target instance", async () => {
+    mockGetContentItem.mockRejectedValue(new Error("404"));
     const result = await updateContentMappingsAfterPublish([999], SRC, TGT, LOCALE);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]).toMatch(/999/);
   });
 
   it("records an error when no mapping exists for a target content ID", async () => {
-    const targetItem = makeContentItem({ contentID: 200, properties: { versionID: 7 } });
-    mockGetContentItems.mockReturnValue([targetItem]);
+    mockGetContentItem.mockResolvedValue(makeContentItem({ contentID: 200, properties: { versionID: 7 } }));
     const result = await updateContentMappingsAfterPublish([200], SRC, TGT, LOCALE);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]).toMatch(/200/);
@@ -125,18 +120,17 @@ describe("updateContentMappingsAfterPublish", () => {
 
   it("updates the mapping successfully when item and mapping exist", async () => {
     seedContentMapper(10, 20, 5);
-    const targetItem = makeContentItem({ contentID: 20, properties: { versionID: 9 } });
-    mockGetContentItems.mockReturnValue([targetItem]);
+    mockGetContentItem.mockResolvedValue(makeContentItem({ contentID: 20, properties: { versionID: 9 } }));
     const result = await updateContentMappingsAfterPublish([20], SRC, TGT, LOCALE);
     expect(result.updated).toBe(1);
     expect(result.errors).toHaveLength(0);
     expect(result.changes[0].newVersion).toBe(9);
+    expect(mockGetContentItem).toHaveBeenCalledWith(20, TGT, LOCALE);
   });
 
   it("tracks change.changed as false when versionID is already up to date", async () => {
     seedContentMapper(10, 20, 5);
-    const targetItem = makeContentItem({ contentID: 20, properties: { versionID: 5 } });
-    mockGetContentItems.mockReturnValue([targetItem]);
+    mockGetContentItem.mockResolvedValue(makeContentItem({ contentID: 20, properties: { versionID: 5 } }));
     const result = await updateContentMappingsAfterPublish([20], SRC, TGT, LOCALE);
     expect(result.changes[0].changed).toBe(false);
   });
@@ -149,18 +143,18 @@ describe("updatePageMappingsAfterPublish", () => {
     const result = await updatePageMappingsAfterPublish([], SRC, TGT, LOCALE);
     expect(result.updated).toBe(0);
     expect(result.errors).toHaveLength(0);
+    expect(mockGetPage).not.toHaveBeenCalled();
   });
 
-  it("records an error when a page is not found in target filesystem", async () => {
-    mockGetPages.mockReturnValue([]);
+  it("records an error when a page is not found on the target instance", async () => {
+    mockGetPage.mockRejectedValue(new Error("404"));
     const result = await updatePageMappingsAfterPublish([999], SRC, TGT, LOCALE);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]).toMatch(/999/);
   });
 
   it("records an error when no mapping exists for a target page ID", async () => {
-    const targetPage = makePage({ pageID: 500, properties: { versionID: 3 } });
-    mockGetPages.mockReturnValue([targetPage]);
+    mockGetPage.mockResolvedValue(makePage({ pageID: 500, properties: { versionID: 3 } }));
     const result = await updatePageMappingsAfterPublish([500], SRC, TGT, LOCALE);
     expect(result.errors.length).toBeGreaterThan(0);
     expect(result.errors[0]).toMatch(/500/);
@@ -168,12 +162,12 @@ describe("updatePageMappingsAfterPublish", () => {
 
   it("updates the mapping successfully when page and mapping exist", async () => {
     seedPageMapper(1, 50, 1);
-    const targetPage = makePage({ pageID: 50, properties: { versionID: 8 } });
-    mockGetPages.mockReturnValue([targetPage]);
+    mockGetPage.mockResolvedValue(makePage({ pageID: 50, properties: { versionID: 8 } }));
     const result = await updatePageMappingsAfterPublish([50], SRC, TGT, LOCALE);
     expect(result.updated).toBe(1);
     expect(result.errors).toHaveLength(0);
     expect(result.changes[0].newVersion).toBe(8);
+    expect(mockGetPage).toHaveBeenCalledWith(50, TGT, LOCALE);
   });
 });
 
@@ -190,12 +184,10 @@ describe("updateMappingsAfterPublish", () => {
 
   it("processes both content and page IDs", async () => {
     seedContentMapper(10, 20, 1);
-    const targetContent = makeContentItem({ contentID: 20, properties: { versionID: 2 } });
-    mockGetContentItems.mockReturnValue([targetContent]);
+    mockGetContentItem.mockResolvedValue(makeContentItem({ contentID: 20, properties: { versionID: 2 } }));
 
     seedPageMapper(1, 50, 1);
-    const targetPage = makePage({ pageID: 50, properties: { versionID: 2 } });
-    mockGetPages.mockReturnValue([targetPage]);
+    mockGetPage.mockResolvedValue(makePage({ pageID: 50, properties: { versionID: 2 } }));
 
     const { result } = await updateMappingsAfterPublish([20], [50], SRC, TGT, LOCALE);
     expect(result.contentMappingsUpdated).toBe(1);
@@ -203,8 +195,8 @@ describe("updateMappingsAfterPublish", () => {
   });
 
   it("accumulates errors from both content and page processing", async () => {
-    mockGetContentItems.mockReturnValue([]);
-    mockGetPages.mockReturnValue([]);
+    mockGetContentItem.mockRejectedValue(new Error("404"));
+    mockGetPage.mockRejectedValue(new Error("404"));
     const { result } = await updateMappingsAfterPublish([999], [888], SRC, TGT, LOCALE);
     expect(result.errors.length).toBeGreaterThanOrEqual(2);
   });
@@ -215,8 +207,7 @@ describe("updateMappingsAfterPublish", () => {
 describe("VersionChangeDetail structure", () => {
   it("includes expected fields in change objects", async () => {
     seedContentMapper(10, 20, 5);
-    const targetItem = makeContentItem({ contentID: 20, properties: { versionID: 9 } });
-    mockGetContentItems.mockReturnValue([targetItem]);
+    mockGetContentItem.mockResolvedValue(makeContentItem({ contentID: 20, properties: { versionID: 9 } }));
     const result = await updateContentMappingsAfterPublish([20], SRC, TGT, LOCALE);
     const change = result.changes[0];
     expect(change).toMatchObject({

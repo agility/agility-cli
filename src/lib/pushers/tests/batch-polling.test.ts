@@ -1,5 +1,12 @@
 import { resetState } from "core/state";
-import { extractContentBatchResults, extractPageBatchResults, logBatchError, CompletedBatch } from "../batch-polling";
+import {
+  extractContentBatchResults,
+  extractPageBatchResults,
+  logBatchError,
+  prettyException,
+  formatBatchItemError,
+  CompletedBatch,
+} from "../batch-polling";
 import * as mgmtApi from "@agility/management-sdk";
 
 const asBatch = (obj: Record<string, any>): CompletedBatch => obj as CompletedBatch;
@@ -300,5 +307,69 @@ describe("logBatchError", () => {
     logBatchError({ itemID: 0, errorMessage: "error" }, 0, payload);
 
     expect(consoleSpy).toHaveBeenCalledWith(expect.stringContaining("Original Payload"));
+  });
+});
+
+// ─── prettyException ───────────────────────────────────────────────────────────
+
+describe("prettyException", () => {
+  it("returns '' for empty/non-exception text", () => {
+    expect(prettyException("")).toBe("");
+    expect(prettyException("just a plain message")).toBe("");
+  });
+
+  it("keeps the (short) exception type and message", () => {
+    expect(prettyException("System.NullReferenceException: Object reference not set to an instance of an object.")).toBe(
+      "NullReferenceException: Object reference not set to an instance of an object."
+    );
+  });
+
+  it("appends the server method from the first stack frame", () => {
+    const dump = [
+      "System.NullReferenceException: Object reference not set to an instance of an object.",
+      "   at Agility.Shared.Engines.BatchProcessing.BatchInsertContentitem(String languageCode, BatchImportContentItem b) in D:\\x.cs:line 398",
+      "   at Agility.Shared.Engines.BatchProcessing.BatchInsertContent(Batch batch) in D:\\y.cs:line 1212",
+    ].join("\n");
+    expect(prettyException(dump)).toBe(
+      "NullReferenceException: Object reference not set to an instance of an object. [server: BatchInsertContentitem]"
+    );
+  });
+
+  it("strips the namespace from the exception type", () => {
+    expect(prettyException("Agility.Shared.Exceptions.ManagementValidationException: too long")).toBe(
+      "ManagementValidationException: too long"
+    );
+  });
+});
+
+// ─── formatBatchItemError ──────────────────────────────────────────────────────
+
+describe("formatBatchItemError", () => {
+  it("prefixes the exception type when the message lacks it", () => {
+    expect(formatBatchItemError("NullReferenceException", "Object reference not set to an instance of an object.")).toBe(
+      "NullReferenceException: Object reference not set to an instance of an object."
+    );
+  });
+
+  it("does not duplicate a type already present in the message", () => {
+    expect(formatBatchItemError("ValidationException", "ValidationException: bad field")).toBe(
+      "ValidationException: bad field"
+    );
+  });
+
+  it("ignores a generic 'Error' type", () => {
+    expect(formatBatchItemError("Error", "something broke")).toBe("something broke");
+  });
+
+  it("prefers a full exception dump in the message via prettyException", () => {
+    const dump =
+      "System.NullReferenceException: Object reference not set to an instance of an object.\n   at Foo.Bar.Baz(String x)";
+    expect(formatBatchItemError("NullReferenceException", dump)).toBe(
+      "NullReferenceException: Object reference not set to an instance of an object. [server: Baz]"
+    );
+  });
+
+  it("falls back to 'Unknown error' when nothing is provided", () => {
+    expect(formatBatchItemError(undefined, undefined)).toBe("Unknown error");
   });
 });

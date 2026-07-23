@@ -3,7 +3,7 @@ import { getApiClient, getState, state, getLoggerForGuid, startTimer, endTimer }
 import ansiColors from "ansi-colors";
 import fs from "fs";
 import path from "path";
-import { getAssetFilePath } from "../assets/asset-utils";
+import { getAssetFilePath, extractFocalPointFromHeaders } from "../assets/asset-utils";
 import { getAllChannels } from "../shared/get-all-channels";
 
 export async function downloadAllAssets(guid: string): Promise<void> {
@@ -173,6 +173,13 @@ export async function downloadAllAssets(guid: string): Promise<void> {
             const success = await fileOps.downloadFile(asset.originUrl, assetFilesPath);
 
             if (success) {
+              // Capture focal point from the image response headers so it can be
+              // synced through to the target on push (the Media list API does not
+              // return focal point, only the served image headers do).
+              const focal = extractFocalPointFromHeaders(success.headers);
+              if (focal.focalX !== undefined) asset.focalX = focal.focalX;
+              if (focal.focalY !== undefined) asset.focalY = focal.focalY;
+
               // Write the metadata JSON only after the binary lands on disk, so
               // an interrupted pull can't leave a metadata-only (poisoned) entry.
               fileOps.exportFiles(`assets`, asset.mediaID.toString(), asset);

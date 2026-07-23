@@ -70,6 +70,7 @@ describe("GuidDataLoader.hasNoContent", () => {
       content: [],
       assets: [],
       galleries: [],
+      urlRedirections: [],
     };
     expect(loader.hasNoContent(entities)).toBe(true);
   });
@@ -85,6 +86,7 @@ describe("GuidDataLoader.hasNoContent", () => {
       content: [],
       assets: [],
       galleries: [],
+      urlRedirections: [],
     };
     expect(loader.hasNoContent(entities)).toBe(false);
   });
@@ -100,6 +102,7 @@ describe("GuidDataLoader.hasNoContent", () => {
       content: [],
       assets: [],
       galleries: [],
+      urlRedirections: [],
     };
     expect(loader.hasNoContent(entities)).toBe(false);
   });
@@ -115,6 +118,7 @@ describe("GuidDataLoader.hasNoContent", () => {
       content: [],
       assets: [{ mediaID: 1 }],
       galleries: [],
+      urlRedirections: [],
     };
     expect(loader.hasNoContent(entities)).toBe(false);
   });
@@ -134,6 +138,7 @@ describe("GuidDataLoader.getEntityCounts", () => {
       content: [1],
       assets: [1, 2],
       galleries: [1, 2, 3],
+      urlRedirections: [1],
     };
     const counts = loader.getEntityCounts(entities as any);
 
@@ -145,6 +150,7 @@ describe("GuidDataLoader.getEntityCounts", () => {
     expect(counts.content).toBe(1);
     expect(counts.assets).toBe(2);
     expect(counts.galleries).toBe(3);
+    expect(counts.urlRedirections).toBe(1);
   });
 
   it("returns all zeros for empty entities", () => {
@@ -158,6 +164,7 @@ describe("GuidDataLoader.getEntityCounts", () => {
       content: [],
       assets: [],
       galleries: [],
+      urlRedirections: [],
     };
     const counts = loader.getEntityCounts(entities);
 
@@ -177,6 +184,7 @@ describe("GuidDataLoader.getEntityCounts", () => {
       content: [],
       assets: [],
       galleries: [],
+      urlRedirections: [],
     };
     const counts = loader.getEntityCounts(entities);
 
@@ -188,6 +196,7 @@ describe("GuidDataLoader.getEntityCounts", () => {
     expect(counts).toHaveProperty("content");
     expect(counts).toHaveProperty("assets");
     expect(counts).toHaveProperty("galleries");
+    expect(counts).toHaveProperty("urlRedirections");
   });
 });
 

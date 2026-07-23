@@ -17,6 +17,11 @@ afterAll(() => {
 beforeEach(() => {
   resetState();
   setState({ rootPath: tmpDir, sourceGuid: "src-model-u", targetGuid: "tgt-model-u", token: "test-token" });
+  // Mapping files are stored centrally at <rootPath>/mappings and would otherwise ACCUMULATE across
+  // tests (shared tmpDir + fixed guids), leaking one test's seeded mappings into the next. Clear them
+  // so each test starts from an empty mapping — required now that pushModels validates the whole
+  // mapping for duplicate reference names (PROD-1492).
+  fs.rmSync(path.join(tmpDir, "mappings"), { recursive: true, force: true });
   initializeGuidLogger("src-model-u", "push");
   jest.spyOn(console, "log").mockImplementation(() => {});
   jest.spyOn(console, "warn").mockImplementation(() => {});
@@ -204,6 +209,84 @@ describe("pushModels — source-side rename orphans a mapping and halts the sync
   });
 });
 
+// ─── pushModels — duplicate reference-name mapping halts the sync (PROD-1492) ──────
+
+describe("pushModels — deleted-and-recreated model leaves a duplicate mapping and halts the sync (PROD-1492)", () => {
+  it('throws "Model validation failed" (and writes nothing) when a live model shares a reference name with a dead duplicate record', async () => {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+
+    // Seed the mapping exactly as it looks after a deleted-and-recreated source model (the PROD-1492
+    // PromoBanner case): dead source 46 -> target 138  and  live source 48 -> target 139, same name.
+    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    seeder.addMapping(
+      { id: 46, referenceName: "PromoBanner", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
+      { id: 138, referenceName: "PromoBanner", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any
+    );
+    seeder.addMapping(
+      { id: 48, referenceName: "PromoBanner", lastModifiedDate: new Date(2025, 5, 1).toISOString() } as any,
+      { id: 139, referenceName: "PromoBanner", lastModifiedDate: new Date(2025, 5, 1).toISOString() } as any
+    );
+
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 999 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    // The live model (48) still exists on the source; the dead record (46) is the stale duplicate.
+    const liveModel = makeModel({
+      id: 48,
+      referenceName: "PromoBanner",
+      lastModifiedDate: new Date(2025, 5, 1).toISOString(),
+    });
+    const targetModel = makeModel({
+      id: 139,
+      referenceName: "PromoBanner",
+      lastModifiedDate: new Date(2025, 5, 1).toISOString(),
+    });
+
+    // The integrity gate must detect the duplicate reference name and stop the whole sync with a
+    // "Model validation failed" error — before any model is written.
+    await expect(pushModels([liveModel], [targetModel])).rejects.toThrow(/Model validation failed/);
+
+    expect(saveModel).not.toHaveBeenCalled();
+  });
+
+  it("does NOT halt when both duplicate records are for a model deleted outright (neither source ID is live)", async () => {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+
+    // Real 63b1dc5d-us2 -> 95bfb840-us2 shape: two case-only "changelog" records, BOTH stale —
+    //   ChangeLog source 110 -> target 18  and  Changelog source 117 -> target 24.
+    // Neither source model exists in the current pull anymore (the model was fully deleted), so this
+    // is stale mapping residue, not a delete-and-recreate. The gate must NOT halt the sync over it.
+    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    seeder.addMapping(
+      { id: 110, referenceName: "ChangeLog", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
+      { id: 18, referenceName: "ChangeLog", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any
+    );
+    seeder.addMapping(
+      { id: 117, referenceName: "Changelog", lastModifiedDate: new Date(2025, 1, 1).toISOString() } as any,
+      { id: 24, referenceName: "Changelog", lastModifiedDate: new Date(2025, 1, 1).toISOString() } as any
+    );
+
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 999 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    // The push carries only a live, unrelated model — neither 110 nor 117 is present.
+    const liveModel = makeModel({
+      id: 55,
+      referenceName: "FooterLinks",
+      lastModifiedDate: new Date(2025, 5, 1).toISOString(),
+    });
+
+    // Must resolve (not throw): the dead-duplicate is logged and ignored, sync continues.
+    await expect(pushModels([liveModel], [])).resolves.toEqual(
+      expect.objectContaining({ status: "success" })
+    );
+  });
+});
+
 // ─── PROD-2211: honest failure reporting ──────────────────────────────────────
 
 describe("pushModels — failed update is reported as failed, not success (PROD-2211)", () => {
@@ -340,9 +423,8 @@ describe("pushModels — exists in target without mapping, non-default (PROD-221
     expect(mapper.getModelMappingByID(501, "source")?.targetID).toBe(10);
   });
 
-  it("does NOT adopt a same-name target model of a different type (type-blind lookup)", async () => {
-    const createdStub = makeModel({ id: 888, referenceName: "PromoBanner", contentDefinitionTypeID: 2 });
-    const saveModel = jest.fn().mockResolvedValue(createdStub);
+  it("does NOT adopt a same-name target model of a different type; flags it as a cross-kind collision (type-blind lookup + PROD-2315)", async () => {
+    const saveModel = jest.fn();
     jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
 
     const { pushModels } = await import("../model-pusher");
@@ -352,7 +434,11 @@ describe("pushModels — exists in target without mapping, non-default (PROD-221
 
     const result = await pushModels([sourceModel], [targetContentList]);
 
-    expect(saveModel).toHaveBeenCalled(); // goes through create, not adopted
+    // Not adopted (types differ), and — PROD-2315 — no longer blindly created: recognized as a
+    // forbidden cross-kind reference-name collision and failed with an actionable message rather
+    // than attempting a create that is guaranteed to 409.
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.failed).toBe(1);
     expect(result.skipped).toBe(0);
   });
 });
@@ -477,5 +563,103 @@ describe("pushModels — mapped-before-unmapped ordering (PROD-2250)", () => {
     expect(result.failed).toBe(0);
     expect(result.skipped).toBe(0);
     expect(result.successful).toBe(4);
+  });
+});
+
+// ─── pushModels — cross-kind reference-name collision (PROD-2315) ──────────────
+
+describe("pushModels — cross-kind reference-name collision (PROD-2315)", () => {
+  it("fails a same-name model of a different kind with an actionable message instead of creating it", async () => {
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    // Source LinkCard is a component (type 2); target LinkCard is a content model (type 1).
+    const sourceModel = makeModel({ referenceName: "LinkCard", contentDefinitionTypeID: 2 });
+    const targetModel = makeModel({ id: 500, referenceName: "LinkCard", contentDefinitionTypeID: 1 });
+
+    const result = await pushModels([sourceModel], [targetModel]);
+
+    // Guaranteed-409 create is never attempted…
+    expect(saveModel).not.toHaveBeenCalled();
+    // …and it is reported as a failure with an actionable message.
+    expect(result.failed).toBe(1);
+    expect(result.successful).toBe(0);
+    expect(result.failureDetails).toHaveLength(1);
+    expect(result.failureDetails![0].name).toBe("LinkCard");
+    expect(result.failureDetails![0].error).toMatch(/component\/module model on the source/);
+    expect(result.failureDetails![0].error).toMatch(/content model with that reference name already exists/);
+  });
+
+  it("does NOT flag a same-name model when the kinds are unknown (falls back to adopt-by-reference)", async () => {
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    // Neither side has contentDefinitionTypeID → modelTypeMatches() is true → adopt, not a collision.
+    const now = new Date().toISOString();
+    const sourceModel = makeModel({ referenceName: "AmbiguousKind", lastModifiedDate: now });
+    const targetModel = makeModel({ id: 501, referenceName: "AmbiguousKind", lastModifiedDate: now });
+
+    const result = await pushModels([sourceModel], [targetModel]);
+
+    expect(saveModel).not.toHaveBeenCalled(); // adopted, not created
+    expect(result.failed).toBe(0);
+  });
+
+  it("does NOT flag a same-name same-kind model (still adopts by reference, PROD-2211)", async () => {
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    const now = new Date().toISOString();
+    const sourceModel = makeModel({ referenceName: "SameKind", contentDefinitionTypeID: 1, lastModifiedDate: now });
+    const targetModel = makeModel({ id: 502, referenceName: "SameKind", contentDefinitionTypeID: 1, lastModifiedDate: now });
+
+    const result = await pushModels([sourceModel], [targetModel]);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.failed).toBe(0);
+  });
+
+  it("previews the collision as a conflict under --preflight without calling saveModel", async () => {
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    state.preflight = true;
+
+    const { pushModels } = await import("../model-pusher");
+
+    const sourceModel = makeModel({ referenceName: "LinkCard", contentDefinitionTypeID: 2 });
+    const targetModel = makeModel({ id: 503, referenceName: "LinkCard", contentDefinitionTypeID: 1 });
+
+    const result = await pushModels([sourceModel], [targetModel]);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.status).toBe("success"); // preflight is a dry run
+  });
+});
+
+// ─── pushModels — create failure surfaces the server error (PROD-2315) ─────────
+
+describe("pushModels — create failure surfaces the server error (PROD-2315)", () => {
+  it("includes the server error message in failureDetails when a create fails", async () => {
+    const saveModel = jest
+      .fn()
+      .mockRejectedValue(new Error("A content model with the reference name 'Foo' already exists."));
+    // getContentModules returns [] (default) so findTargetModelAfterSave finds no recovery.
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    const sourceModel = makeModel({ referenceName: "Foo" });
+
+    const result = await pushModels([sourceModel], []);
+
+    expect(result.failed).toBe(1);
+    expect(result.failureDetails).toHaveLength(1);
+    expect(result.failureDetails![0].error).toMatch(/A content model with the reference name 'Foo' already exists\./);
   });
 });
