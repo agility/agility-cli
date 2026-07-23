@@ -99,7 +99,18 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   // The ID-based rename guard below misses this because the two records have DIFFERENT source IDs
   // (a duplicate reference name, not a duplicate ID). Throw a "Model validation failed" error so the
   // orchestrator halts the sync before any partial push, rather than dropping content unnoticed.
-  const duplicateMappings = referenceMapper.getDuplicateSourceReferenceNames();
+  //
+  // Scope the gate to duplicates that still matter: only halt when at least one of the conflicting
+  // source IDs is still LIVE in this pull (i.e. present in `models`) — that is the PROD-1492 case
+  // (dead record + live record, e.g. PromoBanner 46-dead / 48-live) where content would be dropped.
+  // If EVERY record for a reference name points at a source model that no longer exists, the model
+  // was deleted outright: there is no content of that type in the push and nothing references it, so
+  // halting would be a false positive that blocks the whole sync over stale mapping residue. Ignore
+  // those silently and continue.
+  const liveSourceIDs = new Set<number>(models.map((m) => m.id));
+  const duplicateMappings = referenceMapper
+    .getDuplicateSourceReferenceNames()
+    .filter((d) => d.sourceIDs.some((id) => liveSourceIDs.has(id)));
   if (duplicateMappings.length > 0) {
     const detail = duplicateMappings
       .map((d) => `"${d.referenceName}" (source IDs: ${d.sourceIDs.join(", ")})`)
