@@ -133,10 +133,16 @@ export class ContentBatchProcessor {
           payloads: contentPayloads,
           skippedCount: batchSkippedCount,
           includedItems,
+          failedItems: prepFailedItems,
         } = await this.prepareContentPayloads(contentBatch, this.config.sourceGuid, this.config.targetGuid);
 
         // Track skipped items from this batch
         totalSkippedCount += batchSkippedCount;
+        // PROD-2310: prep failures (missing mapping, deleted container, unresolved
+        // reference) are real failures — fold them into the same counters batch-level
+        // API failures use, so they reach content-pusher.ts's totalFailed.
+        totalFailureCount += prepFailedItems.length;
+        allFailedItems.push(...prepFailedItems);
 
         // Execute bulk upload using saveContentItems API with returnBatchID flag
         const batchIDResult = await this.config.apiClient.contentMethods.saveContentItems(
@@ -296,10 +302,16 @@ export class ContentBatchProcessor {
     contentBatch: mgmtApi.ContentItem[],
     sourceGuid: string,
     targetGuid: string
-  ): Promise<{ payloads: any[]; skippedCount: number; includedItems: mgmtApi.ContentItem[] }> {
+  ): Promise<{
+    payloads: any[];
+    skippedCount: number;
+    includedItems: mgmtApi.ContentItem[];
+    failedItems: BatchFailedItem[];
+  }> {
     const payloads: any[] = [];
     const includedItems: mgmtApi.ContentItem[] = [];
     let skippedCount = 0;
+    const failedItems: BatchFailedItem[] = [];
 
     // No imports needed - using reference mapper directly
     const modelMapper = new ModelMapper(sourceGuid, targetGuid);
@@ -511,19 +523,24 @@ export class ContentBatchProcessor {
           includedItems.push(contentItem);
         } catch (error: any) {
           console.error(
-            ansiColors.yellow(
-              `✗ Skipping content item ${contentItem.contentID} (${contentItem.properties?.referenceName ?? "unknown"}) - ${error.message || "payload preparation failed"}`
+            ansiColors.red(
+              `✗ Failed to prepare content item ${contentItem.contentID} (${contentItem.properties?.referenceName ?? "unknown"}) - ${error.message || "payload preparation failed"}`
             )
           );
 
-          // Track skipped item and continue with the rest of the batch
-          skippedCount++;
+          // PROD-2310: this item will never reach the target — it's a failure, not a
+          // benign skip. Counting it only as `skippedCount` meant it never affected
+          // totalFailed/the sync exit code, even though the item didn't sync.
+          failedItems.push({
+            originalContent: contentItem,
+            error: error.message || "payload preparation failed",
+          });
           continue;
         }
       }
     }
 
-    return { payloads, skippedCount, includedItems };
+    return { payloads, skippedCount, includedItems, failedItems };
   }
 
   /**
