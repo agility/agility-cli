@@ -212,11 +212,11 @@ describe("pushModels — source-side rename orphans a mapping and halts the sync
 // ─── pushModels — duplicate reference-name mapping halts the sync (PROD-1492) ──────
 
 describe("pushModels — deleted-and-recreated model leaves a duplicate mapping and halts the sync (PROD-1492)", () => {
-  it('throws "Model validation failed" (and writes nothing) when two mapping records share a reference name with different source IDs', async () => {
+  it('throws "Model validation failed" (and writes nothing) when a live model shares a reference name with a dead duplicate record', async () => {
     const { ModelMapper } = await import("lib/mappers/model-mapper");
 
-    // Seed the mapping exactly as it looks after a deleted-and-recreated source model:
-    //   dead source 46 -> target 138  and  live source 48 -> target 139, both named "PromoBanner".
+    // Seed the mapping exactly as it looks after a deleted-and-recreated source model (the PROD-1492
+    // PromoBanner case): dead source 46 -> target 138  and  live source 48 -> target 139, same name.
     const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
     seeder.addMapping(
       { id: 46, referenceName: "PromoBanner", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
@@ -232,7 +232,7 @@ describe("pushModels — deleted-and-recreated model leaves a duplicate mapping 
 
     const { pushModels } = await import("../model-pusher");
 
-    // Only the live model (48) still exists on the source; the dead record (46) is the stale duplicate.
+    // The live model (48) still exists on the source; the dead record (46) is the stale duplicate.
     const liveModel = makeModel({
       id: 48,
       referenceName: "PromoBanner",
@@ -249,6 +249,41 @@ describe("pushModels — deleted-and-recreated model leaves a duplicate mapping 
     await expect(pushModels([liveModel], [targetModel])).rejects.toThrow(/Model validation failed/);
 
     expect(saveModel).not.toHaveBeenCalled();
+  });
+
+  it("does NOT halt when both duplicate records are for a model deleted outright (neither source ID is live)", async () => {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+
+    // Real 63b1dc5d-us2 -> 95bfb840-us2 shape: two case-only "changelog" records, BOTH stale —
+    //   ChangeLog source 110 -> target 18  and  Changelog source 117 -> target 24.
+    // Neither source model exists in the current pull anymore (the model was fully deleted), so this
+    // is stale mapping residue, not a delete-and-recreate. The gate must NOT halt the sync over it.
+    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    seeder.addMapping(
+      { id: 110, referenceName: "ChangeLog", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
+      { id: 18, referenceName: "ChangeLog", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any
+    );
+    seeder.addMapping(
+      { id: 117, referenceName: "Changelog", lastModifiedDate: new Date(2025, 1, 1).toISOString() } as any,
+      { id: 24, referenceName: "Changelog", lastModifiedDate: new Date(2025, 1, 1).toISOString() } as any
+    );
+
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 999 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    // The push carries only a live, unrelated model — neither 110 nor 117 is present.
+    const liveModel = makeModel({
+      id: 55,
+      referenceName: "FooterLinks",
+      lastModifiedDate: new Date(2025, 5, 1).toISOString(),
+    });
+
+    // Must resolve (not throw): the dead-duplicate is logged and ignored, sync continues.
+    await expect(pushModels([liveModel], [])).resolves.toEqual(
+      expect.objectContaining({ status: "success" })
+    );
   });
 });
 
