@@ -53,7 +53,7 @@ export async function processPage({
       // Find the template mapping
       let templateRef = templateMapper.getTemplateMappingByPageTemplateName(page.templateName, "source");
       if (!templateRef) {
-        logger.page.error(
+        logger.page.skipped(
           page,
           `Missing page template ${page.templateName} in source data, skipping`,
           locale,

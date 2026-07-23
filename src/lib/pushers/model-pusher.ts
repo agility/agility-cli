@@ -20,6 +20,26 @@ function modelTypeMatches(a: mgmtApi.Model, b: mgmtApi.Model): boolean {
   return aType === bType;
 }
 
+/** Human-readable model kind for messages. 1 = content, 2 = component/module. */
+function modelKindName(model: mgmtApi.Model): string {
+  const t = (model as any)?.contentDefinitionTypeID;
+  return t === 1 ? "content" : t === 2 ? "component/module" : `type ${t}`;
+}
+
+/**
+ * PROD-2315: message for a cross-kind reference-name collision — a same-named model exists on both
+ * sides but as different kinds (content vs component/module). Agility forbids content and component
+ * models from sharing a reference name, so this can never be created; the user must reconcile it.
+ */
+function crossKindCollisionMessage(source: mgmtApi.Model, target: mgmtApi.Model): string {
+  return (
+    `Model "${source.referenceName}" is a ${modelKindName(source)} model on the source, but a ` +
+    `${modelKindName(target)} model with that reference name already exists on the target. ` +
+    `Agility does not allow content and component models to share a reference name — ` +
+    `rename one of them (or remove the target model), then re-sync.`
+  );
+}
+
 /**
  * Re-query the target for a model matching (referenceName, contentDefinitionTypeID).
  *
@@ -71,6 +91,29 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
   const referenceMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
 
+  // PROD-1492: fail fast on stale duplicate model mappings. When a source model is deleted and
+  // recreated (new ID, same reference name), the mapping ends up with two records sharing that name
+  // — one pointing at the dead source model, one at the live one. The content-side lookup is
+  // first-match-wins, so it can latch onto the dead record and SILENTLY skip that model's content
+  // (no per-item log), after which every page referencing it fails with "No content mapping".
+  // The ID-based rename guard below misses this because the two records have DIFFERENT source IDs
+  // (a duplicate reference name, not a duplicate ID). Throw a "Model validation failed" error so the
+  // orchestrator halts the sync before any partial push, rather than dropping content unnoticed.
+  const duplicateMappings = referenceMapper.getDuplicateSourceReferenceNames();
+  if (duplicateMappings.length > 0) {
+    const detail = duplicateMappings
+      .map((d) => `"${d.referenceName}" (source IDs: ${d.sourceIDs.join(", ")})`)
+      .join("; ");
+    throw new Error(
+      `Model validation failed: duplicate model mapping detected for ${detail}. ` +
+        `Two mapping records share a reference name but point at different source model IDs — ` +
+        `this indicates a model that was deleted and recreated on the source, leaving a stale mapping. ` +
+        `Continuing would silently skip that model's content and fail the pages that reference it. ` +
+        `Stopping sync to avoid a partial push; remove the stale target model and re-sync. ` +
+        `Please contact AgilityCMS Support to resolve this issue`
+    );
+  }
+
   const apiClient = getApiClient();
 
   let successful = 0;
@@ -82,6 +125,8 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   let shouldUpdateFields = [];
   let shouldSkip: { model: mgmtApi.Model; reason: string }[] = [];
   let stubCreated = [];
+  // PROD-2315: same reference name on both sides but a different kind (content vs component).
+  const crossKindConflicts: { model: mgmtApi.Model; target: mgmtApi.Model }[] = [];
 
   // PROD-2250: process source models that already have a mapping before brand-new
   // (unmapped) models. Reconciling existing target models first — using their known
@@ -102,7 +147,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
 
   for (const sourceModel of orderedModels) {
     if (!sourceModel.id || !sourceModel.referenceName) {
-      logger.model.error(
+      logger.model.skipped(
         sourceModel,
         "Model is missing required properties (id or referenceName), skipping",
         targetGuid[0]
@@ -180,6 +225,22 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       }
     }
 
+    // PROD-2315: a target model with the same referenceName exists, but as a different KIND
+    // (content vs component/module). modelTypeMatches() already excluded it from
+    // targetModelByReference, so it would otherwise fall through to "create" and hit a guaranteed
+    // server 409 (Agility forbids content + component models sharing a name). Because
+    // targetModelByReference used modelTypeMatches — which returns true when either side's type is
+    // unknown — crossKindTarget is non-null ONLY when both types are known and differ. Type-unknown
+    // pulls are unaffected and keep today's behavior.
+    const crossKindTarget =
+      !sourceMapping && !targetModelByReference
+        ? targetData.find((t) => t.referenceName === sourceModel.referenceName) || null
+        : null;
+    if (crossKindTarget) {
+      crossKindConflicts.push({ model: sourceModel, target: crossKindTarget });
+      continue;
+    }
+
     if (!sourceMapping && !targetModel) {
       shouldCreateStub.push(sourceModel);
       continue;
@@ -239,6 +300,15 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
         detail: reason,
       });
     }
+    // PROD-2315: preview cross-kind collisions as conflicts (a real run would fail them).
+    for (const { model, target } of crossKindConflicts) {
+      preflightReport.record({
+        phase: "Models",
+        action: "conflict",
+        name: model.referenceName,
+        detail: crossKindCollisionMessage(model, target),
+      });
+    }
     return {
       status: "success",
       successful: shouldCreateStub.length + shouldUpdateFields.length,
@@ -249,14 +319,18 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   }
 
   for (const model of shouldCreateStub) {
-    const result = await createNewModel(model, referenceMapper, apiClient, targetGuid[0], logger);
+    const { result, error } = await createNewModel(model, referenceMapper, apiClient, targetGuid[0], logger);
     if (result === "created") {
       stubCreated.push(model);
     } else {
       failed++;
       failureDetails.push({
         name: model.referenceName,
-        error: `Failed to create model "${model.referenceName}" (ID: ${model.id})`,
+        // PROD-2315: surface the server's reason (e.g. the 409 detail) in the ERROR SUMMARY instead
+        // of the generic message; the detail was previously only in the push-log file.
+        error: error
+          ? `Failed to create model "${model.referenceName}" (ID: ${model.id}): ${error}`
+          : `Failed to create model "${model.referenceName}" (ID: ${model.id})`,
         guid: sourceGuid[0],
       });
     }
@@ -294,6 +368,16 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     skipped++;
   }
 
+  // PROD-2315: cross-kind reference-name collisions can never be created (Agility forbids content and
+  // component models sharing a name). Fail them with an actionable message that reaches the ERROR
+  // SUMMARY, rather than attempting a create that is guaranteed to 409.
+  for (const { model, target } of crossKindConflicts) {
+    const message = crossKindCollisionMessage(model, target);
+    logger.model.error(model, new Error(message), targetGuid[0]);
+    failed++;
+    failureDetails.push({ name: model.referenceName, error: message, guid: sourceGuid[0] });
+  }
+
   return {
     status: "success",
     successful,
@@ -312,7 +396,7 @@ const createNewModel = async (
   apiClient: mgmtApi.ApiClient,
   targetGuid: string,
   logger: Logs
-): Promise<"created" | "updated" | "skipped" | "failed"> => {
+): Promise<{ result: "created" | "failed"; error?: string }> => {
   try {
     // process the model without fields
     const createPayload = {
@@ -324,7 +408,7 @@ const createNewModel = async (
     const newModel = await apiClient.modelMethods.saveModel(createPayload, targetGuid);
     logger.model.created(model, "created", targetGuid);
     referenceMapper.addMapping(model, newModel);
-    return "created";
+    return { result: "created" };
   } catch (error: any) {
     // PROD-2211: saveModel can reject even though the API created the model server-side. Before
     // declaring failure — which leaves the mapping file without a row and wedges future syncs —
@@ -334,10 +418,11 @@ const createNewModel = async (
     if (recovered) {
       logger.model.created(model, "created", targetGuid);
       referenceMapper.addMapping(model, recovered);
-      return "created";
+      return { result: "created" };
     }
     logger.model.error(model, error, targetGuid);
-    return "failed";
+    // PROD-2315: return the server's message so the caller can surface it in the ERROR SUMMARY.
+    return { result: "failed", error: error?.message ? String(error.message) : undefined };
   }
 };
 

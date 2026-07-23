@@ -81,6 +81,7 @@ export type EntityType =
   | "gallery"
   | "template"
   | "sitemap"
+  | "urlRedirection"
   | "auth"
   | "system"
   | "summary";
@@ -981,6 +982,30 @@ export class Logs {
       // Use safeStringify to handle circular references in SDK responses (e.g., HTTPS Agents)
       console.log(ansiColors.red(safeStringify(apiError, 2)));
       console.log(ansiColors.red(safeStringify(payload, 2)));
+    },
+  };
+
+  // URL redirection logging methods
+  urlRedirection = {
+    created: (entity: any, details?: string, targetGuid?: string) => {
+      const itemName = entity?.originUrl || `URL Redirection ${entity?.id || "Unknown"}`;
+      this.logDataElement("urlRedirection", "created", "success", itemName, targetGuid, details);
+    },
+
+    updated: (entity: any, details?: string, targetGuid?: string) => {
+      const itemName = entity?.originUrl || `URL Redirection ${entity?.id || "Unknown"}`;
+      this.logDataElement("urlRedirection", "updated", "success", itemName, targetGuid, details);
+    },
+
+    skipped: (entity: any, details?: string, targetGuid?: string) => {
+      const itemName = entity?.originUrl || `URL Redirection`;
+      this.logDataElement("urlRedirection", "skipped", "skipped", itemName, targetGuid || this.guid, details);
+    },
+
+    error: (entity: any, apiError: any, targetGuid?: string) => {
+      const itemName = entity?.originUrl || `URL Redirection ${entity?.id || "Unknown"}`;
+      const errorDetails = apiError?.message || apiError || "Unknown error";
+      this.logDataElement("urlRedirection", "failed", "failed", itemName, targetGuid || this.guid, errorDetails);
     },
   };
 

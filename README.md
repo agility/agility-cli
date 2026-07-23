@@ -37,7 +37,7 @@ agility pull [options]
 
 | Option       | Type   | Default                                                               | Description                                                                              |
 | ------------ | ------ | -------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| `--elements` | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps` | Comma-separated list of elements to process                                             |
+| `--elements` | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps,UrlRedirections` | Comma-separated list of elements to process                                             |
 | `--models`   | string | _(empty)_                                                            | Comma-separated list of model reference names to sync (only syncs the specified models) |
 
 **Authentication & Environment Options:**
@@ -92,7 +92,7 @@ agility sync [options]
 
 | Option               | Type   | Default                                                               | Description                                                                                                                                                            |
 | -------------------- | ------ | -------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--elements`         | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps` | Comma-separated list of elements to process                                                                                                                          |
+| `--elements`         | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps,UrlRedirections` | Comma-separated list of elements to process                                                                                                                          |
 | `--models`           | string | _(empty)_                                                            | Comma-separated list of model reference names to sync (only syncs the specified models)                                                                              |
 | `--models-with-deps` | string | _(empty)_                                                            | Comma-separated list of model reference names to sync with their full dependency tree — includes dependent content, pages, templates, assets, galleries, and containers |
 | `--contentIDs`       | string | _(empty)_                                                            | Comma-separated list of target content IDs to process directly, bypassing the mappings lookup (e.g. `--contentIDs=121,1221`)                                          |

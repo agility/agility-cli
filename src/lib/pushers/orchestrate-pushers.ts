@@ -183,12 +183,16 @@ export class Pushers {
     // Models depend on nothing that follows, so hoisting them ahead of galleries/assets is
     // dependency-safe; the remaining relative order is unchanged (Containers→Content→Templates→
     // Pages still follow Models, since each depends on Models being pushed first).
-    // ORDER: Models → Galleries → Assets → Containers → Content → Templates → Pages
+    // URL redirections depend on nothing, so they run BEFORE templates: the template pusher
+    // deliberately throws on mapping inconsistencies (rename protection), which aborts the rest
+    // of the guid-level loop — redirections must not be collateral damage of that stop.
+    // ORDER: Models → Galleries → Assets → Containers → URL Redirections → Content → Templates → Pages
     const pusherConfig = [
       PUSH_OPERATIONS.models,
       PUSH_OPERATIONS.galleries,
       PUSH_OPERATIONS.assets,
       PUSH_OPERATIONS.containers,
+      PUSH_OPERATIONS.urlRedirections,
       PUSH_OPERATIONS.content,
       PUSH_OPERATIONS.templates,
       PUSH_OPERATIONS.pages,
@@ -243,8 +247,10 @@ export class Pushers {
         }
       }
     } catch (error: any) {
-      // Re-throw validation errors immediately to stop sync
-      if (error?.message?.includes("Model validation failed")) {
+      // Re-throw validation errors immediately to stop sync.
+      // Matches any "<X> validation failed" halt (e.g. "Model validation failed",
+      // "Page template validation failed") so every guard stops a partial push.
+      if (error?.message?.includes("validation failed")) {
         throw error;
       }
       // For other errors, log but don't stop (legacy behavior for guid-level ops)

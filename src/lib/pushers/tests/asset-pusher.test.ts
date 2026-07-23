@@ -196,3 +196,62 @@ describe("pushAssets — result shape", () => {
     expect(result).toHaveProperty("skipped");
   });
 });
+
+// ─── buildFocalPointQuery ─────────────────────────────────────────────────────
+
+describe("buildFocalPointQuery", () => {
+  // Writes the per-asset JSON that download persists, so the query builder can read it back.
+  function writeAssetJson(mediaID: number, data: Record<string, any>) {
+    const dir = path.join(tmpDir, "src-guid-u", "assets");
+    fs.mkdirSync(dir, { recursive: true });
+    fs.writeFileSync(path.join(dir, `${mediaID}.json`), JSON.stringify(data));
+  }
+
+  it("builds a query string with both focal axes when present", async () => {
+    const { buildFocalPointQuery } = await import("../asset-pusher");
+    writeAssetJson(1, { mediaID: 1, focalX: "0.25", focalY: "0.75" });
+
+    const query = buildFocalPointQuery(makeMedia({ mediaID: 1 }), "src-guid-u");
+    expect(query).toBe("&focalX=0.25&focalY=0.75");
+  });
+
+  it("includes only the axis that is present", async () => {
+    const { buildFocalPointQuery } = await import("../asset-pusher");
+    writeAssetJson(2, { mediaID: 2, focalX: "0.4" });
+
+    const query = buildFocalPointQuery(makeMedia({ mediaID: 2 }), "src-guid-u");
+    expect(query).toBe("&focalX=0.4");
+  });
+
+  it("returns an empty string when the asset has no focal point", async () => {
+    const { buildFocalPointQuery } = await import("../asset-pusher");
+    writeAssetJson(3, { mediaID: 3 });
+
+    const query = buildFocalPointQuery(makeMedia({ mediaID: 3 }), "src-guid-u");
+    expect(query).toBe("");
+  });
+
+  it("ignores blank / whitespace-only focal values", async () => {
+    const { buildFocalPointQuery } = await import("../asset-pusher");
+    writeAssetJson(4, { mediaID: 4, focalX: "  ", focalY: "" });
+
+    const query = buildFocalPointQuery(makeMedia({ mediaID: 4 }), "src-guid-u");
+    expect(query).toBe("");
+  });
+
+  it("returns an empty string when the per-asset JSON does not exist", async () => {
+    const { buildFocalPointQuery } = await import("../asset-pusher");
+
+    const query = buildFocalPointQuery(makeMedia({ mediaID: 999 }), "src-guid-u");
+    expect(query).toBe("");
+  });
+
+  it("url-encodes focal values", async () => {
+    const { buildFocalPointQuery } = await import("../asset-pusher");
+    writeAssetJson(5, { mediaID: 5, focalX: "0.5 ", focalY: "0,6" });
+
+    const query = buildFocalPointQuery(makeMedia({ mediaID: 5 }), "src-guid-u");
+    // "0.5" after trim needs no encoding; "0,6" has an encoded comma
+    expect(query).toBe("&focalX=0.5&focalY=0%2C6");
+  });
+});

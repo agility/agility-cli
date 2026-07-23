@@ -91,6 +91,16 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     dataKey: "pages",
     dependencies: ["Templates", "Models", "Containers", "Content", "Galleries", "Assets"], // Pages require Templates, Models, and Containers
   },
+  urlRedirections: {
+    name: "pushUrlRedirections",
+    description: "Push URL redirections",
+    handler: async (sourceData, targetData) => {
+      const { pushUrlRedirections } = await import("./url-redirection-pusher");
+      return await pushUrlRedirections(sourceData["urlRedirections"], targetData["urlRedirections"]);
+    },
+    elements: ["UrlRedirections"],
+    dataKey: "urlRedirections",
+  },
 };
 
 export class PushOperationsRegistry {
@@ -101,7 +111,7 @@ export class PushOperationsRegistry {
     const state = getState();
     const elementList = state.elements
       ? state.elements.split(",")
-      : ["Galleries", "Assets", "Models", "Containers", "Content", "Templates", "Pages"];
+      : ["Galleries", "Assets", "Models", "Containers", "Content", "Templates", "Pages", "UrlRedirections"];
 
     // Resolve dependencies and update state
     const { resolvedElements, autoIncluded } = this.resolveDependencies(elementList);
