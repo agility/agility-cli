@@ -233,6 +233,112 @@ describe("pushContainers — adopt existing target container by referenceName (P
   });
 });
 
+// ─── pushContainers — PROD-2346 local cache write ─────────────────────────────
+
+describe("pushContainers — writes local container cache file (PROD-2346)", () => {
+  function cachedContainerPath(guid: string, contentViewID: number): string {
+    return path.join(tmpDir, guid, "containers", `${contentViewID}.json`);
+  }
+
+  it("writes the target container to disk after a successful create", async () => {
+    const created = makeContainer({
+      contentViewID: 501,
+      contentDefinitionID: 1,
+      lastModifiedDate: "01/01/2024 10:00AM",
+    });
+    const saveContainer = jest.fn().mockResolvedValue(created);
+    state.cachedApiClient = { containerMethods: { saveContainer } } as any;
+
+    const { pushContainers } = await import("../container-pusher");
+
+    const sourceContainer = makeContainer({ contentDefinitionID: 1 });
+
+    const result = await pushContainers([sourceContainer], []);
+    expect(result.successful).toBe(1);
+
+    const cachePath = cachedContainerPath("tgt-cont-u", 501);
+    expect(fs.existsSync(cachePath)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(cachePath, "utf8"))).toMatchObject({
+      contentViewID: 501,
+      referenceName: created.referenceName,
+      lastModifiedDate: "01/01/2024 10:00AM",
+    });
+  });
+
+  it("writes the target container to disk after a successful update", async () => {
+    const referenceName = "UpdateCacheTest";
+
+    // First run: create the container, establishing the mapping and initial cache file.
+    const created = makeContainer({
+      contentViewID: 502,
+      contentDefinitionID: 1,
+      referenceName,
+      lastModifiedDate: "01/01/2024 10:00AM",
+    });
+    const saveContainer = jest.fn().mockResolvedValue(created);
+    state.cachedApiClient = { containerMethods: { saveContainer } } as any;
+
+    const { pushContainers } = await import("../container-pusher");
+
+    const sourceV1 = makeContainer({
+      contentViewID: 900,
+      contentDefinitionID: 1,
+      referenceName,
+      lastModifiedDate: "01/01/2024 10:00AM",
+    });
+    await pushContainers([sourceV1], []);
+
+    // Second run: source changed, target unchanged → update path.
+    const updated = makeContainer({
+      contentViewID: 502,
+      contentDefinitionID: 1,
+      referenceName,
+      lastModifiedDate: "06/01/2025 10:00AM",
+    });
+    saveContainer.mockResolvedValue(updated);
+
+    const sourceV2 = { ...sourceV1, lastModifiedDate: "06/01/2025 10:00AM" };
+    const targetUnchanged = { ...created };
+
+    const result = await pushContainers([sourceV2], [targetUnchanged]);
+    expect(result.successful).toBe(1);
+
+    const cachePath = cachedContainerPath("tgt-cont-u", 502);
+    expect(fs.existsSync(cachePath)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(cachePath, "utf8"))).toMatchObject({
+      contentViewID: 502,
+      referenceName,
+      lastModifiedDate: "06/01/2025 10:00AM",
+    });
+  });
+
+  it("writes the target container to disk after adopting by referenceName (PROD-2307)", async () => {
+    const saveContainer = jest.fn();
+    state.cachedApiClient = { containerMethods: { saveContainer } } as any;
+
+    const { pushContainers } = await import("../container-pusher");
+
+    const source = makeContainer({ referenceName: "AdoptCacheTest", contentDefinitionID: 500 });
+    const target = makeContainer({
+      contentViewID: 503,
+      referenceName: "AdoptCacheTest",
+      contentDefinitionID: 500,
+      lastModifiedDate: "01/01/2024 10:00AM",
+    });
+
+    const result = await pushContainers([source], [target]);
+    expect(result.skipped).toBe(1);
+    expect(saveContainer).not.toHaveBeenCalled();
+
+    const cachePath = cachedContainerPath("tgt-cont-u", 503);
+    expect(fs.existsSync(cachePath)).toBe(true);
+    expect(JSON.parse(fs.readFileSync(cachePath, "utf8"))).toMatchObject({
+      contentViewID: 503,
+      referenceName: "AdoptCacheTest",
+    });
+  });
+});
+
 // ─── pushContainers — result shape ────────────────────────────────────────────
 
 describe("pushContainers — result shape", () => {

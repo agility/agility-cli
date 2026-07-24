@@ -1,11 +1,22 @@
 import * as mgmtApi from "@agility/management-sdk";
 import { ApiClient } from "@agility/management-sdk";
 import { getLoggerForGuid, state } from "core/state";
+import { fileOperations } from "core";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
 import { FailureDetail, PusherResult } from "types/sourceData";
 import { preflightReport } from "../preflight/preflight-report";
+
+/**
+ * Persist the target container to the local disk cache (agility-files/{targetGuid}/containers/{id}.json),
+ * mirroring what a download-containers.ts pull would produce. Without this, ContainerMapper.getMappedEntity
+ * (which only reads from disk) can't distinguish a container that was just created/updated in this same run
+ * from one that was genuinely deleted since the last sync (PROD-2346).
+ */
+function cacheTargetContainer(targetGuid: string, container: mgmtApi.Container) {
+  new fileOperations(targetGuid).exportFiles("containers", container.contentViewID.toString(), container);
+}
 
 /**
  * Container pusher with enhanced version-based comparison
@@ -104,6 +115,7 @@ export async function pushContainers(
 
           if (!state.preflight) {
             containerMapper.addMapping(sourceContainer, targetByRef);
+            cacheTargetContainer(targetGuid[0], targetByRef);
           }
           logger.container.skipped(sourceContainer, "already exists on target; mapping row created", targetGuid[0]);
           preflightReport.record({
@@ -208,6 +220,7 @@ export async function pushContainers(
             }
 
             containerMapper.updateMapping(sourceContainer, updateResult, sourceMapping);
+            cacheTargetContainer(targetGuid[0], updateResult);
             successful++;
           } else {
             logger.container.error(sourceContainer, "Failed to update container", targetGuid[0]);
@@ -251,6 +264,7 @@ export async function pushContainers(
           if (createResult) {
             logger.container.created(sourceContainer, "created", targetGuid[0]);
             containerMapper.addMapping(sourceContainer, createResult);
+            cacheTargetContainer(targetGuid[0], createResult);
             successful++;
           } else {
             logger.container.error(sourceContainer, "Failed to create container", targetGuid[0]);
