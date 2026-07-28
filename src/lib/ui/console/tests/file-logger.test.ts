@@ -247,7 +247,7 @@ describe("FileLogger.finalize", () => {
 
 describe("FileLogger.fromState", () => {
   it("creates a logger using sourceGuid and locale from state", () => {
-    state.sourceGuid = ["from-state-guid"];
+    state.sourceGuid = "from-state-guid";
     state.locale = ["fr-ca"];
     state.rootPath = "agility-files";
 

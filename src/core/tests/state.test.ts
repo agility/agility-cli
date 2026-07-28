@@ -27,27 +27,20 @@ beforeEach(() => {
 describe("setState – GUID parsing", () => {
   it("sets a single sourceGuid", () => {
     setState({ sourceGuid: "abc123u" });
-    expect(getState().sourceGuid).toEqual(["abc123u"]);
+    expect(getState().sourceGuid).toBe("abc123u");
   });
 
-  it("splits comma-separated sourceGuids into an array", () => {
-    setState({ sourceGuid: "guid1u,guid2u, guid3u" });
-    expect(getState().sourceGuid).toEqual(["guid1u", "guid2u", "guid3u"]);
+  it("throws when sourceGuid contains a comma", () => {
+    expect(() => setState({ sourceGuid: "guid1u,guid2u, guid3u" })).toThrow();
   });
 
   it("sets a single targetGuid", () => {
     setState({ targetGuid: "xyz789u" });
-    expect(getState().targetGuid).toEqual(["xyz789u"]);
+    expect(getState().targetGuid).toBe("xyz789u");
   });
 
-  it("splits comma-separated targetGuids", () => {
-    setState({ targetGuid: "a1u,b2u" });
-    expect(getState().targetGuid).toEqual(["a1u", "b2u"]);
-  });
-
-  it("ignores empty segments in comma-separated GUIDs", () => {
-    setState({ sourceGuid: "a1u,,b2u," });
-    expect(getState().sourceGuid).toEqual(["a1u", "b2u"]);
+  it("throws when targetGuid contains a comma", () => {
+    expect(() => setState({ targetGuid: "a1u,b2u" })).toThrow();
   });
 });
 
@@ -144,8 +137,8 @@ describe("resetState", () => {
   it("clears sourceGuid and targetGuid", () => {
     setState({ sourceGuid: "abc", targetGuid: "xyz" });
     resetState();
-    expect(getState().sourceGuid).toEqual([]);
-    expect(getState().targetGuid).toEqual([]);
+    expect(getState().sourceGuid).toBe("");
+    expect(getState().targetGuid).toBe("");
   });
 
   it("resets boolean flags to defaults", () => {
@@ -287,10 +280,9 @@ describe("getContentCmsLink", () => {
 
 describe("getApiKeysForGuid / getAllApiKeys", () => {
   beforeEach(() => {
-    getState().apiKeys = [
-      { guid: "guid-a", previewKey: "prev-a", fetchKey: "fetch-a" },
-      { guid: "guid-b", previewKey: "prev-b", fetchKey: "fetch-b" },
-    ];
+    setState({ sourceGuid: "guid-a", targetGuid: "guid-b" });
+    getState().sourceApiKeys = { previewKey: "prev-a", fetchKey: "fetch-a" };
+    getState().targetApiKeys = { previewKey: "prev-b", fetchKey: "fetch-b" };
   });
 
   it("returns keys for a known GUID", () => {

@@ -457,7 +457,7 @@ export class Logs {
       if (this.logs.length > 0) {
         // Count GUID occurrences in log messages to identify which GUID this logger belongs to
         const guidCounts = new Map<string, number>();
-        const allGuids = [...(state.sourceGuid || []), ...(state.targetGuid || [])];
+        const allGuids = [state.sourceGuid, state.targetGuid].filter(Boolean);
 
         this.logs.forEach((log) => {
           allGuids.forEach((guid) => {
@@ -479,8 +479,8 @@ export class Logs {
 
       // Build filename with GUID
       if (this.operationType === "push" || this.operationType === "sync") {
-        const sourceGuid = state.sourceGuid?.[0] || "unknown";
-        const targetGuid = state.targetGuid?.[0] || "unknown";
+        const sourceGuid = state.sourceGuid || "unknown";
+        const targetGuid = state.targetGuid || "unknown";
         filename = `${sourceGuid}-${targetGuid}-${this.operationType}-${timestamp}.txt`;
       } else {
         // For pull operations, use the specific GUID this logger is for
@@ -591,7 +591,7 @@ export class Logs {
    */
   private initializeGuidColors(): void {
     const state = getState();
-    const allGuids = [...(state.sourceGuid || []), ...(state.targetGuid || [])];
+    const allGuids = [state.sourceGuid, state.targetGuid].filter(Boolean);
 
     // Assign unique colors to each GUID
     allGuids.forEach((guid, index) => {
@@ -1045,8 +1045,8 @@ export class Logs {
       GUID: this.guid || "Not specified",
       "Operation Type": this.operationType,
       "Entity Type": this.entityType || "All entities",
-      "Source GUIDs": state.sourceGuid?.join(", ") || "None",
-      "Target GUIDs": state.targetGuid?.join(", ") || "None",
+      "Source GUID": state.sourceGuid || "None",
+      "Target GUID": state.targetGuid || "None",
       Locales: this.guid ? state.guidLocaleMap?.get(this.guid)?.join(", ") || "Not specified" : "Multiple",
       Channel: state.channel || "Not specified",
       Elements: state.elements || "All",

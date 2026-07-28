@@ -33,7 +33,7 @@ import { Pull } from "./core/pull";
 import { Push } from "./core/push";
 import { WorkflowOperation } from "./lib/workflows";
 
-import { initializeLogger, getLogger, finalizeLogger, finalizeAllGuidLoggers } from "./core/state";
+import { initializeLogger, getLogger, finalizeLogger } from "./core/state";
 
 let auth: Auth;
 

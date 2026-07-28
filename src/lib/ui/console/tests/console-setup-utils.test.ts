@@ -11,7 +11,7 @@ beforeEach(() => {
   resetState();
   // Provide valid state so validateLoggingState passes by default
   state.rootPath = "agility-files";
-  state.sourceGuid = ["test-guid"];
+  state.sourceGuid = "test-guid";
   state.locale = ["en-us"];
   jest.spyOn(console, "log").mockImplementation(() => {});
   jest.spyOn(console, "warn").mockImplementation(() => {});
@@ -56,8 +56,8 @@ describe("validateConsoleSetup", () => {
     expect(result.errors.some((e) => e.toLowerCase().includes("rootpath"))).toBe(true);
   });
 
-  it("reports error when sourceGuid is an empty array", () => {
-    state.sourceGuid = [];
+  it("reports error when sourceGuid is empty", () => {
+    state.sourceGuid = "";
     const result = validateConsoleSetup({ operationType: "pull" });
     expect(result.errors.some((e) => e.toLowerCase().includes("sourceguid"))).toBe(true);
   });

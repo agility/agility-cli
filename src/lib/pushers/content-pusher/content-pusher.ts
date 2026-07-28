@@ -18,10 +18,10 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
   const { ContentBatchProcessor } = await import("./content-batch-processor");
 
   const { sourceGuid, targetGuid, overwrite, cachedApiClient: apiClient } = state;
-  const logger = getLoggerForGuid(sourceGuid[0]);
+  const logger = getLoggerForGuid(sourceGuid);
 
-  const sourceGuidStr = sourceGuid[0];
-  const targetGuidStr = targetGuid[0];
+  const sourceGuidStr = sourceGuid;
+  const targetGuidStr = targetGuid;
 
   const modelMapper = new ModelMapper(sourceGuidStr, targetGuidStr);
   const containerMapper = new ContainerMapper(sourceGuidStr, targetGuidStr);

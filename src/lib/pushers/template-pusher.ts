@@ -14,7 +14,7 @@ export async function pushTemplates(
 ): Promise<PusherResult> {
 
   const { sourceGuid, cachedApiClient: apiClient } = state;
-  const logger = getLoggerForGuid(sourceGuid[0]);
+  const logger = getLoggerForGuid(sourceGuid);
 
   if (!sourceTemplates || sourceTemplates.length === 0) {
     console.log("No sourceTemplates found to process.");
@@ -32,7 +32,7 @@ export async function pushTemplates(
     let sourceTemplate = sourceTemplates[i];
 
     const { sourceGuid, targetGuid } = state;
-    const referenceMapper = new TemplateMapper(sourceGuid[0], targetGuid[0]);
+    const referenceMapper = new TemplateMapper(sourceGuid, targetGuid);
 
     let existingMapping = referenceMapper.getTemplateMapping(sourceTemplate, "source");
     let targetTemplate: mgmtApi.PageModel | null = null;
@@ -51,7 +51,7 @@ export async function pushTemplates(
             new Error(
               `A target template named "${targetTemplate.pageTemplateName}" with ID: ${targetTemplate.pageTemplateID} exists but is not mapped to source ID ${sourceTemplate.pageTemplateID} (likely a rename or reassignment of the source template).`
             ),
-            targetGuid[0]
+            targetGuid
           );
           throw new Error(
             `Page template validation failed: mapping inconsistency for template "${sourceTemplate.pageTemplateName}" (ID: ${sourceTemplate.pageTemplateID}). ` +
@@ -70,7 +70,7 @@ export async function pushTemplates(
     const shouldSkip = existingMapping !== null && targetTemplate !== null && !templateChanged;
 
     if (shouldSkip) {
-      logger.template.skipped(sourceTemplate, "Up to date, skipping", targetGuid[0]);
+      logger.template.skipped(sourceTemplate, "Up to date, skipping", targetGuid);
       preflightReport.record({
         phase: "Templates",
         action: "skip",
@@ -104,14 +104,14 @@ export async function pushTemplates(
 
         // should have the models by now
         if (sourceContentSecDef.contentDefinitionID) {
-          const modelMappers = new ModelMapper(sourceGuid[0], targetGuid[0]);
+          const modelMappers = new ModelMapper(sourceGuid, targetGuid);
           const modelMapping = modelMappers.getModelMappingByID(sourceContentSecDef.contentDefinitionID, "source");
           if (modelMapping?.targetID) mappedDef.contentDefinitionID = modelMapping.targetID;
         }
 
         // should have the containers by now
         if (sourceContentSecDef.itemContainerID) {
-          const containerMappers = new ContainerMapper(sourceGuid[0], targetGuid[0]);
+          const containerMappers = new ContainerMapper(sourceGuid, targetGuid);
           const containerMapping = containerMappers.getContainerMappingByContentViewID(sourceContentSecDef.itemContainerID, "source");
           if (containerMapping?.targetContentViewID) mappedDef.itemContainerID = containerMapping.targetContentViewID;
         }
@@ -126,19 +126,19 @@ export async function pushTemplates(
       };
 
       try {
-        const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid[0], locale, payload);
+        const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid, locale, payload);
         referenceMapper.addMapping(sourceTemplate, savedTemplate);
         const action = shouldUpdate ? "updated" : "created";
-        logger.template[action](sourceTemplate, action, targetGuid[0]);
+        logger.template[action](sourceTemplate, action, targetGuid);
         successful++;
       } catch (error: any) {
-        logger.template.error(sourceTemplate, error, targetGuid[0]);
+        logger.template.error(sourceTemplate, error, targetGuid);
         failed++;
         overallStatus = "error";
         failureDetails.push({
           name: sourceTemplate.pageTemplateName,
           error: error?.message || String(error),
-          guid: sourceGuid[0],
+          guid: sourceGuid,
         });
       }
     }

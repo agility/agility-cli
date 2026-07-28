@@ -88,7 +88,7 @@ describe("Auth.determineBaseUrl", () => {
     expect(auth.determineBaseUrl()).toBe("https://mgmt.aglty.io");
   });
 
-  it("falls back to sourceGuid[0] when no explicit guid is provided", () => {
+  it("falls back to sourceGuid when no explicit guid is provided", () => {
     setState({ sourceGuid: "my-guid-c" });
     const auth = new Auth();
     expect(auth.determineBaseUrl()).toBe("https://mgmt-ca.aglty.io");

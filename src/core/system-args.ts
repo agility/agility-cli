@@ -109,39 +109,15 @@ export const systemArgs = {
   // Instance identification args
   sourceGuid: {
     describe:
-      "The source Agility instance GUID — the instance you pull from (and the source for a sync). Comma-separated for multiple instances (e.g., 'guid1,guid2,guid3'). Required for pull and sync; falls back to AGILITY_GUID from your .env file when omitted.",
-    alias: [
-      "source-guid",
-      "sourceguid",
-      "source",
-      "SourceGuid",
-      "SourceGUID",
-      "SOURCE",
-      "SOURCEGUID",
-      "sourceGuids",
-      "source-guids",
-      "SourceGuids",
-      "SOURCEGUIDS",
-    ],
+      "The source Agility instance GUID — the instance you pull from (and the source for a sync). Required for pull and sync; falls back to AGILITY_GUID from your .env file when omitted.",
+    alias: ["source-guid", "sourceguid", "source", "SourceGuid", "SourceGUID", "SOURCE", "SOURCEGUID"],
     demandOption: false,
     type: "string" as const,
   },
   targetGuid: {
     describe:
-      "The target Agility instance GUID — the instance you push/sync to. Comma-separated for multiple instances (e.g., 'guid1,guid2,guid3'). Required for sync and push; falls back to AGILITY_TARGET_GUID from your .env file when omitted.",
-    alias: [
-      "target-guid",
-      "targetguid",
-      "target",
-      "TargetGuid",
-      "TargetGUID",
-      "TARGET",
-      "TARGETGUID",
-      "targetGuids",
-      "target-guids",
-      "TargetGuids",
-      "TARGETGUIDS",
-    ],
+      "The target Agility instance GUID — the instance you push/sync to. Required for sync and push; falls back to AGILITY_TARGET_GUID from your .env file when omitted.",
+    alias: ["target-guid", "targetguid", "target", "TargetGuid", "TargetGUID", "TARGET", "TARGETGUID"],
     demandOption: false,
     type: "string" as const,
   },

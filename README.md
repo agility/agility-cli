@@ -300,7 +300,7 @@ agility-files/
 > **Recommended Practices:**
 >
 > - **Persist your mappings** through shared file storage or a repository (e.g., Git) when working on a team
-> - **Do not have multiple instances of the CLI syncing the same source→target instance pairs simultaneously** - this can cause mapping conflicts and duplicate content
+> - **Do not run multiple CLI processes against the same source→target pair at the same time** - each invocation handles exactly one source/target pair; running two overlapping processes against that same pair can still cause mapping conflicts and duplicate content
 > - **Back up your `agility-files/mappings/` directory** before performing destructive operations
 
 ## File Structure

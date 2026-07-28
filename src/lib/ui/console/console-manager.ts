@@ -216,7 +216,7 @@ export class ConsoleManager {
   static createFileOps(guid?: string): fileOperations {
     const state = getState();
     const targetGuid = guid || state.sourceGuid;
-    return new fileOperations(targetGuid[0], state.locale[0]);
+    return new fileOperations(targetGuid, state.locale[0]);
   }
 
   /**

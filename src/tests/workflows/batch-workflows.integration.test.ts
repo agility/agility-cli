@@ -70,7 +70,7 @@ describe("Batch Workflow Operations - Integration Tests", () => {
     apiClient = new mgmtApi.ApiClient(options);
 
     // Set state for the workflow functions
-    state.targetGuid = [targetGuid];
+    state.targetGuid = targetGuid;
     state.mgmtApiOptions = options;
     state.cachedApiClient = apiClient;
   });

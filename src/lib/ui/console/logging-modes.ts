@@ -298,7 +298,7 @@ export class LoggingModes {
       errors.push("rootPath is required for file logging");
     }
 
-    if (!state.sourceGuid?.length) {
+    if (!state.sourceGuid) {
       errors.push("sourceGuid is required for logging operations");
     }
 

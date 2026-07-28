@@ -31,7 +31,7 @@ export async function pushContainers(
   // Extract data from sourceData - unified parameter pattern
   const sourceContainers: mgmtApi.Container[] = sourceData || [];
   const { sourceGuid, targetGuid, cachedApiClient: apiClient, overwrite } = state;
-  const logger = getLoggerForGuid(sourceGuid[0]);
+  const logger = getLoggerForGuid(sourceGuid);
 
   if (!sourceContainers || sourceContainers.length === 0) {
     logger.log("INFO", "No containers found to process.");
@@ -45,8 +45,8 @@ export async function pushContainers(
   let overallStatus: "success" | "error" = "success";
   const failureDetails: FailureDetail[] = [];
 
-  const containerMapper = new ContainerMapper(sourceGuid[0], targetGuid[0]);
-  const modelMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
+  const containerMapper = new ContainerMapper(sourceGuid, targetGuid);
+  const modelMapper = new ModelMapper(sourceGuid, targetGuid);
 
   for (const sourceContainer of sourceContainers) {
     //SPECIAL CASE for fixed Agility containers
@@ -115,9 +115,9 @@ export async function pushContainers(
 
           if (!state.preflight) {
             containerMapper.addMapping(sourceContainer, targetByRef);
-            cacheTargetContainer(targetGuid[0], targetByRef);
+            cacheTargetContainer(targetGuid, targetByRef);
           }
-          logger.container.skipped(sourceContainer, "already exists on target; mapping row created", targetGuid[0]);
+          logger.container.skipped(sourceContainer, "already exists on target; mapping row created", targetGuid);
           preflightReport.record({
             phase: "Containers",
             action: "skip",
@@ -142,7 +142,7 @@ export async function pushContainers(
           logger.container.skipped(
             sourceContainer,
             `target container: ${existingMapping.targetReferenceName} was deleted, skipping!`,
-            targetGuid[0]
+            targetGuid
           );
           preflightReport.record({
             phase: "Containers",
@@ -165,7 +165,7 @@ export async function pushContainers(
         }
 
         if (targetModelID < 1) {
-          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0]);
+          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid);
           preflightReport.record({
             phase: "Containers",
             action: "skip",
@@ -175,7 +175,7 @@ export async function pushContainers(
           skipped++;
         } else if (shouldSkip) {
           // Container exists and is up to date - skip
-          logger.container.skipped(sourceContainer, "up to date, skipping", targetGuid[0]);
+          logger.container.skipped(sourceContainer, "up to date, skipping", targetGuid);
           preflightReport.record({
             phase: "Containers",
             action: "skip",
@@ -185,7 +185,7 @@ export async function pushContainers(
           skipped++;
         } else if (hasTargetChanges && !overwrite) {
           // Container exists and is up to date - skip
-          logger.container.error(sourceContainer, "Conflict detected, use --overwrite to force changes", targetGuid[0]);
+          logger.container.error(sourceContainer, "Conflict detected, use --overwrite to force changes", targetGuid);
           preflightReport.record({
             phase: "Containers",
             action: "conflict",
@@ -203,13 +203,13 @@ export async function pushContainers(
             sourceContainer,
             targetContainer,
             apiClient,
-            targetGuid[0],
+            targetGuid,
             targetModelID,
             logger
           );
 
           if (updateResult) {
-            logger.container.updated(sourceContainer, "updated", targetGuid[0]);
+            logger.container.updated(sourceContainer, "updated", targetGuid);
             const sourceMapping = containerMapper.getContainerMapping(sourceContainer, "source");
             const targetMapping = containerMapper.getContainerMapping(targetContainer, "target");
 
@@ -220,17 +220,17 @@ export async function pushContainers(
             }
 
             containerMapper.updateMapping(sourceContainer, updateResult, sourceMapping);
-            cacheTargetContainer(targetGuid[0], updateResult);
+            cacheTargetContainer(targetGuid, updateResult);
             successful++;
           } else {
-            logger.container.error(sourceContainer, "Failed to update container", targetGuid[0]);
+            logger.container.error(sourceContainer, "Failed to update container", targetGuid);
             failed++;
             currentStatus = "error";
             overallStatus = "error";
             failureDetails.push({
               name: sourceContainer.referenceName,
               error: `Failed to update container "${sourceContainer.referenceName}" (ID: ${sourceContainer.contentViewID})`,
-              guid: sourceGuid[0],
+              guid: sourceGuid,
             });
           }
         }
@@ -239,7 +239,7 @@ export async function pushContainers(
       if (shouldCreate) {
         // Container doesn't exist - create new one
         if (targetModelID < 1) {
-          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid[0]);
+          logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid);
           preflightReport.record({
             phase: "Containers",
             action: "skip",
@@ -256,38 +256,38 @@ export async function pushContainers(
           const createResult = await createNewContainer(
             sourceContainer,
             apiClient,
-            targetGuid[0],
+            targetGuid,
             targetModelID,
             logger
           );
 
           if (createResult) {
-            logger.container.created(sourceContainer, "created", targetGuid[0]);
+            logger.container.created(sourceContainer, "created", targetGuid);
             containerMapper.addMapping(sourceContainer, createResult);
-            cacheTargetContainer(targetGuid[0], createResult);
+            cacheTargetContainer(targetGuid, createResult);
             successful++;
           } else {
-            logger.container.error(sourceContainer, "Failed to create container", targetGuid[0]);
+            logger.container.error(sourceContainer, "Failed to create container", targetGuid);
             failed++;
             currentStatus = "error";
             overallStatus = "error";
             failureDetails.push({
               name: sourceContainer.referenceName,
               error: `Failed to create container "${sourceContainer.referenceName}"`,
-              guid: sourceGuid[0],
+              guid: sourceGuid,
             });
           }
         }
       }
     } catch (error: any) {
-      logger.container.error(sourceContainer, error, targetGuid[0]);
+      logger.container.error(sourceContainer, error, targetGuid);
       failed++;
       currentStatus = "error";
       overallStatus = "error";
       failureDetails.push({
         name: sourceContainer.referenceName,
         error: error?.message || String(error),
-        guid: sourceGuid[0],
+        guid: sourceGuid,
       });
     } finally {
       processedCount++;

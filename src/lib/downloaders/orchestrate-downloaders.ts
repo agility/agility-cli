@@ -84,19 +84,19 @@ export class Downloader {
   }
 
   /**
-   * Orchestrate multiple GUIDs (DEFAULT METHOD)
+   * Orchestrate the source and target GUIDs (DEFAULT METHOD)
    * Uses sequential mode when --local flag is set to prevent overwhelming local API
    */
   async instanceOrchestrator(fromPush: boolean): Promise<DownloadResults[]> {
     const state = getState();
-    const allGuids = [...state.sourceGuid, ...state.targetGuid];
+    const targets = [state.sourceGuid, state.targetGuid].filter(Boolean);
 
-    if (allGuids.length === 0) {
+    if (targets.length === 0) {
       throw new Error("No GUIDs available for download operation");
     }
 
     // Start ALL downloads simultaneously (true parallel execution) for cloud APIs
-    const downloadTasks = allGuids.map((guid) => this.guidDownloader(guid, fromPush));
+    const downloadTasks = targets.map((guid) => this.guidDownloader(guid, fromPush));
 
     const results = await Promise.allSettled(downloadTasks);
 
@@ -104,7 +104,7 @@ export class Downloader {
     const successfulResults: DownloadResults[] = [];
     const failedResults: Array<{ guid: string; error: string }> = [];
 
-    allGuids.forEach((guid, index) => {
+    targets.forEach((guid, index) => {
       const result = results[index];
       if (result.status === "fulfilled") {
         successfulResults.push(result.value);

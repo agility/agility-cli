@@ -25,14 +25,14 @@ export async function publishContentItem(
     if (!apiClient) {
       throw new Error("API client not available in state");
     }
-    if (!targetGuid?.length) {
+    if (!targetGuid) {
       throw new Error("Target GUID not available in state");
     }
     if (!locale) {
       throw new Error("Locale not available in state");
     }
 
-    const result = await apiClient.contentMethods.publishContent(contentId, targetGuid[0], locale);
+    const result = await apiClient.contentMethods.publishContent(contentId, targetGuid, locale);
 
     return {
       success: true,

@@ -57,14 +57,14 @@ export async function pushUrlRedirections(
 
   const { sourceGuid, targetGuid } = state;
 
-  const logger = getLoggerForGuid(sourceGuid[0]) || new Logs("push", "urlRedirection", sourceGuid[0]);
+  const logger = getLoggerForGuid(sourceGuid) || new Logs("push", "urlRedirection", sourceGuid);
 
   if (!redirections || redirections.length === 0) {
     console.log("No URL redirections found to process.");
     return { status: "success", successful: 0, failed: 0, skipped: 0 };
   }
 
-  const mapper = new UrlRedirectionMapper(sourceGuid[0], targetGuid[0]);
+  const mapper = new UrlRedirectionMapper(sourceGuid, targetGuid);
 
   let successful = 0;
   let failed = 0;
@@ -86,7 +86,7 @@ export async function pushUrlRedirections(
       // same self-heal behavior as galleries/models), then diff to decide update vs skip.
       mapper.addMapping(source.id, targetByOrigin.id, source.originUrl);
       if (areEquivalent(source, targetByOrigin)) {
-        logger.urlRedirection.skipped(source, "already exists in target by origin URL", targetGuid[0]);
+        logger.urlRedirection.skipped(source, "already exists in target by origin URL", targetGuid);
         preflightReport.record({
           phase: "URL Redirections",
           action: "skip",
@@ -99,7 +99,7 @@ export async function pushUrlRedirections(
       }
     } else if (mapping && targetById) {
       if (areEquivalent(source, targetById)) {
-        logger.urlRedirection.skipped(source, "up to date, skipping", targetGuid[0]);
+        logger.urlRedirection.skipped(source, "up to date, skipping", targetGuid);
         preflightReport.record({
           phase: "URL Redirections",
           action: "skip",
@@ -136,7 +136,7 @@ export async function pushUrlRedirections(
 
     try {
       const result = await saveUrlRedirections(
-        targetGuid[0],
+        targetGuid,
         batch.map((p) => p.payload)
       );
 
@@ -145,7 +145,7 @@ export async function pushUrlRedirections(
         const item = batch[created.index];
         if (item && created.urlRedirectionID) {
           mapper.addMapping(item.source.id, created.urlRedirectionID, item.source.originUrl);
-          logger.urlRedirection.created(item.source, "created", targetGuid[0]);
+          logger.urlRedirection.created(item.source, "created", targetGuid);
         }
         successful++;
       }
@@ -158,7 +158,7 @@ export async function pushUrlRedirections(
             updated.urlRedirectionID ?? item.payload.urlRedirectionID,
             item.source.originUrl
           );
-          logger.urlRedirection.updated(item.source, "updated", targetGuid[0]);
+          logger.urlRedirection.updated(item.source, "updated", targetGuid);
         }
         successful++;
       }
@@ -169,7 +169,7 @@ export async function pushUrlRedirections(
         logger.urlRedirection.skipped(
           item?.source ?? { originUrl: skippedItem.originUrl },
           `skipped by API: ${skippedItem.reason || "no reason given"}`,
-          targetGuid[0]
+          targetGuid
         );
         skipped++;
       }
@@ -178,7 +178,7 @@ export async function pushUrlRedirections(
       failed += batch.length;
       overallStatus = "error";
       for (const item of batch) {
-        logger.urlRedirection.error(item.source, error?.message || error, targetGuid[0]);
+        logger.urlRedirection.error(item.source, error?.message || error, targetGuid);
       }
     }
   }

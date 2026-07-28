@@ -64,7 +64,7 @@ describe("publishPage", () => {
       expect(result.error).toBeUndefined();
     });
 
-    it("calls pageMethods.publishPage with (pageId, targetGuid[0], locale)", async () => {
+    it("calls pageMethods.publishPage with (pageId, targetGuid, locale)", async () => {
       setState({ targetGuid: "page-target" });
       const mockPublish = jest.fn().mockResolvedValue({});
       jest.spyOn(require("core/state"), "getApiClient").mockReturnValue({

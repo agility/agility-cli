@@ -226,7 +226,7 @@ export class ContentBatchProcessor {
               item.originalContent,
               `Type: ${batchType} -  created`,
               this.config.locale,
-              state.targetGuid[0]
+              state.targetGuid
             );
           });
         }
@@ -235,7 +235,7 @@ export class ContentBatchProcessor {
           console.log(`❌ Batch ${batchNumber} failed items:`);
           batchResult.failedItems.forEach((item) => {
             // const modelName = item.originalContent.properties.definitionName || "Unknown";
-            logger.content.error(item.originalContent, item.error, this.config.locale, state.targetGuid[0]);
+            logger.content.error(item.originalContent, item.error, this.config.locale, state.targetGuid);
           });
         }
 

@@ -187,7 +187,7 @@ export async function processBatches(
   logLine(ansiColors.cyan(`\n${operationName}ing ${uniqueIds.length} ${label.toLowerCase()} items...`), logLines);
 
   // Get item display info and show breakdown (ALL items, no truncation)
-  const targetGuid = state.targetGuid?.[0];
+  const targetGuid = state.targetGuid;
   if (targetGuid) {
     const displayMap =
       type === "content"
