@@ -3,6 +3,7 @@ import ansiColors from "ansi-colors";
 import { PageMapper } from "../../mappers/page-mapper";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { TemplateMapper } from "lib/mappers/template-mapper"; // Internal helper function to process a single page
+import { SectionMapper } from "lib/mappers/section-mapper";
 import { translateZoneNames } from "./translate-zone-names";
 import { findPageInOtherLocale, OtherLocaleMapping } from "./find-page-in-other-locale";
 import { Logs } from "core/logs";
@@ -48,6 +49,7 @@ export async function processPage({
 
   try {
     let targetTemplate: mgmtApi.PageModel | null = null;
+    let sourceTemplate: mgmtApi.PageModel | null = null;
     // Only try to find template mapping for non-folder pages
     if (page.pageType !== "folder" && page.templateName) {
       // Find the template mapping
@@ -70,6 +72,9 @@ export async function processPage({
         return { status: "skip" };
       }
       targetTemplate = templateMapper.getMappedEntity(templateRef, "target") as mgmtApi.PageModel;
+      // PROD-2350: needed alongside targetTemplate so translateZoneNames can resolve each zone's
+      // current pageItemTemplateID on the source side before translating it through SectionMapper.
+      sourceTemplate = templateMapper.getMappedEntity(templateRef, "source") as mgmtApi.PageModel;
     }
 
     //get the existing page from the target instance
@@ -172,7 +177,10 @@ export async function processPage({
     let sourceZones = page.zones ? { ...page.zones } : {}; // Clone zones or use empty object
 
     // CRITICAL: Translate zone names to match template expectations BEFORE content mapping
-    let mappedZones = translateZoneNames(sourceZones, targetTemplate) as { [key: string]: PageModuleExtended[] };
+    const sectionMapper = new SectionMapper(sourceGuid, targetGuid);
+    let mappedZones = translateZoneNames(sourceZones, targetTemplate, { sourceTemplate, sectionMapper }) as {
+      [key: string]: PageModuleExtended[];
+    };
 
     // Content mapping validation - collect all content IDs that need mapping
     const contentIdsToValidate: number[] = [];
