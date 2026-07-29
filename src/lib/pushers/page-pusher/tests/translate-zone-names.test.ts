@@ -201,3 +201,78 @@ describe("translateZoneNames — edge cases", () => {
     expect(() => translateZoneNames(original, makeTemplate(["NewZone"]))).not.toThrow();
   });
 });
+
+// ─── PROD-2350: matching by name/ID instead of array position ─────────────────
+
+describe("translateZoneNames — PROD-2350 regression: reordered sections with matching names", () => {
+  it("keeps each zone's content with its own name even when target section order differs", () => {
+    // Source template sections in order [Main, Sidebar]; target in order [Sidebar, Main].
+    const zones = { Main: [module1], Sidebar: [module2] };
+    const template: any = {
+      contentSectionDefinitions: [
+        { pageItemTemplateReferenceName: "Sidebar", itemOrder: 0 },
+        { pageItemTemplateReferenceName: "Main", itemOrder: 1 },
+      ],
+    };
+    const result = translateZoneNames(zones, template);
+    expect(result["Main"]).toEqual([module1]);
+    expect(result["Sidebar"]).toEqual([module2]);
+  });
+
+  it("matches by name even when only one of several zones is reordered", () => {
+    const zones = { A: [module1], B: [module2], C: [module3] };
+    const template = makeTemplate(["C", "A", "B"]); // reordered vs. source insertion order
+    const result = translateZoneNames(zones, template);
+    expect(result["A"]).toEqual([module1]);
+    expect(result["B"]).toEqual([module2]);
+    expect(result["C"]).toEqual([module3]);
+  });
+});
+
+// ─── ID-based resolution via SectionMapper ─────────────────────────────────────
+
+describe("translateZoneNames — ID-based resolution via SectionMapper", () => {
+  it("resolves a renamed zone through the persisted section ID mapping", () => {
+    // Page was pulled while the source section was still called "OldName". The source
+    // template has since been renamed to "NewName" (same pageItemTemplateID: 5), and the
+    // target section was already mapped to pageItemTemplateID 50 under its own current name.
+    const zones = { OldName: [module1] };
+    const sourceTemplate: any = {
+      contentSectionDefinitions: [{ pageItemTemplateID: 5, pageItemTemplateReferenceName: "OldName" }],
+    };
+    const targetTemplate: any = {
+      contentSectionDefinitions: [{ pageItemTemplateID: 50, pageItemTemplateReferenceName: "TargetCurrentName" }],
+    };
+    const sectionMapper: any = {
+      getSectionMappingByID: jest.fn().mockImplementation((id: number, type: string) =>
+        type === "source" && id === 5 ? { sourcePageItemTemplateID: 5, targetPageItemTemplateID: 50 } : null
+      ),
+    };
+
+    const result = translateZoneNames(zones, targetTemplate, { sourceTemplate, sectionMapper });
+    expect(result["TargetCurrentName"]).toEqual([module1]);
+    expect(result).not.toHaveProperty("OldName");
+  });
+
+  it("falls back to name/positional matching when no section mapping is recorded yet", () => {
+    const zones = { Main: [module1] };
+    const sourceTemplate: any = {
+      contentSectionDefinitions: [{ pageItemTemplateID: 5, pageItemTemplateReferenceName: "Main" }],
+    };
+    const targetTemplate = makeTemplate(["Main"]);
+    const sectionMapper: any = { getSectionMappingByID: jest.fn().mockReturnValue(null) };
+
+    const result = translateZoneNames(zones, targetTemplate, { sourceTemplate, sectionMapper });
+    expect(result["Main"]).toEqual([module1]);
+  });
+
+  it("falls back to name/positional matching when sourceTemplate is not provided", () => {
+    const zones = { Main: [module1] };
+    const targetTemplate = makeTemplate(["Main"]);
+    const sectionMapper: any = { getSectionMappingByID: jest.fn() };
+
+    const result = translateZoneNames(zones, targetTemplate, { sectionMapper });
+    expect(result["Main"]).toEqual([module1]);
+    expect(sectionMapper.getSectionMappingByID).not.toHaveBeenCalled();
+  });
+});
