@@ -26,6 +26,7 @@ import {
   resetState,
   primeFromEnv,
   systemArgs,
+  workflowArgs,
   normalizeProcessArgs,
   normalizeArgv,
 } from "./core";
@@ -290,6 +291,8 @@ yargs.command({
     },
     // System args (commonly repeated across commands)
     ...systemArgs,
+    // Explicit content/page ID overrides — only meaningful for workflow operations (PROD-2230)
+    ...workflowArgs,
   },
   handler: async function (argv) {
     resetState(); // Clear any previous command state
