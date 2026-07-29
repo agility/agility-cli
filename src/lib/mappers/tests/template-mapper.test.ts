@@ -3,6 +3,7 @@ import * as os from "os";
 import * as path from "path";
 import { resetState, setState } from "core/state";
 import { TemplateMapper } from "lib/mappers/template-mapper";
+import { SectionMapper } from "lib/mappers/section-mapper";
 
 let tmpDir: string;
 
@@ -202,6 +203,13 @@ function makeSection(overrides: Record<string, any> = {}): any {
   };
 }
 
+let sectionMapperCounter = 0;
+
+function makeSectionMapper(): SectionMapper {
+  sectionMapperCounter++;
+  return new SectionMapper(`sm-src-${sectionMapperCounter}`, `sm-tgt-${sectionMapperCounter}`);
+}
+
 describe("TemplateMapper.hasTemplateChanged", () => {
   it("returns false when either template is null", () => {
     const mapper = makeMapper();
@@ -269,5 +277,89 @@ describe("TemplateMapper.hasTemplateChanged", () => {
   it("returns true when the template is renamed", () => {
     const mapper = makeMapper();
     expect(mapper.hasTemplateChanged(makeTemplate({ pageTemplateName: "New" }), makeTemplate())).toBe(true);
+  });
+});
+
+// ─── hasTemplateChanged — with SectionMapper (ID-based matching, PROD-2350) ──
+
+describe("TemplateMapper.hasTemplateChanged — with SectionMapper", () => {
+  it("detects a change that pure reference-name matching would miss", () => {
+    // Two sections trade reference names AND item orders at the same time, so once both
+    // arrays are sorted by name, they serialize to the exact same JSON — a false "unchanged"
+    // if matching purely by name. Section id 1 is mapped to target id 10 (currently "main"/1);
+    // source id 1 has actually changed to "footer"/2, which the ID-based pairing catches
+    // immediately since it never re-derives identity from the (now swapped) names.
+    const mapper = makeMapper();
+    const sectionMapper = makeSectionMapper();
+    sectionMapper.addMapping(
+      makeSection({ pageItemTemplateID: 1, pageItemTemplateReferenceName: "main", itemOrder: 1 }),
+      makeSection({ pageItemTemplateID: 10, pageItemTemplateReferenceName: "main", itemOrder: 1 })
+    );
+    sectionMapper.addMapping(
+      makeSection({ pageItemTemplateID: 2, pageItemTemplateReferenceName: "footer", itemOrder: 2 }),
+      makeSection({ pageItemTemplateID: 20, pageItemTemplateReferenceName: "footer", itemOrder: 2 })
+    );
+
+    const source = makeTemplate({
+      contentSectionDefinitions: [
+        makeSection({ pageItemTemplateID: 1, pageItemTemplateReferenceName: "footer", itemOrder: 2 }),
+        makeSection({ pageItemTemplateID: 2, pageItemTemplateReferenceName: "main", itemOrder: 1 }),
+      ],
+    });
+    const target = makeTemplate({
+      contentSectionDefinitions: [
+        makeSection({ pageItemTemplateID: 10, pageItemTemplateReferenceName: "main", itemOrder: 1 }),
+        makeSection({ pageItemTemplateID: 20, pageItemTemplateReferenceName: "footer", itemOrder: 2 }),
+      ],
+    });
+
+    // Without the section mapping, this looks unchanged (false negative).
+    expect(mapper.hasTemplateChanged(source, target)).toBe(false);
+    // With it, the swap is correctly detected.
+    expect(mapper.hasTemplateChanged(source, target, sectionMapper)).toBe(true);
+  });
+
+  it("returns false when sections are correctly matched by ID and nothing actually changed", () => {
+    const mapper = makeMapper();
+    const sectionMapper = makeSectionMapper();
+    sectionMapper.addMapping(
+      makeSection({ pageItemTemplateID: 1, pageItemTemplateReferenceName: "main" }),
+      makeSection({ pageItemTemplateID: 10, pageItemTemplateReferenceName: "main" })
+    );
+
+    const source = makeTemplate({ contentSectionDefinitions: [makeSection({ pageItemTemplateID: 1 })] });
+    const target = makeTemplate({ contentSectionDefinitions: [makeSection({ pageItemTemplateID: 10 })] });
+
+    expect(mapper.hasTemplateChanged(source, target, sectionMapper)).toBe(false);
+  });
+
+  it("detects a rename via the ID mapping even when the target still has the old name", () => {
+    const mapper = makeMapper();
+    const sectionMapper = makeSectionMapper();
+    sectionMapper.addMapping(
+      makeSection({ pageItemTemplateID: 1, pageItemTemplateReferenceName: "OldName" }),
+      makeSection({ pageItemTemplateID: 10, pageItemTemplateReferenceName: "OldName" })
+    );
+
+    const source = makeTemplate({
+      contentSectionDefinitions: [
+        makeSection({ pageItemTemplateID: 1, pageItemTemplateReferenceName: "NewName" }),
+      ],
+    });
+    const target = makeTemplate({
+      contentSectionDefinitions: [makeSection({ pageItemTemplateID: 10, pageItemTemplateReferenceName: "OldName" })],
+    });
+
+    expect(mapper.hasTemplateChanged(source, target, sectionMapper)).toBe(true);
+  });
+
+  it("falls back to reference-name matching for sections with no recorded ID mapping", () => {
+    const mapper = makeMapper();
+    const sectionMapper = makeSectionMapper(); // empty — no mappings recorded yet
+
+    const source = makeTemplate({ contentSectionDefinitions: [makeSection()] });
+    const target = makeTemplate({ contentSectionDefinitions: [makeSection()] });
+
+    expect(mapper.hasTemplateChanged(source, target, sectionMapper)).toBe(false);
   });
 });
