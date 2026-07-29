@@ -236,6 +236,80 @@ describe("ContentFieldMapper.mapContentFields", () => {
     });
   });
 
+  // ─── single-item linked-content selection (PROD-2341) ───────────────────────
+  describe("single-item linked-content selection", () => {
+    it("emits the remapped contentID as a SCALAR string for { contentid, fulllist:false } (the drawGame shape)", () => {
+      // Real mapper records expose `targetContentID`, NOT `contentID`; the remap must read that,
+      // and the batch engine reads the field with `row[col] as string`, so it must be a scalar.
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockReturnValue({ targetContentID: 571 }),
+      });
+      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const fields = { drawGame: { contentid: 11868, fulllist: false } };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.drawGame).toBe("571");
+      expect(result.validationErrors).toBe(0);
+    });
+
+    it("handles the capital-D contentID / fullList keys for a single-item selection", () => {
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockReturnValue({ targetContentID: 109 }),
+      });
+      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const fields = { drawGame: { contentID: 11877, fullList: false } };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.drawGame).toBe("109");
+    });
+
+    it("warns and leaves the value untouched when the referenced item is not mapped", () => {
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper: makeAssetMapper() };
+      const fields = { drawGame: { contentid: 99999, fulllist: false } };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.drawGame).toEqual({ contentid: 99999, fulllist: false });
+      expect(result.validationWarnings).toBeGreaterThan(0);
+    });
+
+    it("leaves an empty selection ({ fulllist:false }, no contentid) unchanged", () => {
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper: makeAssetMapper() };
+      const fields = { drawGame: { fulllist: false } };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.drawGame).toEqual({ fulllist: false });
+    });
+
+    it("does NOT scalar-ize a bare nested { contentid } reference (no fulllist key) — keeps object remap via targetContentID", () => {
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockReturnValue({ targetContentID: 99 }),
+      });
+      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const fields = { related: { contentid: 10 } };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.related).toEqual({ contentid: 99 });
+    });
+
+    it("does NOT scalar-ize a whole-list link ({ fulllist:true }) — leaves it as a list reference", () => {
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockReturnValue({ targetContentID: 571 }),
+      });
+      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const fields = { items: { referencename: "somelist", fulllist: true } };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.items).toEqual({ referencename: "somelist", fulllist: true });
+    });
+
+    it("remaps sortids (multi-select) using targetContentID as a comma string", () => {
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockImplementation((id: number) => {
+          const map: Record<number, number> = { 11868: 571, 11877: 109 };
+          return map[id] ? { targetContentID: map[id] } : null;
+        }),
+      });
+      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const fields = { list: { sortids: "11868,11877" } };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.list.sortids).toBe("571,109");
+    });
+  });
+
   describe("cdn URL string fields", () => {
     it("increments validationErrors for a cdn.aglty.io string field when no context is given (mapAssetUrl throws)", () => {
       // mapAssetUrl unconditionally accesses context.assetMapper, so passing no context throws,

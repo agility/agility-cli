@@ -11,6 +11,35 @@ import { GalleryMapper } from "lib/mappers/gallery-mapper";
 import { preflightReport } from "../preflight/preflight-report";
 
 /**
+ * Build the focal-point query string (`&focalX=..&focalY=..`) for an asset upload.
+ *
+ * Focal point is captured from the image response headers during download and
+ * persisted onto the per-asset JSON (assets/{mediaID}.json). We read it back
+ * here so the target instance stores the same focal point as the source.
+ * Returns an empty string when the asset has no focal point.
+ */
+export function buildFocalPointQuery(media: mgmtApi.Media, sourceGuid: string): string {
+  try {
+    const fileOps = new fileOperations(sourceGuid);
+    const stored = fileOps.readJsonFile(`assets/${media.mediaID}.json`);
+    if (!stored) return "";
+
+    const params: string[] = [];
+    const focalX = stored.focalX;
+    const focalY = stored.focalY;
+    if (focalX !== undefined && focalX !== null && `${focalX}`.trim() !== "") {
+      params.push(`focalX=${encodeURIComponent(`${focalX}`.trim())}`);
+    }
+    if (focalY !== undefined && focalY !== null && `${focalY}`.trim() !== "") {
+      params.push(`focalY=${encodeURIComponent(`${focalY}`.trim())}`);
+    }
+    return params.length > 0 ? `&${params.join("&")}` : "";
+  } catch {
+    return "";
+  }
+}
+
+/**
  * Extract meaningful error message from API errors
  */
 function extractErrorMessage(error: any): string {
@@ -49,7 +78,7 @@ export async function pushAssets(
 
   // Get state values and logger
   const { sourceGuid, targetGuid, locale, preview: isPreview } = state;
-  const logger = getLoggerForGuid(sourceGuid[0]);
+  const logger = getLoggerForGuid(sourceGuid);
 
   if (!assets || assets.length === 0) {
     logger.log("INFO", "No assets found to process.");
@@ -61,11 +90,11 @@ export async function pushAssets(
 
   // Initialize reference mapper and asset mapper
   // const referenceMapper = new ReferenceMapperV2();
-  const referenceMapper = new AssetMapper(sourceGuid[0], targetGuid[0]);
+  const referenceMapper = new AssetMapper(sourceGuid, targetGuid);
 
   let defaultContainer: mgmtApi.assetContainer | null = null;
   try {
-    defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid[0]);
+    defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid);
   } catch (err: any) {
     console.error("✗ Error fetching default asset container:", err.message);
     return { status: "error", successful: 0, failed: 0, skipped: 0 };
@@ -78,7 +107,7 @@ export async function pushAssets(
   let processedAssetsCount = 0;
   let overallStatus: "success" | "error" = "success";
 
-  const fileOps = new fileOperations(sourceGuid[0]);
+  const fileOps = new fileOperations(sourceGuid);
   const basePath = fileOps.getDataFolderPath();
 
   for (const media of assets) {
@@ -109,7 +138,7 @@ export async function pushAssets(
       // If no mapping but asset exists by originKey in target, create mapping and skip
       if (!existingMapping && targetAssetByOriginKey) {
         referenceMapper.addMapping(media, targetAssetByOriginKey);
-        logger.asset.skipped(media, "already exists in target by path", targetGuid[0]);
+        logger.asset.skipped(media, "already exists in target by path", targetGuid);
         preflightReport.record({
           phase: "Assets",
           action: "skip",
@@ -149,8 +178,8 @@ export async function pushAssets(
             absoluteLocalFilePath,
             folderPath,
             apiClient,
-            sourceGuid[0],
-            targetGuid[0],
+            sourceGuid,
+            targetGuid,
             referenceMapper,
             logger
           );
@@ -167,8 +196,8 @@ export async function pushAssets(
             absoluteLocalFilePath,
             folderPath,
             apiClient,
-            sourceGuid[0],
-            targetGuid[0],
+            sourceGuid,
+            targetGuid,
             referenceMapper,
             logger
           );
@@ -177,7 +206,7 @@ export async function pushAssets(
         successful++;
       } else if (shouldSkip) {
         // Asset exists and is up to date - skip
-        logger.asset.skipped(media, "up to date, skipping", targetGuid[0]);
+        logger.asset.skipped(media, "up to date, skipping", targetGuid);
         preflightReport.record({ phase: "Assets", action: "skip", name: media.fileName, detail: "up to date" });
         skipped++;
       } else if (isConflict) {
@@ -192,7 +221,7 @@ export async function pushAssets(
       }
     } catch (error: any) {
       const errorMsg = extractErrorMessage(error);
-      logger.asset.error(media, errorMsg, targetGuid[0]);
+      logger.asset.error(media, errorMsg, targetGuid);
 
       failed++;
       currentStatus = "error";
@@ -258,7 +287,8 @@ async function createAsset(
   const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
   const token = (apiClient as any)._options?.token;
 
-  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}`;
+  const focalPointQuery = buildFocalPointQuery(media, sourceGuid);
+  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}${focalPointQuery}`;
   const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
 
   const response = await axios.post(url, form, {
@@ -342,7 +372,8 @@ async function updateAsset(
   const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
   const token = (apiClient as any)._options?.token;
 
-  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}`;
+  const focalPointQuery = buildFocalPointQuery(media, sourceGuid);
+  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}${focalPointQuery}`;
   const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
 
   const response = await axios.post(url, form, {

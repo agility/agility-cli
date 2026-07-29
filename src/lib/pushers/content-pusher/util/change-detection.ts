@@ -67,10 +67,8 @@ export function changeDetection(
       // and target version is newer than mapped target version
 
       //build the url to the source and target entity
-      //TODO: if there are multiple guids we need to handle that
-
-      const sourceUrl = `https://app.agilitycms.com/instance/${state.sourceGuid[0]}/${locale}/content/listitem-${sourceEntity.contentID}`;
-      const targetUrl = `https://app.agilitycms.com/instance/${state.targetGuid[0]}/${locale}/content/listitem-${targetEntity.contentID}`;
+      const sourceUrl = `https://app.agilitycms.com/instance/${state.sourceGuid}/${locale}/content/listitem-${sourceEntity.contentID}`;
+      const targetUrl = `https://app.agilitycms.com/instance/${state.targetGuid}/${locale}/content/listitem-${targetEntity.contentID}`;
 
       if (overwrite) {
         return {

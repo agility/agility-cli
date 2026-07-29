@@ -24,9 +24,10 @@ describe("PUSH_OPERATIONS registry", () => {
     expect(keys).toContain("content");
     expect(keys).toContain("templates");
     expect(keys).toContain("pages");
+    expect(keys).toContain("urlRedirections");
   });
 
-  it.each(["galleries", "assets", "models", "containers", "content", "templates", "pages"])(
+  it.each(["galleries", "assets", "models", "containers", "content", "templates", "pages", "urlRedirections"])(
     "%s operation has required fields",
     (key) => {
       const op = PUSH_OPERATIONS[key];
@@ -73,14 +74,19 @@ describe("PUSH_OPERATIONS registry", () => {
     expect(PUSH_OPERATIONS.pages.elements).toContain("Pages");
     expect(PUSH_OPERATIONS.pages.dataKey).toBe("pages");
   });
+
+  it("urlRedirections operation targets UrlRedirections element", () => {
+    expect(PUSH_OPERATIONS.urlRedirections.elements).toContain("UrlRedirections");
+    expect(PUSH_OPERATIONS.urlRedirections.dataKey).toBe("urlRedirections");
+  });
 });
 
 // ─── PushOperationsRegistry.getAllOperations ──────────────────────────────────
 
 describe("PushOperationsRegistry.getAllOperations", () => {
-  it("returns 7 operations total", () => {
+  it("returns 8 operations total", () => {
     const ops = PushOperationsRegistry.getAllOperations();
-    expect(ops).toHaveLength(7);
+    expect(ops).toHaveLength(8);
   });
 
   it("each operation has a handler function", () => {

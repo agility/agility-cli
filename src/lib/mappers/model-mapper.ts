@@ -57,6 +57,46 @@ export class ModelMapper {
     return mapping;
   }
 
+  /**
+   * PROD-1492: detect stale duplicate model mappings — two or more records that share a source
+   * `referenceName` but point at different source IDs. This happens when a source model is deleted
+   * and recreated (new ID, same reference name): the dead record lingers in the mapping alongside
+   * the live one. Because the content-side lookup (`getModelMappingByReferenceName`) is first-match-
+   * wins, it can latch onto the dead record, fail to read its (deleted) source model, and silently
+   * skip that model's content — after which every page referencing it fails. An Agility instance
+   * cannot have two models with the same reference name, so any such duplicate in the mapping is
+   * corruption, never a legitimate state.
+   *
+   * Returns one entry per offending reference name with its conflicting source IDs; empty when clean.
+   */
+  getDuplicateSourceReferenceNames(): { referenceName: string; sourceIDs: number[] }[] {
+    // Group by lowercased reference name using a plain object + arrays (no Map/Set iteration,
+    // which would need tsconfig `downlevelIteration` this project doesn't enable).
+    const groups: Record<string, { referenceName: string; sourceIDs: number[] }> = {};
+    for (const m of this.mappings) {
+      if (!m.sourceReferenceName) continue;
+      const key = m.sourceReferenceName.toLowerCase();
+      if (!groups[key]) {
+        groups[key] = { referenceName: m.sourceReferenceName, sourceIDs: [] };
+      }
+      if (groups[key].sourceIDs.indexOf(m.sourceID) === -1) {
+        groups[key].sourceIDs.push(m.sourceID);
+      }
+    }
+
+    const duplicates: { referenceName: string; sourceIDs: number[] }[] = [];
+    for (const key of Object.keys(groups)) {
+      const entry = groups[key];
+      if (entry.sourceIDs.length > 1) {
+        duplicates.push({
+          referenceName: entry.referenceName,
+          sourceIDs: entry.sourceIDs.slice().sort((a, b) => a - b),
+        });
+      }
+    }
+    return duplicates;
+  }
+
   getMappedEntity(mapping: ModelMapping, type: "source" | "target"): mgmtApi.Model | null {
     if (!mapping) return null;
     //fetch the model from the file system based on source or target GUID

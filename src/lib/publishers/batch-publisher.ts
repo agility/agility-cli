@@ -16,14 +16,14 @@ export async function publishBatch(batchId: number): Promise<{ success: boolean;
     if (!apiClient) {
       throw new Error("API client not available in state");
     }
-    if (!targetGuid?.length) {
+    if (!targetGuid) {
       throw new Error("Target GUID not available in state");
     }
 
     // Try different batch publishing API methods depending on SDK version
     let result;
 
-    result = await apiClient.batchMethods.publishBatch(batchId, targetGuid[0], true);
+    result = await apiClient.batchMethods.publishBatch(batchId, targetGuid, true);
 
     return {
       success: true,

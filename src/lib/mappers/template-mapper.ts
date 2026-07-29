@@ -1,5 +1,6 @@
 import { fileOperations } from "../../core";
 import * as mgmtApi from "@agility/management-sdk";
+import { SectionMapper } from "./section-mapper";
 interface TemplateMapping {
   sourceGuid: string;
   targetGuid: string;
@@ -7,24 +8,6 @@ interface TemplateMapping {
   targetPageTemplateID: number;
   sourcePageTemplateName: string;
   targetPageTemplateName: string;
-}
-
-// Templates have no lastModifiedDate, so change detection compares the source and
-// target structure directly. Per-instance IDs (pageItemTemplateID, pageTemplateID,
-// contentViewID, contentDefinitionID, itemContainerID) are excluded — they always
-// differ between instances. Sections are sorted by reference name so payload
-// ordering doesn't matter; itemOrder still captures real reordering.
-function normalizeTemplate(template: mgmtApi.PageModel): string {
-  const sections = (template.contentSectionDefinitions || [])
-    .map((def) => ({
-      name: def.pageItemTemplateName ?? null,
-      referenceName: def.pageItemTemplateReferenceName ?? null,
-      type: def.pageItemTemplateType ?? null,
-      itemOrder: def.itemOrder ?? null,
-    }))
-    .sort((a, b) => String(a.referenceName).localeCompare(String(b.referenceName)));
-
-  return JSON.stringify({ pageTemplateName: template.pageTemplateName ?? null, sections });
 }
 
 export class TemplateMapper {
@@ -133,8 +116,61 @@ export class TemplateMapper {
     this.fileOps.saveMappingFile(this.mappings, this.directory, this.sourceGuid, this.targetGuid);
   }
 
-  hasTemplateChanged(sourceTemplate: mgmtApi.PageModel | null, targetTemplate: mgmtApi.PageModel | null): boolean {
+  // Templates have no lastModifiedDate, so change detection compares the source and target
+  // structure directly. Per-instance IDs (pageItemTemplateID, pageTemplateID, contentViewID,
+  // contentDefinitionID, itemContainerID) are excluded — they always differ between instances.
+  //
+  // PROD-2350: pair each source section with its target counterpart by the persisted
+  // pageItemTemplateID mapping when one is available — that's the actual identity, not a
+  // name-based guess — and only fall back to a reference-name match when no mapping exists yet
+  // (bootstrap, or sectionMapper not supplied). Matching purely by reference name can silently
+  // miss a real change (e.g. two sections trade reference names and item orders at once) since
+  // it re-derives the pairing from a value that isn't guaranteed to still identify the section.
+  hasTemplateChanged(
+    sourceTemplate: mgmtApi.PageModel | null,
+    targetTemplate: mgmtApi.PageModel | null,
+    sectionMapper?: SectionMapper | null
+  ): boolean {
     if (!sourceTemplate || !targetTemplate) return false;
-    return normalizeTemplate(sourceTemplate) !== normalizeTemplate(targetTemplate);
+
+    if ((sourceTemplate.pageTemplateName ?? null) !== (targetTemplate.pageTemplateName ?? null)) return true;
+
+    const sourceSections = sourceTemplate.contentSectionDefinitions || [];
+    const targetSections = targetTemplate.contentSectionDefinitions || [];
+
+    if (sourceSections.length !== targetSections.length) return true;
+
+    for (const sourceSection of sourceSections) {
+      if (!sourceSection) return true;
+
+      let targetSection: mgmtApi.ContentSectionDefinition | null = null;
+
+      if (sectionMapper && sourceSection.pageItemTemplateID != null) {
+        const sectionMapping = sectionMapper.getSectionMappingByID(sourceSection.pageItemTemplateID, "source");
+        if (sectionMapping) {
+          targetSection =
+            targetSections.find((t) => t?.pageItemTemplateID === sectionMapping.targetPageItemTemplateID) ?? null;
+        }
+      }
+
+      if (!targetSection) {
+        targetSection =
+          targetSections.find(
+            (t) => t?.pageItemTemplateReferenceName === sourceSection.pageItemTemplateReferenceName
+          ) ?? null;
+      }
+
+      if (!targetSection) return true;
+
+      const sectionChanged =
+        (sourceSection.pageItemTemplateName ?? null) !== (targetSection.pageItemTemplateName ?? null) ||
+        (sourceSection.pageItemTemplateReferenceName ?? null) !== (targetSection.pageItemTemplateReferenceName ?? null) ||
+        (sourceSection.pageItemTemplateType ?? null) !== (targetSection.pageItemTemplateType ?? null) ||
+        (sourceSection.itemOrder ?? null) !== (targetSection.itemOrder ?? null);
+
+      if (sectionChanged) return true;
+    }
+
+    return false;
   }
 }

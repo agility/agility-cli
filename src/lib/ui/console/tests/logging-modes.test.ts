@@ -245,7 +245,7 @@ describe("LoggingModes.shouldShowContent", () => {
 describe("LoggingModes.validateLoggingState", () => {
   it("is valid with default state (rootPath, sourceGuid, locale populated)", () => {
     state.rootPath = "agility-files";
-    state.sourceGuid = ["test-guid"];
+    state.sourceGuid = "test-guid";
     state.locale = ["en-us"];
     const result = LoggingModes.validateLoggingState();
     expect(result.isValid).toBe(true);
@@ -254,16 +254,16 @@ describe("LoggingModes.validateLoggingState", () => {
 
   it("reports error when rootPath is missing", () => {
     state.rootPath = "";
-    state.sourceGuid = ["test-guid"];
+    state.sourceGuid = "test-guid";
     state.locale = ["en-us"];
     const result = LoggingModes.validateLoggingState();
     expect(result.isValid).toBe(false);
     expect(result.errors.some((e) => e.includes("rootPath"))).toBe(true);
   });
 
-  it("reports error when sourceGuid is empty array", () => {
+  it("reports error when sourceGuid is empty", () => {
     state.rootPath = "agility-files";
-    state.sourceGuid = [];
+    state.sourceGuid = "";
     state.locale = ["en-us"];
     const result = LoggingModes.validateLoggingState();
     expect(result.isValid).toBe(false);
@@ -272,7 +272,7 @@ describe("LoggingModes.validateLoggingState", () => {
 
   it("reports error when locale is empty array", () => {
     state.rootPath = "agility-files";
-    state.sourceGuid = ["test-guid"];
+    state.sourceGuid = "test-guid";
     state.locale = [];
     const result = LoggingModes.validateLoggingState();
     expect(result.isValid).toBe(false);
@@ -281,7 +281,7 @@ describe("LoggingModes.validateLoggingState", () => {
 
   it("warns when both headless and verbose are set", () => {
     state.rootPath = "agility-files";
-    state.sourceGuid = ["test-guid"];
+    state.sourceGuid = "test-guid";
     state.locale = ["en-us"];
     state.useHeadless = true;
     state.useVerbose = true;

@@ -81,6 +81,7 @@ export type EntityType =
   | "gallery"
   | "template"
   | "sitemap"
+  | "urlRedirection"
   | "auth"
   | "system"
   | "summary";
@@ -456,7 +457,7 @@ export class Logs {
       if (this.logs.length > 0) {
         // Count GUID occurrences in log messages to identify which GUID this logger belongs to
         const guidCounts = new Map<string, number>();
-        const allGuids = [...(state.sourceGuid || []), ...(state.targetGuid || [])];
+        const allGuids = [state.sourceGuid, state.targetGuid].filter(Boolean);
 
         this.logs.forEach((log) => {
           allGuids.forEach((guid) => {
@@ -478,8 +479,8 @@ export class Logs {
 
       // Build filename with GUID
       if (this.operationType === "push" || this.operationType === "sync") {
-        const sourceGuid = state.sourceGuid?.[0] || "unknown";
-        const targetGuid = state.targetGuid?.[0] || "unknown";
+        const sourceGuid = state.sourceGuid || "unknown";
+        const targetGuid = state.targetGuid || "unknown";
         filename = `${sourceGuid}-${targetGuid}-${this.operationType}-${timestamp}.txt`;
       } else {
         // For pull operations, use the specific GUID this logger is for
@@ -590,7 +591,7 @@ export class Logs {
    */
   private initializeGuidColors(): void {
     const state = getState();
-    const allGuids = [...(state.sourceGuid || []), ...(state.targetGuid || [])];
+    const allGuids = [state.sourceGuid, state.targetGuid].filter(Boolean);
 
     // Assign unique colors to each GUID
     allGuids.forEach((guid, index) => {
@@ -984,6 +985,30 @@ export class Logs {
     },
   };
 
+  // URL redirection logging methods
+  urlRedirection = {
+    created: (entity: any, details?: string, targetGuid?: string) => {
+      const itemName = entity?.originUrl || `URL Redirection ${entity?.id || "Unknown"}`;
+      this.logDataElement("urlRedirection", "created", "success", itemName, targetGuid, details);
+    },
+
+    updated: (entity: any, details?: string, targetGuid?: string) => {
+      const itemName = entity?.originUrl || `URL Redirection ${entity?.id || "Unknown"}`;
+      this.logDataElement("urlRedirection", "updated", "success", itemName, targetGuid, details);
+    },
+
+    skipped: (entity: any, details?: string, targetGuid?: string) => {
+      const itemName = entity?.originUrl || `URL Redirection`;
+      this.logDataElement("urlRedirection", "skipped", "skipped", itemName, targetGuid || this.guid, details);
+    },
+
+    error: (entity: any, apiError: any, targetGuid?: string) => {
+      const itemName = entity?.originUrl || `URL Redirection ${entity?.id || "Unknown"}`;
+      const errorDetails = apiError?.message || apiError || "Unknown error";
+      this.logDataElement("urlRedirection", "failed", "failed", itemName, targetGuid || this.guid, errorDetails);
+    },
+  };
+
   // Sitemap logging methods
   sitemap = {
     downloaded: (entity: any, details?: string) => {
@@ -1020,8 +1045,8 @@ export class Logs {
       GUID: this.guid || "Not specified",
       "Operation Type": this.operationType,
       "Entity Type": this.entityType || "All entities",
-      "Source GUIDs": state.sourceGuid?.join(", ") || "None",
-      "Target GUIDs": state.targetGuid?.join(", ") || "None",
+      "Source GUID": state.sourceGuid || "None",
+      "Target GUID": state.targetGuid || "None",
       Locales: this.guid ? state.guidLocaleMap?.get(this.guid)?.join(", ") || "Not specified" : "Multiple",
       Channel: state.channel || "Not specified",
       Elements: state.elements || "All",

@@ -131,7 +131,7 @@ export class Auth {
   determineBaseUrl(guid?: string): string {
     let baseGUID = guid;
     if (!baseGUID) {
-      baseGUID = state.sourceGuid[0];
+      baseGUID = state.sourceGuid;
     }
 
     if (state.dev) {
@@ -167,7 +167,7 @@ export class Auth {
   determineFetchUrl(guid?: string): string {
     let baseGUID = guid;
     if (!baseGUID) {
-      baseGUID = state.sourceGuid[0];
+      baseGUID = state.sourceGuid;
     }
 
     // Content Fetch API URLs are determined by GUID suffix only
@@ -200,7 +200,7 @@ export class Auth {
   determineCloudMgmtUrl(guid?: string): string {
     let baseGUID = guid;
     if (!baseGUID) {
-      baseGUID = state.sourceGuid[0];
+      baseGUID = state.sourceGuid;
     }
 
     // Cloud Management API URLs are determined by GUID suffix only
@@ -351,18 +351,25 @@ export class Auth {
       }
     }
 
-    // Step 3: Get API keys for all GUIDs
-    const allGuids = [...state.sourceGuid, ...state.targetGuid];
-    state.apiKeys = [];
+    // Step 3: Get API keys for the source and target GUIDs
+    state.sourceApiKeys = null;
+    state.targetApiKeys = null;
     const failedGuids: string[] = [];
 
-    for (const guid of allGuids) {
+    for (const [role, guid] of [
+      ["source", state.sourceGuid],
+      ["target", state.targetGuid],
+    ] as const) {
       if (guid) {
         try {
           const previewKey = await this.getPreviewKey(guid);
           const fetchKey = await this.getFetchKey(guid);
 
-          state.apiKeys.push({ guid, previewKey, fetchKey });
+          if (role === "source") {
+            state.sourceApiKeys = { previewKey, fetchKey };
+          } else {
+            state.targetApiKeys = { previewKey, fetchKey };
+          }
         } catch (error) {
           failedGuids.push(guid);
         }
@@ -401,9 +408,9 @@ export class Auth {
     state.cachedApiClient = new mgmtApi.ApiClient(state.mgmtApiOptions);
 
     // Load user data for interactive prompts and general use
-    if (state.sourceGuid.length > 0) {
+    if (state.sourceGuid) {
       try {
-        const primaryGuid = state.sourceGuid[0];
+        const primaryGuid = state.sourceGuid;
         const user = await this.getUser(primaryGuid);
         if (user) {
           state.user = user;
@@ -415,13 +422,13 @@ export class Auth {
       }
     }
 
-    // Step 6: Auto-detect available locales for ALL GUIDs in the matrix
-    if (allGuids.length > 0) {
+    // Step 6: Auto-detect available locales for the source and target GUIDs
+    if (state.sourceGuid || state.targetGuid) {
       try {
         //Get the locales for the SOURCE GUID
         let sourceLocales: string[] = [];
-        if (state.sourceGuid.length > 0) {
-          sourceLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.sourceGuid[0])).map(
+        if (state.sourceGuid) {
+          sourceLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.sourceGuid)).map(
             (locale: any) => locale.localeCode
           );
           state.availableLocales = sourceLocales;
@@ -429,8 +436,8 @@ export class Auth {
 
         //Get the locales for the TARGET GUID
         let targetLocales: string[] = [];
-        if (state.targetGuid.length > 0) {
-          targetLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.targetGuid[0])).map(
+        if (state.targetGuid) {
+          targetLocales = (await state.cachedApiClient.instanceMethods.getLocales(state.targetGuid)).map(
             (locale: any) => locale.localeCode
           );
 
@@ -451,7 +458,7 @@ export class Auth {
             const validationScope = state.locale.length > 0 ? "specified" : "source";
             console.log(
               ansiColors.yellow(
-                `⚠️  Target instance ${state.targetGuid[0]}: Missing ${validationScope} locales ${missingLocales.join(", ")} (available: ${targetLocales.join(", ")})`
+                `⚠️  Target instance ${state.targetGuid}: Missing ${validationScope} locales ${missingLocales.join(", ")} (available: ${targetLocales.join(", ")})`
               )
             );
             return false; // Cannot proceed with missing locales
@@ -465,7 +472,7 @@ export class Auth {
           if (validLocales.length === 0) {
             console.log(
               ansiColors.yellow(
-                `⚠️  None of the specified locales exist in the source instance ${state.sourceGuid[0]}. Using all available locales.`
+                `⚠️  None of the specified locales exist in the source instance ${state.sourceGuid}. Using all available locales.`
               )
             );
           } else {
@@ -474,11 +481,11 @@ export class Auth {
         }
 
         const guidLocaleMap = new Map<string, string[]>();
-        guidLocaleMap.set(state.sourceGuid[0], localesToUse);
+        guidLocaleMap.set(state.sourceGuid, localesToUse);
 
-        if (state.targetGuid.length > 0) {
+        if (state.targetGuid) {
           //if we have a target...
-          guidLocaleMap.set(state.targetGuid[0], localesToUse);
+          guidLocaleMap.set(state.targetGuid, localesToUse);
         }
 
         state.locale = localesToUse; // Set the state locale list to the determined locales
@@ -499,11 +506,8 @@ export class Auth {
         if (state.locale.length > 0) {
           // User specified locales explicitly, use those
           const guidLocaleMap = new Map<string, string[]>();
-          for (const guid of allGuids) {
-            if (guid) {
-              guidLocaleMap.set(guid, state.locale);
-            }
-          }
+          if (state.sourceGuid) guidLocaleMap.set(state.sourceGuid, state.locale);
+          if (state.targetGuid) guidLocaleMap.set(state.targetGuid, state.locale);
           state.guidLocaleMap = guidLocaleMap;
           state.availableLocales = state.locale;
           console.log(`📝 Using user-specified locales: ${state.locale.join(", ")}`);
@@ -995,7 +999,7 @@ export class Auth {
     // Check command-specific requirements
     switch (commandType) {
       case "pull":
-        if (!state.sourceGuid || state.sourceGuid.length === 0)
+        if (!state.sourceGuid)
           missingFields.push("sourceGuid (use --sourceGuid or AGILITY_GUID in .env)");
 
         // Check for locales: either user-specified OR auto-detected per-GUID mappings
@@ -1011,9 +1015,9 @@ export class Auth {
       case "push":
       case "sync":
         // Both push and sync require source and target GUIDs
-        if (!state.sourceGuid || state.sourceGuid.length === 0)
+        if (!state.sourceGuid)
           missingFields.push("sourceGuid (use --sourceGuid or AGILITY_GUID in .env)");
-        if (!state.targetGuid || state.targetGuid.length === 0)
+        if (!state.targetGuid)
           missingFields.push("targetGuid (use --targetGuid or AGILITY_TARGET_GUID in .env)");
 
         // Check for locales: either user-specified OR auto-detected per-GUID mappings
@@ -1046,21 +1050,21 @@ export class Auth {
 
     // Validate instance access and set up API configuration
     try {
-      if (commandType === "sync" && state.targetGuid && state.targetGuid.length > 0) {
-        // Sync operation - validate access to both source and target (use first GUID for validation)
+      if (commandType === "sync" && state.targetGuid) {
+        // Sync operation - validate access to both source and target
         if (!state.isAgilityDev && !state.dev) {
-          await this.validateInstanceAccess(state.sourceGuid[0], "source");
+          await this.validateInstanceAccess(state.sourceGuid, "source");
         }
-        await this.validateInstanceAccess(state.targetGuid[0], "target");
+        await this.validateInstanceAccess(state.targetGuid, "target");
 
-        // Configure for target instance (sync writes to target - use first target GUID)
-        const targetBaseUrl = state.baseUrl || this.determineBaseUrl(state.targetGuid[0]);
+        // Configure for target instance (sync writes to target)
+        const targetBaseUrl = state.baseUrl || this.determineBaseUrl(state.targetGuid);
         state.mgmtApiOptions!.baseUrl = targetBaseUrl;
         state.baseUrl = targetBaseUrl;
 
-        // Get API keys for source instance (needed for pull phase of sync - use first source GUID)
-        const previewKey = await this.getPreviewKey(state.sourceGuid[0]);
-        const fetchKey = await this.getFetchKey(state.sourceGuid[0]);
+        // Get API keys for source instance (needed for pull phase of sync)
+        const previewKey = await this.getPreviewKey(state.sourceGuid);
+        const fetchKey = await this.getFetchKey(state.sourceGuid);
 
         state.previewKey = previewKey;
         state.fetchKey = fetchKey;
@@ -1069,22 +1073,22 @@ export class Auth {
         if (!state.apiKeyForPull) {
           console.log(
             ansiColors.red(
-              `Could not retrieve the required API key (preview: ${state.preview}) for source instance ${state.sourceGuid[0]}. Check API key configuration in Agility.`
+              `Could not retrieve the required API key (preview: ${state.preview}) for source instance ${state.sourceGuid}. Check API key configuration in Agility.`
             )
           );
           return false;
         }
-      } else if (commandType === "pull" && state.sourceGuid && state.sourceGuid.length > 0) {
-        // Pull operation - validate source access and get API keys (use first source GUID for validation)
-        await this.validateInstanceAccess(state.sourceGuid[0], "instance");
+      } else if (commandType === "pull" && state.sourceGuid) {
+        // Pull operation - validate source access and get API keys
+        await this.validateInstanceAccess(state.sourceGuid, "instance");
 
-        const baseUrl = state.baseUrl || this.determineBaseUrl(state.sourceGuid[0]);
+        const baseUrl = state.baseUrl || this.determineBaseUrl(state.sourceGuid);
         state.mgmtApiOptions!.baseUrl = baseUrl;
         state.baseUrl = baseUrl;
 
-        // Get API keys for pull operations (use first source GUID)
-        const previewKey = await this.getPreviewKey(state.sourceGuid[0]);
-        const fetchKey = await this.getFetchKey(state.sourceGuid[0]);
+        // Get API keys for pull operations
+        const previewKey = await this.getPreviewKey(state.sourceGuid);
+        const fetchKey = await this.getFetchKey(state.sourceGuid);
 
         state.previewKey = previewKey;
         state.fetchKey = fetchKey;
@@ -1093,7 +1097,7 @@ export class Auth {
         if (!state.apiKeyForPull) {
           console.log(
             ansiColors.red(
-              `Could not retrieve the required API key (preview: ${state.preview}) for instance ${state.sourceGuid[0]}. Check API key configuration in Agility.`
+              `Could not retrieve the required API key (preview: ${state.preview}) for instance ${state.sourceGuid}. Check API key configuration in Agility.`
             )
           );
           return false;

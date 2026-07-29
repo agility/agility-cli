@@ -25,7 +25,7 @@ export async function publishContentList(
     if (!apiClient) {
       throw new Error("API client not available in state");
     }
-    if (!targetGuid?.length) {
+    if (!targetGuid) {
       throw new Error("Target GUID not available in state");
     }
     if (!locale) {
@@ -33,7 +33,7 @@ export async function publishContentList(
     }
 
     // Content lists use the same publish API as content items
-    await apiClient.contentMethods.publishContent(contentListId, targetGuid[0], locale);
+    await apiClient.contentMethods.publishContent(contentListId, targetGuid, locale);
 
     return {
       success: true,

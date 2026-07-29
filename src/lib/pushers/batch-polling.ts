@@ -37,11 +37,11 @@ function extractErrorMessage(errorText: string): string {
     }
     return errorText;
   } catch {
-    // Not JSON, return as-is but truncate if too long
-    // Also extract message from exception format: "ExceptionType: Message"
-    const exceptionMatch = errorText.match(/^[\w.]+Exception:\s*(.+?)(?:\r?\n|$)/);
-    if (exceptionMatch) {
-      return exceptionMatch[1].trim();
+    // Not JSON. If it's a .NET exception dump, keep the exception type + server method
+    // (prettyException) instead of stripping them; otherwise return as-is, truncated if long.
+    const pretty = prettyException(errorText);
+    if (pretty) {
+      return pretty;
     }
     return errorText.length > 200 ? errorText.substring(0, 200) + "..." : errorText;
   }
@@ -75,7 +75,9 @@ function logBatchErrors(batchStatus: CompletedBatch, originalPayloads?: any[]): 
         referenceName = payload?.properties?.referenceName || payload?.referenceName || "unknown";
       }
 
-      console.error(ansiColors.red(`  ✗ ${itemType} ${batchItemId} (${referenceName}): ${errorMessage}`));
+      console.error(
+        ansiColors.red(`  ✗ ${itemType} ${batchItemId} (${referenceName}): ${formatBatchItemError(errorType, errorMessage)}`)
+      );
     });
     return;
   }
@@ -325,7 +327,8 @@ function extractBatchResultsImpl<T>(batch: CompletedBatch, originalItems: T[]): 
         batch.failedItems.length > 0 &&
         batch.failedItems.find((fi) => fi.batchItemId == item.batchItemID);
       if (newApiFailedItem) {
-        errorMsg = newApiFailedItem.errorMessage;
+        // Preserve the exception type (e.g. NullReferenceException) alongside the message.
+        errorMsg = formatBatchItemError(newApiFailedItem.errorType, newApiFailedItem.errorMessage);
       }
 
       failedItems.push({ originalItem, newItem: null, error: errorMsg, index });
@@ -349,11 +352,55 @@ export function extractPageBatchResults(
   return extractBatchResultsImpl(batch, originalItems);
 }
 
-export function prettyException(error: string) {
-  // TODO: regex out the exception type and message
-  //     Item -1 failed with error: Agility.Shared.Exceptions.ManagementValidationException: The maximum length for the Message field is 1500 characters.
-  //    at Agility.Shared.Engines.BatchProcessing.BatchInsertContentitem(String languageCode, BatchImportContentItem batchImportContentItem) in D:\a\_work\1\s\Agility CMS 2014\Agility.Shared\Engines\BatchProcessing\BatchProcessing_InsertContentItem.cs:line 398
-  //    at Agility.Shared.Engines.BatchProcessing.BatchInsertContent(Batch batch) in D:\a\_work\1\s\Agility CMS 2014\Agility.Shared\Engines\BatchProcessing\BatchProcessing.cs:line 1212
+/**
+ * Turn a raw .NET exception dump into a concise, operator-facing one-liner that PRESERVES the
+ * exception type (so a server-side crash is distinguishable from a validation message) and, when
+ * available, the server method that threw. Returns "" when the text isn't a recognizable
+ * ".NET exception" so callers can fall back to their own handling.
+ *
+ * Example input:
+ *   "System.NullReferenceException: Object reference not set to an instance of an object.
+ *      at Agility.Shared.Engines.BatchProcessing.BatchInsertContentitem(String languageCode, ...) in D:\...:line 398
+ *      at Agility.Shared.Engines.BatchProcessing.BatchInsertContent(Batch batch) in D:\...:line 1212"
+ * Example output:
+ *   "NullReferenceException: Object reference not set to an instance of an object. [server: BatchInsertContentitem]"
+ */
+export function prettyException(error: string): string {
+  if (!error) return "";
+
+  // "<Some.Namespace.SomeException>: <message>" — message may span to the first newline.
+  const exceptionMatch = error.match(/([\w.]*Exception):\s*([\s\S]+?)(?:\r?\n|$)/);
+  if (!exceptionMatch) return "";
+
+  const shortType = exceptionMatch[1].split(".").pop() || exceptionMatch[1];
+  const message = exceptionMatch[2].trim();
+
+  // First stack frame's method name, e.g. "...BatchProcessing.BatchInsertContentitem(" → "BatchInsertContentitem".
+  const frameMatch = error.match(/\bat\s+[\w.]+\.([A-Za-z_][\w`]*)\s*\(/);
+  const serverMethod = frameMatch ? frameMatch[1] : null;
+
+  return serverMethod ? `${shortType}: ${message} [server: ${serverMethod}]` : `${shortType}: ${message}`;
+}
+
+/**
+ * Combine a batch item's structured errorType + errorMessage (from the new API) into a single
+ * operator-facing string. Keeps the exception type visible so a server-side null-dereference
+ * ("Object reference not set to an instance of an object.") is no longer indistinguishable from a
+ * plain validation failure. Falls back gracefully when either field is missing. (PROD-2309)
+ */
+export function formatBatchItemError(errorType?: string, errorMessage?: string): string {
+  const raw = (errorMessage || "").trim();
+
+  // If the message itself is a full .NET exception dump, let prettyException surface type + method.
+  const pretty = prettyException(raw);
+  if (pretty) return pretty;
+
+  const shortType = (errorType || "").split(".").pop()?.trim() || "";
+  // Prefix with the exception type when it adds signal (not a generic "Error", not already in the message).
+  if (shortType && shortType.toLowerCase() !== "error" && !raw.toLowerCase().includes(shortType.toLowerCase())) {
+    return raw ? `${shortType}: ${raw}` : shortType;
+  }
+  return raw || shortType || "Unknown error";
 }
 
 /**

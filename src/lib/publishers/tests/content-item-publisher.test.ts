@@ -64,7 +64,7 @@ describe("publishContentItem", () => {
       expect(result.error).toBeUndefined();
     });
 
-    it("calls contentMethods.publishContent with (contentId, targetGuid[0], locale)", async () => {
+    it("calls contentMethods.publishContent with (contentId, targetGuid, locale)", async () => {
       setState({ targetGuid: "my-target" });
       const mockPublish = jest.fn().mockResolvedValue({});
       jest.spyOn(require("core/state"), "getApiClient").mockReturnValue({

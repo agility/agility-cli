@@ -114,13 +114,13 @@ describe("Pushers.instanceOrchestrator — guard clause", () => {
   it("throws when no sourceGuid is set", async () => {
     const pushers = new Pushers();
     // state has no sourceGuid after resetState
-    await expect(pushers.instanceOrchestrator()).rejects.toThrow(/No source or target GUIDs/);
+    await expect(pushers.instanceOrchestrator()).rejects.toThrow(/No source or target GUID/);
   });
 
   it("throws when no targetGuid is set", async () => {
     setState({ sourceGuid: "src-guid-u" });
     const pushers = new Pushers();
-    await expect(pushers.instanceOrchestrator()).rejects.toThrow(/No source or target GUIDs/);
+    await expect(pushers.instanceOrchestrator()).rejects.toThrow(/No source or target GUID/);
   });
 });
 
@@ -357,6 +357,33 @@ describe("Pushers.instanceOrchestrator — models-first ordering (PROD-2202)", (
       expect.objectContaining({
         operation: "guid-orchestration",
         error: expect.stringContaining("Model validation failed"),
+      }),
+    ]);
+  });
+
+  it("a template-validation failure aborts the sync before content or pages are pushed (PROD-1492)", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us" });
+    await stubDataLoader();
+    const spies = await stubAllHandlers();
+
+    // Templates run as a guid-level op; a mapping inconsistency must halt the sync just like models.
+    spies["pushTemplates"].mockRejectedValue(
+      new Error('Page template validation failed: mapping inconsistency for template "LeftSideBarTemplate" (ID: 2).')
+    );
+
+    const pushers = new Pushers();
+    const results = await pushers.instanceOrchestrator();
+
+    // The templates handler ran and threw; content/pages in the locale loop were never reached.
+    expect(spies["pushTemplates"]).toHaveBeenCalledTimes(1);
+    expect(spies["pushContent"]).not.toHaveBeenCalled();
+    expect(spies["pushPages"]).not.toHaveBeenCalled();
+
+    // The failure is recorded on the guid orchestration result and carries the validation message.
+    expect(results[0].failed).toEqual([
+      expect.objectContaining({
+        operation: "guid-orchestration",
+        error: expect.stringContaining("Page template validation failed"),
       }),
     ]);
   });

@@ -190,8 +190,12 @@ describe("Downloader.guidDownloader", () => {
 // ─── Downloader.instanceOrchestrator — parallel execution ─────────────────────
 
 describe("Downloader.instanceOrchestrator with GUIDs set", () => {
-  it("processes all GUIDs and returns one result per GUID", async () => {
-    setState({ sourceGuid: "guid-a-u,guid-b-u" });
+  it("throws when sourceGuid contains a comma (multi-GUID no longer supported)", () => {
+    expect(() => setState({ sourceGuid: "guid-a-u,guid-b-u" })).toThrow();
+  });
+
+  it("processes both source and target GUIDs and returns one result per GUID", async () => {
+    setState({ sourceGuid: "guid-a-u", targetGuid: "guid-b-u" });
 
     const downloader = new Downloader();
     const results = await downloader.instanceOrchestrator(false);

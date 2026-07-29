@@ -40,8 +40,8 @@ export class Pushers {
     this.config = config;
     // Defer fileOps creation until we have a valid sourceGuid
     // This allows validation to provide a helpful error message first
-    if (state.sourceGuid && state.sourceGuid.length > 0 && state.sourceGuid[0]) {
-      this.fileOps = new fileOperations(state.sourceGuid[0], null);
+    if (state.sourceGuid) {
+      this.fileOps = new fileOperations(state.sourceGuid, null);
     }
   }
 
@@ -125,16 +125,11 @@ export class Pushers {
    * Orchestrate push operations (MAIN METHOD)
    */
   async instanceOrchestrator(): Promise<PushResults[]> {
-    const { sourceGuid: sourceGuids, targetGuid: targetGuids } = getState();
+    const { sourceGuid, targetGuid } = getState();
 
-    if (sourceGuids.length === 0 || targetGuids.length === 0) {
-      throw new Error("No source or target GUIDs available for push operation");
+    if (!sourceGuid || !targetGuid) {
+      throw new Error("No source or target GUID available for push operation");
     }
-
-    // For now, handle single source to single target (most common case)
-    // Future enhancement: handle multiple source/target combinations
-    const sourceGuid = sourceGuids[0];
-    const targetGuid = targetGuids[0];
 
     console.log("--------------------------------");
     // console.log(`Starting push operations from ${sourceGuid} to ${targetGuid}`);
@@ -183,12 +178,16 @@ export class Pushers {
     // Models depend on nothing that follows, so hoisting them ahead of galleries/assets is
     // dependency-safe; the remaining relative order is unchanged (Containers→Content→Templates→
     // Pages still follow Models, since each depends on Models being pushed first).
-    // ORDER: Models → Galleries → Assets → Containers → Content → Templates → Pages
+    // URL redirections depend on nothing, so they run BEFORE templates: the template pusher
+    // deliberately throws on mapping inconsistencies (rename protection), which aborts the rest
+    // of the guid-level loop — redirections must not be collateral damage of that stop.
+    // ORDER: Models → Galleries → Assets → Containers → URL Redirections → Content → Templates → Pages
     const pusherConfig = [
       PUSH_OPERATIONS.models,
       PUSH_OPERATIONS.galleries,
       PUSH_OPERATIONS.assets,
       PUSH_OPERATIONS.containers,
+      PUSH_OPERATIONS.urlRedirections,
       PUSH_OPERATIONS.content,
       PUSH_OPERATIONS.templates,
       PUSH_OPERATIONS.pages,
@@ -243,8 +242,10 @@ export class Pushers {
         }
       }
     } catch (error: any) {
-      // Re-throw validation errors immediately to stop sync
-      if (error?.message?.includes("Model validation failed")) {
+      // Re-throw validation errors immediately to stop sync.
+      // Matches any "<X> validation failed" halt (e.g. "Model validation failed",
+      // "Page template validation failed") so every guard stops a partial push.
+      if (error?.message?.includes("validation failed")) {
         throw error;
       }
       // For other errors, log but don't stop (legacy behavior for guid-level ops)
@@ -344,7 +345,7 @@ export class Pushers {
       return { success: 0, failures: 0, skipped: 0, failureDetails: [] };
     }
 
-    this.config.onOperationStart?.(config.name, state.sourceGuid[0], state.targetGuid[0]);
+    this.config.onOperationStart?.(config.name, state.sourceGuid, state.targetGuid);
 
     const pusherResult: PusherResult = await config.handler(sourceData, targetData, locale);
 
@@ -371,8 +372,8 @@ export class Pushers {
 
     this.config.onOperationComplete?.(
       config.name,
-      state.sourceGuid[0],
-      state.targetGuid[0],
+      state.sourceGuid,
+      state.targetGuid,
       pusherResult.status === "success"
     );
 

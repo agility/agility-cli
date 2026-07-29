@@ -44,7 +44,7 @@ export async function pushGalleries(
   const { sourceGuid, targetGuid, overwrite } = state;
 
   // Get the GUID logger from state instead of creating a new one
-  const logger = getLoggerForGuid(sourceGuid[0]) || new Logs("push", "gallery", sourceGuid[0]);
+  const logger = getLoggerForGuid(sourceGuid) || new Logs("push", "gallery", sourceGuid);
 
   if (!galleries || galleries.length === 0) {
     console.log("No galleries found to process.");
@@ -54,7 +54,7 @@ export async function pushGalleries(
   // Get API client
   const apiClient = getApiClient();
 
-  const referenceMapper = new GalleryMapper(sourceGuid[0], targetGuid[0]);
+  const referenceMapper = new GalleryMapper(sourceGuid, targetGuid);
 
   const totalGroupings = galleries.length;
   let successful = 0;
@@ -76,7 +76,7 @@ export async function pushGalleries(
       if (!existingMapping && targetGalleryByName) {
         // Gallery exists in target by name but no mapping - add mapping and skip
         referenceMapper.addMapping(sourceGallery, targetGalleryByName);
-        logger.gallery.skipped(sourceGallery, "already exists in target by name", targetGuid[0]);
+        logger.gallery.skipped(sourceGallery, "already exists in target by name", targetGuid);
         preflightReport.record({
           phase: "Galleries",
           action: "skip",
@@ -94,7 +94,7 @@ export async function pushGalleries(
         if (state.preflight) {
           preflightReport.record({ phase: "Galleries", action: "create", name: sourceGallery.name });
         } else {
-          await createGallery(sourceGallery, apiClient, targetGuid[0], referenceMapper, logger);
+          await createGallery(sourceGallery, apiClient, targetGuid, referenceMapper, logger);
         }
         successful++;
       } else if (existingMapping) {
@@ -118,7 +118,7 @@ export async function pushGalleries(
               sourceGallery,
               existingMapping.targetMediaGroupingID,
               apiClient,
-              targetGuid[0],
+              targetGuid,
               referenceMapper,
               logger
             );
@@ -126,7 +126,7 @@ export async function pushGalleries(
           successful++;
         } else if (shouldSkip) {
           // Gallery exists and is up to date - skip
-          logger.gallery.skipped(sourceGallery, "up to date, skipping", targetGuid[0]);
+          logger.gallery.skipped(sourceGallery, "up to date, skipping", targetGuid);
           preflightReport.record({
             phase: "Galleries",
             action: "skip",
@@ -148,7 +148,7 @@ export async function pushGalleries(
       }
     } catch (error: any) {
       const errorMsg = extractErrorMessage(error);
-      logger.gallery.error(sourceGallery, errorMsg, targetGuid[0]);
+      logger.gallery.error(sourceGallery, errorMsg, targetGuid);
       failed++;
       currentStatus = "error";
       overallStatus = "error";

@@ -18,8 +18,8 @@ export interface State {
   verbose: boolean;
 
   // Instance/Connection
-  sourceGuid: string[]; // Array of source GUIDs
-  targetGuid: string[]; // Array of target GUIDs
+  sourceGuid: string; // Source instance GUID
+  targetGuid: string; // Target instance GUID
   locale: string[]; // Array of locales (for backward compatibility / user-specified)
   availableLocales: string[]; // Detected locales from getLocales() during auth
   guidLocaleMap: Map<string, string[]>; // Per-GUID locale mapping for matrix operations
@@ -65,7 +65,8 @@ export interface State {
   currentWebsite?: any;
 
   // API Keys for download operations (simplified approach)
-  apiKeys: Array<{ guid: string; previewKey: string; fetchKey: string }>;
+  sourceApiKeys: { previewKey: string; fetchKey: string } | null;
+  targetApiKeys: { previewKey: string; fetchKey: string } | null;
 
   // Cached API client instance (to prevent connection pool exhaustion)
   cachedApiClient?: mgmtApi.ApiClient;
@@ -99,15 +100,16 @@ export const state: State = {
   verbose: false,
 
   // Instance/Connection
-  sourceGuid: [],
-  targetGuid: [],
+  sourceGuid: "",
+  targetGuid: "",
   locale: [],
   availableLocales: [],
   guidLocaleMap: new Map(),
-  apiKeys: [],
+  sourceApiKeys: null,
+  targetApiKeys: null,
   channel: "website",
   preview: true,
-  elements: "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps",
+  elements: "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps,UrlRedirections",
 
   // File system
   rootPath: "agility-files",
@@ -161,31 +163,23 @@ export function setState(argv: any) {
   if (argv.headless !== undefined) state.headless = argv.headless;
   if (argv.verbose !== undefined) state.verbose = argv.verbose;
 
-  // Instance/Connection - Multi-GUID parsing logic
+  // Instance/Connection
   if (argv.sourceGuid !== undefined) {
     if (argv.sourceGuid.includes(",")) {
-      // Multi-GUID specification
-      state.sourceGuid = argv.sourceGuid
-        .split(",")
-        .map((g: string) => g.trim())
-        .filter((g: string) => g.length > 0);
-    } else {
-      // Single GUID
-      state.sourceGuid = [argv.sourceGuid];
+      throw new Error(
+        `--sourceGuid no longer supports multiple comma-separated GUIDs (got "${argv.sourceGuid}"). Each run now handles exactly one source instance.`
+      );
     }
+    state.sourceGuid = argv.sourceGuid;
   }
 
   if (argv.targetGuid !== undefined) {
     if (argv.targetGuid.includes(",")) {
-      // Multi-GUID specification
-      state.targetGuid = argv.targetGuid
-        .split(",")
-        .map((g: string) => g.trim())
-        .filter((g: string) => g.length > 0);
-    } else {
-      // Single GUID
-      state.targetGuid = [argv.targetGuid];
+      throw new Error(
+        `--targetGuid no longer supports multiple comma-separated GUIDs (got "${argv.targetGuid}"). Each run now handles exactly one target instance.`
+      );
     }
+    state.targetGuid = argv.targetGuid;
   }
 
   // Multi-locale parsing logic
@@ -289,8 +283,8 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
       };
 
       // Only prime state values that aren't already set from command line
-      if (envVars.AGILITY_GUID && envVars.AGILITY_GUID[1] && state.sourceGuid.length === 0) {
-        state.sourceGuid = [envVars.AGILITY_GUID[1].trim()];
+      if (envVars.AGILITY_GUID && envVars.AGILITY_GUID[1] && !state.sourceGuid) {
+        state.sourceGuid = envVars.AGILITY_GUID[1].trim();
         primedValues.push("sourceGuid");
       }
 
@@ -326,8 +320,8 @@ export function primeFromEnv(): { hasEnvFile: boolean; primedValues: string[] } 
       }
 
       // Additional system args
-      if (envVars.AGILITY_TARGET_GUID && envVars.AGILITY_TARGET_GUID[1] && state.targetGuid.length === 0) {
-        state.targetGuid = [envVars.AGILITY_TARGET_GUID[1].trim()];
+      if (envVars.AGILITY_TARGET_GUID && envVars.AGILITY_TARGET_GUID[1] && !state.targetGuid) {
+        state.targetGuid = envVars.AGILITY_TARGET_GUID[1].trim();
         primedValues.push("targetGuid");
       }
 
@@ -380,15 +374,16 @@ export function resetState() {
   state.verbose = false;
 
   // Instance/Connection
-  state.sourceGuid = [];
-  state.targetGuid = [];
+  state.sourceGuid = "";
+  state.targetGuid = "";
   state.locale = [];
   state.availableLocales = [];
   state.guidLocaleMap = new Map();
-  state.apiKeys = [];
+  state.sourceApiKeys = null;
+  state.targetApiKeys = null;
   state.channel = "website";
   state.preview = true;
-  state.elements = "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps";
+  state.elements = "Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps,UrlRedirections";
 
   // File system
   state.rootPath = "agility-files";
@@ -500,15 +495,23 @@ export function getUIMode() {
  * Get API keys for a specific GUID
  */
 export function getApiKeysForGuid(guid: string): { previewKey: string; fetchKey: string } | null {
-  const apiKeyEntry = state.apiKeys.find((item) => item.guid === guid);
-  return apiKeyEntry ? { previewKey: apiKeyEntry.previewKey, fetchKey: apiKeyEntry.fetchKey } : null;
+  if (guid === state.sourceGuid) return state.sourceApiKeys;
+  if (guid === state.targetGuid) return state.targetApiKeys;
+  return null;
 }
 
 /**
  * Get all API keys
  */
 export function getAllApiKeys(): Array<{ guid: string; previewKey: string; fetchKey: string }> {
-  return state.apiKeys;
+  const keys: Array<{ guid: string; previewKey: string; fetchKey: string }> = [];
+  if (state.sourceGuid && state.sourceApiKeys) {
+    keys.push({ guid: state.sourceGuid, ...state.sourceApiKeys });
+  }
+  if (state.targetGuid && state.targetApiKeys) {
+    keys.push({ guid: state.targetGuid, ...state.targetApiKeys });
+  }
+  return keys;
 }
 
 /**
@@ -613,32 +616,6 @@ export function finalizeGuidLogger(guid: string): string | null {
     }
   }
   return null;
-}
-
-/**
- * Save and clear all GUID loggers and merge into global log
- */
-export function finalizeAllGuidLoggers(): string[] {
-  const results: string[] = [];
-
-  if (state.loggerRegistry) {
-    const entries = Array.from(state.loggerRegistry.entries());
-
-    for (const [guid, logger] of entries) {
-      const logCount = logger.getLogCount();
-
-      if (logCount > 0) {
-        const result = logger.saveLogs();
-        if (result) {
-          results.push(result);
-          console.log(`${result}`);
-        }
-      }
-    }
-    state.loggerRegistry.clear();
-  }
-
-  return results;
 }
 
 /**

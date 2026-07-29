@@ -50,7 +50,7 @@ function makeMappingSummary(totalContent = 0, totalPages = 0) {
 describe("WorkflowOperation.executeFromMappings", () => {
   describe("guard clauses", () => {
     it("returns success=false when sourceGuid is missing", async () => {
-      state.targetGuid = ["tgt-u"];
+      state.targetGuid = "tgt-u";
       state.locale = ["en-us"];
 
       const op = new WorkflowOperation();
@@ -61,7 +61,7 @@ describe("WorkflowOperation.executeFromMappings", () => {
     });
 
     it("returns success=false when targetGuid is missing", async () => {
-      state.sourceGuid = ["src-u"];
+      state.sourceGuid = "src-u";
       state.locale = ["en-us"];
 
       const op = new WorkflowOperation();
@@ -72,8 +72,8 @@ describe("WorkflowOperation.executeFromMappings", () => {
     });
 
     it("returns success=false when locale is missing", async () => {
-      state.sourceGuid = ["src-u"];
-      state.targetGuid = ["tgt-u"];
+      state.sourceGuid = "src-u";
+      state.targetGuid = "tgt-u";
 
       const op = new WorkflowOperation();
       const result = await op.executeFromMappings();
@@ -85,8 +85,8 @@ describe("WorkflowOperation.executeFromMappings", () => {
 
   describe("standard mode — no mappings found", () => {
     it("returns early with success=true and zero counts when no mappings exist", async () => {
-      state.sourceGuid = ["src-u"];
-      state.targetGuid = ["tgt-u"];
+      state.sourceGuid = "src-u";
+      state.targetGuid = "tgt-u";
       state.locale = ["en-us"];
 
       jest.spyOn(mappingReader, "getMappingSummary").mockReturnValue(makeMappingSummary(0, 0));
@@ -103,8 +103,8 @@ describe("WorkflowOperation.executeFromMappings", () => {
 
   describe("publish operation with source status check", () => {
     it("filters content to only published-in-source IDs", async () => {
-      state.sourceGuid = ["src-u"];
-      state.targetGuid = ["tgt-u"];
+      state.sourceGuid = "src-u";
+      state.targetGuid = "tgt-u";
       state.locale = ["en-us"];
       state.operationType = "publish";
 
@@ -136,8 +136,8 @@ describe("WorkflowOperation.executeFromMappings", () => {
 
   describe("non-publish operation", () => {
     it("passes all mapped IDs to workflowOrchestrator without source status check", async () => {
-      state.sourceGuid = ["src-u"];
-      state.targetGuid = ["tgt-u"];
+      state.sourceGuid = "src-u";
+      state.targetGuid = "tgt-u";
       state.locale = ["en-us"];
       state.operationType = "unpublish";
 
@@ -164,8 +164,8 @@ describe("WorkflowOperation.executeFromMappings", () => {
 
   describe("explicit IDs mode", () => {
     it("uses explicit contentIDs when provided", async () => {
-      state.sourceGuid = ["src-u"];
-      state.targetGuid = ["tgt-u"];
+      state.sourceGuid = "src-u";
+      state.targetGuid = "tgt-u";
       state.locale = ["en-us"];
       state.operationType = "unpublish";
       state.explicitContentIDs = [100, 200];
@@ -184,8 +184,8 @@ describe("WorkflowOperation.executeFromMappings", () => {
     });
 
     it("returns early when all explicit IDs are empty", async () => {
-      state.sourceGuid = ["src-u"];
-      state.targetGuid = ["tgt-u"];
+      state.sourceGuid = "src-u";
+      state.targetGuid = "tgt-u";
       state.locale = ["en-us"];
       state.operationType = "unpublish";
       state.explicitContentIDs = [];
@@ -206,8 +206,8 @@ describe("WorkflowOperation.executeFromMappings", () => {
 
   describe("result fields", () => {
     it("returns operation name in the result", async () => {
-      state.sourceGuid = ["src-u"];
-      state.targetGuid = ["tgt-u"];
+      state.sourceGuid = "src-u";
+      state.targetGuid = "tgt-u";
       state.locale = ["en-us"];
       state.operationType = "approve";
 
@@ -220,8 +220,8 @@ describe("WorkflowOperation.executeFromMappings", () => {
     });
 
     it("includes elapsedTime in the result", async () => {
-      state.sourceGuid = ["src-u"];
-      state.targetGuid = ["tgt-u"];
+      state.sourceGuid = "src-u";
+      state.targetGuid = "tgt-u";
       state.locale = ["en-us"];
 
       jest.spyOn(mappingReader, "getMappingSummary").mockReturnValue(makeMappingSummary(0, 0));

@@ -11,8 +11,8 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
   let pages: mgmtApi.PageItem[] = sourceData || [];
 
   const { sourceGuid, targetGuid } = state;
-  const logger = getLoggerForGuid(sourceGuid[0]);
-  const pageMapper = new PageMapper(sourceGuid[0], targetGuid[0], locale);
+  const logger = getLoggerForGuid(sourceGuid);
+  const pageMapper = new PageMapper(sourceGuid, targetGuid, locale);
 
   if (!pages || pages.length === 0) {
     console.log("No pages found to process.");
@@ -24,7 +24,7 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
   // Reset processed page IDs tracking for this locale
   resetProcessedPageIDs();
 
-  const sitemaps = sitemapHierarchy.loadAllSitemaps(sourceGuid[0], locale);
+  const sitemaps = sitemapHierarchy.loadAllSitemaps(sourceGuid, locale);
   const channels = Object.keys(sitemaps);
 
   console.log(`Processing ${pages.length} pages across ${channels.length} channels in ${locale}...`);
@@ -62,8 +62,8 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
         channel,
         pageMapper,
         sitemapNodes: sitemap,
-        sourceGuid: sourceGuid[0],
-        targetGuid: targetGuid[0],
+        sourceGuid: sourceGuid,
+        targetGuid: targetGuid,
         locale: locale,
         apiClient,
         overwrite,
@@ -94,9 +94,20 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
         `⚠️ Error in page processing for channel: ${channel}: ${errorMessage}`,
         locale,
         channel,
-        targetGuid[0]
+        targetGuid
       );
       status = "error";
+      // PROD-2310: a channel-level throw means every page under it failed to sync.
+      // `status` alone is display-only (never read by the exit-code path) — record a
+      // failure so this isn't silently invisible to totalSyncFailures/the exit code.
+      failed++;
+      failureDetails.push({
+        name: `Channel ${channel}`,
+        error: errorMessage,
+        type: "page",
+        guid: sourceGuid,
+        locale,
+      });
     }
   }
 

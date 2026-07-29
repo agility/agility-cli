@@ -1,16 +1,17 @@
 /**
  * Mapping Version Updater
  *
- * After publishing, updates the mappings with the new versionIDs
- * by reading the refreshed data from the filesystem using fileOperations.
+ * After publishing, updates the mappings with the new targetVersionIDs.
+ * PROD-2311: versionIDs are read directly from the Management API right after
+ * publish, instead of a start-of-run filesystem snapshot that misses items
+ * created during the same run. The Management API is strongly consistent (no
+ * CDN propagation delay), so a single call per item is enough — no polling.
  */
 
-import { fileOperations } from "../../core";
-import { getLogger } from "../../core/state";
+import * as mgmtApi from "@agility/management-sdk";
+import { getApiClient, getLogger } from "../../core/state";
 import { ContentItemMapper } from "./content-item-mapper";
 import { PageMapper } from "./page-mapper";
-import { getContentItemsFromFileSystem } from "../getters/filesystem/get-content-items";
-import { getPagesFromFileSystem } from "../getters/filesystem/get-pages";
 import ansiColors from "ansi-colors";
 import { MappingUpdateResult } from "../../types";
 
@@ -65,32 +66,21 @@ export async function updateContentMappingsAfterPublish(
   }
 
   try {
-    // Create file operations for target (we only need target data for versionID)
-    const targetFileOps = new fileOperations(targetGuid, locale);
-
-    // Load content items from target filesystem (refreshed after pull)
-    const targetContentItems = getContentItemsFromFileSystem(targetFileOps);
-
-    // Create content item mapper
     const contentMapper = new ContentItemMapper(sourceGuid, targetGuid, locale);
+    const apiClient = getApiClient();
 
-    // Create lookup map for quick access
-    const targetContentMap = new Map(targetContentItems.map((item) => [item.contentID, item]));
-
-    // Update targetVersionID for each published content item
     for (const targetContentId of uniqueContentIds) {
-      const targetItem = targetContentMap.get(targetContentId);
-      if (!targetItem) {
-        errors.push(`Target content item ${targetContentId} not found in filesystem`);
+      let targetItem: mgmtApi.ContentItem;
+      try {
+        targetItem = await apiClient.contentMethods.getContentItem(targetContentId, targetGuid, locale);
+      } catch (error: any) {
+        errors.push(`Target content item ${targetContentId} not found on target instance: ${error.message}`);
         continue;
       }
 
-      // Update only the target versionID in the mapping
       const result = contentMapper.updateTargetVersionID(targetContentId, targetItem.properties.versionID);
-
       if (result.success) {
         updated++;
-        // Track all version updates with display info
         changes.push({
           id: targetContentId,
           oldVersion: result.oldVersionID!,
@@ -134,32 +124,21 @@ export async function updatePageMappingsAfterPublish(
   }
 
   try {
-    // Create file operations for target (we only need target data for versionID)
-    const targetFileOps = new fileOperations(targetGuid, locale);
-
-    // Load pages from target filesystem (refreshed after pull)
-    const targetPages = getPagesFromFileSystem(targetFileOps);
-
-    // Create page mapper
     const pageMapper = new PageMapper(sourceGuid, targetGuid, locale);
+    const apiClient = getApiClient();
 
-    // Create lookup map for quick access
-    const targetPageMap = new Map(targetPages.map((page) => [page.pageID, page]));
-
-    // Update targetVersionID for each published page
     for (const targetPageId of uniquePageIds) {
-      const targetPage = targetPageMap.get(targetPageId);
-      if (!targetPage) {
-        errors.push(`Target page ${targetPageId} not found in filesystem`);
+      let targetPage: mgmtApi.PageItem;
+      try {
+        targetPage = await apiClient.pageMethods.getPage(targetPageId, targetGuid, locale);
+      } catch (error: any) {
+        errors.push(`Target page ${targetPageId} not found on target instance: ${error.message}`);
         continue;
       }
 
-      // Update only the target versionID in the mapping
       const result = pageMapper.updateTargetVersionID(targetPageId, targetPage.properties.versionID);
-
       if (result.success) {
         updated++;
-        // Track all version updates with display info
         changes.push({
           id: targetPageId,
           oldVersion: result.oldVersionID!,

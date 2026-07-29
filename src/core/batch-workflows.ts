@@ -299,7 +299,7 @@ export async function batchWorkflow(
     if (!apiClient) {
       throw new Error("API client not available in state");
     }
-    if (!targetGuid || targetGuid.length === 0) {
+    if (!targetGuid) {
       throw new Error("Target GUID not available in state");
     }
     if (!locale) {
@@ -313,8 +313,8 @@ export async function batchWorkflow(
     // Get batch ID immediately using returnBatchId=true
     const batchIdResult =
       type === "content"
-        ? await apiClient.contentMethods.batchWorkflowContent(ids, targetGuid[0], locale, operation, true)
-        : await apiClient.pageMethods.batchWorkflowPages(ids, targetGuid[0], locale, operation, true);
+        ? await apiClient.contentMethods.batchWorkflowContent(ids, targetGuid, locale, operation, true)
+        : await apiClient.pageMethods.batchWorkflowPages(ids, targetGuid, locale, operation, true);
 
     const batchID = Array.isArray(batchIdResult) ? batchIdResult[0] : batchIdResult;
 
@@ -323,7 +323,7 @@ export async function batchWorkflow(
     }
 
     // Custom polling with batch ID tracking and progress display
-    const pollResult = await pollBatchWorkflow(batchID, targetGuid[0], type, ids.length);
+    const pollResult = await pollBatchWorkflow(batchID, targetGuid, type, ids.length);
 
     if (pollResult.success) {
       // Handle partial success

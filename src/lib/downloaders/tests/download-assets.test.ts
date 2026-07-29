@@ -234,4 +234,57 @@ describe("downloadAllAssets", () => {
       expect(logger.asset.downloaded).toHaveBeenCalledWith(asset);
     });
   });
+
+  describe("focal point capture from response headers", () => {
+    it("attaches focalX/focalY from the CDN headers onto the persisted asset JSON", async () => {
+      const asset = makeAsset({ mediaID: 5, fileName: "focal.jpg" });
+      const logger = makeMockLogger();
+
+      jest.spyOn(require("core/state"), "getLoggerForGuid").mockReturnValue(logger);
+      jest.spyOn(require("core/state"), "getApiClient").mockReturnValue({
+        assetMethods: {
+          getMediaList: jest.fn().mockResolvedValue({ totalCount: 1, assetMedias: [asset] }),
+        },
+      });
+
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+
+      downloadFileMock.mockResolvedValue({
+        headers: { "agility-focal-x": "0.25", "agility-focal-y": "0.75" },
+      });
+
+      await downloadAllAssets("test-guid-u");
+
+      expect(exportFilesMock).toHaveBeenCalledWith(
+        "assets",
+        asset.mediaID.toString(),
+        expect.objectContaining({ focalX: "0.25", focalY: "0.75" })
+      );
+    });
+
+    it("persists the asset without focal fields when the response has no focal headers", async () => {
+      const asset = makeAsset({ mediaID: 6, fileName: "nofocal.jpg" });
+      const logger = makeMockLogger();
+
+      jest.spyOn(require("core/state"), "getLoggerForGuid").mockReturnValue(logger);
+      jest.spyOn(require("core/state"), "getApiClient").mockReturnValue({
+        assetMethods: {
+          getMediaList: jest.fn().mockResolvedValue({ totalCount: 1, assetMedias: [asset] }),
+        },
+      });
+
+      (fs.existsSync as jest.Mock).mockReturnValue(false);
+
+      downloadFileMock.mockResolvedValue({ headers: { "content-type": "image/jpeg" } });
+
+      await downloadAllAssets("test-guid-u");
+
+      const exportCall = exportFilesMock.mock.calls.find(
+        (args: any[]) => args[0] === "assets" && args[1] === asset.mediaID.toString()
+      );
+      expect(exportCall).toBeDefined();
+      expect(exportCall![2]).not.toHaveProperty("focalX");
+      expect(exportCall![2]).not.toHaveProperty("focalY");
+    });
+  });
 });
