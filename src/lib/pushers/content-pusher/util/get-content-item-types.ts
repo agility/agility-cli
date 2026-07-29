@@ -4,12 +4,16 @@ import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { hasValidMappings } from "./has-valid-mappings";
 import { collectListReferenceNames } from "./collect-list-reference-names";
+import { collectContentIDReferences } from "./collect-content-id-references";
 
 /**
  * Classifies content items into normal, linked, and skipped categories.
  *
  * Normal items: Top-level items that are not referenced by other items
- * Linked items: Items that are referenced via fullList=true in other items' fields
+ * Linked items: Items that are referenced by other items — either via a whole-list
+ *   reference (fullList=true) or a single-item reference (contentid/sortids). Linked
+ *   items are pushed FIRST so their source→target contentID mapping exists before the
+ *   referencing item's fields are remapped (PROD-2341).
  * Skipped items: Items without valid container/model mappings
  */
 export function getContentItemTypes(
@@ -47,12 +51,14 @@ export function getContentItemTypes(
       normalSet.add(item.contentID);
     }
 
-    // Find all list references in this item's fields
-    const referenceNames = collectListReferenceNames(item.fields || {});
-    if (referenceNames.length > 0) {
+    // Find every item this one depends on — whole-list references (by referenceName)
+    // AND single-item references (by contentID) — and mark them linked (pushed first).
+    const referencedIds = collectReferencedContentIDs(item, itemsByReferenceName, allItemsById);
+    if (referencedIds.length > 0) {
       markReferencedItems(
-        referenceNames,
+        referencedIds,
         itemsByReferenceName,
+        allItemsById,
         normalSet,
         linkedSet,
         skipped,
@@ -95,42 +101,78 @@ function buildItemMaps(contentItems: ContentItem[]): {
 }
 
 /**
- * Recursively marks all items referenced by the given reference names as linked.
- * Uses a stack-based approach to avoid recursion limits.
+ * Resolves an item's direct dependency targets to concrete source contentIDs, combining
+ * both reference kinds:
+ *  - whole-list references (referencename + fulllist:true) → every item sharing that
+ *    referenceName (the full list), looked up via itemsByReferenceName;
+ *  - single-item references (contentid / sortids) → the specific referenced item, only
+ *    when it is present in the current content set (allItemsById).
+ *
+ * Returns the referenced items' contentIDs; the referencing item itself is never included.
+ */
+function collectReferencedContentIDs(
+  item: ContentItem,
+  itemsByReferenceName: Map<string, ContentItem[]>,
+  allItemsById: Map<number, ContentItem>
+): number[] {
+  const ids: number[] = [];
+
+  // Whole-list references → all items belonging to the referenced list
+  for (const refName of collectListReferenceNames(item.fields || {})) {
+    for (const target of itemsByReferenceName.get(refName) || []) {
+      ids.push(target.contentID);
+    }
+  }
+
+  // Single-item references → the specific referenced item, if it is in this push set
+  for (const contentID of collectContentIDReferences(item.fields || {})) {
+    if (allItemsById.has(contentID)) {
+      ids.push(contentID);
+    }
+  }
+
+  return ids;
+}
+
+/**
+ * Recursively marks all items referenced (transitively) by the given contentIDs as linked,
+ * so they are pushed before the items that reference them. Uses a stack-based approach with
+ * a visited set to avoid infinite loops on circular references.
  */
 function markReferencedItems(
-  referenceNames: string[],
+  referencedIds: number[],
   itemsByReferenceName: Map<string, ContentItem[]>,
+  allItemsById: Map<number, ContentItem>,
   normalSet: Set<number>,
   linkedSet: Set<number>,
   skipped: ContentItem[],
   containerMapper: ContainerMapper,
   modelMapper: ModelMapper
 ): void {
-  const visitedRefNames = new Set<string>();
-  const stack = [...referenceNames];
+  const visited = new Set<number>();
+  const stack = [...referencedIds];
 
   while (stack.length > 0) {
-    const refName = stack.pop()!;
+    const contentID = stack.pop()!;
 
-    if (visitedRefNames.has(refName)) continue;
-    visitedRefNames.add(refName);
+    if (visited.has(contentID)) continue;
+    visited.add(contentID);
 
-    const items = itemsByReferenceName.get(refName) || [];
+    const item = allItemsById.get(contentID);
+    if (!item) continue; // referenced item not in this push set — nothing to promote
 
-    for (const item of items) {
-      if (!hasValidMappings(item, containerMapper, modelMapper)) {
-        skipped.push(item);
-        continue;
-      }
+    if (!hasValidMappings(item, containerMapper, modelMapper)) {
+      skipped.push(item);
+      continue;
+    }
 
-      linkedSet.add(item.contentID);
-      normalSet.delete(item.contentID); // Remove from normal if it was added there
+    linkedSet.add(contentID);
+    normalSet.delete(contentID); // Remove from normal if it was added there
 
-      // Recursively process nested references
-      const nestedRefs = collectListReferenceNames(item.fields || {});
-      for (const nestedRef of nestedRefs) {
-        stack.push(nestedRef);
+    // Recursively process this item's own dependency targets
+    for (const nestedId of collectReferencedContentIDs(item, itemsByReferenceName, allItemsById)) {
+      if (!visited.has(nestedId)) {
+        stack.push(nestedId);
       }
     }
   }

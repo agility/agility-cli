@@ -223,6 +223,85 @@ describe("getContentItemTypes — linked items", () => {
   });
 });
 
+// ─── single-item content references (PROD-2341) ───────────────────────────────
+
+describe("getContentItemTypes — single-item content references", () => {
+  it("promotes a contentid-referenced item to linked (the drawGame case) while the referencing item stays normal", () => {
+    // Mirrors PROD-2341: GameBanner.drawGame = { contentid: <DrawGameAssetsSchema item>, fulllist: false }
+    const target = makeItem("drawgamesassets", "DrawGameAssetsSchema");
+    const gameBanner = makeItem("gamebanner", "GameBanner", {
+      drawGame: { contentid: target.contentID, fulllist: false },
+    });
+
+    const result = getContentItemTypes([gameBanner, target], makeValidOpts());
+
+    expect(result.linkedContentItems).toHaveLength(1);
+    expect(result.linkedContentItems[0]).toBe(target);
+    expect(result.normalContentItems).toHaveLength(1);
+    expect(result.normalContentItems[0]).toBe(gameBanner);
+    // The referenced item must NOT remain in the normal (pushed-second) bucket.
+    expect(result.normalContentItems).not.toContain(target);
+  });
+
+  it("promotes every sortids-referenced item to linked", () => {
+    const a = makeItem("list-a", "ModelA");
+    const b = makeItem("list-b", "ModelB");
+    const parent = makeItem("parent", "ModelParent", {
+      picks: { sortids: `${a.contentID},${b.contentID}` },
+    });
+
+    const result = getContentItemTypes([parent, a, b], makeValidOpts());
+
+    const linkedIds = result.linkedContentItems.map((i) => i.contentID);
+    expect(linkedIds).toContain(a.contentID);
+    expect(linkedIds).toContain(b.contentID);
+    expect(result.normalContentItems).toHaveLength(1);
+    expect(result.normalContentItems[0]).toBe(parent);
+  });
+
+  it("does not promote anything for an empty linked field (contentid 0 / -1 / absent)", () => {
+    const emptyObj = makeItem("empty-obj", "ModelEmpty", { drawGame: { fulllist: false } });
+    const zero = makeItem("zero-ref", "ModelZero", { drawGame: { contentid: 0, fulllist: false } });
+    const neg = makeItem("neg-ref", "ModelNeg", { drawGame: { contentid: -1, fulllist: false } });
+
+    const result = getContentItemTypes([emptyObj, zero, neg], makeValidOpts());
+
+    expect(result.linkedContentItems).toHaveLength(0);
+    expect(result.normalContentItems).toHaveLength(3);
+  });
+
+  it("does not crash or promote when the referenced contentid is not in the push set", () => {
+    const orphanRef = makeItem("orphan", "ModelOrphan", {
+      drawGame: { contentid: 999999, fulllist: false },
+    });
+
+    const result = getContentItemTypes([orphanRef], makeValidOpts());
+
+    expect(result.normalContentItems).toHaveLength(1);
+    expect(result.normalContentItems[0]).toBe(orphanRef);
+    expect(result.linkedContentItems).toHaveLength(0);
+    expect(result.skippedItems).toHaveLength(0);
+  });
+
+  it("follows a mixed chain: contentid ref whose target then whole-list references another item", () => {
+    const deep = makeItem("deep-list", "ModelDeep");
+    const mid = makeItem("mid", "ModelMid", {
+      nested: { referenceName: "deep-list", fullList: true },
+    });
+    const top = makeItem("top", "ModelTop", {
+      drawGame: { contentid: mid.contentID, fulllist: false },
+    });
+
+    const result = getContentItemTypes([top, mid, deep], makeValidOpts());
+
+    expect(result.normalContentItems).toHaveLength(1);
+    expect(result.normalContentItems[0]).toBe(top);
+    const linkedIds = result.linkedContentItems.map((i) => i.contentID);
+    expect(linkedIds).toContain(mid.contentID);
+    expect(linkedIds).toContain(deep.contentID);
+  });
+});
+
 // ─── reference to unknown item ────────────────────────────────────────────────
 
 describe("getContentItemTypes — reference to unknown referenceName", () => {

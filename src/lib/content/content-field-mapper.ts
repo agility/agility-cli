@@ -224,16 +224,35 @@ export class ContentFieldMapper {
       return { mappedValue: fieldValue, warnings: 1, errors: 0 };
     }
 
+    // PROD-2341: a single-item linked-content selection must be emitted as the SCALAR remapped
+    // contentID string, not the { contentid, fulllist } object. The server-side batch engine reads
+    // a linked-content field value with `row[col] as string` (Agility.Shared BatchProcessing_
+    // InsertContentItem.cs); an object cast yields null → the selection is stored EMPTY (the GET API
+    // then renders it as the SharedContent list's reference name), which is the "Draw Game arrives
+    // empty / component can't be edited" symptom. Emit "<targetContentID>" when the referenced item
+    // is mapped; otherwise leave it untouched and warn (the PROD-2309 pre-push guard normally catches
+    // the unmapped case first).
+    if (this.isSingleItemContentSelection(fieldValue)) {
+      const sourceContentId = fieldValue.contentid ?? fieldValue.contentID;
+      const contentMapping = context.referenceMapper.getContentItemMappingByContentID(sourceContentId, "source");
+      const targetContentID = this.resolveTargetContentID(contentMapping);
+      if (targetContentID) {
+        return { mappedValue: String(targetContentID), warnings, errors };
+      }
+      return { mappedValue: fieldValue, warnings: warnings + 1, errors };
+    }
+
     // Map contentid/contentID references
     if (fieldValue.contentid || fieldValue.contentID) {
       const sourceContentId = fieldValue.contentid || fieldValue.contentID;
       const contentMapping = context.referenceMapper.getContentItemMappingByContentID(sourceContentId, "source");
-      if (contentMapping && (contentMapping as any).contentID) {
+      const targetContentID = this.resolveTargetContentID(contentMapping);
+      if (targetContentID) {
         if (fieldValue.contentid !== undefined) {
-          mappedValue.contentid = (contentMapping as any).contentID;
+          mappedValue.contentid = targetContentID;
         }
         if (fieldValue.contentID !== undefined) {
-          mappedValue.contentID = (contentMapping as any).contentID;
+          mappedValue.contentID = targetContentID;
         }
       } else {
         warnings++;
@@ -248,12 +267,45 @@ export class ContentFieldMapper {
         .map((id) => parseInt(id.trim()));
       const mappedIds = sourceIds.map((sourceId) => {
         const mapping = context.referenceMapper.getContentItemMappingByContentID(sourceId, "source");
-        return mapping ? (mapping as any).contentID : sourceId;
+        return this.resolveTargetContentID(mapping) ?? sourceId;
       });
       mappedValue.sortids = mappedIds.join(",");
     }
 
     return { mappedValue, warnings, errors };
+  }
+
+  /**
+   * PROD-2341: read the target contentID off a content-item mapping record. The mapper returns
+   * records whose target id is `targetContentID`; earlier code here read `.contentID`, which is
+   * always undefined on those records — so content references were never remapped and shipped with
+   * the SOURCE id (a dangling reference that the target stores as an empty selection). The
+   * `contentID` fallback keeps compatibility with any caller/test that passes that shape.
+   */
+  private resolveTargetContentID(mapping: any): number | null {
+    if (!mapping) return null;
+    return mapping.targetContentID ?? mapping.contentID ?? null;
+  }
+
+  /**
+   * PROD-2341: a single-item linked-content SELECTION — a linked-content dropdown where one item is
+   * picked. The pulled shape is `{ contentid: N, fulllist: false }` with a positive contentID, no
+   * `referencename`, and no `sortids`. The presence of a `fulllist` flag marks this as a linked-
+   * content field value (list/dropdown), distinguishing it from a bare nested `{ contentid }`
+   * reference (which keeps its object-form remap). This shape must be serialized as the scalar
+   * contentID string — see the batch-engine note in mapContentReferenceField.
+   */
+  private isSingleItemContentSelection(fieldValue: any): boolean {
+    if (!fieldValue || typeof fieldValue !== "object" || Array.isArray(fieldValue)) return false;
+    const hasFullListKey = "fulllist" in fieldValue || "fullList" in fieldValue;
+    if (!hasFullListKey) return false;
+    const isFullList = fieldValue.fulllist === true || fieldValue.fullList === true;
+    if (isFullList) return false; // whole-list link — not a single-item selection
+    const contentId = fieldValue.contentid ?? fieldValue.contentID;
+    const hasPositiveContentId = typeof contentId === "number" && contentId > 0;
+    const hasReferenceName = "referencename" in fieldValue || "referenceName" in fieldValue;
+    const hasSortIds = "sortids" in fieldValue;
+    return hasPositiveContentId && !hasReferenceName && !hasSortIds;
   }
 
   private mapAssetUrlString(
