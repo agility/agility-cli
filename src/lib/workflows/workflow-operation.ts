@@ -50,18 +50,18 @@ export class WorkflowOperation {
       const { sourceGuid, targetGuid, locale: locales } = state;
 
       // Validate required parameters
-      if (!sourceGuid || sourceGuid.length === 0) {
+      if (!sourceGuid) {
         throw new Error("Source GUID is required. Use --sourceGuid flag.");
       }
-      if (!targetGuid || targetGuid.length === 0) {
+      if (!targetGuid) {
         throw new Error("Target GUID is required. Use --targetGuid flag.");
       }
       if (!locales || locales.length === 0) {
         throw new Error("At least one locale is required. Use --locale flag.");
       }
 
-      const source = sourceGuid[0];
-      const target = targetGuid[0];
+      const source = sourceGuid;
+      const target = targetGuid;
       const primaryLocale = locales[0];
 
       console.log(ansiColors.cyan("\n" + "═".repeat(50)));

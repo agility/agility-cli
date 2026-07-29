@@ -48,13 +48,8 @@ export class Push {
     initializeLogger(isSync ? "sync" : "push");
     const logger = getLogger();
 
-    // TODO: Add support for multiple GUIDs, multiple locales, multiple chanels
-    // Currently only supports one GUID, one locale, one channel
-    // Get all GUIDs to process (both source and target)
-    const allGuids = [...sourceGuid, ...targetGuid];
-
-    if (allGuids.length === 0) {
-      throw new Error("No GUIDs specified for push operation");
+    if (!sourceGuid || !targetGuid) {
+      throw new Error("No source or target GUID specified for push operation");
     }
 
     // IMPORTANT: For sync operations, we need ALL elements downloaded to enable proper change detection
@@ -80,7 +75,7 @@ export class Push {
     // CONSOLE.LOG - Calculate total operations using per-GUID locale mapping
     let totalOperations = 0;
     const operationDetails: string[] = [];
-    for (const guid of allGuids) {
+    for (const guid of [sourceGuid, targetGuid]) {
       const guidLocales = state.guidLocaleMap.get(guid) || ["en-us"];
       totalOperations += guidLocales.length;
       operationDetails.push(`${guid}: ${guidLocales.join(", ")}`);
@@ -417,8 +412,8 @@ export class Push {
 
       // Refresh target instance data and update mappings after publishing
       // This ensures the mappings are up-to-date with the newly published content
-      const targetGuid = state.targetGuid?.[0];
-      const sourceGuid = state.sourceGuid?.[0];
+      const targetGuid = state.targetGuid;
+      const sourceGuid = state.sourceGuid;
 
       if (targetGuid && sourceGuid) {
         const hasPublishedItems = publishedContentIdsByLocale.size > 0 || publishedPageIdsByLocale.size > 0;

@@ -25,16 +25,16 @@ describe("Push constructor", () => {
 describe("Push.pushInstances", () => {
   it("throws when neither sourceGuid nor targetGuid are set", async () => {
     const push = new Push();
-    await expect(push.pushInstances()).rejects.toThrow("No GUIDs specified");
+    await expect(push.pushInstances()).rejects.toThrow("No source or target GUID specified");
   });
 
   it("resolves (passes the GUID guard) when sourceGuid and targetGuid are both set", async () => {
     setState({ sourceGuid: "source-guid-u", targetGuid: "target-guid-u" });
     const push = new Push();
-    // Should not throw "No GUIDs specified" — it may resolve or fail later for other reasons
+    // Should not throw the GUID guard error — it may resolve or fail later for other reasons
     const result = await push.pushInstances().catch((err: Error) => err);
     if (result instanceof Error) {
-      expect(result.message).not.toContain("No GUIDs specified");
+      expect(result.message).not.toContain("No source or target GUID specified");
     } else {
       expect(result).toBeDefined();
     }

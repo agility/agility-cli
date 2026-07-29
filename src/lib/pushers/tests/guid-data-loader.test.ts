@@ -18,8 +18,8 @@ beforeEach(() => {
   resetState();
   setState({ rootPath: tmpDir });
   // Model filtering builds a ModelDependencyTreeBuilder → AssetMapper, which needs guids.
-  state.sourceGuid = ["source-guid-u"];
-  state.targetGuid = ["target-guid-u"];
+  state.sourceGuid = "source-guid-u";
+  state.targetGuid = "target-guid-u";
   jest.spyOn(console, "log").mockImplementation(() => {});
   jest.spyOn(console, "warn").mockImplementation(() => {});
   jest.spyOn(console, "error").mockImplementation(() => {});

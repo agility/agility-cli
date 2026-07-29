@@ -73,7 +73,7 @@ async function findTargetModelAfterSave(
 export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtApi.Model[]): Promise<PusherResult> {
   const models: mgmtApi.Model[] = sourceData || [];
   const { sourceGuid, targetGuid } = state;
-  const logger = getLoggerForGuid(sourceGuid[0])!;
+  const logger = getLoggerForGuid(sourceGuid)!;
 
   const modelDefaults: string[] = [
     "richtextarea",
@@ -89,7 +89,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     return { status: "success", successful: 0, failed: 0, skipped: 0 };
   }
 
-  const referenceMapper = new ModelMapper(sourceGuid[0], targetGuid[0]);
+  const referenceMapper = new ModelMapper(sourceGuid, targetGuid);
 
   // PROD-1492: fail fast on stale duplicate model mappings. When a source model is deleted and
   // recreated (new ID, same reference name), the mapping ends up with two records sharing that name
@@ -161,7 +161,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       logger.model.skipped(
         sourceModel,
         "Model is missing required properties (id or referenceName), skipping",
-        targetGuid[0]
+        targetGuid
       );
       skipped++;
       continue;
@@ -211,7 +211,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
             new Error(
               `A target model named "${sourceModel.referenceName}" exists but is not mapped to source ID ${sourceModel.id} (likely a rename or reassignment of the source model).`
             ),
-            targetGuid[0]
+            targetGuid
           );
           throw new Error(
             `Model validation failed: mapping inconsistency for model "${sourceModel.referenceName}" (ID: ${sourceModel.id}). ` +
@@ -330,7 +330,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   }
 
   for (const model of shouldCreateStub) {
-    const { result, error } = await createNewModel(model, referenceMapper, apiClient, targetGuid[0], logger);
+    const { result, error } = await createNewModel(model, referenceMapper, apiClient, targetGuid, logger);
     if (result === "created") {
       stubCreated.push(model);
     } else {
@@ -342,7 +342,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
         error: error
           ? `Failed to create model "${model.referenceName}" (ID: ${model.id}): ${error}`
           : `Failed to create model "${model.referenceName}" (ID: ${model.id})`,
-        guid: sourceGuid[0],
+        guid: sourceGuid,
       });
     }
   }
@@ -355,7 +355,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       sourceMapping.targetID,
       referenceMapper,
       apiClient,
-      targetGuid[0],
+      targetGuid,
       logger
     );
     // PROD-2211: `updateExistingModel` returns the string "updated" | "failed". A bare `if (result)`
@@ -369,13 +369,13 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       failureDetails.push({
         name: model.referenceName,
         error: `Failed to update model "${model.referenceName}" (target ID: ${sourceMapping.targetID})`,
-        guid: sourceGuid[0],
+        guid: sourceGuid,
       });
     }
   }
 
   for (const model of shouldSkip) {
-    logger.model.skipped(model.model, model.reason, targetGuid[0]);
+    logger.model.skipped(model.model, model.reason, targetGuid);
     skipped++;
   }
 
@@ -384,9 +384,9 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
   // SUMMARY, rather than attempting a create that is guaranteed to 409.
   for (const { model, target } of crossKindConflicts) {
     const message = crossKindCollisionMessage(model, target);
-    logger.model.error(model, new Error(message), targetGuid[0]);
+    logger.model.error(model, new Error(message), targetGuid);
     failed++;
-    failureDetails.push({ name: model.referenceName, error: message, guid: sourceGuid[0] });
+    failureDetails.push({ name: model.referenceName, error: message, guid: sourceGuid });
   }
 
   return {

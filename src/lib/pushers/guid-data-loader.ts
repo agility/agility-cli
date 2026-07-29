@@ -138,7 +138,7 @@ export class GuidDataLoader {
 
     // Apply model filtering if requested
     if (filterOptions) {
-      return await this.applyModelFiltering(guidEntities, filterOptions, locale, state.targetGuid[0], state.sourceGuid[0]);
+      return await this.applyModelFiltering(guidEntities, filterOptions, locale, state.targetGuid, state.sourceGuid);
     }
 
     return guidEntities;

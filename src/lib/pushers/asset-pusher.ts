@@ -78,7 +78,7 @@ export async function pushAssets(
 
   // Get state values and logger
   const { sourceGuid, targetGuid, locale, preview: isPreview } = state;
-  const logger = getLoggerForGuid(sourceGuid[0]);
+  const logger = getLoggerForGuid(sourceGuid);
 
   if (!assets || assets.length === 0) {
     logger.log("INFO", "No assets found to process.");
@@ -90,11 +90,11 @@ export async function pushAssets(
 
   // Initialize reference mapper and asset mapper
   // const referenceMapper = new ReferenceMapperV2();
-  const referenceMapper = new AssetMapper(sourceGuid[0], targetGuid[0]);
+  const referenceMapper = new AssetMapper(sourceGuid, targetGuid);
 
   let defaultContainer: mgmtApi.assetContainer | null = null;
   try {
-    defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid[0]);
+    defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid);
   } catch (err: any) {
     console.error("✗ Error fetching default asset container:", err.message);
     return { status: "error", successful: 0, failed: 0, skipped: 0 };
@@ -107,7 +107,7 @@ export async function pushAssets(
   let processedAssetsCount = 0;
   let overallStatus: "success" | "error" = "success";
 
-  const fileOps = new fileOperations(sourceGuid[0]);
+  const fileOps = new fileOperations(sourceGuid);
   const basePath = fileOps.getDataFolderPath();
 
   for (const media of assets) {
@@ -138,7 +138,7 @@ export async function pushAssets(
       // If no mapping but asset exists by originKey in target, create mapping and skip
       if (!existingMapping && targetAssetByOriginKey) {
         referenceMapper.addMapping(media, targetAssetByOriginKey);
-        logger.asset.skipped(media, "already exists in target by path", targetGuid[0]);
+        logger.asset.skipped(media, "already exists in target by path", targetGuid);
         preflightReport.record({
           phase: "Assets",
           action: "skip",
@@ -178,8 +178,8 @@ export async function pushAssets(
             absoluteLocalFilePath,
             folderPath,
             apiClient,
-            sourceGuid[0],
-            targetGuid[0],
+            sourceGuid,
+            targetGuid,
             referenceMapper,
             logger
           );
@@ -196,8 +196,8 @@ export async function pushAssets(
             absoluteLocalFilePath,
             folderPath,
             apiClient,
-            sourceGuid[0],
-            targetGuid[0],
+            sourceGuid,
+            targetGuid,
             referenceMapper,
             logger
           );
@@ -206,7 +206,7 @@ export async function pushAssets(
         successful++;
       } else if (shouldSkip) {
         // Asset exists and is up to date - skip
-        logger.asset.skipped(media, "up to date, skipping", targetGuid[0]);
+        logger.asset.skipped(media, "up to date, skipping", targetGuid);
         preflightReport.record({ phase: "Assets", action: "skip", name: media.fileName, detail: "up to date" });
         skipped++;
       } else if (isConflict) {
@@ -221,7 +221,7 @@ export async function pushAssets(
       }
     } catch (error: any) {
       const errorMsg = extractErrorMessage(error);
-      logger.asset.error(media, errorMsg, targetGuid[0]);
+      logger.asset.error(media, errorMsg, targetGuid);
 
       failed++;
       currentStatus = "error";

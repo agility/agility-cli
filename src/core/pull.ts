@@ -22,17 +22,12 @@ export class Pull {
       initializeLogger("pull");
     }
 
-    // TODO: Add support for multiple GUIDs, multiple locales, multiple chanels
-    // Currently only supports one GUID, one locale, one channel
-    // Get all GUIDs to process (both source and target)
-    let allGuids = [];
-    if (fromPush === true) {
-      allGuids = [...state.sourceGuid, ...state.targetGuid];
-    } else {
-      allGuids = [...state.sourceGuid];
-    }
+    // Get the GUIDs to process: both source and target when called from push, source only for a standalone pull
+    const guidsToProcess: string[] = fromPush
+      ? [state.sourceGuid, state.targetGuid].filter(Boolean)
+      : [state.sourceGuid].filter(Boolean);
 
-    if (allGuids.length === 0) {
+    if (guidsToProcess.length === 0) {
       throw new Error("No GUIDs specified for pull operation");
     }
 
@@ -40,7 +35,7 @@ export class Pull {
     let totalOperations = 0;
     const operationDetails: string[] = [];
 
-    for (const guid of allGuids) {
+    for (const guid of guidsToProcess) {
       const guidLocales = state.guidLocaleMap.get(guid) || ["en-us"];
       totalOperations += guidLocales.length;
       operationDetails.push(`${guid}: ${guidLocales.join(", ")}`);
@@ -57,7 +52,7 @@ export class Pull {
       // This ensures we're pulling the latest data from the CDN
       // Skip when called from push - the refresh-mappings workflow handles this separately
       if (!fromPush) {
-        for (const guid of allGuids) {
+        for (const guid of guidsToProcess) {
           try {
             await waitForFetchApiSync(guid, "fetch", false);
           } catch (error: any) {

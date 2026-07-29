@@ -114,13 +114,13 @@ describe("Pushers.instanceOrchestrator — guard clause", () => {
   it("throws when no sourceGuid is set", async () => {
     const pushers = new Pushers();
     // state has no sourceGuid after resetState
-    await expect(pushers.instanceOrchestrator()).rejects.toThrow(/No source or target GUIDs/);
+    await expect(pushers.instanceOrchestrator()).rejects.toThrow(/No source or target GUID/);
   });
 
   it("throws when no targetGuid is set", async () => {
     setState({ sourceGuid: "src-guid-u" });
     const pushers = new Pushers();
-    await expect(pushers.instanceOrchestrator()).rejects.toThrow(/No source or target GUIDs/);
+    await expect(pushers.instanceOrchestrator()).rejects.toThrow(/No source or target GUID/);
   });
 });
 

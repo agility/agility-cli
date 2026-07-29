@@ -67,7 +67,8 @@ function stubPullFailure() {
 describe("refreshAndUpdateMappings", () => {
   describe("when no valid API keys exist for the target", () => {
     it("skips pull and mapping updates when target has no API keys", async () => {
-      state.apiKeys = []; // no keys
+      state.targetGuid = "tgt-guid";
+      state.targetApiKeys = null; // no keys
 
       const pullSpy = stubPullSuccess();
       const mappingSpy = stubMappingUpdate();
@@ -79,14 +80,16 @@ describe("refreshAndUpdateMappings", () => {
     });
 
     it("does not throw when no API keys exist", async () => {
-      state.apiKeys = [];
+      state.targetGuid = "tgt-guid";
+      state.targetApiKeys = null;
       await expect(refreshAndUpdateMappings([], [], "src-guid", "tgt-guid", "en-us")).resolves.not.toThrow();
     });
   });
 
   describe("when valid API keys exist for the target", () => {
     beforeEach(() => {
-      state.apiKeys = [{ guid: "tgt-guid", previewKey: "pk", fetchKey: "fk" }];
+      state.targetGuid = "tgt-guid";
+      state.targetApiKeys = { previewKey: "pk", fetchKey: "fk" };
     });
 
     it("calls pull.pullInstances on a successful flow", async () => {

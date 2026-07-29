@@ -163,7 +163,7 @@ describe("pushModels — source-side rename orphans a mapping and halts the sync
 
     // Seed the mapping exactly as it looked BEFORE the rename:
     //   source model 248 ("ContactUsSendMessageForm") -> target model 118.
-    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    const seeder = new ModelMapper(state.sourceGuid, state.targetGuid);
     seeder.addMapping(
       {
         id: 248,
@@ -217,7 +217,7 @@ describe("pushModels — deleted-and-recreated model leaves a duplicate mapping 
 
     // Seed the mapping exactly as it looks after a deleted-and-recreated source model (the PROD-1492
     // PromoBanner case): dead source 46 -> target 138  and  live source 48 -> target 139, same name.
-    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    const seeder = new ModelMapper(state.sourceGuid, state.targetGuid);
     seeder.addMapping(
       { id: 46, referenceName: "PromoBanner", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
       { id: 138, referenceName: "PromoBanner", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any
@@ -258,7 +258,7 @@ describe("pushModels — deleted-and-recreated model leaves a duplicate mapping 
     //   ChangeLog source 110 -> target 18  and  Changelog source 117 -> target 24.
     // Neither source model exists in the current pull anymore (the model was fully deleted), so this
     // is stale mapping residue, not a delete-and-recreate. The gate must NOT halt the sync over it.
-    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    const seeder = new ModelMapper(state.sourceGuid, state.targetGuid);
     seeder.addMapping(
       { id: 110, referenceName: "ChangeLog", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
       { id: 18, referenceName: "ChangeLog", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any
@@ -343,7 +343,7 @@ describe("pushModels — false-negative create recovery (PROD-2211)", () => {
     expect(getContentModules).toHaveBeenCalled();
     expect(result.failed).toBe(0);
     expect(result.successful).toBe(1);
-    const mapper = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    const mapper = new ModelMapper(state.sourceGuid, state.targetGuid);
     expect(mapper.getModelMappingByID(700, "source")?.targetID).toBe(8);
   });
 
@@ -366,7 +366,7 @@ describe("pushModels — false-negative create recovery (PROD-2211)", () => {
   it("recovers a failed UPDATE when the saved field set matches the source", async () => {
     // Mapping exists (model already on target); the update throws but the fields were persisted.
     const { ModelMapper } = await import("lib/mappers/model-mapper");
-    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    const seeder = new ModelMapper(state.sourceGuid, state.targetGuid);
     seeder.addMapping(
       { id: 300, referenceName: "Header", lastModifiedDate: new Date(2024, 0, 1).toISOString() } as any,
       { id: 30, referenceName: "Header", lastModifiedDate: new Date(2024, 0, 1).toISOString() } as any
@@ -419,7 +419,7 @@ describe("pushModels — exists in target without mapping, non-default (PROD-221
     expect(result.skipped).toBe(1);
     expect(result.failed).toBe(0);
 
-    const mapper = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    const mapper = new ModelMapper(state.sourceGuid, state.targetGuid);
     expect(mapper.getModelMappingByID(501, "source")?.targetID).toBe(10);
   });
 
@@ -482,7 +482,7 @@ describe("pushModels — mapped-before-unmapped ordering (PROD-2250)", () => {
     const fixedDateB = new Date(2024, 0, 1).toISOString();
     const fixedDateD = new Date(2024, 5, 1).toISOString();
 
-    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    const seeder = new ModelMapper(state.sourceGuid, state.targetGuid);
     const sourceB = makeModel({ id: 102, referenceName: "ModelB-Mapped", lastModifiedDate: fixedDateB });
     const targetB = makeModel({ id: 1020, referenceName: "ModelB-Mapped", lastModifiedDate: fixedDateB });
     seeder.addMapping(sourceB, targetB);
@@ -513,7 +513,7 @@ describe("pushModels — mapped-before-unmapped ordering (PROD-2250)", () => {
   it("preserves each group's original relative order when multiple models share mapped/unmapped status", async () => {
     const { ModelMapper } = await import("lib/mappers/model-mapper");
 
-    const seeder = new ModelMapper(state.sourceGuid[0], state.targetGuid[0]);
+    const seeder = new ModelMapper(state.sourceGuid, state.targetGuid);
     // Intentionally descending / non-sorted IDs so preserved order can't be mistaken for a sort.
     const mappedSources = [402, 401, 400].map((id) =>
       makeModel({ id, referenceName: `Mapped-${id}`, lastModifiedDate: new Date(2024, 0, 1).toISOString() })

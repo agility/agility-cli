@@ -36,7 +36,7 @@ export class FileLogger {
 
     return new FileLogger({
       rootPath: state.rootPath,
-      guid: targetGuid[0],
+      guid: targetGuid,
       locale: state.locale[0],
       preview: state.preview,
       operationType,

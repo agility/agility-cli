@@ -41,12 +41,12 @@ export class PublishService {
   constructor(options: PublishOptions = {}) {
     const state = getState();
 
-    if (!state.targetGuid?.length) {
+    if (!state.targetGuid) {
       throw new Error("PublishService requires targetGuid to be set in state");
     }
 
     this.apiClient = getApiClient();
-    this.targetGuid = state.targetGuid[0];
+    this.targetGuid = state.targetGuid;
     this.options = { verbose: false, ...options };
   }
 
