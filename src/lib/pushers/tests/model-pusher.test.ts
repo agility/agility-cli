@@ -592,6 +592,24 @@ describe("pushModels — cross-kind reference-name collision (PROD-2315)", () =>
     expect(result.failureDetails![0].error).toMatch(/content model with that reference name already exists/);
   });
 
+  it("labels a List-type (contentDefinitionTypeID 0) collision as \"content\", not \"type 0\" (PROD-2315 wording)", async () => {
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+
+    // Source LinkCard is a List-backed content model (type 0) — the common case for real
+    // container-backed models — colliding with a component (type 2) on the target.
+    const sourceModel = makeModel({ referenceName: "LinkCard", contentDefinitionTypeID: 0 });
+    const targetModel = makeModel({ id: 504, referenceName: "LinkCard", contentDefinitionTypeID: 2 });
+
+    const result = await pushModels([sourceModel], [targetModel]);
+
+    expect(result.failureDetails).toHaveLength(1);
+    expect(result.failureDetails![0].error).toMatch(/is a content model on the source/);
+    expect(result.failureDetails![0].error).not.toMatch(/type 0/);
+  });
+
   it("does NOT flag a same-name model when the kinds are unknown (falls back to adopt-by-reference)", async () => {
     const saveModel = jest.fn();
     jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
