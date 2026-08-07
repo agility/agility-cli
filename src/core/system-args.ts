@@ -88,24 +88,6 @@ export const systemArgs = {
     default: false,
   },
 
-  // **Explicit ID Override for Workflow Operations**
-  contentIDs: {
-    describe:
-      "Comma-separated list of target content IDs to process. Bypasses mappings lookup when provided (e.g., --contentIDs=121,1221,345).",
-    demandOption: false,
-    alias: ["content-ids", "contentIds", "ContentIDs", "CONTENTIDS"],
-    type: "string" as const,
-    default: "",
-  },
-  pageIDs: {
-    describe:
-      "Comma-separated list of target page IDs to process. Bypasses mappings lookup when provided (e.g., --pageIDs=12,11,45).",
-    demandOption: false,
-    alias: ["page-ids", "pageIds", "PageIDs", "PAGEIDS"],
-    type: "string" as const,
-    default: "",
-  },
-
   // Instance identification args
   sourceGuid: {
     describe:
@@ -146,6 +128,34 @@ export const systemArgs = {
       if (["content", "pages", "both"].includes(lower)) return lower;
       return "both"; // Default to 'both' for any other value
     },
+  },
+};
+
+/**
+ * Args exclusive to the `workflows` command (PROD-2230).
+ *
+ * These bypass the mappings lookup for workflow operations (publish/unpublish/
+ * approve/decline). They must NOT be spread into pull/push/sync's builders —
+ * those commands never read state.explicitContentIDs/explicitPageIDs (only
+ * lib/workflows/workflow-operation.ts does), so showing them there previously
+ * advertised a filter that silently did nothing.
+ */
+export const workflowArgs = {
+  contentIDs: {
+    describe:
+      "Comma-separated list of target content IDs to process. Bypasses mappings lookup when provided (e.g., --contentIDs=121,1221,345).",
+    demandOption: false,
+    alias: ["content-ids", "contentIds", "ContentIDs", "CONTENTIDS"],
+    type: "string" as const,
+    default: "",
+  },
+  pageIDs: {
+    describe:
+      "Comma-separated list of target page IDs to process. Bypasses mappings lookup when provided (e.g., --pageIDs=12,11,45).",
+    demandOption: false,
+    alias: ["page-ids", "pageIds", "PageIDs", "PAGEIDS"],
+    type: "string" as const,
+    default: "",
   },
 };
 

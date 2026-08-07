@@ -1,4 +1,4 @@
-import { systemArgs } from "../system-args";
+import { systemArgs, workflowArgs } from "../system-args";
 
 // ─── Structure ─────────────────────────────────────────────────────────────────
 
@@ -13,8 +13,6 @@ describe("systemArgs – required keys exist", () => {
     "elements",
     "models",
     "modelsWithDeps",
-    "contentIDs",
-    "pageIDs",
     "sourceGuid",
     "targetGuid",
     "overwrite",
@@ -41,10 +39,31 @@ describe("systemArgs – removed keys do not exist", () => {
     "force",
     "update",
     "reset",
+    // PROD-2230: contentIDs/pageIDs only have an effect for `workflows` (which
+    // reads state.explicitContentIDs/explicitPageIDs) — pull/push/sync never
+    // consumed them, so showing them in those commands' --help was misleading.
+    // They now live in workflowArgs, scoped to the `workflows` builder only.
+    "contentIDs",
+    "pageIDs",
   ];
 
   it.each(removedKeys)('no longer exposes "%s"', (key) => {
     expect(systemArgs).not.toHaveProperty(key);
+  });
+});
+
+describe("workflowArgs – contentIDs/pageIDs scoped to `workflows` only (PROD-2230)", () => {
+  it.each(["contentIDs", "pageIDs"])('has key "%s"', (key) => {
+    expect(workflowArgs).toHaveProperty(key);
+  });
+
+  it.each(["contentIDs", "pageIDs"])('"%s" declares type "string"', (key) => {
+    expect((workflowArgs as any)[key].type).toBe("string");
+  });
+
+  it.each(["contentIDs", "pageIDs"])('"%s" has a non-empty describe (shown in --help)', (key) => {
+    expect(typeof (workflowArgs as any)[key].describe).toBe("string");
+    expect((workflowArgs as any)[key].describe.length).toBeGreaterThan(0);
   });
 });
 
@@ -64,8 +83,6 @@ describe("systemArgs – types", () => {
       "elements",
       "models",
       "modelsWithDeps",
-      "contentIDs",
-      "pageIDs",
       "sourceGuid",
       "targetGuid",
     ];
