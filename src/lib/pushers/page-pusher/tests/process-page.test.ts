@@ -354,7 +354,7 @@ describe("processPage — failure paths", () => {
 // ─── missing content mapping ──────────────────────────────────────────────────
 
 describe("processPage — missing content mappings", () => {
-  it("returns failure when a zone module has no content mapping", async () => {
+  it("returns failure when the page's ONLY module has no content mapping (total-loss guard)", async () => {
     const { TemplateMapper } = require("lib/mappers/template-mapper");
     // Template with a section definition so the zone name is mapped through correctly
     TemplateMapper.mockImplementation(() => ({
@@ -384,6 +384,177 @@ describe("processPage — missing content mappings", () => {
     expect(result.status).toBe("failure");
     // Could be "missing content mappings" or "Lost all N modules" depending on code path
     expect(result.error).toBeTruthy();
+  });
+});
+
+// ─── PROD-2316: unresolvable modules are dropped, page still pushes ───────────
+
+describe("processPage — dropped modules (PROD-2316)", () => {
+  function setupTemplateWithMainZone() {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue({
+        contentSectionDefinitions: [{ pageItemTemplateReferenceName: "Main", itemOrder: 0 }],
+      }),
+    }));
+  }
+
+  function setupContentMapperResolvingOnly(resolvableIds: Record<number, number>) {
+    const { ContentItemMapper } = require("lib/mappers/content-item-mapper");
+    ContentItemMapper.mockImplementation(() => ({
+      getContentItemMappingByContentID: jest.fn((id: number) =>
+        resolvableIds[id] ? { targetContentID: resolvableIds[id] } : null
+      ),
+    }));
+  }
+
+  it("pushes the page successfully with the unresolvable module dropped, and reports a warning", async () => {
+    setupTemplateWithMainZone();
+    setupContentMapperResolvingOnly({ 55: 955 }); // 55 resolves; 66 does not
+
+    const pageWithContent = makePage({
+      zones: {
+        Main: [
+          { module: "Hero", item: { contentid: 55 } },
+          { module: "Broken", item: { contentid: 66 } },
+        ],
+      },
+    });
+
+    const pageMapper = makePageMapper({ hasSourceChanged: jest.fn().mockReturnValue(true) });
+    const apiClient = makeApiClient();
+
+    mockExtract.mockReturnValue({
+      successfulItems: [{ newId: 400, newItem: { processedItemVersionID: 7 } }],
+      failedItems: [],
+    });
+
+    const result = await processPage(makeProps({ page: pageWithContent, pageMapper, apiClient }));
+
+    expect(result.status).toBe("success");
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings![0].contentID).toBe(66);
+    expect(result.warnings![0].error).toContain("Dropped module Broken");
+
+    // The pushed payload contains only the resolvable module, remapped to its target ID.
+    const savedPayload = (apiClient.pageMethods.savePage as jest.Mock).mock.calls[0][0];
+    expect(savedPayload.zones.Main).toHaveLength(1);
+    expect(savedPayload.zones.Main[0].item.contentid).toBe(955);
+  });
+
+  it("records the page mapping as dirty (sourceVersionID 0) when modules were dropped, so it re-pushes next sync", async () => {
+    setupTemplateWithMainZone();
+    setupContentMapperResolvingOnly({ 55: 955 });
+
+    const pageWithContent = makePage({
+      properties: { state: 2, versionID: 42 },
+      zones: {
+        Main: [
+          { module: "Hero", item: { contentid: 55 } },
+          { module: "Broken", item: { contentid: 66 } },
+        ],
+      },
+    });
+
+    const pageMapper = makePageMapper({ hasSourceChanged: jest.fn().mockReturnValue(true) });
+
+    mockExtract.mockReturnValue({
+      successfulItems: [{ newId: 400, newItem: { processedItemVersionID: 7 } }],
+      failedItems: [],
+    });
+
+    await processPage(makeProps({ page: pageWithContent, pageMapper }));
+
+    expect(pageMapper.addMapping).toHaveBeenCalledTimes(1);
+    const [sourceArg] = (pageMapper.addMapping as jest.Mock).mock.calls[0];
+    expect(sourceArg.properties.versionID).toBe(0);
+  });
+
+  it("records the page mapping normally (real versionID) when nothing was dropped", async () => {
+    setupTemplateWithMainZone();
+    setupContentMapperResolvingOnly({ 55: 955 });
+
+    const pageWithContent = makePage({
+      properties: { state: 2, versionID: 42 },
+      zones: { Main: [{ module: "Hero", item: { contentid: 55 } }] },
+    });
+
+    const pageMapper = makePageMapper({ hasSourceChanged: jest.fn().mockReturnValue(true) });
+
+    mockExtract.mockReturnValue({
+      successfulItems: [{ newId: 401, newItem: { processedItemVersionID: 8 } }],
+      failedItems: [],
+    });
+
+    const result = await processPage(makeProps({ page: pageWithContent, pageMapper }));
+
+    expect(result.status).toBe("success");
+    expect(result.warnings).toBeUndefined();
+    const [sourceArg] = (pageMapper.addMapping as jest.Mock).mock.calls[0];
+    expect(sourceArg.properties.versionID).toBe(42);
+  });
+
+  it("fails an UPDATE (not just a create) when EVERY module is unresolvable, instead of wiping the target page", async () => {
+    setupTemplateWithMainZone();
+    setupContentMapperResolvingOnly({}); // nothing resolves
+
+    const pageWithContent = makePage({
+      zones: {
+        Main: [
+          { module: "Hero", item: { contentid: 55 } },
+          { module: "Promo", item: { contentid: 66 } },
+        ],
+      },
+    });
+
+    // Existing page on target → update path (the old guard only covered creates)
+    const existingTargetPage = makePage({ pageID: 99 });
+    const pageMapper = makePageMapper({
+      getPageMapping: jest.fn().mockReturnValue({ targetPageID: 99, sourcePageID: 1 }),
+      getMappedEntity: jest.fn().mockReturnValue(existingTargetPage),
+      hasSourceChanged: jest.fn().mockReturnValue(true),
+      hasTargetChanged: jest.fn().mockReturnValue(null),
+    });
+
+    const apiClient = makeApiClient();
+    const result = await processPage(makeProps({ page: pageWithContent, pageMapper, apiClient }));
+
+    expect(result.status).toBe("failure");
+    expect(result.error).toContain("Lost all 2 modules");
+    expect(result.warnings).toHaveLength(2);
+    // The destructive save is never attempted.
+    expect(apiClient.pageMethods.savePage).not.toHaveBeenCalled();
+  });
+
+  it("keeps modules without any content reference while dropping unresolvable ones", async () => {
+    setupTemplateWithMainZone();
+    setupContentMapperResolvingOnly({});
+
+    const pageWithContent = makePage({
+      zones: {
+        Main: [
+          { module: "StaticBanner", item: null }, // no content reference — always kept
+          { module: "Broken", item: { contentid: 66 } },
+        ],
+      },
+    });
+
+    const pageMapper = makePageMapper({ hasSourceChanged: jest.fn().mockReturnValue(true) });
+    const apiClient = makeApiClient();
+
+    mockExtract.mockReturnValue({
+      successfulItems: [{ newId: 402, newItem: { processedItemVersionID: 9 } }],
+      failedItems: [],
+    });
+
+    const result = await processPage(makeProps({ page: pageWithContent, pageMapper, apiClient }));
+
+    expect(result.status).toBe("success");
+    expect(result.warnings).toHaveLength(1);
+    const savedPayload = (apiClient.pageMethods.savePage as jest.Mock).mock.calls[0][0];
+    expect(savedPayload.zones.Main).toHaveLength(1);
+    expect(savedPayload.zones.Main[0].module).toBe("StaticBanner");
   });
 });
 

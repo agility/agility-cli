@@ -24,6 +24,8 @@ export interface PushResults {
   publishablePageIdsByLocale: Map<string, number[]>;
   // Individual failure details for error summary
   failureDetails: FailureDetail[];
+  // PROD-2316: non-blocking notices (e.g. page modules dropped due to unresolvable content)
+  warningDetails: FailureDetail[];
 }
 
 export interface PusherConfig {
@@ -66,6 +68,7 @@ export class Pushers {
       publishableContentIdsByLocale: new Map(),
       publishablePageIdsByLocale: new Map(),
       failureDetails: [],
+      warningDetails: [],
     };
 
     try {
@@ -84,6 +87,7 @@ export class Pushers {
       results.publishableContentIdsByLocale = pushResults.publishableContentIdsByLocale;
       results.publishablePageIdsByLocale = pushResults.publishablePageIdsByLocale;
       results.failureDetails = pushResults.failureDetails;
+      results.warningDetails = pushResults.warningDetails;
 
       // Calculate final duration
       results.totalDuration = Date.now() - startTime;
@@ -155,6 +159,7 @@ export class Pushers {
     publishableContentIdsByLocale: Map<string, number[]>;
     publishablePageIdsByLocale: Map<string, number[]>;
     failureDetails: FailureDetail[];
+    warningDetails: FailureDetail[];
   }> {
     const { locale: locales, elements: stateElements } = state;
     const elements = stateElements.split(",");
@@ -170,6 +175,8 @@ export class Pushers {
     const publishablePageIdsByLocale = new Map<string, number[]>();
     // Collect individual failure details
     const failureDetails: FailureDetail[] = [];
+    // PROD-2316: collect non-blocking warning details
+    const warningDetails: FailureDetail[] = [];
 
     // PROD-2202: Models run FIRST so the model-mapping validation (the rename/reassignment
     // mismatch detection in pushModels) fails the sync before any galleries or assets are
@@ -240,6 +247,9 @@ export class Pushers {
         if (result.failureDetails) {
           failureDetails.push(...result.failureDetails);
         }
+        if (result.warningDetails) {
+          warningDetails.push(...result.warningDetails);
+        }
       }
     } catch (error: any) {
       // Re-throw validation errors immediately to stop sync.
@@ -284,6 +294,9 @@ export class Pushers {
           if (result.failureDetails) {
             failureDetails.push(...result.failureDetails);
           }
+          if (result.warningDetails) {
+            warningDetails.push(...result.warningDetails);
+          }
 
           // Store per-locale IDs and also add to combined list
           if (config === PUSH_OPERATIONS.content && localeContentIds.length > 0) {
@@ -308,6 +321,7 @@ export class Pushers {
         publishableContentIdsByLocale,
         publishablePageIdsByLocale,
         failureDetails,
+        warningDetails,
       };
     } catch (error) {
       console.error(ansiColors.red("Error during pusher execution:"), error);
@@ -331,7 +345,13 @@ export class Pushers {
     publishableContentIds?: number[];
     publishablePageIds?: number[];
     elements: string[];
-  }): Promise<{ success: number; failures: number; skipped: number; failureDetails?: FailureDetail[] }> {
+  }): Promise<{
+    success: number;
+    failures: number;
+    skipped: number;
+    failureDetails?: FailureDetail[];
+    warningDetails?: FailureDetail[];
+  }> {
     const elementData = sourceData[config.dataKey as keyof GuidEntities] || [];
 
     // Skip if no data for this element type or element not requested
@@ -342,7 +362,7 @@ export class Pushers {
       console.log(
         ansiColors.yellow(`⚠️ Skipping ${config.description} for locale ${locale} - no data or filtered by --locales`)
       );
-      return { success: 0, failures: 0, skipped: 0, failureDetails: [] };
+      return { success: 0, failures: 0, skipped: 0, failureDetails: [], warningDetails: [] };
     }
 
     this.config.onOperationStart?.(config.name, state.sourceGuid, state.targetGuid);
@@ -383,6 +403,7 @@ export class Pushers {
       failures: pusherResult.failed || 0,
       skipped: pusherResult.skipped || 0,
       failureDetails: pusherResult.failureDetails || [],
+      warningDetails: pusherResult.warningDetails || [],
     };
   }
 

@@ -1,7 +1,7 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { state, getApiClient } from "../../../core/state";
-import { PusherResult } from "../../../types/sourceData";
+import { FailureDetail, PusherResult } from "../../../types/sourceData";
 import { SitemapHierarchy } from "./sitemap-hierarchy";
 import { PageMapper } from "../../mappers/page-mapper";
 import { processPage } from "./process-page";
@@ -22,6 +22,8 @@ interface ReturnType {
     guid?: string;
     locale?: string;
   }>;
+  // PROD-2316: non-blocking dropped-module notices collected from processPage results.
+  warningDetails: FailureDetail[];
 }
 
 interface Props {
@@ -72,6 +74,7 @@ export async function processSitemap({
     skipped: 0,
     publishableIds: [],
     failureDetails: [],
+    warningDetails: [],
   };
 
   // Reverse the sitemap nodes to process them in the correct order
@@ -123,6 +126,11 @@ export async function processSitemap({
       parentPageID,
       logger,
     });
+
+    // PROD-2316: collect dropped-module notices regardless of the page's final status.
+    if (pageRes.warnings && pageRes.warnings.length > 0) {
+      returnData.warningDetails.push(...pageRes.warnings);
+    }
 
     if (pageRes.status === "success") {
       returnData.successful++;
@@ -180,6 +188,7 @@ export async function processSitemap({
     returnData.skipped += childRes.skipped;
     returnData.publishableIds.push(...childRes.publishableIds);
     returnData.failureDetails.push(...childRes.failureDetails);
+    returnData.warningDetails.push(...childRes.warningDetails);
 
     // Update previousPageID for next iteration
     previousPageID = node.pageID;

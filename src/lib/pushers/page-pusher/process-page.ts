@@ -8,7 +8,7 @@ import { translateZoneNames } from "./translate-zone-names";
 import { findPageInOtherLocale, OtherLocaleMapping } from "./find-page-in-other-locale";
 import { Logs } from "core/logs";
 import { state, getFailedContent, contentExistsInSourceData, contentExistsInOtherLocale } from "core/state";
-import { PageModuleExtended } from "types/sourceData";
+import { FailureDetail, PageModuleExtended } from "types/sourceData";
 import { preflightReport } from "../../preflight/preflight-report";
 
 interface Props {
@@ -25,7 +25,14 @@ interface Props {
   logger: Logs;
 }
 
-export type PageProcessResult = { status: "success" | "skip" | "failure"; error?: string; contentID?: number };
+export type PageProcessResult = {
+  status: "success" | "skip" | "failure";
+  error?: string;
+  contentID?: number;
+  // PROD-2316: non-blocking notices for modules dropped from this page because their content
+  // couldn't be resolved on the target. The page itself still pushes.
+  warnings?: FailureDetail[];
+};
 
 export async function processPage({
   channel,
@@ -182,27 +189,11 @@ export async function processPage({
       [key: string]: PageModuleExtended[];
     };
 
-    // Content mapping validation - collect all content IDs that need mapping
-    const contentIdsToValidate: number[] = [];
-    for (const [zoneName, zoneModules] of Object.entries(mappedZones)) {
-      if (Array.isArray(zoneModules)) {
-        for (const module of zoneModules) {
-          if (module.item && typeof module.item === "object") {
-            const sourceContentId = module.item.contentid || module.item.contentId;
-            if (sourceContentId && sourceContentId > 0) {
-              contentIdsToValidate.push(sourceContentId);
-            }
-          }
-        }
-      }
-    }
-
-    // Content mapping validation (silent unless errors)
-
     const contentMapper = new ContentItemMapper(sourceGuid, targetGuid, locale);
-    // Track first missing content mapping for error summary
-    let firstMissingContentError: string | null = null;
-    let firstMissingContentID: number | null = null;
+    // PROD-2316: modules whose content can't be resolved are DROPPED from the pushed page rather
+    // than failing the whole page. Collect every drop (not just the first) as a non-blocking
+    // warning so the run summary can report exactly what was left out and why.
+    const droppedModules: FailureDetail[] = [];
 
     for (const [zoneName, zoneModules] of Object.entries(mappedZones)) {
       const newZoneContent = [];
@@ -258,12 +249,29 @@ export async function processPage({
                   mappingError = `No content mapping for ${module.module} (contentID ${sourceContentId}) - content has never been synced or model may have changed`;
                 }
 
-                // Don't log individual errors inline - they'll appear in the final summary
-                // Capture first error and contentID for summary
-                if (!firstMissingContentError) {
-                  firstMissingContentError = mappingError;
-                  firstMissingContentID = sourceContentId;
-                }
+                // PROD-2316: drop this module from the pushed page (it is NOT added to
+                // newZoneContent) and record a non-blocking warning. The rest of the page still
+                // pushes. NOTE: the server's SavePage diff (BatchInsertPageItem's toBeDeletedList)
+                // REMOVES payload-absent modules from an existing target page, so a dropped module
+                // is genuinely removed on the target — the mapping below is therefore recorded as
+                // dirty (sourceVersionID 0) so the page re-pushes each sync and the module is
+                // restored automatically once its content becomes resolvable.
+                droppedModules.push({
+                  name: page.name || `Page ${page.pageID}`,
+                  error: `Dropped module ${module.module} — ${mappingError}`,
+                  type: "page",
+                  pageID: page.pageID,
+                  contentID: sourceContentId,
+                  guid: sourceGuid,
+                  locale,
+                });
+                logger.page.skipped(
+                  page,
+                  `dropped module ${module.module} (contentID ${sourceContentId}) — ${mappingError}`,
+                  locale,
+                  channel,
+                  targetGuid
+                );
               }
             } else {
               // Module without content reference - keep it
@@ -278,43 +286,10 @@ export async function processPage({
       mappedZones[zoneName] = newZoneContent;
     }
 
-    // Content mapping validation - check which mappings were successful
-    if (contentIdsToValidate.length > 0) {
-      const mappingResults: { [contentId: number]: { found: boolean; targetId?: number; error?: string } } = {};
-      let foundMappings = 0;
-      let missingMappings = 0;
-
-      contentIdsToValidate.forEach((sourceContentId) => {
-        const contentMapping = contentMapper.getContentItemMappingByContentID(sourceContentId, "source");
-        const targetContentID = contentMapping?.targetContentID;
-        if (targetContentID) {
-          mappingResults[sourceContentId] = {
-            found: true,
-            targetId: targetContentID,
-          };
-          foundMappings++;
-        } else {
-          mappingResults[sourceContentId] = {
-            found: false,
-            error: targetContentID ? "Invalid target ID" : "No mapping found",
-          };
-          missingMappings++;
-        }
-      });
-
-      if (missingMappings > 0) {
-        console.error(
-          ansiColors.bgRed(
-            `✗ Page "${page.name}" failed - ${missingMappings}/${contentIdsToValidate.length} missing content mappings`
-          )
-        );
-        return {
-          status: "failure",
-          error: firstMissingContentError || `${missingMappings} missing content mappings`,
-          contentID: firstMissingContentID || undefined,
-        };
-      }
-    }
+    // PROD-2316: the hard-fail that previously aborted the whole page here whenever ANY module's
+    // content mapping was missing has been removed. Unresolvable modules are dropped above (with
+    // per-module warnings in `droppedModules`); the page itself still pushes with the modules
+    // that DID resolve.
 
     // Check if page has any content left after filtering
     const totalModules = Object.values(mappedZones).reduce((sum: number, zone) => {
@@ -365,10 +340,20 @@ export async function processPage({
 
       // If the page originally had modules but now has none, that's a problem
       // If it never had modules, that's fine (folder pages, etc.)
-      if (originalModuleCount > 0 && !existingPage && !isLegitimateEmptyPage(page)) {
+      // PROD-2316: this guard now also covers the UPDATE path (previously create-only). With
+      // partial drops allowed, a page whose EVERY module failed to resolve signals a systemic
+      // problem (e.g. the whole content phase failed) — pushing it would wipe all modules off the
+      // existing target page. Genuine source-side emptiness is unaffected: if the author removed
+      // every module in source, originalModuleCount is 0 and this never triggers.
+      if (originalModuleCount > 0 && droppedModules.length > 0 && !isLegitimateEmptyPage(page)) {
         const lostModulesError = `Lost all ${originalModuleCount} modules during content mapping`;
         console.error(`✗ Page "${page.name}" ${lostModulesError}`);
-        return { status: "failure", error: lostModulesError };
+        return {
+          status: "failure",
+          error: lostModulesError,
+          contentID: droppedModules[0]?.contentID,
+          warnings: droppedModules,
+        };
       }
     }
 
@@ -504,7 +489,20 @@ export async function processPage({
           createdPageData.properties.versionID = savedPageVersionID; // Set version ID from batch result
         }
 
-        pageMapper.addMapping(page, createdPageData); // Use original page for source key
+        if (droppedModules.length > 0) {
+          // PROD-2316: modules were dropped, so record the mapping with sourceVersionID 0
+          // ("never cleanly synced"). hasSourceChanged() then stays true on every subsequent
+          // sync, so the page keeps re-pushing until a push completes with no drops — which
+          // restores the dropped modules automatically once their content becomes resolvable.
+          // targetVersionID is still recorded accurately, so this never reads as a conflict.
+          const dirtySourcePage = {
+            ...page,
+            properties: { ...page.properties, versionID: 0 },
+          } as mgmtApi.PageItem;
+          pageMapper.addMapping(dirtySourcePage, createdPageData);
+        } else {
+          pageMapper.addMapping(page, createdPageData); // Use original page for source key
+        }
 
         const pageTypeDisplay =
           {
@@ -518,7 +516,8 @@ export async function processPage({
         } else {
           logger.page.created(page, "created", locale, channel, targetGuid);
         }
-        return { status: "success" }; // Success
+        // PROD-2316: surface any dropped-module notices alongside the success.
+        return { status: "success", warnings: droppedModules.length > 0 ? droppedModules : undefined };
       } else {
         let errorMsg: string;
         if (batchFailedItems.length > 0 && batchFailedItems[0].error) {
@@ -540,7 +539,7 @@ export async function processPage({
           channel,
           targetGuid
         );
-        return { status: "failure", error: errorMsg };
+        return { status: "failure", error: errorMsg, warnings: droppedModules.length > 0 ? droppedModules : undefined };
       }
     } else {
       const errorMsg = "Unexpected response format";
