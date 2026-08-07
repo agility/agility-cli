@@ -119,6 +119,9 @@ export class Push {
         guid?: string;
         locale?: string;
       }> = [];
+      // PROD-2316: non-blocking notices (e.g. page modules dropped because their content
+      // couldn't be resolved). Shown in their own section; never affect success/exit code.
+      const syncWarningDetails: typeof syncFailureDetails = [];
 
       results.forEach((result: PushResults) => {
         // Track item-level failures from totalFailures
@@ -128,6 +131,9 @@ export class Push {
         // Collect individual failure details
         if (result.failureDetails && result.failureDetails.length > 0) {
           syncFailureDetails.push(...result.failureDetails);
+        }
+        if (result.warningDetails && result.warningDetails.length > 0) {
+          syncWarningDetails.push(...result.warningDetails);
         }
         // Track operation-level failures
         if (result.failed && result.failed.length > 0) {
@@ -228,6 +234,24 @@ export class Push {
             console.log(ansiColors.red(`    • ${localeDisplay} ${type}: ${error}`));
           });
         }
+      }
+
+      // PROD-2316: dropped-module notices — a page pushed successfully, but one or more of
+      // its modules referenced content that couldn't be resolved on the target, so those
+      // modules were left off the pushed page. Non-blocking: the modules return automatically
+      // on a future push of the page once the content syncs.
+      if (syncWarningDetails.length > 0) {
+        console.log(ansiColors.yellow(`\n  Page Module Warnings (non-blocking, ${syncWarningDetails.length}):`));
+        syncWarningDetails.forEach(({ name, error, pageID, contentID, guid, locale }) => {
+          const prefix = guid && locale ? `[${guid}][${locale}]` : guid ? `[${guid}]` : "";
+          console.log(ansiColors.yellow(`    ${prefix} • ${name}: ${error}`));
+          if (pageID && guid && locale) {
+            console.log(ansiColors.gray(`      ${getPageCmsLink(guid, locale, pageID)}`));
+          }
+          if (contentID && guid && locale) {
+            console.log(ansiColors.gray(`      ${getContentCmsLink(guid, locale, contentID)}`));
+          }
+        });
       }
 
       // PROD-2311: post-publish mapping/version bookkeeping notices are NOT publish

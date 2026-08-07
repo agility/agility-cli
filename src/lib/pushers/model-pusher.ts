@@ -20,10 +20,19 @@ function modelTypeMatches(a: mgmtApi.Model, b: mgmtApi.Model): boolean {
   return aType === bType;
 }
 
-/** Human-readable model kind for messages. 1 = content, 2 = component/module. */
+/**
+ * Human-readable model kind for messages.
+ *
+ * PROD-2315: per the SDK's ContentDefinitionTypeID enum, 0 = List (a content model backing a
+ * container/content list — the common case) and 1 = SingleItem (a content model for a single
+ * item) are BOTH content models; only 2 = Component (module/component) is the other kind. This
+ * previously only recognized 1 as "content" and let 0 fall through to the internal `"type 0"`
+ * label — which fired on most real collisions, since list-backed content models (0) are far more
+ * common than single-item ones (1).
+ */
 function modelKindName(model: mgmtApi.Model): string {
   const t = (model as any)?.contentDefinitionTypeID;
-  return t === 1 ? "content" : t === 2 ? "component/module" : `type ${t}`;
+  return t === 0 || t === 1 ? "content" : t === 2 ? "component/module" : `type ${t}`;
 }
 
 /**

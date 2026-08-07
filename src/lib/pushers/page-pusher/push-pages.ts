@@ -1,6 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import { state, getApiClient, getLoggerForGuid } from "core/state";
-import { PusherResult } from "../../../types/sourceData";
+import { FailureDetail, PusherResult } from "../../../types/sourceData";
 import { SitemapHierarchy } from "lib/pushers/page-pusher/sitemap-hierarchy";
 import { PageMapper } from "lib/mappers/page-mapper";
 import { processSitemap, resetProcessedPageIDs } from "./process-sitemap";
@@ -16,7 +16,7 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
 
   if (!pages || pages.length === 0) {
     console.log("No pages found to process.");
-    return { status: "success", successful: 0, failed: 0, skipped: 0, failureDetails: [] };
+    return { status: "success", successful: 0, failed: 0, skipped: 0, failureDetails: [], warningDetails: [] };
   }
 
   const sitemapHierarchy = new SitemapHierarchy();
@@ -43,6 +43,8 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
     guid?: string;
     locale?: string;
   }> = [];
+  // PROD-2316: non-blocking dropped-module notices from processPage
+  let warningDetails: FailureDetail[] = [];
 
   //loop all the channels
   for (const channel of channels) {
@@ -81,6 +83,9 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
       }
       if (res.failureDetails && res.failureDetails.length > 0) {
         failureDetails.push(...res.failureDetails);
+      }
+      if (res.warningDetails && res.warningDetails.length > 0) {
+        warningDetails.push(...res.warningDetails);
       }
 
       if (res.failed > 0) {
@@ -122,5 +127,5 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
     );
   }
 
-  return { status, successful, failed, skipped, publishableIds: uniquePublishableIds, failureDetails };
+  return { status, successful, failed, skipped, publishableIds: uniquePublishableIds, failureDetails, warningDetails };
 }

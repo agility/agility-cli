@@ -54,6 +54,11 @@ export interface PusherResult {
   status: "success" | "error";
   publishableIds?: number[]; // Optional: target instance IDs for workflow operations (content items and pages only)
   failureDetails?: FailureDetail[]; // Individual failure details for error summary
+  // PROD-2316: non-blocking notices (e.g. a page module dropped because its content couldn't be
+  // resolved). Reuses the FailureDetail shape — `error` carries the warning text — so the same
+  // CMS-link helpers work. These are surfaced in their own summary section and never affect the
+  // failure counts or the exit code.
+  warningDetails?: FailureDetail[];
 }
 
 /**
