@@ -1,7 +1,7 @@
 {
   "name": "@agility/cli",
-  "version": "1.0.0-beta.13.28",
-  "description": "Agility CLI for working with your content. (Public Beta)",
+  "version": "1.0.0",
+  "description": "Agility CLI for working with your content.",
   "repository": {
     "type": "git",
     "url": "https://github.com/agility/agility-cli.git"
@@ -38,6 +38,8 @@
     "Joel Varty",
     "Aaron Taylor",
     "Kevin Tran",
+    "Jules Exel",
+    "Derek Lo",
     "Mohit Vashishtha"
   ],
   "license": "ISC",
