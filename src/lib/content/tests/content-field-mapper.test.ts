@@ -308,6 +308,45 @@ describe("ContentFieldMapper.mapContentFields", () => {
       const result = mapper.mapContentFields(fields, context);
       expect(result.mappedFields.list.sortids).toBe("571,109");
     });
+
+    // PROD-2442: a full-list "grid" Linked Content field looks exactly like a bare list-by-name
+    // reference (referencename + fulllist:true) but can ALSO carry a populated sortids — a custom
+    // sort order, via the model's SortIDFieldName setting. isListReferenceField() used to match on
+    // referencename+fulllist alone and short-circuit mapSingleField() before this sortids remap ever
+    // ran, shipping raw SOURCE content IDs to the target. Confirmed live against a Shared Grid field
+    // with a custom sort order on test instance a921a90f-us2.
+    it("PROD-2442: remaps sortids on a full-list grid field instead of treating it as an inert list reference", () => {
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockImplementation((id: number) => {
+          const map: Record<number, number> = { 13084: 14084, 13085: 14085, 13086: 14086, 13087: 14087, 13088: 14088 };
+          return map[id] ? { targetContentID: map[id] } : null;
+        }),
+      });
+      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const fields = {
+        sharedGridSorted: {
+          referencename: "linktesttargets",
+          containerID: 1667,
+          sortids: "13088,13087,13086,13085,13084",
+          fulllist: true,
+        },
+      };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.sharedGridSorted.sortids).toBe("14088,14087,14086,14085,14084");
+      // still a full-list link, unrelated properties untouched
+      expect(result.mappedFields.sharedGridSorted.fulllist).toBe(true);
+      expect(result.mappedFields.sharedGridSorted.referencename).toBe("linktesttargets");
+    });
+
+    it("still treats a full-list field with no populated sortids as an inert list reference (no regression)", () => {
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockReturnValue({ targetContentID: 999 }),
+      });
+      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const fields = { sharedGridPlain: { referencename: "linktesttargets", sortids: "", fulllist: true } };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.sharedGridPlain).toEqual({ referencename: "linktesttargets", sortids: "", fulllist: true });
+    });
   });
 
   // ─── schema-driven linked-content dropdown companion remap (PROD-2431/PROD-2435) ───────────
@@ -426,6 +465,34 @@ describe("ContentFieldMapper.mapContentFields", () => {
       const fields = { list: { sortids: "5,6" } };
       const result = mapper.mapContentFields(fields, context);
       expect(result.mappedFields).toEqual({ list: { sortids: "5,6" } });
+    });
+
+    // PROD-2442: a "grid" (full-list) Linked Content field's companion selection column is named by
+    // SortIDFieldName instead of LinkeContentDropdownValueField — same per-field, no-fixed-convention
+    // naming problem PROD-2431/2435 solved for dropdown/checkbox, just under a different setting.
+    it("PROD-2442: remaps a grid field's SortIDFieldName companion alongside its own sortids", () => {
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockImplementation((id: number) => {
+          const map: Record<number, number> = { 13084: 14084, 13085: 14085, 13086: 14086, 13087: 14087, 13088: 14088 };
+          return map[id] ? { targetContentID: map[id] } : null;
+        }),
+      });
+      const model = {
+        fields: [{ name: "sharedGridSorted", settings: { SortIDFieldName: "sharedGridSorted_SortField" } }],
+      };
+      const context = { referenceMapper, assetMapper: makeAssetMapper(), model };
+      const fields = {
+        sharedGridSorted: {
+          referencename: "linktesttargets",
+          containerID: 1667,
+          sortids: "13088,13087,13086,13085,13084",
+          fulllist: true,
+        },
+        sharedGridSorted_SortField: "13088,13087,13086,13085,13084",
+      };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.sharedGridSorted.sortids).toBe("14088,14087,14086,14085,14084");
+      expect(result.mappedFields.sharedGridSorted_SortField).toBe("14088,14087,14086,14085,14084");
     });
   });
 

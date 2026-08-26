@@ -201,7 +201,16 @@ export class ContentFieldMapper {
     // Check for list reference patterns (referencename with fulllist)
     const hasReferencename = "referencename" in fieldValue || "referenceName" in fieldValue;
     const hasFulllist = fieldValue.fulllist === true || fieldValue.fullList === true;
-    return hasReferencename && hasFulllist;
+    // PROD-2442: a full-list "grid" Linked Content field carries referencename+fulllist:true
+    // exactly like a bare list-by-name reference, but it can ALSO have a populated sortids (a
+    // custom sort order, via the model's SortIDFieldName setting — the grid analogue of
+    // LinkeContentDropdownValueField). Treating every referencename+fulllist object as an inert
+    // list reference short-circuited mapSingleField() before mapContentReferenceField() ever ran,
+    // so that sortids shipped to the target with raw SOURCE content IDs. Only fields with no
+    // populated sortids are genuinely "reference by name only" — fall through to the
+    // content-reference path (which already knows how to remap sortids) otherwise.
+    const hasSortIds = typeof fieldValue.sortids === "string" && fieldValue.sortids.trim().length > 0;
+    return hasReferencename && hasFulllist && !hasSortIds;
   }
 
   private mapAssetAttachmentField(
@@ -318,7 +327,12 @@ export class ContentFieldMapper {
 
     const pairs: Array<[string, string]> = [];
     for (const field of modelFields) {
-      const valueFieldName: string | undefined = field?.settings?.LinkeContentDropdownValueField;
+      // PROD-2442: a "grid" (full-list) Linked Content field's companion selection column is named
+      // by SortIDFieldName instead of LinkeContentDropdownValueField — the same per-field, no-fixed-
+      // convention naming problem PROD-2431/2435 already solved for dropdown/checkbox, just under a
+      // different setting. Fall back to it so that companion also gets remapped.
+      const valueFieldName: string | undefined =
+        field?.settings?.LinkeContentDropdownValueField || field?.settings?.SortIDFieldName;
       if (field?.name && valueFieldName) {
         pairs.push([field.name, valueFieldName]);
       }
