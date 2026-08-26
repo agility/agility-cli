@@ -54,6 +54,25 @@ export class ContentFieldMapper {
       }
     }
 
+    // PROD-2431: a checkbox/multi-select Linked Content field stores its actual selection as a
+    // comma-separated content-ID string in a sibling "<field>_ValueField" field (named by the
+    // model schema's LinkeContentDropdownValueField property). The main field's own "sortids" is
+    // only display order, which mapSingleField already remaps correctly above — but this sibling
+    // field is a bare string, not an object, so isContentReferenceField() never recognizes it and
+    // it passes through unchanged, shipping raw SOURCE content IDs into the target instance.
+    for (const [fieldName, fieldValue] of Object.entries(fields)) {
+      if (!fieldValue || typeof fieldValue !== "object" || Array.isArray(fieldValue) || !("sortids" in fieldValue)) {
+        continue;
+      }
+      const valueFieldKey = `${fieldName}_ValueField`;
+      const valueFieldValue = mappedFields[valueFieldKey];
+      if (typeof valueFieldValue !== "string" || !valueFieldValue.trim()) continue;
+
+      const valueFieldResult = this.mapContentIdListString(valueFieldValue, context);
+      mappedFields[valueFieldKey] = valueFieldResult.mappedValue;
+      validationWarnings += valueFieldResult.warnings;
+    }
+
     return {
       mappedFields,
       validationWarnings,
@@ -261,18 +280,45 @@ export class ContentFieldMapper {
 
     // Map sortids (comma-separated content IDs)
     if (fieldValue.sortids) {
-      const sourceIds = fieldValue.sortids
-        .toString()
-        .split(",")
-        .map((id) => parseInt(id.trim()));
-      const mappedIds = sourceIds.map((sourceId) => {
-        const mapping = context.referenceMapper.getContentItemMappingByContentID(sourceId, "source");
-        return this.resolveTargetContentID(mapping) ?? sourceId;
-      });
-      mappedValue.sortids = mappedIds.join(",");
+      const sortidsResult = this.mapContentIdListString(fieldValue.sortids.toString(), context);
+      mappedValue.sortids = sortidsResult.mappedValue;
+      warnings += sortidsResult.warnings;
     }
 
     return { mappedValue, warnings, errors };
+  }
+
+  /**
+   * PROD-2431: shared remap for a comma-separated list of SOURCE content IDs, used both for a
+   * content-reference field's "sortids" and for a checkbox/multi-select field's companion
+   * "<field>_ValueField" selection string. Unresolvable IDs are left as-is and counted as warnings
+   * rather than dropped, matching the existing sortids behavior.
+   */
+  private mapContentIdListString(
+    value: string,
+    context?: ContentFieldMappingContext
+  ): { mappedValue: string; warnings: number } {
+    if (!context?.referenceMapper) {
+      return { mappedValue: value, warnings: 1 };
+    }
+
+    let warnings = 0;
+    const mappedIds = value
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0)
+      .map((id) => {
+        const sourceId = parseInt(id, 10);
+        const mapping = context.referenceMapper.getContentItemMappingByContentID(sourceId, "source");
+        const targetId = this.resolveTargetContentID(mapping);
+        if (targetId == null) {
+          warnings++;
+          return id;
+        }
+        return String(targetId);
+      });
+
+    return { mappedValue: mappedIds.join(","), warnings };
   }
 
   /**

@@ -310,6 +310,65 @@ describe("ContentFieldMapper.mapContentFields", () => {
     });
   });
 
+  // ─── checkbox / multi-select "_ValueField" companion (PROD-2431) ────────────
+  describe("checkbox/multi-select _ValueField companion remapping", () => {
+    it("remaps the sibling <field>_ValueField comma-ID string alongside sortids", () => {
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockImplementation((id: number) => {
+          const map: Record<number, number> = { 12689: 14, 12690: 18, 12691: 17, 12693: 16 };
+          return map[id] ? { targetContentID: map[id] } : null;
+        }),
+      });
+      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const fields = {
+        levelConfig: { referencename: "loyaltyassets", sortids: "18,17,16,14", fulllist: false },
+        levelConfig_ValueField: "12689,12690,12691,12693",
+      };
+      const result = mapper.mapContentFields(fields, context);
+      // sortids is already target-side order and passes through the existing content-reference path
+      expect(result.mappedFields.levelConfig.sortids).toBe("18,17,16,14");
+      // the previously-untouched sibling now carries the remapped target IDs, not the source IDs
+      expect(result.mappedFields.levelConfig_ValueField).toBe("14,18,17,16");
+      expect(result.validationErrors).toBe(0);
+    });
+
+    it("leaves an unresolved ID in place in the _ValueField string and adds a warning", () => {
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockReturnValue(null),
+      });
+      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const fields = {
+        featureListConfig: { referencename: "features", sortids: "1,2", fulllist: false },
+        featureListConfig_ValueField: "13113,13114",
+      };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.featureListConfig_ValueField).toBe("13113,13114");
+      expect(result.validationWarnings).toBeGreaterThan(0);
+    });
+
+    it("does not touch a _ValueField sibling when the base field has no sortids (e.g. single-select)", () => {
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockReturnValue({ targetContentID: 999 }),
+      });
+      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const fields = {
+        featuredPost: { contentid: 113, fulllist: false },
+        featuredPost_ValueField: "113",
+      };
+      const result = mapper.mapContentFields(fields, context);
+      // single-item selection scalarizes featuredPost itself; the untouched sibling string is left as-is
+      expect(result.mappedFields.featuredPost).toBe("999");
+      expect(result.mappedFields.featuredPost_ValueField).toBe("113");
+    });
+
+    it("is a no-op when no matching _ValueField sibling exists", () => {
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper: makeAssetMapper() };
+      const fields = { list: { sortids: "5,6" } };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields).toEqual({ list: { sortids: "5,6" } });
+    });
+  });
+
   describe("cdn URL string fields", () => {
     it("increments validationErrors for a cdn.aglty.io string field when no context is given (mapAssetUrl throws)", () => {
       // mapAssetUrl unconditionally accesses context.assetMapper, so passing no context throws,
