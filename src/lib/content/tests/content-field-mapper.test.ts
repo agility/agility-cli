@@ -310,16 +310,31 @@ describe("ContentFieldMapper.mapContentFields", () => {
     });
   });
 
-  // ─── checkbox / multi-select "_ValueField" companion (PROD-2431) ────────────
-  describe("checkbox/multi-select _ValueField companion remapping", () => {
-    it("remaps the sibling <field>_ValueField comma-ID string alongside sortids", () => {
+  // ─── schema-driven linked-content dropdown companion remap (PROD-2431/PROD-2435) ───────────
+  // The companion field that actually carries the raw content ID(s) for a linked-content dropdown
+  // is named by that field's own model setting, LinkeContentDropdownValueField — not by any fixed
+  // suffix convention (confirmed against the target instance's own schema: only 4 of 14 dropdown
+  // fields use "<field>_ValueField"; the rest, like PlayslipSection's "linkedContentId" or
+  // HotAndColdNumbersSection's "LinkedContentValue", don't). So the mapper reads it off context.model.
+  describe("linked-content dropdown companion remap (schema-driven)", () => {
+    function makeModel(fields: Array<{ name: string; valueField?: string }>) {
+      return {
+        fields: fields.map((f) => ({
+          name: f.name,
+          settings: f.valueField ? { LinkeContentDropdownValueField: f.valueField } : {},
+        })),
+      };
+    }
+
+    it("PROD-2431: remaps a checkbox/multi-select field's companion (suffix-named) alongside sortids", () => {
       const referenceMapper = makeReferenceMapper({
         getContentItemMappingByContentID: jest.fn().mockImplementation((id: number) => {
           const map: Record<number, number> = { 12689: 14, 12690: 18, 12691: 17, 12693: 16 };
           return map[id] ? { targetContentID: map[id] } : null;
         }),
       });
-      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const model = makeModel([{ name: "levelConfig", valueField: "levelConfig_ValueField" }]);
+      const context = { referenceMapper, assetMapper: makeAssetMapper(), model };
       const fields = {
         levelConfig: { referencename: "loyaltyassets", sortids: "18,17,16,14", fulllist: false },
         levelConfig_ValueField: "12689,12690,12691,12693",
@@ -327,16 +342,46 @@ describe("ContentFieldMapper.mapContentFields", () => {
       const result = mapper.mapContentFields(fields, context);
       // sortids is already target-side order and passes through the existing content-reference path
       expect(result.mappedFields.levelConfig.sortids).toBe("18,17,16,14");
-      // the previously-untouched sibling now carries the remapped target IDs, not the source IDs
+      // the previously-untouched companion now carries the remapped target IDs, not the source IDs
       expect(result.mappedFields.levelConfig_ValueField).toBe("14,18,17,16");
       expect(result.validationErrors).toBe(0);
     });
 
-    it("leaves an unresolved ID in place in the _ValueField string and adds a warning", () => {
+    it("PROD-2435: remaps a single-select dropdown's arbitrarily-named companion field", () => {
       const referenceMapper = makeReferenceMapper({
-        getContentItemMappingByContentID: jest.fn().mockReturnValue(null),
+        getContentItemMappingByContentID: jest.fn().mockImplementation((id: number) => {
+          return id === 11875 ? { targetContentID: 1034 } : null;
+        }),
       });
-      const context = { referenceMapper, assetMapper: makeAssetMapper() };
+      const model = makeModel([{ name: "linkedDrawGameAsset", valueField: "linkedContentId" }]);
+      const context = { referenceMapper, assetMapper: makeAssetMapper(), model };
+      const fields = {
+        // main field already correctly scalarized by the existing PROD-2341 single-item path
+        linkedDrawGameAsset: "1034",
+        // companion is plain text in the schema — previously invisible to the mapper entirely
+        linkedContentId: "11875",
+        gameCode: "euro-jackpot",
+      };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.linkedContentId).toBe("1034");
+      expect(result.validationErrors).toBe(0);
+    });
+
+    it("matches the companion field name case-insensitively (schema casing vs. payload casing)", () => {
+      const referenceMapper = makeReferenceMapper({
+        getContentItemMappingByContentID: jest.fn().mockReturnValue({ targetContentID: 1034 }),
+      });
+      const model = makeModel([{ name: "linkedDrawGameAsset", valueField: "LinkedContentValue" }]);
+      const context = { referenceMapper, assetMapper: makeAssetMapper(), model };
+      const fields = { linkedDrawGameAsset: "1034", linkedContentValue: "11875" };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.linkedContentValue).toBe("1034");
+    });
+
+    it("leaves an unresolved ID in place in the companion string and adds a warning", () => {
+      const referenceMapper = makeReferenceMapper({ getContentItemMappingByContentID: jest.fn().mockReturnValue(null) });
+      const model = makeModel([{ name: "featureListConfig", valueField: "featureListConfig_ValueField" }]);
+      const context = { referenceMapper, assetMapper: makeAssetMapper(), model };
       const fields = {
         featureListConfig: { referencename: "features", sortids: "1,2", fulllist: false },
         featureListConfig_ValueField: "13113,13114",
@@ -346,23 +391,38 @@ describe("ContentFieldMapper.mapContentFields", () => {
       expect(result.validationWarnings).toBeGreaterThan(0);
     });
 
-    it("does not touch a _ValueField sibling when the base field has no sortids (e.g. single-select)", () => {
+    it("does not double-process a self-pointing setting (e.g. GameBanner's field naming itself)", () => {
       const referenceMapper = makeReferenceMapper({
         getContentItemMappingByContentID: jest.fn().mockReturnValue({ targetContentID: 999 }),
       });
-      const context = { referenceMapper, assetMapper: makeAssetMapper() };
-      const fields = {
-        featuredPost: { contentid: 113, fulllist: false },
-        featuredPost_ValueField: "113",
-      };
+      const model = makeModel([{ name: "drawGame", valueField: "drawGame" }]);
+      const context = { referenceMapper, assetMapper: makeAssetMapper(), model };
+      const fields = { drawGame: { contentid: 11868, fulllist: false } };
       const result = mapper.mapContentFields(fields, context);
-      // single-item selection scalarizes featuredPost itself; the untouched sibling string is left as-is
-      expect(result.mappedFields.featuredPost).toBe("999");
-      expect(result.mappedFields.featuredPost_ValueField).toBe("113");
+      // handled once, by the ordinary single-item-selection path — scalarized, not left as an object
+      expect(result.mappedFields.drawGame).toBe("999");
     });
 
-    it("is a no-op when no matching _ValueField sibling exists", () => {
+    it("tolerates a sentinel setting that names no real field (e.g. PostsListing's 'CREATENEW')", () => {
+      const referenceMapper = makeReferenceMapper();
+      const model = makeModel([{ name: "posts", valueField: "CREATENEW" }]);
+      const context = { referenceMapper, assetMapper: makeAssetMapper(), model };
+      const fields = { posts: { referencename: "posts-list", fulllist: true } };
+      expect(() => mapper.mapContentFields(fields, context)).not.toThrow();
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields.posts).toEqual({ referencename: "posts-list", fulllist: true });
+    });
+
+    it("is a no-op when no model is supplied in context (back-compat)", () => {
       const context = { referenceMapper: makeReferenceMapper(), assetMapper: makeAssetMapper() };
+      const fields = { list: { sortids: "5,6" } };
+      const result = mapper.mapContentFields(fields, context);
+      expect(result.mappedFields).toEqual({ list: { sortids: "5,6" } });
+    });
+
+    it("is a no-op when the model has no field settings for LinkeContentDropdownValueField", () => {
+      const model = makeModel([{ name: "list" }]);
+      const context = { referenceMapper: makeReferenceMapper(), assetMapper: makeAssetMapper(), model };
       const fields = { list: { sortids: "5,6" } };
       const result = mapper.mapContentFields(fields, context);
       expect(result.mappedFields).toEqual({ list: { sortids: "5,6" } });
