@@ -12,6 +12,12 @@ export interface ContentFieldMappingContext {
   assetMapper: AssetMapper;
   apiClient?: mgmtApi.ApiClient;
   targetGuid?: string;
+  // PROD-2431/PROD-2435: the source model for the content item being mapped. Content-typed
+  // dropdown fields declare a `LinkeContentDropdownValueField` setting naming a companion field
+  // that separately carries the raw selected content ID(s) — the model is the only place that
+  // name is recorded, and it varies per field (no fixed naming convention), so it must be read
+  // from here rather than guessed.
+  model?: mgmtApi.Model | { fields?: mgmtApi.ModelField[] | any[] };
 }
 
 export interface ContentFieldMappingResult {
@@ -52,6 +58,35 @@ export class ContentFieldMapper {
         validationErrors++;
         // Keep original value on error
       }
+    }
+
+    // PROD-2431/PROD-2435: a Content-typed dropdown field (single-select OR checkbox/multi-select)
+    // can store its actual selection in a companion field, separate from the field the designer
+    // sees — named by that field's own model setting, LinkeContentDropdownValueField. That
+    // companion is declared as plain text in the schema, so it's a bare string (or comma-separated
+    // string for multi-select) rather than the {contentid}/{sortids} object shape the passes above
+    // remap — it's invisible to isContentReferenceField() and passes through untouched, shipping
+    // raw SOURCE content ID(s) into the target instance.
+    //
+    // The companion's *name* has no fixed convention — sampling this codebase's own target schema,
+    // only 4 of 14 dropdown fields name it "<field>_ValueField"; the rest (e.g. PlayslipSection's
+    // "linkedContentId", HotAndColdNumbersSection's "LinkedContentValue") don't. The model schema is
+    // the only reliable source for the real name, so remap by reading it from context.model instead
+    // of guessing a suffix.
+    for (const [mainFieldName, valueFieldName] of this.getContentDropdownValueFieldNames(context)) {
+      // Self-pointing setting (e.g. GameBanner's own field name): nothing separate to remap —
+      // the mainFieldName pass above (or the sortids/contentid handling) already covers it.
+      if (valueFieldName.toLowerCase() === mainFieldName.toLowerCase()) continue;
+
+      const valueFieldKey = this.findFieldKey(fields, valueFieldName);
+      if (!valueFieldKey) continue; // e.g. a sentinel setting like "CREATENEW" that names no real field
+
+      const rawValue = fields[valueFieldKey];
+      if (typeof rawValue !== "string" || !rawValue.trim()) continue;
+
+      const valueFieldResult = this.mapContentIdListString(rawValue, context);
+      mappedFields[valueFieldKey] = valueFieldResult.mappedValue;
+      validationWarnings += valueFieldResult.warnings;
     }
 
     return {
@@ -166,7 +201,16 @@ export class ContentFieldMapper {
     // Check for list reference patterns (referencename with fulllist)
     const hasReferencename = "referencename" in fieldValue || "referenceName" in fieldValue;
     const hasFulllist = fieldValue.fulllist === true || fieldValue.fullList === true;
-    return hasReferencename && hasFulllist;
+    // PROD-2442: a full-list "grid" Linked Content field carries referencename+fulllist:true
+    // exactly like a bare list-by-name reference, but it can ALSO have a populated sortids (a
+    // custom sort order, via the model's SortIDFieldName setting — the grid analogue of
+    // LinkeContentDropdownValueField). Treating every referencename+fulllist object as an inert
+    // list reference short-circuited mapSingleField() before mapContentReferenceField() ever ran,
+    // so that sortids shipped to the target with raw SOURCE content IDs. Only fields with no
+    // populated sortids are genuinely "reference by name only" — fall through to the
+    // content-reference path (which already knows how to remap sortids) otherwise.
+    const hasSortIds = typeof fieldValue.sortids === "string" && fieldValue.sortids.trim().length > 0;
+    return hasReferencename && hasFulllist && !hasSortIds;
   }
 
   private mapAssetAttachmentField(
@@ -261,18 +305,83 @@ export class ContentFieldMapper {
 
     // Map sortids (comma-separated content IDs)
     if (fieldValue.sortids) {
-      const sourceIds = fieldValue.sortids
-        .toString()
-        .split(",")
-        .map((id) => parseInt(id.trim()));
-      const mappedIds = sourceIds.map((sourceId) => {
-        const mapping = context.referenceMapper.getContentItemMappingByContentID(sourceId, "source");
-        return this.resolveTargetContentID(mapping) ?? sourceId;
-      });
-      mappedValue.sortids = mappedIds.join(",");
+      const sortidsResult = this.mapContentIdListString(fieldValue.sortids.toString(), context);
+      mappedValue.sortids = sortidsResult.mappedValue;
+      warnings += sortidsResult.warnings;
     }
 
     return { mappedValue, warnings, errors };
+  }
+
+  /**
+   * PROD-2431/PROD-2435: read [mainFieldName, companionFieldName] pairs off the model schema's
+   * Content-typed fields. `settings.LinkeContentDropdownValueField` (Agility's own spelling) names
+   * the field that actually carries the raw content ID(s) for a linked-content dropdown. Only
+   * non-empty settings are returned; the caller still has to handle the value naming a field that
+   * doesn't exist in the payload (a sentinel like "CREATENEW") or naming itself (no separate
+   * companion to remap).
+   */
+  private getContentDropdownValueFieldNames(context?: ContentFieldMappingContext): Array<[string, string]> {
+    const modelFields = context?.model?.fields;
+    if (!Array.isArray(modelFields)) return [];
+
+    const pairs: Array<[string, string]> = [];
+    for (const field of modelFields) {
+      // PROD-2442: a "grid" (full-list) Linked Content field's companion selection column is named
+      // by SortIDFieldName instead of LinkeContentDropdownValueField — the same per-field, no-fixed-
+      // convention naming problem PROD-2431/2435 already solved for dropdown/checkbox, just under a
+      // different setting. Fall back to it so that companion also gets remapped.
+      const valueFieldName: string | undefined =
+        field?.settings?.LinkeContentDropdownValueField || field?.settings?.SortIDFieldName;
+      if (field?.name && valueFieldName) {
+        pairs.push([field.name, valueFieldName]);
+      }
+    }
+    return pairs;
+  }
+
+  /**
+   * Look up a field by name in a fields object, case-insensitively — the model schema's field
+   * name and the payload's actual field key can differ in casing (e.g. schema "LinkedContentValue"
+   * vs. a payload key camelCased to "linkedContentValue").
+   */
+  private findFieldKey(fields: any, fieldName: string): string | undefined {
+    if (fieldName in fields) return fieldName;
+    const lowerTarget = fieldName.toLowerCase();
+    return Object.keys(fields).find((key) => key.toLowerCase() === lowerTarget);
+  }
+
+  /**
+   * PROD-2431: shared remap for a comma-separated list of SOURCE content IDs, used both for a
+   * content-reference field's "sortids" and for a linked-content dropdown's companion selection
+   * field (named by the model's LinkeContentDropdownValueField setting). Unresolvable IDs are left
+   * as-is and counted as warnings rather than dropped, matching the existing sortids behavior.
+   */
+  private mapContentIdListString(
+    value: string,
+    context?: ContentFieldMappingContext
+  ): { mappedValue: string; warnings: number } {
+    if (!context?.referenceMapper) {
+      return { mappedValue: value, warnings: 1 };
+    }
+
+    let warnings = 0;
+    const mappedIds = value
+      .split(",")
+      .map((id) => id.trim())
+      .filter((id) => id.length > 0)
+      .map((id) => {
+        const sourceId = parseInt(id, 10);
+        const mapping = context.referenceMapper.getContentItemMappingByContentID(sourceId, "source");
+        const targetId = this.resolveTargetContentID(mapping);
+        if (targetId == null) {
+          warnings++;
+          return id;
+        }
+        return String(targetId);
+      });
+
+    return { mappedValue: mappedIds.join(","), warnings };
   }
 
   /**

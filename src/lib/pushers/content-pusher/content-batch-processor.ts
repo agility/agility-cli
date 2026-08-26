@@ -463,6 +463,9 @@ export class ContentBatchProcessor {
             assetMapper,
             apiClient: this.config.apiClient,
             targetGuid: this.config.targetGuid,
+            // PROD-2431/PROD-2435: sourceModel carries each field's LinkeContentDropdownValueField
+            // setting, needed to remap a linked-content dropdown's companion selection field.
+            model: sourceModel,
           });
 
           // Only log field mapper issues if there are actual errors (not warnings)
