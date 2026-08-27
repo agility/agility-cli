@@ -1,50 +1,6 @@
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { getLinkedContentCompanionFields, findFieldKey } from "lib/content/linked-content-companion-fields";
 
-/**
- * Recursively check for unresolved content references
- */
-export function hasUnresolvedContentReferences(obj: any, referenceMapper: ContentItemMapper): boolean {
-  if (typeof obj !== "object" || obj === null) {
-    return false;
-  }
-
-  if (Array.isArray(obj)) {
-    return obj.some((item) => hasUnresolvedContentReferences(item, referenceMapper));
-  }
-
-  for (const [key, value] of Object.entries(obj)) {
-    // Check for content reference patterns
-    if ((key === "contentid" || key === "contentID") && typeof value === "number") {
-      const mappedId = referenceMapper.getContentItemMappingByContentID(value, "source");
-      if (!mappedId) {
-        return true; // Unresolved content reference
-      }
-    }
-
-    // Check for comma-separated content IDs in sortids fields
-    if (key === "sortids" && typeof value === "string") {
-      const contentIds = value.split(",").filter((id) => id.trim());
-      for (const contentIdStr of contentIds) {
-        const contentId = parseInt(contentIdStr.trim());
-        if (!isNaN(contentId)) {
-          const mappedId = referenceMapper.getContentItemMappingByContentID(contentId, "source");
-          if (!mappedId) {
-            return true; // Unresolved content reference
-          }
-        }
-      }
-    }
-
-    // Recursive check for nested objects
-    if (hasUnresolvedContentReferences(value, referenceMapper)) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
 export interface UnresolvedContentReference {
   /** Dotted/indexed path to the offending value within the item's fields (e.g. "menuItems[0].contentid"). */
   path: string;
@@ -56,10 +12,10 @@ export interface UnresolvedContentReference {
  * Recursively collect every unresolved content reference (a contentID / sortids value with
  * no source→target mapping) along with the field path where it occurs.
  *
- * Unlike hasUnresolvedContentReferences (which early-exits with a boolean), this walks the
- * whole structure so callers can report exactly which field/reference is unmapped. Only
- * positive IDs are considered — 0 / -1 mean "no reference selected" and are ignored so we
- * don't over-skip items with intentionally empty linked-content fields.
+ * Walks the whole structure (rather than early-exiting on the first hit) so callers can report
+ * exactly which field/reference is unmapped. Only positive IDs are considered — 0 / -1 mean "no
+ * reference selected" and are ignored so we don't over-skip items with intentionally empty
+ * linked-content fields.
  *
  * PROD-2446: a Content-typed dropdown/checkbox/grid field's reference can live ONLY in a
  * companion field (named by the model's LinkeContentDropdownValueField/SortIDFieldName setting —

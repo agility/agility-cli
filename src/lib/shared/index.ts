@@ -5,7 +5,6 @@ export * from "../loggers";
 
 // // ReferenceMapperV2 exports
 export * from "../pushers/batch-polling";
-export * from "./link-type-detector";
 export { GuidDataLoader, GuidEntities, SourceEntities } from "../pushers/guid-data-loader";
 export function prettyException(error: any): string {
   return error.message || error.toString();
