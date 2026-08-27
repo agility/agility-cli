@@ -50,4 +50,36 @@ describe("collectContentIDReferences", () => {
     // Whole-list refs are handled by collectListReferenceNames, not here.
     expect(collectContentIDReferences({ items: { referencename: "somelist", fulllist: true } })).toEqual([]);
   });
+
+  // PROD-2446: a reference that lives ONLY in a LinkeContentDropdownValueField/SortIDFieldName
+  // companion field (PROD-2431/2435/2442) is a bare string under an arbitrary key — invisible to
+  // the structural walk above without the model to name it.
+  describe("companion-field references (schema-driven, PROD-2446)", () => {
+    it("collects an id living only in an arbitrarily-named companion field", () => {
+      const model = {
+        fields: [{ name: "linkedDrawGameAsset", settings: { LinkeContentDropdownValueField: "linkedContentId" } }],
+      };
+      const fields = { linkedDrawGameAsset: "euro-jackpot", linkedContentId: "11875" };
+      expect(collectContentIDReferences(fields, model)).toEqual([11875]);
+    });
+
+    it("collects comma-separated ids from a grid field's SortIDFieldName companion", () => {
+      const model = {
+        fields: [{ name: "sharedGridSorted", settings: { SortIDFieldName: "sharedGridSorted_SortField" } }],
+      };
+      const fields = { sharedGridSorted: { referencename: "list", fulllist: true }, sharedGridSorted_SortField: "3,7,11" };
+      expect(collectContentIDReferences(fields, model).sort((a, b) => a - b)).toEqual([3, 7, 11]);
+    });
+
+    it("is a no-op when no model is supplied (back-compat)", () => {
+      const fields = { linkedDrawGameAsset: "euro-jackpot", linkedContentId: "11875" };
+      expect(collectContentIDReferences(fields)).toEqual([]);
+    });
+
+    it("tolerates a sentinel setting that names no real field", () => {
+      const model = { fields: [{ name: "posts", settings: { LinkeContentDropdownValueField: "CREATENEW" } }] };
+      const fields = { posts: { referencename: "posts-list", fulllist: true } };
+      expect(collectContentIDReferences(fields, model)).toEqual([]);
+    });
+  });
 });

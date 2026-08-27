@@ -415,7 +415,11 @@ export class ContentBatchProcessor {
           // precise, actionable reason instead of shipping a payload that is guaranteed to fail.
           const unresolvedRefs = collectUnresolvedContentReferences(
             contentItem.fields || {},
-            this.config.referenceMapper
+            this.config.referenceMapper,
+            "",
+            // PROD-2446: sourceModel carries each field's LinkeContentDropdownValueField/SortIDFieldName
+            // setting, needed to recognize an unresolved reference living only in a companion field.
+            sourceModel
           );
           if (unresolvedRefs.length > 0) {
             const detail = unresolvedRefs

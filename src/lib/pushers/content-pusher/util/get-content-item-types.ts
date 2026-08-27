@@ -53,7 +53,7 @@ export function getContentItemTypes(
 
     // Find every item this one depends on — whole-list references (by referenceName)
     // AND single-item references (by contentID) — and mark them linked (pushed first).
-    const referencedIds = collectReferencedContentIDs(item, itemsByReferenceName, allItemsById);
+    const referencedIds = collectReferencedContentIDs(item, itemsByReferenceName, allItemsById, modelMapper);
     if (referencedIds.length > 0) {
       markReferencedItems(
         referencedIds,
@@ -105,15 +105,18 @@ function buildItemMaps(contentItems: ContentItem[]): {
  * both reference kinds:
  *  - whole-list references (referencename + fulllist:true) → every item sharing that
  *    referenceName (the full list), looked up via itemsByReferenceName;
- *  - single-item references (contentid / sortids) → the specific referenced item, only
- *    when it is present in the current content set (allItemsById).
+ *  - single-item references (contentid / sortids, INCLUDING one living only in a
+ *    LinkeContentDropdownValueField/SortIDFieldName companion field — PROD-2446) → the
+ *    specific referenced item, only when it is present in the current content set
+ *    (allItemsById).
  *
  * Returns the referenced items' contentIDs; the referencing item itself is never included.
  */
 function collectReferencedContentIDs(
   item: ContentItem,
   itemsByReferenceName: Map<string, ContentItem[]>,
-  allItemsById: Map<number, ContentItem>
+  allItemsById: Map<number, ContentItem>,
+  modelMapper: ModelMapper
 ): number[] {
   const ids: number[] = [];
 
@@ -125,13 +128,26 @@ function collectReferencedContentIDs(
   }
 
   // Single-item references → the specific referenced item, if it is in this push set
-  for (const contentID of collectContentIDReferences(item.fields || {})) {
+  const sourceModel = getSourceModel(item, modelMapper);
+  for (const contentID of collectContentIDReferences(item.fields || {}, sourceModel)) {
     if (allItemsById.has(contentID)) {
       ids.push(contentID);
     }
   }
 
   return ids;
+}
+
+/**
+ * Resolves an item's own source model (by its definitionName), so a Content-typed field's
+ * companion-field name (LinkeContentDropdownValueField/SortIDFieldName) can be read off it.
+ * Returns null if unmapped — collectContentIDReferences degrades gracefully to the structural-only
+ * walk in that case, same as before PROD-2446.
+ */
+function getSourceModel(item: ContentItem, modelMapper: ModelMapper): any {
+  if (!item.properties?.definitionName) return null;
+  const modelMapping = modelMapper.getModelMappingByReferenceName(item.properties.definitionName.toLowerCase(), "source");
+  return modelMapping ? modelMapper.getMappedEntity(modelMapping, "source") : null;
 }
 
 /**
@@ -170,7 +186,7 @@ function markReferencedItems(
     normalSet.delete(contentID); // Remove from normal if it was added there
 
     // Recursively process this item's own dependency targets
-    for (const nestedId of collectReferencedContentIDs(item, itemsByReferenceName, allItemsById)) {
+    for (const nestedId of collectReferencedContentIDs(item, itemsByReferenceName, allItemsById, modelMapper)) {
       if (!visited.has(nestedId)) {
         stack.push(nestedId);
       }
