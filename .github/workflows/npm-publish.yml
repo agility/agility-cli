@@ -40,12 +40,7 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Always publish under the beta dist-tag. Promote to latest manually:
+      #   npm dist-tag add @agility/cli@<version> latest
       - name: Publish
-        run: |
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          PRERELEASE_TAG=$(echo "$PKG_VERSION" | grep -oP '(?<=-)\w+' | head -1 || true)
-          if [ -n "$PRERELEASE_TAG" ]; then
-            npm publish --access public --tag "$PRERELEASE_TAG"
-          else
-            npm publish --access public
-          fi
+        run: npm publish --access public --tag beta
