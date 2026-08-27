@@ -1,3 +1,5 @@
+import { getLinkedContentCompanionFields, findFieldKey } from "lib/content/linked-content-companion-fields";
+
 /**
  * Recursively walks content item fields to find SINGLE-ITEM content references —
  * `contentid`/`contentID` values and comma-separated `sortids` — and returns the
@@ -12,8 +14,14 @@
  * Only positive IDs are returned; 0 / -1 mean "no reference selected" and are ignored so
  * we don't promote items with intentionally-empty linked-content fields. This matches the
  * `> 0` guard used by collectUnresolvedContentReferences.
+ *
+ * PROD-2446: a Content-typed dropdown/checkbox/grid field's reference can live ONLY in a
+ * companion field (named by the model's LinkeContentDropdownValueField/SortIDFieldName setting —
+ * see PROD-2431/2435/2442), invisible to the structural walk above since it's a bare string under
+ * an arbitrary key. Pass `model` so an item that depends on another item solely through such a
+ * companion field is still recognized as a dependency and promoted to push first.
  */
-export function collectContentIDReferences(fields: any): number[] {
+export function collectContentIDReferences(fields: any, model?: any): number[] {
   const found: number[] = [];
 
   function walk(node: any): void {
@@ -50,5 +58,20 @@ export function collectContentIDReferences(fields: any): number[] {
   }
 
   walk(fields);
+
+  // Companion fields are top-level siblings of the main field, not nested inside it.
+  for (const [, companionFieldName] of getLinkedContentCompanionFields(model)) {
+    const companionKey = findFieldKey(fields, companionFieldName);
+    if (!companionKey) continue;
+
+    const companionValue = fields[companionKey];
+    if (typeof companionValue !== "string" || !companionValue.trim()) continue;
+
+    for (const part of companionValue.split(",")) {
+      const id = parseInt(part.trim());
+      if (!isNaN(id) && id > 0) found.push(id);
+    }
+  }
+
   return found;
 }

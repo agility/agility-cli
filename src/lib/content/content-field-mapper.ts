@@ -2,6 +2,7 @@ import { AssetReferenceExtractor } from "../assets/asset-reference-extractor";
 import * as mgmtApi from "@agility/management-sdk";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 import { AssetMapper } from "lib/mappers/asset-mapper";
+import { getLinkedContentCompanionFields, findFieldKey } from "./linked-content-companion-fields";
 
 export function createContentFieldMapper() {
   return new ContentFieldMapper();
@@ -73,12 +74,12 @@ export class ContentFieldMapper {
     // "linkedContentId", HotAndColdNumbersSection's "LinkedContentValue") don't. The model schema is
     // the only reliable source for the real name, so remap by reading it from context.model instead
     // of guessing a suffix.
-    for (const [mainFieldName, valueFieldName] of this.getContentDropdownValueFieldNames(context)) {
+    for (const [mainFieldName, valueFieldName] of getLinkedContentCompanionFields(context?.model)) {
       // Self-pointing setting (e.g. GameBanner's own field name): nothing separate to remap —
       // the mainFieldName pass above (or the sortids/contentid handling) already covers it.
       if (valueFieldName.toLowerCase() === mainFieldName.toLowerCase()) continue;
 
-      const valueFieldKey = this.findFieldKey(fields, valueFieldName);
+      const valueFieldKey = findFieldKey(fields, valueFieldName);
       if (!valueFieldKey) continue; // e.g. a sentinel setting like "CREATENEW" that names no real field
 
       const rawValue = fields[valueFieldKey];
@@ -311,44 +312,6 @@ export class ContentFieldMapper {
     }
 
     return { mappedValue, warnings, errors };
-  }
-
-  /**
-   * PROD-2431/PROD-2435: read [mainFieldName, companionFieldName] pairs off the model schema's
-   * Content-typed fields. `settings.LinkeContentDropdownValueField` (Agility's own spelling) names
-   * the field that actually carries the raw content ID(s) for a linked-content dropdown. Only
-   * non-empty settings are returned; the caller still has to handle the value naming a field that
-   * doesn't exist in the payload (a sentinel like "CREATENEW") or naming itself (no separate
-   * companion to remap).
-   */
-  private getContentDropdownValueFieldNames(context?: ContentFieldMappingContext): Array<[string, string]> {
-    const modelFields = context?.model?.fields;
-    if (!Array.isArray(modelFields)) return [];
-
-    const pairs: Array<[string, string]> = [];
-    for (const field of modelFields) {
-      // PROD-2442: a "grid" (full-list) Linked Content field's companion selection column is named
-      // by SortIDFieldName instead of LinkeContentDropdownValueField — the same per-field, no-fixed-
-      // convention naming problem PROD-2431/2435 already solved for dropdown/checkbox, just under a
-      // different setting. Fall back to it so that companion also gets remapped.
-      const valueFieldName: string | undefined =
-        field?.settings?.LinkeContentDropdownValueField || field?.settings?.SortIDFieldName;
-      if (field?.name && valueFieldName) {
-        pairs.push([field.name, valueFieldName]);
-      }
-    }
-    return pairs;
-  }
-
-  /**
-   * Look up a field by name in a fields object, case-insensitively — the model schema's field
-   * name and the payload's actual field key can differ in casing (e.g. schema "LinkedContentValue"
-   * vs. a payload key camelCased to "linkedContentValue").
-   */
-  private findFieldKey(fields: any, fieldName: string): string | undefined {
-    if (fieldName in fields) return fieldName;
-    const lowerTarget = fieldName.toLowerCase();
-    return Object.keys(fields).find((key) => key.toLowerCase() === lowerTarget);
   }
 
   /**

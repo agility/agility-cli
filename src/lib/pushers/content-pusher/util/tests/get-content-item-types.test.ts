@@ -300,6 +300,32 @@ describe("getContentItemTypes — single-item content references", () => {
     expect(linkedIds).toContain(mid.contentID);
     expect(linkedIds).toContain(deep.contentID);
   });
+
+  // PROD-2446: a reference living only in a LinkeContentDropdownValueField/SortIDFieldName
+  // companion field (PROD-2431/2435/2442) is invisible to the structural contentid/sortids walk —
+  // without the referencing item's own model, the referenced item was never promoted to push-first.
+  it("promotes an item referenced only through a companion field (PROD-2446)", () => {
+    const target = makeItem("drawgamesassets", "DrawGameAssetsSchema");
+    const playslip = makeItem("playslipsection", "PlaylipSection", {
+      // main field holds the container reference name, per the LinkedContentDropdown contract —
+      // the actual selected id lives only in the companion field
+      linkedDrawGameAsset: "drawgamesassets",
+      linkedContentId: `${target.contentID}`,
+    });
+
+    const opts = makeValidOpts();
+    opts.modelMapper.getMappedEntity = jest.fn().mockReturnValue({
+      id: 10,
+      fields: [{ name: "linkedDrawGameAsset", settings: { LinkeContentDropdownValueField: "linkedContentId" } }],
+    });
+
+    const result = getContentItemTypes([playslip, target], opts);
+
+    expect(result.linkedContentItems).toHaveLength(1);
+    expect(result.linkedContentItems[0]).toBe(target);
+    expect(result.normalContentItems).toHaveLength(1);
+    expect(result.normalContentItems[0]).toBe(playslip);
+  });
 });
 
 // ─── reference to unknown item ────────────────────────────────────────────────
