@@ -9,6 +9,8 @@ import {
 } from "./state";
 import ansiColors from "ansi-colors";
 import { markPushStart } from "../lib/incremental";
+import { fileOperations } from "./fileOperations";
+import type { OperationType } from "./logs";
 
 import { Pushers, PushResults } from "../lib/pushers/orchestrate-pushers";
 import { Pull } from "./pull";
@@ -45,11 +47,37 @@ export class Push {
 
     // Initialize logger for push operation
     // Determine if this is a sync operation by checking if both source and target GUIDs exist
-    initializeLogger(isSync ? "sync" : "push");
+    const operationType: OperationType = state.reverseSync ? "reverse-sync" : isSync ? "sync" : "push";
+    initializeLogger(operationType);
     const logger = getLogger();
 
     if (!sourceGuid || !targetGuid) {
       throw new Error("No source or target GUID specified for push operation");
+    }
+
+    // Reverse sync (PROD-2526): state guids are already swapped by enableReverseSync().
+    // Make the direction and the reused mapping directory explicit, and snapshot the mapping
+    // files before this run rewrites them.
+    if (state.reverseSync && state.mappingPair) {
+      const { sourceGuid: origSource, targetGuid: origTarget } = state.mappingPair;
+      console.log(
+        ansiColors.cyan(
+          `↩ Reverse sync: pushing ${sourceGuid} → ${targetGuid} using mapping files from mappings/${origSource}-${origTarget}`
+        )
+      );
+
+      if (!state.preflight) {
+        try {
+          const backupPath = new fileOperations(sourceGuid).backupMappingPair(origSource, origTarget);
+          if (backupPath) {
+            console.log(ansiColors.gray(`   Mapping backup: ${backupPath}`));
+          }
+        } catch (backupError: any) {
+          throw new Error(
+            `Reverse sync aborted: could not back up mapping files for ${origSource}-${origTarget} (${backupError.message})`
+          );
+        }
+      }
     }
 
     // IMPORTANT: For sync operations, we need ALL elements downloaded to enable proper change detection
@@ -70,7 +98,7 @@ export class Push {
     await pull.pullInstances(true);
 
     // Re-initialize logger after pull operation (pull finalizes its logger)
-    initializeLogger(isSync ? "sync" : "push");
+    initializeLogger(operationType);
 
     // CONSOLE.LOG - Calculate total operations using per-GUID locale mapping
     let totalOperations = 0;

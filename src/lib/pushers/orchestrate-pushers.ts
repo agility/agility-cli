@@ -73,7 +73,7 @@ export class Pushers {
 
     try {
       // Initialize GUID logger for this push operation
-      initializeGuidLogger(sourceGuid, "push");
+      initializeGuidLogger(sourceGuid, state.reverseSync ? "reverse-sync" : "push");
 
       // Execute all push operations for this GUID pair
       const pushResults = await this.executePushersInOrder(sourceGuid, targetGuid);
