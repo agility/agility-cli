@@ -5,6 +5,43 @@ const os = require("os");
 import { state } from "./state";
 os.tmpDir = os.tmpdir;
 
+/**
+ * Transpose a single mapping record's `source*` / `target*` fields (PROD-2526).
+ *
+ * Every mapper interface in src/lib/mappers follows the convention that each direction-specific
+ * field comes as a pair: `sourceID`/`targetID`, `sourceContentID`/`targetContentID`,
+ * `sourceReferenceName`/`targetReferenceName`, `sourceGuid`/`targetGuid`, etc. Swapping the
+ * values of each pair converts a record between A→B and B→A orientation. Keys without the
+ * prefix (e.g. url redirection `originUrl`) are direction-agnostic and left untouched.
+ *
+ * A `source*` key with no `target*` counterpart (or vice versa) is renamed to its counterpart
+ * so the swap stays lossless and idempotent (transpose(transpose(x)) === x).
+ */
+export function transposeMappingRecord<T extends Record<string, any>>(record: T): T {
+  if (record === null || typeof record !== "object" || Array.isArray(record)) {
+    return record;
+  }
+
+  const result: Record<string, any> = {};
+  for (const key of Object.keys(record)) {
+    if (key.startsWith("source")) {
+      result[`target${key.slice("source".length)}`] = record[key];
+    } else if (key.startsWith("target")) {
+      result[`source${key.slice("target".length)}`] = record[key];
+    } else {
+      result[key] = record[key];
+    }
+  }
+  return result as T;
+}
+
+export function transposeMappingRecords<T extends Record<string, any>>(records: T[]): T[] {
+  if (!Array.isArray(records)) {
+    return records;
+  }
+  return records.map((record) => transposeMappingRecord(record));
+}
+
 export class fileOperations {
   private _rootPath: string;
   private _guid: string;
@@ -356,16 +393,45 @@ export class fileOperations {
   }
 
   // Mapping file operations
+
+  /**
+   * Resolve which on-disk mapping pair a (sourceGuid, targetGuid) request refers to.
+   *
+   * Normally the identity. During a reverse sync (PROD-2526) the pipeline runs with swapped
+   * guids, but the mapping files must stay in `mappings/{origSource}-{origTarget}` with their
+   * original orientation. So a request for the swapped pair resolves to the original pair and
+   * flags that records need their source/target fields transposed on the way in and out.
+   */
+  private resolveMappingPair(
+    sourceGuid: string,
+    targetGuid: string
+  ): { sourceGuid: string; targetGuid: string; transpose: boolean } {
+    const pair = state.mappingPair;
+    if (
+      state.reverseSync &&
+      pair &&
+      sourceGuid &&
+      targetGuid &&
+      sourceGuid === pair.targetGuid &&
+      targetGuid === pair.sourceGuid
+    ) {
+      return { sourceGuid: pair.sourceGuid, targetGuid: pair.targetGuid, transpose: true };
+    }
+    return { sourceGuid, targetGuid, transpose: false };
+  }
+
   getMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string | null): string {
     // Store mappings centrally in /agility-files/mappings/ instead of per-instance
-    return path.join(this._rootPath, "mappings", `${sourceGuid}-${targetGuid}`, locale ?? "");
+    const pair = this.resolveMappingPair(sourceGuid, targetGuid);
+    return path.join(this._rootPath, "mappings", `${pair.sourceGuid}-${pair.targetGuid}`, locale ?? "");
   }
 
   getMappingFile(type: string, sourceGuid: string, targetGuid: string, locale?: string | null): any[] {
+    const pair = this.resolveMappingPair(sourceGuid, targetGuid);
     const centralMappingsPath = path.join(
       this._rootPath,
       "mappings",
-      `${sourceGuid}-${targetGuid}`,
+      `${pair.sourceGuid}-${pair.targetGuid}`,
       locale ?? "",
       type
     );
@@ -377,7 +443,7 @@ export class fileOperations {
       }
       const data = fs.readFileSync(fullPath, "utf8");
       const jsonData = JSON.parse(data);
-      return jsonData;
+      return pair.transpose ? transposeMappingRecords(jsonData) : jsonData;
     } else {
       return [];
     }
@@ -390,6 +456,7 @@ export class fileOperations {
     targetGuid?: string,
     locale?: string | null
   ): void {
+    const pair = this.resolveMappingPair(sourceGuid, targetGuid);
     const mappingRootPath = this.getMappingFilePath(sourceGuid, targetGuid, locale);
     const centralMappingsPath = path.join(mappingRootPath, type);
 
@@ -406,94 +473,33 @@ export class fileOperations {
       fs.mkdirSync(centralMappingsPath, { recursive: true });
     }
 
+    const dataToWrite = pair.transpose ? transposeMappingRecords(mappingData) : mappingData;
+
     // This will overwrite the existing mappings.json file.
-    fs.writeFileSync(mappingFilePath, JSON.stringify(mappingData, null, 2));
+    fs.writeFileSync(mappingFilePath, JSON.stringify(dataToWrite, null, 2));
   }
 
   /**
-   * Get reverse mapping file path for fallback lookups
-   * For B→A sync: when A→B mapping file exists, use it by flipping the source/target GUIDs
+   * Snapshot an entire mapping pair directory before a run that rewrites it (PROD-2526).
+   *
+   * Copies `mappings/{sourceGuid}-{targetGuid}` to
+   * `mappings-backups/{sourceGuid}-{targetGuid}/{timestamp}`. The backup lives outside
+   * `mappings/` so `listAvailableMappingPairs()` never mistakes it for a real pair.
+   *
+   * Returns the backup path, or null when there is nothing to back up.
    */
-  getReverseMappingFilePath(sourceGuid: string, targetGuid: string, locale?: string): string {
-    const localeToUse = locale || this._locale;
-    const centralMappingsPath = path.join(this._rootPath, "mappings");
-    return path.join(centralMappingsPath, `${targetGuid}-to-${sourceGuid}-${localeToUse}.json`);
-  }
-
-  // saveMappingFile(sourceGuid: string, targetGuid: string, mappingData: any, locale?: string): void {
-  //   const localeToUse = locale || this._locale;
-
-  //   // Ensure centralized mappings directory exists
-  //   const centralMappingsPath = path.join(this._rootPath, 'mappings');
-  //   if (!fs.existsSync(centralMappingsPath)) {
-  //     fs.mkdirSync(centralMappingsPath, { recursive: true });
-  //   }
-
-  //   // Add locale to mapping data for consistency
-  //   const mappingDataWithLocale = {
-  //     ...mappingData,
-  //     locale: localeToUse
-  //   };
-
-  //   const mappingFilePath = this.getMappingFilePath(sourceGuid, targetGuid, localeToUse);
-  //   this.createFile(mappingFilePath, JSON.stringify(mappingDataWithLocale, null, 2));
-
-  //   // TODO: PERSISTENCE INTEGRATION POINT
-  //   // This is where we would integrate with external persistence services
-  //   // for scenarios where mappings need to survive beyond ephemeral agents:
-  //   //
-  //   // Examples:
-  //   // - Upload to cloud storage (AWS S3, Azure Blob, etc.)
-  //   // - Save to database (MongoDB, PostgreSQL, etc.)
-  //   // - Sync to external API/service
-  //   // - Store in shared network drive
-  //   //
-  //   // Implementation example:
-  //   // await this.persistMappingExternally(sourceGuid, targetGuid, mappingDataWithLocale, localeToUse);
-  // }
-
-  loadMappingFile(sourceGuid: string, targetGuid: string, locale?: string): any | null {
-    const localeToUse = locale || this._locale;
-
-    // First try to load direct mapping file (A→B)
-    const mappingFilePath = this.getMappingFilePath(sourceGuid, targetGuid, localeToUse);
-    if (this.checkFileExists(mappingFilePath)) {
-      try {
-        const content = this.readFile(mappingFilePath);
-        const mappingData = JSON.parse(content);
-        console.log(`[FileOps] Loaded direct mapping file: ${sourceGuid}→${targetGuid}`);
-        return mappingData;
-      } catch (error) {
-        console.error(`Error loading mapping file ${mappingFilePath}:`, error);
-      }
+  backupMappingPair(sourceGuid: string, targetGuid: string): string | null {
+    const pairDir = `${sourceGuid}-${targetGuid}`;
+    const sourceDir = path.join(this._rootPath, "mappings", pairDir);
+    if (!fs.existsSync(sourceDir)) {
+      return null;
     }
 
-    // Try to load reverse mapping file (B→A) for fallback
-    const reverseMappingFilePath = this.getReverseMappingFilePath(sourceGuid, targetGuid, localeToUse);
-    if (this.checkFileExists(reverseMappingFilePath)) {
-      try {
-        const content = this.readFile(reverseMappingFilePath);
-        const reverseMappingData = JSON.parse(content);
-        console.log(
-          `[FileOps] Loaded reverse mapping file: ${targetGuid}→${sourceGuid} (for ${sourceGuid}→${targetGuid} sync)`
-        );
-        return reverseMappingData;
-      } catch (error) {
-        console.error(`Error loading reverse mapping file ${reverseMappingFilePath}:`, error);
-      }
-    }
-
-    return null;
-  }
-
-  clearMappingFile(sourceGuid: string, targetGuid: string, locale?: string): void {
-    const localeToUse = locale || this._locale;
-
-    // Clear direct mapping file
-    const mappingFilePath = this.getMappingFilePath(sourceGuid, targetGuid, localeToUse);
-    if (this.checkFileExists(mappingFilePath)) {
-      this.deleteFile(mappingFilePath);
-    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+    const backupDir = path.join(this._rootPath, "mappings-backups", pairDir, timestamp);
+    fs.mkdirSync(backupDir, { recursive: true });
+    fs.cpSync(sourceDir, backupDir, { recursive: true });
+    return backupDir;
   }
 
   // Data folder path utilities
