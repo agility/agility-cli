@@ -388,3 +388,152 @@ describe("Pushers.instanceOrchestrator — models-first ordering (PROD-2202)", (
     ]);
   });
 });
+
+// ─── executePushOperation — per-phase record for --jsonSummary ────────────────
+
+describe("Pushers.executePushOperation — phase record", () => {
+  function entitiesWith(overrides: any = {}): any {
+    return {
+      pages: [],
+      templates: [],
+      containers: [],
+      lists: [],
+      models: [],
+      content: [],
+      assets: [],
+      galleries: [],
+      ...overrides,
+    };
+  }
+
+  it("tags the counts with the operation that produced them", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u" });
+    const pushers = new Pushers();
+    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    const config = {
+      ...PUSH_OPERATIONS.models,
+      handler: jest.fn().mockResolvedValue({ status: "success", successful: 3, failed: 1, skipped: 2 }),
+    };
+    const sourceData = entitiesWith({ models: [{ id: 1, referenceName: "TestModel" }] });
+
+    const result = await pushers.executePushOperation({
+      config,
+      sourceData,
+      targetData: { ...sourceData },
+      locale: "en-us",
+      elements: ["Models"],
+    });
+
+    expect(result.phase).toEqual({
+      operation: "pushModels",
+      description: PUSH_OPERATIONS.models.description,
+      successful: 3,
+      failed: 1,
+      skipped: 2,
+      status: "success",
+    });
+  });
+
+  it("marks a filtered-out phase notRun rather than a zero-count success", async () => {
+    // A phase excluded by --elements never invoked its pusher. Reporting that as a clean
+    // success would make a misconfigured --elements indistinguishable from a no-op sync.
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u" });
+    const pushers = new Pushers();
+    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    const sourceData = entitiesWith({ models: [{ id: 1, referenceName: "TestModel" }] });
+
+    const result = await pushers.executePushOperation({
+      config: PUSH_OPERATIONS.models,
+      sourceData,
+      targetData: { ...sourceData },
+      locale: "en-us",
+      elements: ["Pages"], // Models not requested
+    });
+
+    expect(result.phase.status).toBe("notRun");
+    expect(result.phase.operation).toBe("pushModels");
+  });
+
+  it("marks an empty-data phase notRun too", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u" });
+    const pushers = new Pushers();
+    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    const sourceData = entitiesWith();
+
+    const result = await pushers.executePushOperation({
+      config: PUSH_OPERATIONS.models,
+      sourceData,
+      targetData: { ...sourceData },
+      locale: "en-us",
+      elements: ["Models"],
+    });
+
+    expect(result.phase.status).toBe("notRun");
+  });
+
+  it("propagates a pusher's error status", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u" });
+    const pushers = new Pushers();
+    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    const config = {
+      ...PUSH_OPERATIONS.models,
+      handler: jest.fn().mockResolvedValue({ status: "error", successful: 0, failed: 2, skipped: 0 }),
+    };
+    const sourceData = entitiesWith({ models: [{ id: 1, referenceName: "TestModel" }] });
+
+    const result = await pushers.executePushOperation({
+      config,
+      sourceData,
+      targetData: { ...sourceData },
+      locale: "en-us",
+      elements: ["Models"],
+    });
+
+    expect(result.phase.status).toBe("error");
+    expect(result.phase.failed).toBe(2);
+  });
+
+  it("stamps the locale on a locale-scoped phase", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u" });
+    const pushers = new Pushers();
+    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    const config = {
+      ...PUSH_OPERATIONS.content,
+      handler: jest.fn().mockResolvedValue({ status: "success", successful: 1, failed: 0, skipped: 0 }),
+    };
+    const sourceData = entitiesWith({ content: [{ contentID: 1 }] });
+
+    const result = await pushers.executePushOperation({
+      config,
+      sourceData,
+      targetData: { ...sourceData },
+      locale: "fr-ca",
+      elements: ["Content"],
+    });
+
+    expect(result.phase.locale).toBe("fr-ca");
+  });
+
+  it("omits the locale on a guid-level phase", async () => {
+    // Guid-level pushers are invoked with locales[0] purely because that is how the
+    // orchestrator loads data. Recording it would imply a per-locale result that is not real.
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u" });
+    const pushers = new Pushers();
+    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    const config = {
+      ...PUSH_OPERATIONS.models,
+      handler: jest.fn().mockResolvedValue({ status: "success", successful: 1, failed: 0, skipped: 0 }),
+    };
+    const sourceData = entitiesWith({ models: [{ id: 1, referenceName: "TestModel" }] });
+
+    const result = await pushers.executePushOperation({
+      config,
+      sourceData,
+      targetData: { ...sourceData },
+      locale: "en-us",
+      elements: ["Models"],
+    });
+
+    expect(result.phase.locale).toBeUndefined();
+  });
+});

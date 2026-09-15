@@ -35,6 +35,7 @@ import { Push } from "./core/push";
 import { WorkflowOperation } from "./lib/workflows";
 
 import { initializeLogger, getLogger, finalizeLogger } from "./core/state";
+import { emitAbortSummary } from "./core/json-summary";
 
 let auth: Auth;
 
@@ -200,10 +201,16 @@ yargs.command({
       state.isPush = true;
     }
 
+    const runStartedAt = new Date();
+
     auth = new Auth();
     const isAuthorized = await auth.init();
     if (!isAuthorized) {
-      return;
+      // PROD-2310, same class as the precondition abort below: failing to authenticate is
+      // an abort with zero work done, not a successful no-op. Returning here exited 0, so a
+      // CI job with expired or wrong credentials went green having synced nothing.
+      emitAbortSummary(state, "Authentication failed — could not resolve API keys for the requested instances.", runStartedAt);
+      process.exit(1);
     }
 
     // Validate sync command requirements
@@ -212,6 +219,7 @@ yargs.command({
       // PROD-2310: a failed precondition (e.g. a requested locale missing on the target)
       // is an abort with zero work done — it must exit non-zero so CI can detect it,
       // instead of returning silently with exit code 0.
+      emitAbortSummary(state, "Command validation failed — a precondition for this sync was not met.", runStartedAt);
       process.exit(1);
     }
 

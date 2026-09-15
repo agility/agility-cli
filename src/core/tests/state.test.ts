@@ -1,4 +1,5 @@
 import {
+  state,
   setState,
   resetState,
   getState,
@@ -342,5 +343,26 @@ describe("initializeGuidLogger / getLoggerForGuid", () => {
 
   it("returns null for unknown GUID", () => {
     expect(getLoggerForGuid("does-not-exist")).toBeNull();
+  });
+});
+
+// ─── --jsonSummary reaches state ─────────────────────────────────────────────
+
+describe("setState — jsonSummary", () => {
+  it("defaults to empty (disabled)", () => {
+    resetState();
+    expect(state.jsonSummary).toBe("");
+  });
+
+  it("takes the path from argv", () => {
+    resetState();
+    setState({ jsonSummary: "reports/run.json" } as any);
+    expect(state.jsonSummary).toBe("reports/run.json");
+  });
+
+  it("is cleared by resetState, so one command cannot leak a path into the next", () => {
+    setState({ jsonSummary: "reports/run.json" } as any);
+    resetState();
+    expect(state.jsonSummary).toBe("");
   });
 });
