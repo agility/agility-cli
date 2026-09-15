@@ -36,6 +36,7 @@ export interface State {
   // Operation control
   overwrite: boolean;
   preflight: boolean; // Preflight mode - report planned sync actions without writing to target/mappings
+  jsonSummary: string; // Path to write the machine-readable run summary to; empty = disabled
 
   // Workflow operation control
   operationType?: string; // Workflow operation: publish, unpublish, approve, decline, requestApproval
@@ -120,6 +121,7 @@ export const state: State = {
   // Operation control
   overwrite: false,
   preflight: false,
+  jsonSummary: "",
   autoPublish: "", // Empty string = disabled
 
   // Explicit ID overrides (bypass mappings lookup)
@@ -211,6 +213,9 @@ export function setState(argv: any) {
 
   // Operation control (preflight)
   if (argv.preflight !== undefined) state.preflight = argv.preflight;
+
+  // Machine-readable run summary
+  if (argv.jsonSummary !== undefined) state.jsonSummary = String(argv.jsonSummary);
 
   // Workflow operation control
   if (argv.operationType !== undefined) state.operationType = argv.operationType;
@@ -394,6 +399,7 @@ export function resetState() {
   // Operation control
   state.overwrite = false;
   state.preflight = false;
+  state.jsonSummary = "";
 
   // Workflow operation control
   state.operationType = undefined;
