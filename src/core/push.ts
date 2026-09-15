@@ -241,7 +241,7 @@ export class Push {
       // modules were left off the pushed page. Non-blocking: the modules return automatically
       // on a future push of the page once the content syncs.
       if (syncWarningDetails.length > 0) {
-        console.log(ansiColors.yellow(`\n  Page Module Warnings (non-blocking, ${syncWarningDetails.length}):`));
+        console.log(ansiColors.yellow(`\n  Page Component Warnings (non-blocking, ${syncWarningDetails.length}):`));
         syncWarningDetails.forEach(({ name, error, pageID, contentID, guid, locale }) => {
           const prefix = guid && locale ? `[${guid}][${locale}]` : guid ? `[${guid}]` : "";
           console.log(ansiColors.yellow(`    ${prefix} • ${name}: ${error}`));

@@ -258,7 +258,7 @@ export async function processPage({
                 // restored automatically once its content becomes resolvable.
                 droppedModules.push({
                   name: page.name || `Page ${page.pageID}`,
-                  error: `Dropped module ${module.module} — ${mappingError}`,
+                  error: `Dropped Component ${module.module} — ${mappingError}`,
                   type: "page",
                   pageID: page.pageID,
                   contentID: sourceContentId,
@@ -267,7 +267,7 @@ export async function processPage({
                 });
                 logger.page.skipped(
                   page,
-                  `dropped module ${module.module} (contentID ${sourceContentId}) — ${mappingError}`,
+                  `dropped Component ${module.module} (contentID ${sourceContentId}) — ${mappingError}`,
                   locale,
                   channel,
                   targetGuid
@@ -346,7 +346,7 @@ export async function processPage({
       // existing target page. Genuine source-side emptiness is unaffected: if the author removed
       // every module in source, originalModuleCount is 0 and this never triggers.
       if (originalModuleCount > 0 && droppedModules.length > 0 && !isLegitimateEmptyPage(page)) {
-        const lostModulesError = `Lost all ${originalModuleCount} modules during content mapping`;
+        const lostModulesError = `Lost all ${originalModuleCount} Components during content mapping`;
         console.error(`✗ Page "${page.name}" ${lostModulesError}`);
         return {
           status: "failure",

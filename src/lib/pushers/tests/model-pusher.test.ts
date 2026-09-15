@@ -588,7 +588,7 @@ describe("pushModels — cross-kind reference-name collision (PROD-2315)", () =>
     expect(result.successful).toBe(0);
     expect(result.failureDetails).toHaveLength(1);
     expect(result.failureDetails![0].name).toBe("LinkCard");
-    expect(result.failureDetails![0].error).toMatch(/component\/module model on the source/);
+    expect(result.failureDetails![0].error).toMatch(/component model on the source/);
     expect(result.failureDetails![0].error).toMatch(/content model with that reference name already exists/);
   });
 

@@ -382,14 +382,14 @@ describe("processPage — missing content mappings", () => {
 
     const result = await processPage(makeProps({ page: pageWithContent, pageMapper }));
     expect(result.status).toBe("failure");
-    // Could be "missing content mappings" or "Lost all N modules" depending on code path
+    // Could be "missing content mappings" or "Lost all N Components" depending on code path
     expect(result.error).toBeTruthy();
   });
 });
 
 // ─── PROD-2316: unresolvable modules are dropped, page still pushes ───────────
 
-describe("processPage — dropped modules (PROD-2316)", () => {
+describe("processPage — dropped Components (PROD-2316)", () => {
   function setupTemplateWithMainZone() {
     const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({
@@ -435,7 +435,7 @@ describe("processPage — dropped modules (PROD-2316)", () => {
     expect(result.status).toBe("success");
     expect(result.warnings).toHaveLength(1);
     expect(result.warnings![0].contentID).toBe(66);
-    expect(result.warnings![0].error).toContain("Dropped module Broken");
+    expect(result.warnings![0].error).toContain("Dropped Component Broken");
 
     // The pushed payload contains only the resolvable module, remapped to its target ID.
     const savedPayload = (apiClient.pageMethods.savePage as jest.Mock).mock.calls[0][0];
@@ -521,7 +521,7 @@ describe("processPage — dropped modules (PROD-2316)", () => {
     const result = await processPage(makeProps({ page: pageWithContent, pageMapper, apiClient }));
 
     expect(result.status).toBe("failure");
-    expect(result.error).toContain("Lost all 2 modules");
+    expect(result.error).toContain("Lost all 2 Components");
     expect(result.warnings).toHaveLength(2);
     // The destructive save is never attempted.
     expect(apiClient.pageMethods.savePage).not.toHaveBeenCalled();

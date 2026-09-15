@@ -354,7 +354,7 @@ export class ContentBatchProcessor {
             // Enhanced error reporting for missing content definitions
 
             const errorDetails = [
-              `📋 Content Definition Not Found: "${contentItem.properties.definitionName}"`,
+              `📋 Content Model Not Found: "${contentItem.properties.definitionName}"`,
               `🔍 Content Item: ${contentItem.properties.referenceName}`,
               `💡 Common causes:`,
               `   • Model was deleted from source instance`,
@@ -362,7 +362,7 @@ export class ContentBatchProcessor {
             ].join("\n   ");
 
             throw new Error(
-              `Source model not found for content definition: ${contentItem.properties.definitionName}\n   ${errorDetails}`
+              `Source model not found for content model "${contentItem.properties.definitionName}"\n   ${errorDetails}`
             );
           }
 

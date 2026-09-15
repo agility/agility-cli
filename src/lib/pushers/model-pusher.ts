@@ -32,7 +32,7 @@ function modelTypeMatches(a: mgmtApi.Model, b: mgmtApi.Model): boolean {
  */
 function modelKindName(model: mgmtApi.Model): string {
   const t = (model as any)?.contentDefinitionTypeID;
-  return t === 0 || t === 1 ? "content" : t === 2 ? "component/module" : `type ${t}`;
+  return t === 0 || t === 1 ? "content" : t === 2 ? "component" : `type ${t}`;
 }
 
 /**

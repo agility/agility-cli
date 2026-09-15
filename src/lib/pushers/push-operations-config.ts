@@ -49,7 +49,7 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
   },
   containers: {
     name: "pushContainers",
-    description: "Push content containers and views",
+    description: "Push content containers",
     handler: async (sourceData, targetData) => {
       const { pushContainers } = await import("./container-pusher");
       return await pushContainers(sourceData["containers"], targetData["containers"]);
