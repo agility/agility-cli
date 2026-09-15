@@ -1,0 +1,44 @@
+name: Integration tests
+
+# Multi-module tests that drive the sync pipeline end to end, as opposed to the per-module
+# unit tests in test.yml.
+#
+# ⚠️ "Integration test" is ambiguous in this repo, so the job names say which kind:
+#
+#   hermetic  — in-process fakes, a temp filesystem, no network and no credentials.
+#               Safe on every PR, including PRs from forks (which get no secrets).
+#   live      — real instances, real Management API, real credentials. NOT in this
+#               workflow. It belongs on a schedule with a credentialed GitHub Environment,
+#               and must never be triggered by pull_request.
+#
+# Note that `*.integration.test.ts` (npm run test:integration) already means the *live*
+# kind — those files are deliberately not run here.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  hermetic:
+    name: Hermetic (no credentials)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: npm ci
+
+      # The whole directory, not a named file: a suite added under src/tests/sync/ should
+      # start running the moment it exists, rather than the day someone remembers to list it.
+      - name: Run hermetic integration tests
+        run: npx jest src/tests/sync --no-coverage
