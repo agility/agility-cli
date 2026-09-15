@@ -67,7 +67,7 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
   },
   containers: {
     name: "downloadAllContainers",
-    description: "Download content containers and views",
+    description: "Download content containers",
     handler: async (guid) => {
       await downloadAllContainers(guid);
     },
