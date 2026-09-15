@@ -24,6 +24,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Test files are excluded from tsconfig.json and ts-jest runs transpile-only, so
+      # without this step test code is never type-checked at all. That is not a cosmetic
+      # gap: `for...of` over a Map compiles, under this repo's es5 target, to an
+      # array-index loop that silently iterates zero times, and a test asserting on the
+      # result of that loop passes while testing nothing.
+      - name: Type-check (including tests)
+        run: npm run type-check:tests
+
       - name: Run unit tests
         run: npx jest src/core src/lib --no-coverage
 
@@ -44,5 +52,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Whole directory, not just sync-scenarios.test.ts — a new suite added under
+      # src/tests/sync/ otherwise never runs in CI, which is the failure mode where the
+      # tests exist, pass locally, and guard nothing.
       - name: Run sync scenarios
-        run: npx jest src/tests/sync/sync-scenarios.test.ts --no-coverage
+        run: npx jest src/tests/sync --no-coverage
