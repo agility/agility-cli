@@ -101,6 +101,31 @@ export class FakeInstance {
   private readonly nextId: Record<EntityKind, number>;
   private readonly locales: string[];
 
+  /**
+   * Write counter behind the fake's timestamps. **Per-instance, deliberately.**
+   *
+   * Change detection compares a mapping's recorded target date against what the target now
+   * reports, so a fixed timestamp would make every write look unchanged and hide real update
+   * bugs, while `new Date()` makes two writes in the same millisecond indistinguishable. A
+   * strictly-increasing counter is what that comparison actually needs.
+   *
+   * It was module-level first, which made the value depend on how many writes had happened
+   * earlier in the *file* — so the timestamps landed in the mapping files, and a golden
+   * comparison would then shift whenever tests were added, reordered or run with `.only`.
+   * Scoping it to the instance makes each harness run reproduce identically on its own.
+   */
+  private tick = 0;
+
+  private nextTimestamp(): string {
+    this.tick += 1;
+    return isoTimestamp(this.tick);
+  }
+
+  private nextLegacyTimestamp(): string {
+    this.tick += 1;
+    return legacyTimestamp(this.tick);
+  }
+
   constructor(opts: FakeInstanceOptions = {}) {
     this.locales = opts.locales ?? ["en-us"];
     this.nextId = { ...DEFAULT_STARTING_IDS, ...(opts.startingIds ?? {}) } as Record<EntityKind, number>;
@@ -209,7 +234,7 @@ export class FakeInstance {
       store.locales.forEach((locale) => {
         writeJsonFile(path.join(base, locale, "urlredirections", "urlredirections.json"), {
           items,
-          lastAccessDate: nextTimestamp(),
+          lastAccessDate: this.nextTimestamp(),
         });
       });
     }
@@ -224,7 +249,7 @@ export class FakeInstance {
       // Model creation is two-pass: a shell with `fields: []` to get an ID, then the same
       // model again with its fields. Both arrive here; the second must update, not duplicate.
       const id = model?.id && model.id > 0 ? model.id : this.allocate("model");
-      const saved = { ...model, id, lastModifiedDate: nextTimestamp() };
+      const saved = { ...model, id, lastModifiedDate: this.nextTimestamp() };
       store.models.set(id, saved);
       return saved;
     },
@@ -248,7 +273,7 @@ export class FakeInstance {
       const store = this.instance(guid);
       const incoming = container?.contentViewID;
       const id = incoming && incoming > 0 ? incoming : this.allocate("container");
-      const saved = { ...container, contentViewID: id, lastModifiedDate: nextLegacyTimestamp() };
+      const saved = { ...container, contentViewID: id, lastModifiedDate: this.nextLegacyTimestamp() };
       store.containers.set(id, saved);
       return saved;
     },
@@ -344,7 +369,7 @@ export class FakeInstance {
       // which calls .match() on the value. A gallery without one fails the next sync with
       // "Cannot read properties of null (reading 'match')", which names neither the gallery
       // nor the field.
-      const saved = { ...gallery, mediaGroupingID: id, modifiedOn: nextLegacyTimestamp() };
+      const saved = { ...gallery, mediaGroupingID: id, modifiedOn: this.nextLegacyTimestamp() };
       store.galleries.set(id, saved);
       return saved;
     },
@@ -478,7 +503,11 @@ export class FakeInstance {
    */
   buildAssetUploadResponse(guid: string, folderPath: string, fileName: string): any[] {
     const mediaID = this.allocate("asset");
-    const originKey = folderPath ? `${folderPath}/${fileName}` : fileName;
+    // Trim the separators rather than concatenating blindly: the upload URL's folderPath is
+    // often "/" or "", which otherwise yields "cdn.test.invalid///hero.jpg" in the golden
+    // files and reads like a real URL-building bug.
+    const folder = String(folderPath || "").replace(/^\/+|\/+$/g, "");
+    const originKey = folder ? `${folder}/${fileName}` : fileName;
     const media = {
       mediaID,
       fileName,
@@ -559,25 +588,16 @@ function writeEach<T>(dir: string, items: T[], name: (item: T, index: number) =>
   items.forEach((item, i) => writeJsonFile(path.join(dir, `${name(item, i)}.json`), item));
 }
 
-/**
- * Monotonic ISO timestamps for writes.
- *
- * Change detection compares a mapping's recorded `targetLastModifiedDate` against what the
- * target currently reports. A fixed timestamp would make every write look unchanged and hide
- * real update bugs; `new Date()` makes two runs in the same millisecond indistinguishable on
- * a fast machine. A counter is deterministic and strictly increasing, which is what the
- * comparison actually needs.
- */
-let tick = 0;
-function nextTimestamp(): string {
-  tick += 1;
-  return new Date(Date.UTC(2026, 0, 1, 0, 0, 0) + tick * 1000).toISOString().replace("Z", "");
+const TIMESTAMP_EPOCH = Date.UTC(2026, 0, 1, 0, 0, 0);
+
+/** ISO with no trailing Z, matching what the API returns for model/content dates. */
+function isoTimestamp(tick: number): string {
+  return new Date(TIMESTAMP_EPOCH + tick * 1000).toISOString().replace("Z", "");
 }
 
-/** Containers report the legacy `MM/DD/YYYY hh:mmAM` shape rather than ISO. */
-function nextLegacyTimestamp(): string {
-  tick += 1;
-  const d = new Date(Date.UTC(2026, 0, 1, 0, 0, 0) + tick * 1000);
+/** Containers and galleries report the legacy `MM/DD/YYYY hh:mmAM` shape rather than ISO. */
+function legacyTimestamp(tick: number): string {
+  const d = new Date(TIMESTAMP_EPOCH + tick * 1000);
   const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
   const dd = String(d.getUTCDate()).padStart(2, "0");
   return `${mm}/${dd}/${d.getUTCFullYear()} 12:00AM`;

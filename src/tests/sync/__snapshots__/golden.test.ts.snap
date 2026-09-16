@@ -1,0 +1,689 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`golden — full instance sync fresh sync — full API conversation and mapping tree 1`] = `
+{
+  "calls": [
+    {
+      "instance": "<target>",
+      "method": "modelMethods.saveModel",
+      "payload": {
+        "contentDefinitionTypeName": "Content List",
+        "description": "Defines a blog post.",
+        "displayName": "Post",
+        "fields": [],
+        "id": 0,
+        "lastModifiedDate": "2025-01-01T00:00:00.000",
+        "referenceName": "Post",
+      },
+    },
+    {
+      "instance": "<target>",
+      "method": "modelMethods.saveModel",
+      "payload": {
+        "contentDefinitionTypeName": "Content List",
+        "description": "Defines a blog post.",
+        "displayName": "Post",
+        "fields": [
+          {
+            "label": "Title",
+            "name": "Title",
+            "required": true,
+            "type": "Text",
+          },
+          {
+            "label": "URL Slug",
+            "name": "Slug",
+            "required": true,
+            "type": "Text",
+          },
+        ],
+        "id": 7001,
+        "lastModifiedDate": "2025-01-01T00:00:00.000",
+        "referenceName": "Post",
+      },
+    },
+    {
+      "instance": "<target>",
+      "method": "assetMethods.saveGallery",
+      "payload": {
+        "description": null,
+        "groupingType": null,
+        "groupingTypeID": 1,
+        "isDeleted": false,
+        "isFolder": false,
+        "mediaGroupingID": 0,
+        "metaData": {},
+        "modifiedBy": null,
+        "modifiedByName": null,
+        "modifiedOn": null,
+        "name": "Hero Images",
+      },
+    },
+    {
+      "instance": "<target>",
+      "method": "assetMethods.getDefaultContainer",
+    },
+    {
+      "method": "axios.post",
+      "payload": {
+        "url": "https://mgmt.aglty.io/api/v1/instance/<target>/asset/upload?folderPath=%2F&groupingID=-1",
+      },
+    },
+    {
+      "instance": "<target>",
+      "method": "containerMethods.saveContainer",
+      "payload": {
+        "contentDefinitionID": 7001,
+        "contentDefinitionName": "Post",
+        "contentViewID": -1,
+        "isShared": false,
+        "lastModifiedDate": "01/01/2025 12:00AM",
+        "referenceName": "Posts",
+        "title": "Posts",
+      },
+    },
+    {
+      "instance": "<target>",
+      "method": "urlRedirectionApi.saveUrlRedirections",
+      "payload": [
+        {
+          "content": null,
+          "destinationLocale": null,
+          "destinationUrl": "/new",
+          "httpCode": 301,
+          "originLocales": null,
+          "originUrl": "/old",
+          "urlRedirectionID": 0,
+        },
+      ],
+    },
+    {
+      "instance": "<target>",
+      "locale": "en-us",
+      "method": "pageMethods.savePageTemplate",
+      "payload": {
+        "contentSectionDefinitions": [
+          {
+            "contentViewID": -1,
+            "itemOrder": 0,
+            "pageItemTemplateID": -1,
+            "pageItemTemplateReferenceName": "Main",
+            "pageTemplateID": -1,
+          },
+        ],
+        "lastModifiedDate": "2025-01-01T00:00:00.000",
+        "pageTemplateID": -1,
+        "pageTemplateName": "Standard",
+        "referenceName": "standard",
+      },
+    },
+    {
+      "instance": "<target>",
+      "locale": "en-us",
+      "method": "contentMethods.saveContentItems",
+      "payload": [
+        {
+          "contentID": -1,
+          "fields": {
+            "title": "Hello",
+          },
+          "properties": {
+            "definitionName": "Post",
+            "itemOrder": 0,
+            "modified": "2025-01-01T00:00:00.000",
+            "referenceName": "Posts",
+            "state": 2,
+            "versionID": 900,
+          },
+          "scripts": {
+            "bottom": null,
+            "top": null,
+          },
+          "seo": {
+            "menuVisible": null,
+            "metaDescription": null,
+            "metaHTML": null,
+            "metaKeywords": null,
+            "sitemapVisible": null,
+          },
+        },
+      ],
+    },
+    {
+      "instance": "<target>",
+      "locale": "en-us",
+      "method": "pageMethods.getSitemap",
+    },
+    {
+      "instance": "<target>",
+      "locale": "en-us",
+      "method": "pageMethods.savePage",
+      "payload": {
+        "channelID": 1,
+        "menuText": "Home",
+        "name": "home",
+        "pageID": -1,
+        "pageType": "static",
+        "parentPageID": -1,
+        "path": "",
+        "placeBeforePageItemID": -1,
+        "properties": {
+          "modified": "2025-01-01T00:00:00.000",
+          "state": 2,
+          "versionID": 200,
+        },
+        "templateName": "Standard",
+        "title": "Home",
+        "zones": {},
+      },
+    },
+  ],
+  "mappings": {
+    "<source>-<target>/assets/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourceMediaID": 400,
+        "sourceUrl": "https://cdn.test.invalid/images/hero.jpg",
+        "targetGuid": "<target>",
+        "targetMediaID": 3001,
+        "targetUrl": "https://cdn.test.invalid/hero.jpg",
+      },
+    ],
+    "<source>-<target>/containers/mappings.json": [
+      {
+        "sourceContentViewID": 200,
+        "sourceGuid": "<source>",
+        "sourceLastModifiedDate": "01/01/2025 12:00AM",
+        "sourceReferenceName": "Posts",
+        "targetContentViewID": 8001,
+        "targetGuid": "<target>",
+        "targetLastModifiedDate": "01/01/2026 12:00AM",
+        "targetReferenceName": "Posts",
+      },
+    ],
+    "<source>-<target>/en-us/item/mappings.json": [
+      {
+        "sourceContentID": 500,
+        "sourceGuid": "<source>",
+        "sourceVersionID": 900,
+        "targetContentID": 9001,
+        "targetGuid": "<target>",
+        "targetVersionID": 100,
+      },
+    ],
+    "<source>-<target>/en-us/page/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourcePageID": 800,
+        "sourcePageTemplateName": "Standard",
+        "sourceVersionID": 950,
+        "targetGuid": "<target>",
+        "targetPageID": 4001,
+        "targetPageTemplateName": "Standard",
+        "targetVersionID": 200,
+      },
+    ],
+    "<source>-<target>/galleries/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourceMediaGroupingID": 300,
+        "sourceModifiedOn": "01/01/2025 12:00AM",
+        "targetGuid": "<target>",
+        "targetMediaGroupingID": 6001,
+        "targetModifiedOn": "01/01/2026 12:00AM",
+      },
+    ],
+    "<source>-<target>/models/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourceID": 10,
+        "sourceLastModifiedDate": "2025-01-01T00:00:00.000",
+        "sourceReferenceName": "Post",
+        "targetGuid": "<target>",
+        "targetID": 7001,
+        "targetLastModifiedDate": "2026-01-01T00:00:02.000",
+        "targetReferenceName": "Post",
+      },
+    ],
+    "<source>-<target>/sections/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourcePageItemTemplateID": 71,
+        "sourceReferenceName": "Main",
+        "targetGuid": "<target>",
+        "targetPageItemTemplateID": -1,
+        "targetReferenceName": "Main",
+      },
+    ],
+    "<source>-<target>/templates/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourcePageTemplateID": 700,
+        "sourcePageTemplateName": "Standard",
+        "targetGuid": "<target>",
+        "targetPageTemplateID": 5001,
+        "targetPageTemplateName": "Standard",
+      },
+    ],
+    "<source>-<target>/urlredirections/mappings.json": [
+      {
+        "originUrl": "/old",
+        "sourceGuid": "<source>",
+        "sourceUrlRedirectionID": 1,
+        "targetGuid": "<target>",
+        "targetUrlRedirectionID": 2001,
+      },
+    ],
+  },
+  "phases": [
+    {
+      "failed": 0,
+      "operation": "pushModels",
+      "skipped": 0,
+      "status": "success",
+      "successful": 1,
+    },
+    {
+      "failed": 0,
+      "operation": "pushGalleries",
+      "skipped": 0,
+      "status": "success",
+      "successful": 1,
+    },
+    {
+      "failed": 0,
+      "operation": "pushAssets",
+      "skipped": 0,
+      "status": "success",
+      "successful": 1,
+    },
+    {
+      "failed": 0,
+      "operation": "pushContainers",
+      "skipped": 0,
+      "status": "success",
+      "successful": 1,
+    },
+    {
+      "failed": 0,
+      "operation": "pushUrlRedirections",
+      "skipped": 0,
+      "status": "success",
+      "successful": 1,
+    },
+    {
+      "failed": 0,
+      "operation": "pushTemplates",
+      "skipped": 0,
+      "status": "success",
+      "successful": 1,
+    },
+    {
+      "failed": 0,
+      "locale": "en-us",
+      "operation": "pushContent",
+      "skipped": 0,
+      "status": "success",
+      "successful": 1,
+    },
+    {
+      "failed": 0,
+      "locale": "en-us",
+      "operation": "pushPages",
+      "skipped": 0,
+      "status": "success",
+      "successful": 1,
+    },
+  ],
+}
+`;
+
+exports[`golden — full instance sync incremental — one model edited, methods only 1`] = `
+{
+  "calls": [
+    {
+      "instance": "<target>",
+      "method": "modelMethods.saveModel",
+    },
+    {
+      "instance": "<target>",
+      "method": "assetMethods.getDefaultContainer",
+    },
+    {
+      "instance": "<target>",
+      "locale": "en-us",
+      "method": "pageMethods.getSitemap",
+    },
+  ],
+  "mappings": {
+    "<source>-<target>/assets/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourceMediaID": 400,
+        "sourceUrl": "https://cdn.test.invalid/images/hero.jpg",
+        "targetGuid": "<target>",
+        "targetMediaID": 3001,
+        "targetUrl": "https://cdn.test.invalid/hero.jpg",
+      },
+    ],
+    "<source>-<target>/containers/mappings.json": [
+      {
+        "sourceContentViewID": 200,
+        "sourceGuid": "<source>",
+        "sourceLastModifiedDate": "01/01/2025 12:00AM",
+        "sourceReferenceName": "Posts",
+        "targetContentViewID": 8001,
+        "targetGuid": "<target>",
+        "targetLastModifiedDate": "01/01/2026 12:00AM",
+        "targetReferenceName": "Posts",
+      },
+    ],
+    "<source>-<target>/en-us/item/mappings.json": [
+      {
+        "sourceContentID": 500,
+        "sourceGuid": "<source>",
+        "sourceVersionID": 900,
+        "targetContentID": 9001,
+        "targetGuid": "<target>",
+        "targetVersionID": 100,
+      },
+    ],
+    "<source>-<target>/en-us/page/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourcePageID": 800,
+        "sourcePageTemplateName": "Standard",
+        "sourceVersionID": 950,
+        "targetGuid": "<target>",
+        "targetPageID": 4001,
+        "targetPageTemplateName": "Standard",
+        "targetVersionID": 200,
+      },
+    ],
+    "<source>-<target>/galleries/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourceMediaGroupingID": 300,
+        "sourceModifiedOn": "01/01/2025 12:00AM",
+        "targetGuid": "<target>",
+        "targetMediaGroupingID": 6001,
+        "targetModifiedOn": "01/01/2026 12:00AM",
+      },
+    ],
+    "<source>-<target>/models/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourceID": 10,
+        "sourceLastModifiedDate": "2026-02-02T00:00:00.000",
+        "sourceReferenceName": "Post",
+        "targetGuid": "<target>",
+        "targetID": 7001,
+        "targetLastModifiedDate": "2026-01-01T00:00:06.000",
+        "targetReferenceName": "Post",
+      },
+    ],
+    "<source>-<target>/sections/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourcePageItemTemplateID": 71,
+        "sourceReferenceName": "Main",
+        "targetGuid": "<target>",
+        "targetPageItemTemplateID": -1,
+        "targetReferenceName": "Main",
+      },
+    ],
+    "<source>-<target>/templates/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourcePageTemplateID": 700,
+        "sourcePageTemplateName": "Standard",
+        "targetGuid": "<target>",
+        "targetPageTemplateID": 5001,
+        "targetPageTemplateName": "Standard",
+      },
+    ],
+    "<source>-<target>/urlredirections/mappings.json": [
+      {
+        "originUrl": "/old",
+        "sourceGuid": "<source>",
+        "sourceUrlRedirectionID": 1,
+        "targetGuid": "<target>",
+        "targetUrlRedirectionID": 2001,
+      },
+    ],
+  },
+  "phases": [
+    {
+      "failed": 0,
+      "operation": "pushModels",
+      "skipped": 0,
+      "status": "success",
+      "successful": 1,
+    },
+    {
+      "failed": 0,
+      "operation": "pushGalleries",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "operation": "pushAssets",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "operation": "pushContainers",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "operation": "pushUrlRedirections",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "operation": "pushTemplates",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "locale": "en-us",
+      "operation": "pushContent",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "locale": "en-us",
+      "operation": "pushPages",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+  ],
+}
+`;
+
+exports[`golden — full instance sync re-sync with no source change — should be an empty conversation 1`] = `
+{
+  "calls": [
+    {
+      "instance": "<target>",
+      "method": "assetMethods.getDefaultContainer",
+    },
+    {
+      "instance": "<target>",
+      "locale": "en-us",
+      "method": "pageMethods.getSitemap",
+    },
+  ],
+  "mappings": {
+    "<source>-<target>/assets/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourceMediaID": 400,
+        "sourceUrl": "https://cdn.test.invalid/images/hero.jpg",
+        "targetGuid": "<target>",
+        "targetMediaID": 3001,
+        "targetUrl": "https://cdn.test.invalid/hero.jpg",
+      },
+    ],
+    "<source>-<target>/containers/mappings.json": [
+      {
+        "sourceContentViewID": 200,
+        "sourceGuid": "<source>",
+        "sourceLastModifiedDate": "01/01/2025 12:00AM",
+        "sourceReferenceName": "Posts",
+        "targetContentViewID": 8001,
+        "targetGuid": "<target>",
+        "targetLastModifiedDate": "01/01/2026 12:00AM",
+        "targetReferenceName": "Posts",
+      },
+    ],
+    "<source>-<target>/en-us/item/mappings.json": [
+      {
+        "sourceContentID": 500,
+        "sourceGuid": "<source>",
+        "sourceVersionID": 900,
+        "targetContentID": 9001,
+        "targetGuid": "<target>",
+        "targetVersionID": 100,
+      },
+    ],
+    "<source>-<target>/en-us/page/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourcePageID": 800,
+        "sourcePageTemplateName": "Standard",
+        "sourceVersionID": 950,
+        "targetGuid": "<target>",
+        "targetPageID": 4001,
+        "targetPageTemplateName": "Standard",
+        "targetVersionID": 200,
+      },
+    ],
+    "<source>-<target>/galleries/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourceMediaGroupingID": 300,
+        "sourceModifiedOn": "01/01/2025 12:00AM",
+        "targetGuid": "<target>",
+        "targetMediaGroupingID": 6001,
+        "targetModifiedOn": "01/01/2026 12:00AM",
+      },
+    ],
+    "<source>-<target>/models/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourceID": 10,
+        "sourceLastModifiedDate": "2025-01-01T00:00:00.000",
+        "sourceReferenceName": "Post",
+        "targetGuid": "<target>",
+        "targetID": 7001,
+        "targetLastModifiedDate": "2026-01-01T00:00:02.000",
+        "targetReferenceName": "Post",
+      },
+    ],
+    "<source>-<target>/sections/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourcePageItemTemplateID": 71,
+        "sourceReferenceName": "Main",
+        "targetGuid": "<target>",
+        "targetPageItemTemplateID": -1,
+        "targetReferenceName": "Main",
+      },
+    ],
+    "<source>-<target>/templates/mappings.json": [
+      {
+        "sourceGuid": "<source>",
+        "sourcePageTemplateID": 700,
+        "sourcePageTemplateName": "Standard",
+        "targetGuid": "<target>",
+        "targetPageTemplateID": 5001,
+        "targetPageTemplateName": "Standard",
+      },
+    ],
+    "<source>-<target>/urlredirections/mappings.json": [
+      {
+        "originUrl": "/old",
+        "sourceGuid": "<source>",
+        "sourceUrlRedirectionID": 1,
+        "targetGuid": "<target>",
+        "targetUrlRedirectionID": 2001,
+      },
+    ],
+  },
+  "phases": [
+    {
+      "failed": 0,
+      "operation": "pushModels",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "operation": "pushGalleries",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "operation": "pushAssets",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "operation": "pushContainers",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "operation": "pushUrlRedirections",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "operation": "pushTemplates",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "locale": "en-us",
+      "operation": "pushContent",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+    {
+      "failed": 0,
+      "locale": "en-us",
+      "operation": "pushPages",
+      "skipped": 1,
+      "status": "success",
+      "successful": 0,
+    },
+  ],
+}
+`;
