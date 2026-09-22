@@ -268,7 +268,7 @@ describe("renderPageScope", () => {
 
   it("shows an out-of-scope ancestor as context, flagged as not synced", () => {
     const out = render(["/products/my-lottery"]);
-    expect(out).toContain("· /products (parent — not synced)");
+    expect(out).toContain("· /products (parent — left unchanged)");
   });
 
   it("omits pages that are neither in scope nor an ancestor of one", () => {

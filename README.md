@@ -273,6 +273,12 @@ Each selector is matched, case-insensitively, against:
 
 Selectors are matched across every channel in the source instance.
 
+> **Git Bash on Windows:** the shell rewrites a leading-slash argument into a Windows path, so
+> `--pages=/my-lottery` arrives as `C:/Program Files/Git/my-lottery`. Drop the leading slash
+> (`--pages="my-lottery"`), double it (`--pages="//my-lottery"`), or set `MSYS_NO_PATHCONV=1`.
+> PowerShell and cmd are unaffected. The CLI detects this and says so rather than syncing the
+> wrong thing.
+
 #### What gets synced
 
 - **The pages you named, plus all of their child pages,** to any depth.
@@ -309,7 +315,7 @@ the scope is what you expected:
 
 en-us
   website
-    · /products (parent — not synced)
+    · /products (parent — left unchanged)
       → /products/my-lottery (pageID 10)
         + /products/my-lottery/rules (pageID 11)
         + /products/my-lottery/winners (pageID 12)

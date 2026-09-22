@@ -97,6 +97,17 @@ function assertEverySelectorMatched(
   const shown = suggestions.slice(0, MAX_SUGGESTED_PATHS);
 
   console.log(ansiColors.red(`❌ No page matched: ${missing.join(", ")}`));
+  if (missing.some(looksLikeAShellRewrittenPath)) {
+    // Git Bash / MSYS rewrites a leading-slash argument into a Windows path, so
+    // --pages=/my-lottery arrives as C:/Program Files/Git/my-lottery.
+    console.log(
+      ansiColors.yellow(
+        "💡 That looks like your shell rewrote the path. In Git Bash on Windows, " +
+          'either double the slash (--pages="//my-lottery") or set MSYS_NO_PATHCONV=1 — ' +
+          'or just drop the leading slash (--pages="my-lottery").'
+      )
+    );
+  }
   if (shown.length > 0) {
     console.log(ansiColors.gray(`Available pages (${suggestions.length}): ${shown.join(", ")}`));
     if (suggestions.length > shown.length) {
@@ -110,6 +121,14 @@ function assertEverySelectorMatched(
     `Page validation failed. No page matched: ${missing.join(", ")}. ` +
       `Pass a page path (e.g. "/my-lottery"), a page name, or a page ID.`
   );
+}
+
+/**
+ * Does this selector look like a path a shell rewrote on the way in? A page path never contains
+ * a Windows drive letter, so one showing up almost always means MSYS path conversion.
+ */
+function looksLikeAShellRewrittenPath(selector: string): boolean {
+  return /^[a-zA-Z]:[\/]/.test(selector.trim());
 }
 
 /**

@@ -249,7 +249,9 @@ export function renderPageScope(
         const indent = "  ".repeat(depth + 2);
 
         if (!inScope) {
-          channelLines.push(`${indent}${ansiColors.gray(`· ${node.path || node.name} (parent — not synced)`)}`);
+          // "left unchanged", not "not synced": the parent may well be on the target already
+          // (it has to be) — the point is that THIS run will not touch it.
+          channelLines.push(`${indent}${ansiColors.gray(`· ${node.path || node.name} (parent — left unchanged)`)}`);
         } else if (!seenInChannel.has(node.pageID)) {
           // Dynamic pages appear once per content item under the same pageID; the page itself
           // is pushed once, so list it once.

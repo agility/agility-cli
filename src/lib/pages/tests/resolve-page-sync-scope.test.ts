@@ -115,6 +115,20 @@ describe("resolvePageSyncScope — unmatched selectors", () => {
     expect(Array.from(scope.byLocale.get("fr-ca")!.pageIDs)).toEqual([]);
   });
 
+
+  it("hints at shell path rewriting when a selector arrives as a Windows path", () => {
+    // Git Bash rewrites --pages=/my-lottery into C:/Program Files/Git/my-lottery.
+    const logSpy = jest.spyOn(console, "log");
+    expect(() => resolve({ selectors: ["C:/Program Files/Git/my-lottery"] })).toThrow();
+    expect(logSpy).toHaveBeenCalledWith(expect.stringContaining("MSYS_NO_PATHCONV"));
+  });
+
+  it("does not show the shell hint for an ordinary typo", () => {
+    const logSpy = jest.spyOn(console, "log");
+    expect(() => resolve({ selectors: ["/typo"] })).toThrow();
+    expect(logSpy).not.toHaveBeenCalledWith(expect.stringContaining("MSYS_NO_PATHCONV"));
+  });
+
   it("throws when --pages was given with no usable selectors", () => {
     expect(() => resolve({ selectors: [] })).toThrow(/no page selectors/);
   });
