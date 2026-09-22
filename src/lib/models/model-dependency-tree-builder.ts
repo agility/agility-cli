@@ -13,6 +13,8 @@ import ansiColors from "ansi-colors";
 import { SitemapHierarchy } from "../pushers/page-pusher/sitemap-hierarchy";
 import { AssetReferenceExtractor } from "../assets/asset-reference-extractor";
 import { AssetMapper } from "lib/mappers/asset-mapper";
+import { collectContentIDReferences } from "../pushers/content-pusher/util/collect-content-id-references";
+import { collectListReferenceNames } from "../pushers/content-pusher/util/collect-list-reference-names";
 
 /**
  * Expand a list of model reference names to include every model they reference through
@@ -137,6 +139,155 @@ export class ModelDependencyTreeBuilder {
     }
 
     return tree;
+  }
+
+  /**
+   * Build the dependency tree for a selective page sync (PROD-2546).
+   *
+   * Where buildDependencyTree() starts from models and works outwards to the pages that use
+   * them, this starts from an already-resolved set of pages and gathers everything those
+   * pages need in order to render on the target: their templates, the content their
+   * Components reference (transitively, through linked-content fields), the models and
+   * containers behind that content, and the assets and galleries it points at.
+   *
+   * Two deliberate differences from the model-rooted tree:
+   *  - Ancestor pages are NOT added. The caller resolved the page set explicitly, and
+   *    quietly widening it to parent pages would push pages the user did not ask for.
+   *  - Linked content is followed transitively, because a page scope has no "all content of
+   *    this model" backstop to catch an item that is only reachable through a reference.
+   */
+  buildDependencyTreeFromPages(pageIDs: number[]): ModelDependencyTree {
+    const tree: ModelDependencyTree = {
+      models: new Set<string>(),
+      containers: new Set<number>(),
+      lists: new Set<number>(),
+      content: new Set<number>(),
+      templates: new Set<number>(),
+      pages: new Set<number>(pageIDs),
+      assets: new Set<string>(),
+      galleries: new Set<number>(),
+    };
+
+    this.findTemplatesUsedByPages(tree);
+    this.findAllContentReferencedByPages(tree);
+    this.expandLinkedContentReferences(tree);
+
+    // Containers are gathered from what actually needs them — the containers the in-scope
+    // content lives in, and the containers the in-scope templates point at — rather than every
+    // container of every discovered model, which would create piles of empty containers on the
+    // target for a sync the user scoped to one page.
+    this.findContainersForDiscoveredContent(tree);
+    this.findContainersUsedByTemplates(tree);
+
+    this.findModelsForDiscoveredContent(tree);
+    this.findModelsForDiscoveredContainers(tree);
+    this.findModelsReferencedByModels(tree);
+
+    this.findAssetsInContent(tree);
+    this.findGalleriesInContent(tree);
+
+    return tree;
+  }
+
+  /**
+   * Add the containers an in-scope template's content sections point at.
+   *
+   * The template pusher remaps each section's `itemContainerID` through the container
+   * mappings; a container that was never pushed leaves the SOURCE id on the target template,
+   * pointing at a container that does not exist there (or, worse, a different one).
+   */
+  private findContainersUsedByTemplates(tree: ModelDependencyTree): void {
+    if (!this.sourceData.templates) return;
+
+    this.sourceData.templates.forEach((template: any) => {
+      if (!tree.templates.has(template.pageTemplateID)) return;
+
+      (template.contentSectionDefinitions || []).forEach((section: any) => {
+        if (typeof section?.contentViewID === "number" && section.contentViewID > 0) {
+          tree.containers.add(section.contentViewID);
+        }
+        if (typeof section?.itemContainerID === "number" && section.itemContainerID > 0) {
+          tree.containers.add(section.itemContainerID);
+        }
+      });
+    });
+  }
+
+  /**
+   * Add the model behind every container in the tree. The container pusher skips a container
+   * whose model has no target mapping, so a container can never be in scope without its model.
+   */
+  private findModelsForDiscoveredContainers(tree: ModelDependencyTree): void {
+    if (!this.sourceData.containers || !this.sourceData.models) return;
+
+    const modelsByID = new Map<number, any>();
+    this.sourceData.models.forEach((model: any) => modelsByID.set(model.id, model));
+
+    this.sourceData.containers.forEach((container: any) => {
+      if (!tree.containers.has(container.contentViewID)) return;
+      const model = modelsByID.get(container.contentDefinitionID);
+      if (model?.referenceName) tree.models.add(model.referenceName);
+    });
+  }
+
+  /**
+   * Walk linked-content references out from the content already in the tree until the set
+   * stops growing, so an item that is only reachable through another item's field still
+   * makes it into the sync.
+   *
+   * Both reference shapes are followed, using the same collectors the content pusher uses to
+   * order its batches:
+   *  - single-item references (`contentid` / `sortids` / companion fields), and
+   *  - whole-list references (`referencename` + `fulllist: true`), which pull in every item
+   *    in that list.
+   */
+  private expandLinkedContentReferences(tree: ModelDependencyTree): void {
+    if (!this.sourceData.content) return;
+
+    const contentByID = new Map<number, any>();
+    const contentByListReference = new Map<string, any[]>();
+
+    this.sourceData.content.forEach((item: any) => {
+      contentByID.set(item.contentID, item);
+
+      const listReference = (item.properties?.referenceName || "").toLowerCase();
+      if (!listReference) return;
+      const bucket = contentByListReference.get(listReference);
+      if (bucket) {
+        bucket.push(item);
+      } else {
+        contentByListReference.set(listReference, [item]);
+      }
+    });
+
+    const modelsByName = new Map<string, any>();
+    (this.sourceData.models || []).forEach((model: any) => {
+      if (model?.referenceName) modelsByName.set(model.referenceName.toLowerCase(), model);
+    });
+
+    const addContent = (contentID: number, queue: number[]): void => {
+      if (!contentID || contentID <= 0 || tree.content.has(contentID)) return;
+      tree.content.add(contentID);
+      queue.push(contentID);
+    };
+
+    const queue: number[] = Array.from(tree.content);
+
+    while (queue.length > 0) {
+      const contentID = queue.pop() as number;
+      const item = contentByID.get(contentID);
+      if (!item || !item.fields) continue;
+
+      const model = modelsByName.get((item.properties?.definitionName || "").toLowerCase());
+
+      collectContentIDReferences(item.fields, model).forEach((referencedID) => addContent(referencedID, queue));
+
+      collectListReferenceNames(item.fields).forEach((listReference) => {
+        (contentByListReference.get(listReference.toLowerCase()) || []).forEach((listItem: any) =>
+          addContent(listItem.contentID, queue)
+        );
+      });
+    }
   }
 
   /**

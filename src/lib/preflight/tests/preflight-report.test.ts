@@ -273,3 +273,22 @@ describe("print", () => {
     expect(allOutput).toContain("TOTAL");
   });
 });
+
+// ─── page-scoped runs (PROD-2546) ──────────────────────────────────────────
+
+describe("renderTable — --pages scope", () => {
+  it("says which pages the run was scoped to", () => {
+    setState({ preflight: true, pages: "/my-lottery,/promos" });
+    expect(preflightReport.renderTable()).toContain("Scoped to --pages: /my-lottery,/promos");
+  });
+
+  it("says nothing about scope on an unscoped run", () => {
+    setState({ preflight: true });
+    expect(preflightReport.renderTable()).not.toContain("Scoped to --pages");
+  });
+
+  it("says nothing about scope when --pages is blank", () => {
+    setState({ preflight: true, pages: "   " });
+    expect(preflightReport.renderTable()).not.toContain("Scoped to --pages");
+  });
+});

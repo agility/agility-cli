@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import { Logs, OperationType, EntityType } from "./logs";
 import { Options } from "@agility/management-sdk";
+import { PageSyncScope } from "../types/pageScope";
 
 export interface State {
   // Environment modes
@@ -48,6 +49,11 @@ export interface State {
   // Model-specific
   models: string;
   modelsWithDeps: string;
+
+  // Page-specific (PROD-2546): raw --pages selectors, and the scope they resolve to.
+  // The resolved scope is populated once per run, after the pull and before any push.
+  pages: string;
+  pageScope?: PageSyncScope;
 
   // Content-specific
   contentItems?: string;
@@ -129,6 +135,10 @@ export const state: State = {
   // Model-specific
   models: "",
   modelsWithDeps: "",
+
+  // Page-specific
+  pages: "",
+  pageScope: undefined,
 
   // Content-specific
   contentItems: undefined,
@@ -241,6 +251,9 @@ export function setState(argv: any) {
   // Model-specific
   if (argv.models !== undefined) state.models = argv.models;
   if (argv.modelsWithDeps !== undefined) state.modelsWithDeps = argv.modelsWithDeps;
+
+  // Page-specific (PROD-2546)
+  if (argv.pages !== undefined) state.pages = argv.pages;
 
   // Content-specific
   if (argv.contentItems !== undefined) state.contentItems = argv.contentItems;
@@ -405,6 +418,11 @@ export function resetState() {
 
   // Model-specific
   state.models = "";
+  state.modelsWithDeps = "";
+
+  // Page-specific
+  state.pages = "";
+  state.pageScope = undefined;
 
   // Content-specific
   state.contentItems = undefined;

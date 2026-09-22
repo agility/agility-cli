@@ -18,12 +18,16 @@ import * as mgmtApi from "@agility/management-sdk";
 
 // Shared model→model reference resolver, defined alongside the dependency-tree builder so both the
 // --models (here) and --models-with-deps (tree builder) paths use the same logic. 
-import { resolveReferencedModels } from "../models/model-dependency-tree-builder";
+import { resolveReferencedModels, ModelDependencyTree } from "../models/model-dependency-tree-builder";
+import { PageSyncScope } from "../pages/resolve-page-sync-scope";
 export { resolveReferencedModels };
 
 export interface ModelFilterOptions {
   models?: string[]; // Simple model filtering
   modelsWithDeps?: string[]; // Model filtering with dependency tree
+  // PROD-2546: selective page sync. Already resolved (and validated) by
+  // resolvePageSyncScope before any pusher runs.
+  pageScope?: PageSyncScope;
 }
 
 export interface GuidEntities {
@@ -41,6 +45,9 @@ export interface GuidEntities {
 export class GuidDataLoader {
   private guid: string;
   private static hasLoggedDependencyTree = false;
+  // PROD-2546: one dependency tree per locale, built on first use. loadGuidEntities is called
+  // once per phase per locale, and each build re-reads every entity off disk.
+  private pageScopeTrees = new Map<string, ModelDependencyTree>();
 
   constructor(guid: string) {
     this.guid = guid;
@@ -59,9 +66,13 @@ export class GuidDataLoader {
   async loadGuidEntities(locale: string, filterOptions?: ModelFilterOptions): Promise<GuidEntities> {
     const state = getState();
 
-    // For sync operations or models-with-deps, we need ALL elements for proper change detection
-    // Element filtering happens at the processing level, not the loading level
-    const needsCompleteData = state.isSync || state.modelsWithDeps;
+    // For sync operations, models-with-deps, or a --pages scope, we need ALL elements for proper
+    // change detection and dependency resolution.
+    // Element filtering happens at the processing level, not the loading level: --elements still
+    // decides which push phases run, it just no longer hides a dependency from the scope builder.
+    // Both the flag and the resolved scope are checked: the flag covers the unfiltered target-side
+    // load, and the resolved scope covers a caller that passes one without going through state.
+    const needsCompleteData = state.isSync || state.modelsWithDeps || state.pages || !!filterOptions?.pageScope;
     const elements = needsCompleteData
       ? ["Galleries", "Assets", "Models", "Containers", "Content", "Templates", "Pages", "Sitemaps", "UrlRedirections"]
       : state.elements.split(",");
@@ -136,12 +147,106 @@ export class GuidDataLoader {
       guidEntities.urlRedirections = Array.isArray(urlRedirections) ? urlRedirections : [];
     }
 
+    // PROD-2546: a --pages scope replaces model filtering entirely (the two are rejected as a
+    // combination up front), so it is applied first and returns directly.
+    if (filterOptions?.pageScope) {
+      return await this.applyPageScopeFiltering(guidEntities, filterOptions.pageScope, locale);
+    }
+
     // Apply model filtering if requested
     if (filterOptions) {
       return await this.applyModelFiltering(guidEntities, filterOptions, locale, state.targetGuid, state.sourceGuid);
     }
 
     return guidEntities;
+  }
+
+  /**
+   * Narrow the loaded entities to a selective page sync (PROD-2546).
+   *
+   * Pages and content are filtered against THIS locale's tree, since both are locale-scoped.
+   * Everything else — models, containers, templates, assets, galleries — is instance-wide and
+   * filtered against the union of every locale's tree: the guid-level push phases run once
+   * with the first locale, so scoping them to that locale alone would drop a model or template
+   * that only a page in another locale needs.
+   *
+   * URL redirections are instance-wide and unrelated to any page subtree, so a page-scoped
+   * sync never touches them.
+   */
+  private async applyPageScopeFiltering(
+    guidEntities: GuidEntities,
+    pageScope: PageSyncScope,
+    locale: string
+  ): Promise<GuidEntities> {
+    const localeTree = await this.getPageScopeTree(pageScope, locale);
+    const instanceWide = await this.getInstanceWidePageScope(pageScope);
+
+    const assetKey = (asset: any): string => asset?.url || asset?.originUrl || asset?.edgeUrl;
+    // Templates are keyed by pageTemplateID; `id` is tolerated for any caller that supplies it.
+    const templateKey = (template: any): number => template?.pageTemplateID ?? template?.id;
+
+    return {
+      models: guidEntities.models.filter((m: any) => instanceWide.models.has(m.referenceName)),
+      containers: guidEntities.containers.filter((c: any) => instanceWide.containers.has(c.contentViewID)),
+      lists: [],
+      content: guidEntities.content.filter((c: any) => localeTree.content.has(c.contentID)),
+      templates: guidEntities.templates.filter((t: any) => instanceWide.templates.has(templateKey(t))),
+      pages: guidEntities.pages.filter((p: any) => localeTree.pages.has(p.pageID)),
+      assets: guidEntities.assets.filter((a: any) => instanceWide.assets.has(assetKey(a))),
+      galleries: guidEntities.galleries.filter((g: any) => instanceWide.galleries.has(g.galleryID)),
+      urlRedirections: [],
+    };
+  }
+
+  /** Build (and cache) the dependency tree for one locale's in-scope pages. */
+  private async getPageScopeTree(pageScope: PageSyncScope, locale: string): Promise<ModelDependencyTree> {
+    const cached = this.pageScopeTrees.get(locale);
+    if (cached) return cached;
+
+    // The tree has to be built from complete data — the same reason the models-with-deps path
+    // reloads everything — or a dependency outside the requested --elements is invisible.
+    const completeEntities = await this.loadCompleteGuidEntities(locale);
+    const localeScope = pageScope.byLocale.get(locale);
+    const pageIDs = localeScope ? Array.from(localeScope.pageIDs) : [];
+
+    const { ModelDependencyTreeBuilder } = await import("../models/model-dependency-tree-builder");
+    const state = getState();
+    const treeBuilder = new ModelDependencyTreeBuilder(completeEntities, state.targetGuid, state.sourceGuid);
+    const tree = treeBuilder.buildDependencyTreeFromPages(pageIDs);
+
+    this.pageScopeTrees.set(locale, tree);
+    return tree;
+  }
+
+  /** Union the instance-wide parts of every locale's tree. */
+  private async getInstanceWidePageScope(pageScope: PageSyncScope): Promise<{
+    models: Set<string>;
+    containers: Set<number>;
+    templates: Set<number>;
+    assets: Set<string>;
+    galleries: Set<number>;
+  }> {
+    const union = {
+      models: new Set<string>(),
+      containers: new Set<number>(),
+      templates: new Set<number>(),
+      assets: new Set<string>(),
+      galleries: new Set<number>(),
+    };
+
+    const locales: string[] = [];
+    pageScope.byLocale.forEach((_scope, scopeLocale) => locales.push(scopeLocale));
+
+    for (const scopeLocale of locales) {
+      const tree = await this.getPageScopeTree(pageScope, scopeLocale);
+      tree.models.forEach((m) => union.models.add(m));
+      tree.containers.forEach((c) => union.containers.add(c));
+      tree.templates.forEach((t) => union.templates.add(t));
+      tree.assets.forEach((a) => union.assets.add(a));
+      tree.galleries.forEach((g) => union.galleries.add(g));
+    }
+
+    return union;
   }
 
   /**

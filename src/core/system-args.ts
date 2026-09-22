@@ -78,6 +78,16 @@ export const systemArgs = {
     default: "",
   },
 
+  // **Selective page sync (PROD-2546)**
+  pages: {
+    describe:
+      "(sync/push only) Sync only these pages and everything beneath them. Accepts a comma-separated list of page paths (e.g. '/my-lottery'), page names, or page IDs. Each selected page brings its child pages and the templates, content, models, containers, assets and galleries those pages need — nothing else is synced. The resolved page tree is printed before anything is written. Parent pages of a selection are NOT synced, and must already exist in the target. Cannot be combined with --models or --models-with-deps.",
+    demandOption: false,
+    alias: ["Pages", "PAGES", "page", "Page"],
+    type: "string" as const,
+    default: "",
+  },
+
   // Preflight (dry-run preview) args
   preflight: {
     describe:
@@ -182,6 +192,7 @@ export interface SystemArgs {
   targetGuid?: string;
   locales?: string;
   channel?: string;
+  pages?: string; // Selective page sync: page paths / names / IDs to scope the sync to
   contentIDs?: string; // Explicit content IDs (bypasses mappings)
   pageIDs?: string; // Explicit page IDs (bypasses mappings)
 }

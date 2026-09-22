@@ -6,6 +6,7 @@ import { SitemapHierarchy } from "./sitemap-hierarchy";
 import { PageMapper } from "../../mappers/page-mapper";
 import { processPage } from "./process-page";
 import { SitemapNode } from "types/index";
+import { LocalePageScope } from "types/pageScope";
 import { Logs } from "core/logs";
 
 interface ReturnType {
@@ -38,6 +39,11 @@ interface Props {
   sourcePages: mgmtApi.PageItem[];
   parentPageID: number;
   logger: Logs;
+  /**
+   * PROD-2546: when a --pages scope is active, restricts this walk to the selected pages and
+   * their descendants. Omitted for a normal, unscoped sync.
+   */
+  pageScope?: LocalePageScope;
 }
 
 /**
@@ -67,6 +73,7 @@ export async function processSitemap({
   sourcePages,
   parentPageID,
   logger,
+  pageScope,
 }: Props): Promise<ReturnType> {
   let returnData: ReturnType = {
     successful: 0,
@@ -82,8 +89,47 @@ export async function processSitemap({
 
   let previousPageID = 0; // Store the previous page ID for ordering
 
+  const mergeChildResults = (childRes: ReturnType): void => {
+    returnData.successful += childRes.successful;
+    returnData.failed += childRes.failed;
+    returnData.skipped += childRes.skipped;
+    returnData.publishableIds.push(...childRes.publishableIds);
+    returnData.failureDetails.push(...childRes.failureDetails);
+    returnData.warningDetails.push(...childRes.warningDetails);
+  };
+
   // Process each page in the reversed sitemap nodes
   for (const node of reversedNodes) {
+    // PROD-2546: a --pages scope narrows this walk to the selected pages and everything
+    // beneath them. An ancestor of a selection is still walked THROUGH — it is what supplies
+    // the parentPageID its in-scope children are created under — but is never pushed itself.
+    // Any other branch is skipped whole, since nothing under it can be in scope.
+    if (pageScope && !pageScope.pageIDs.has(node.pageID)) {
+      if (pageScope.traversePageIDs.has(node.pageID)) {
+        mergeChildResults(
+          await processSitemap({
+            channel,
+            pageMapper,
+            sitemapNodes: node.children || [],
+            sourceGuid,
+            targetGuid,
+            locale,
+            apiClient,
+            overwrite,
+            sourcePages,
+            parentPageID: node.pageID,
+            logger,
+            pageScope,
+          })
+        );
+      }
+
+      // A skipped sibling is still a valid anchor for placing a NEW page in the right spot,
+      // so the ordering cursor advances whether or not the page itself was pushed.
+      previousPageID = node.pageID;
+      continue;
+    }
+
     //process the page for this node...
     const sourcePage = sourcePages.find((page) => page.pageID === node.pageID);
 
@@ -180,15 +226,11 @@ export async function processSitemap({
       // Pass current node's page ID as parent for children
       parentPageID: node.pageID,
       logger,
+      pageScope,
     });
 
     // Update returnData based on childRes
-    returnData.successful += childRes.successful;
-    returnData.failed += childRes.failed;
-    returnData.skipped += childRes.skipped;
-    returnData.publishableIds.push(...childRes.publishableIds);
-    returnData.failureDetails.push(...childRes.failureDetails);
-    returnData.warningDetails.push(...childRes.warningDetails);
+    mergeChildResults(childRes);
 
     // Update previousPageID for next iteration
     previousPageID = node.pageID;

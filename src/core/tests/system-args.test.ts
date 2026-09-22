@@ -198,3 +198,36 @@ describe("systemArgs – help text", () => {
     }
   });
 });
+
+// ─── selective page sync (PROD-2546) ─────────────────────────────────────
+
+describe("systemArgs.pages", () => {
+  it("is exposed as a string option", () => {
+    expect(systemArgs).toHaveProperty("pages");
+    expect((systemArgs.pages as any).type).toBe("string");
+  });
+
+  it("defaults to no selectors, so a sync is unscoped unless asked", () => {
+    expect((systemArgs.pages as any).default).toBe("");
+  });
+
+  it("is optional", () => {
+    expect((systemArgs.pages as any).demandOption).toBe(false);
+  });
+
+  it('accepts the singular "page" spelling', () => {
+    expect((systemArgs.pages as any).alias).toContain("page");
+  });
+
+  it("explains that child pages come along", () => {
+    expect((systemArgs.pages as any).describe).toContain("child pages");
+  });
+
+  it("warns that parent pages are not synced", () => {
+    expect((systemArgs.pages as any).describe).toContain("Parent pages");
+  });
+
+  it("states that it cannot be combined with the model filters", () => {
+    expect((systemArgs.pages as any).describe).toContain("Cannot be combined with --models");
+  });
+});

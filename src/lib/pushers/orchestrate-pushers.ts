@@ -200,13 +200,44 @@ export class Pushers {
       PUSH_OPERATIONS.pages,
     ];
 
-    // Prepare model filtering options from state
+    // Prepare filtering options from state
     let filterOptions: ModelFilterOptions = {};
-    if (state.models && state.models.trim().length > 0) {
-      filterOptions.models = state.models.split(",").map((m) => m.trim());
-    }
-    if (state.modelsWithDeps && state.modelsWithDeps.trim().length > 0) {
-      filterOptions.modelsWithDeps = state.modelsWithDeps.split(",").map((m) => m.trim());
+
+    // PROD-2546: selective page sync. Resolved and validated here — before the first pusher
+    // runs — so a bad selector or an unsynced parent page stops the run with nothing written,
+    // and so the user sees the exact page tree that is about to be synced.
+    const { parsePageSelectors } = await import("../pages/page-scope");
+    const pageSelectors = parsePageSelectors(state.pages);
+
+    if (pageSelectors.length > 0) {
+      const hasModelFilter =
+        (state.models && state.models.trim().length > 0) ||
+        (state.modelsWithDeps && state.modelsWithDeps.trim().length > 0);
+      if (hasModelFilter) {
+        throw new Error(
+          "Page validation failed. --pages cannot be combined with --models or --models-with-deps — " +
+            "each defines a different sync scope. Run them as separate syncs."
+        );
+      }
+
+      const { resolvePageSyncScope, printPageSyncScope } = await import("../pages/resolve-page-sync-scope");
+      const pageScope = resolvePageSyncScope({
+        sourceGuid,
+        targetGuid,
+        locales,
+        selectors: pageSelectors,
+      });
+
+      printPageSyncScope(pageScope);
+      state.pageScope = pageScope;
+      filterOptions.pageScope = pageScope;
+    } else {
+      if (state.models && state.models.trim().length > 0) {
+        filterOptions.models = state.models.split(",").map((m) => m.trim());
+      }
+      if (state.modelsWithDeps && state.modelsWithDeps.trim().length > 0) {
+        filterOptions.modelsWithDeps = state.modelsWithDeps.split(",").map((m) => m.trim());
+      }
     }
 
     // Reset logging flags for new operation

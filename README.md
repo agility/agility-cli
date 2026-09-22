@@ -95,6 +95,7 @@ agility sync [options]
 | `--elements`         | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps,UrlRedirections` | Comma-separated list of elements to process                                                                                                                          |
 | `--models`           | string | _(empty)_                                                            | Comma-separated list of model reference names to sync (only syncs the specified models)                                                                              |
 | `--models-with-deps` | string | _(empty)_                                                            | Comma-separated list of model reference names to sync with their full dependency tree — includes dependent content, pages, templates, assets, galleries, and containers |
+| `--pages`            | string | _(empty)_                                                            | Comma-separated list of page paths, page names, or page IDs to sync. Each selected page brings its child pages and the templates, content, models, containers, assets and galleries they need — nothing else is synced. See [Selective Page Sync](#selective-page-sync). |
 | `--contentIDs`       | string | _(empty)_                                                            | Comma-separated list of target content IDs to process directly, bypassing the mappings lookup (e.g. `--contentIDs=121,1221`)                                          |
 | `--pageIDs`          | string | _(empty)_                                                            | Comma-separated list of target page IDs to process directly, bypassing the mappings lookup (e.g. `--pageIDs=12,45`)                                                   |
 
@@ -143,6 +144,9 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,Blog
 
 # Sync models with their full dependency tree (content, pages, templates, assets, galleries, containers)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="BlogPost,BlogCategory"
+
+# Sync one page structure and its child pages, and nothing else
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery"
 
 # Sync and auto-publish everything that was published in source
 agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish
@@ -242,6 +246,90 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="Pro
 - **Faster Operations**: Only processes relevant content instead of entire instance
 - **Targeted Updates**: Perfect for content-specific deployments
 - **Flexible Control**: Choose between models-only or models with dependencies
+
+---
+
+### Selective Page Sync
+
+`--pages` narrows a sync to one or more page structures. Use it when you want to promote the
+pages belonging to a single feature up through your environments, instead of running a full
+sync and resolving conflicts on every unrelated page that has drifted.
+
+```bash
+# Sync the /my-lottery page and every page underneath it
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery"
+
+# Several page structures at once
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery,/promotions"
+```
+
+#### Naming a page
+
+Each selector is matched, case-insensitively, against:
+
+- the page path — `/my-lottery` (a leading slash is optional, a trailing slash is ignored),
+- the page name — `my-lottery`, or
+- the page ID — `1042`.
+
+Selectors are matched across every channel in the source instance.
+
+#### What gets synced
+
+- **The pages you named, plus all of their child pages,** to any depth.
+- **Everything those pages need to render on the target:** the page templates they use, the
+  content their Components reference (followed through linked-content fields, including whole
+  lists), the models and containers behind that content, and the assets and galleries it
+  points at.
+
+Nothing else is touched. URL redirections, unrelated models and every page outside the
+selected structures are left alone on the target.
+
+#### What does NOT get synced: parent pages
+
+A selected page's **parents are not synced**. They are only used to work out where the
+selected pages belong in the target sitemap, which means they must already exist there.
+
+If a parent has never been synced to the target, the run stops before writing anything:
+
+```
+❌ Parent pages of the selected pages have never been synced to the target:
+  • [en-us] /products (pageID 3)
+💡 Add them to --pages to sync them too, or run a sync that covers them first.
+```
+
+Either add the parent to `--pages`, or run a sync that covers it first.
+
+#### Seeing the scope before anything is written
+
+Every `--pages` run prints the resolved page tree before the first write, so you can confirm
+the scope is what you expected:
+
+```
+🎯 PAGE SCOPE — only these pages and their dependencies will be synced
+
+en-us
+  website
+    · /products (parent — not synced)
+      → /products/my-lottery (pageID 10)
+        + /products/my-lottery/rules (pageID 11)
+        + /products/my-lottery/winners (pageID 12)
+```
+
+`→` is a page you named, `+` a child page that comes with it, and `·` a parent shown only for
+context. Combine with `--preflight` to see the creates, updates and conflicts that scope
+would produce without writing anything.
+
+```bash
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery" --preflight
+```
+
+#### Notes and limits
+
+- `--pages` cannot be combined with `--models` or `--models-with-deps`; each defines a
+  different sync scope. Run them as separate syncs.
+- A selector that matches no page anywhere stops the run and lists the available page paths.
+- With multiple locales, the scope is resolved per locale. A page that exists in one locale
+  but not another is reported per locale rather than failing the run.
 
 ### Sync Token Management
 
