@@ -380,3 +380,31 @@ describe("setState — --pages", () => {
     expect(getState().modelsWithDeps).toBe("");
   });
 });
+
+// ─── selective container sync (PROD-2547) ────────────────────────────────
+
+describe("setState — --containers", () => {
+  it("defaults to an empty selector list", () => {
+    resetState();
+    expect(getState().containers).toBe("");
+  });
+
+  it("stores the raw --containers value", () => {
+    resetState();
+    setState({ containers: "AONHomeLinks,Games" });
+    expect(getState().containers).toBe("AONHomeLinks,Games");
+  });
+
+  it("leaves the existing value alone when --containers is not supplied", () => {
+    resetState();
+    setState({ containers: "AONHomeLinks" });
+    setState({ locales: "en-us" });
+    expect(getState().containers).toBe("AONHomeLinks");
+  });
+
+  it("clears the selectors on reset, so a scope does not leak between commands", () => {
+    setState({ containers: "AONHomeLinks" });
+    resetState();
+    expect(getState().containers).toBe("");
+  });
+});

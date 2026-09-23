@@ -96,6 +96,7 @@ agility sync [options]
 | `--models`           | string | _(empty)_                                                            | Comma-separated list of model reference names to sync (only syncs the specified models)                                                                              |
 | `--models-with-deps` | string | _(empty)_                                                            | Comma-separated list of model reference names to sync with their full dependency tree — includes dependent content, pages, templates, assets, galleries, and containers |
 | `--pages`            | string | _(empty)_                                                            | Comma-separated list of page paths, page names, or page IDs to sync. Each selected page brings its child pages and the templates, content, models, containers, assets and galleries they need — nothing else is synced. See [Selective Page Sync](#selective-page-sync). |
+| `--containers`       | string | _(empty)_                                                            | Comma-separated list of container reference names, titles, or container IDs to sync. Syncs just those containers and what their content depends on — other containers on the same model are left alone. See [Selective Container Sync](#selective-container-sync). |
 | `--contentIDs`       | string | _(empty)_                                                            | Comma-separated list of target content IDs to process directly, bypassing the mappings lookup (e.g. `--contentIDs=121,1221`)                                          |
 | `--pageIDs`          | string | _(empty)_                                                            | Comma-separated list of target page IDs to process directly, bypassing the mappings lookup (e.g. `--pageIDs=12,45`)                                                   |
 
@@ -147,6 +148,9 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="Blo
 
 # Sync one page structure and its child pages, and nothing else
 agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery"
+
+# Sync one container, leaving the other containers on the same model alone
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks"
 
 # Sync and auto-publish everything that was published in source
 agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish
@@ -331,11 +335,94 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery" -
 
 #### Notes and limits
 
-- `--pages` cannot be combined with `--models` or `--models-with-deps`; each defines a
-  different sync scope. Run them as separate syncs.
+- `--pages` cannot be combined with `--models`, `--models-with-deps` or `--containers`; each
+  defines a different sync scope. Run them as separate syncs.
 - A selector that matches no page anywhere stops the run and lists the available page paths.
 - With multiple locales, the scope is resolved per locale. A page that exists in one locale
   but not another is reported per locale rather than failing the run.
+
+---
+
+### Selective Container Sync
+
+`--containers` narrows a sync to one or more content containers.
+
+Use it when several containers share a content model. Reusing one model across containers is
+the right thing to do — but it means `--models-with-deps` acts on the model and sweeps in
+*every* container built on it. If "AON Home Links" and "Mega Millions Home Links" are both
+built on a Home Links model, syncing the model promotes both. `--containers` promotes the one
+you name.
+
+```bash
+# Sync just this container and what its content depends on
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks"
+
+# Several containers at once
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks,AONPromotions"
+```
+
+#### Naming a container
+
+Each selector is matched, case-insensitively, against:
+
+- the container reference name — `AONHomeLinks`,
+- the container title as it reads in the CMS — `AON Home Links`, or
+- the container ID — `312`.
+
+#### What gets synced
+
+- **The containers you named**, and the content items in them.
+- **Everything that content needs:** the content it links to through linked-content fields
+  (followed transitively, including whole lists), the containers that linked content lives in,
+  the models behind all of it, and the assets and galleries it points at.
+
+Nothing else is touched. Other containers on the same model, every page, every page template
+and every URL redirection are left alone on the target.
+
+A linked container comes in with only the items that were actually linked to, not its whole
+contents — one reference into a large shared container does not drag the rest of it across.
+
+#### Seeing the scope before anything is written
+
+Every `--containers` run prints the resolved scope before the first write:
+
+```
+📦 CONTAINER SCOPE — only these containers and their dependencies will be synced
+
+  → AON Home Links (AONHomeLinks) · model: HomeLinks
+
+  Also synced, because in-scope content links to items in them:
+  + Games (Games) · model: Game
+
+  Content items in scope — en-us: 12
+  Models in scope (2): Game, HomeLinks
+
+  Other containers on these models — left unchanged on the target:
+  · Mega Millions Home Links (MegaMillionsHomeLinks) · model: HomeLinks
+
+  No pages, templates or URL redirections are touched by a container sync.
+```
+
+`→` is a container you named, `+` one that came along because your content links into it, and
+`·` a container on the same model that this run leaves alone — the containers
+`--models-with-deps` would have swept in.
+
+Combine with `--preflight` to see the creates, updates and conflicts that scope would produce
+without writing anything:
+
+```bash
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks" --preflight
+```
+
+#### Notes and limits
+
+- `--containers` cannot be combined with `--models`, `--models-with-deps` or `--pages`; each
+  defines a different sync scope. Run them as separate syncs.
+- A selector that matches no container stops the run and lists the available container names.
+- The model behind a selected container *is* synced — it has to be, or the container cannot be
+  created on the target. What stays behind is the other containers built on that model.
+- With multiple locales, the container selection is the same for all of them; the content in
+  scope is resolved per locale.
 
 ### Sync Token Management
 

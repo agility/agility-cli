@@ -190,6 +190,76 @@ export class ModelDependencyTreeBuilder {
   }
 
   /**
+   * Build the dependency tree for a selective container sync (PROD-2547).
+   *
+   * Where buildDependencyTree() starts from a MODEL and sweeps in every container built on it,
+   * this starts from the containers themselves. That difference is the whole feature: several
+   * containers commonly share one model ("AON Home Links" and "Mega Millions Home Links" on the
+   * same Home Links model), and promoting one of them must not drag the others across.
+   *
+   * From the selected containers it gathers the content that lives in them, the content that
+   * content references (transitively, through linked-content fields), the containers holding
+   * those referenced items, the models behind all of it, and the assets and galleries it points
+   * at.
+   *
+   * Pages and templates are never included. A container sync is a content-shaped operation; a
+   * page that happens to surface one of these containers is a separate decision, and --pages
+   * (PROD-2546) is the flag for it.
+   */
+  buildDependencyTreeFromContainers(containerIDs: number[]): ModelDependencyTree {
+    const tree: ModelDependencyTree = {
+      models: new Set<string>(),
+      containers: new Set<number>(containerIDs),
+      lists: new Set<number>(),
+      content: new Set<number>(),
+      templates: new Set<number>(),
+      pages: new Set<number>(),
+      assets: new Set<string>(),
+      galleries: new Set<number>(),
+    };
+
+    // Only the SELECTED containers contribute their whole contents. Containers discovered later
+    // are pulled in by a specific referenced item and contribute only that item -- otherwise one
+    // link into a shared container would drag every item in it along.
+    this.findContentInContainers(tree);
+    this.expandLinkedContentReferences(tree);
+    this.findContainersForDiscoveredContent(tree);
+
+    this.findModelsForDiscoveredContainers(tree);
+    this.findModelsForDiscoveredContent(tree);
+    this.findModelsReferencedByModels(tree);
+
+    this.findAssetsInContent(tree);
+    this.findGalleriesInContent(tree);
+
+    return tree;
+  }
+
+  /**
+   * Add every content item living in a container that is already in the tree.
+   *
+   * Matched case-insensitively on reference name, for the same reason
+   * findContainersForDiscoveredContent is: Agility stores the container as "news1_RichTextArea"
+   * and the content items in it as "news1_richtextarea".
+   */
+  private findContentInContainers(tree: ModelDependencyTree): void {
+    if (!this.sourceData.containers || !this.sourceData.content) return;
+
+    const inScopeReferenceNames = new Set<string>();
+    this.sourceData.containers.forEach((container: any) => {
+      if (!tree.containers.has(container.contentViewID)) return;
+      if (container.referenceName) inScopeReferenceNames.add(container.referenceName.toLowerCase());
+    });
+
+    this.sourceData.content.forEach((contentItem: any) => {
+      const referenceName = (contentItem.properties?.referenceName || "").toLowerCase();
+      if (referenceName && inScopeReferenceNames.has(referenceName)) {
+        tree.content.add(contentItem.contentID);
+      }
+    });
+  }
+
+  /**
    * Add the containers an in-scope template's content sections point at.
    *
    * The template pusher remaps each section's `itemContainerID` through the container

@@ -203,16 +203,27 @@ export class Pushers {
     // Prepare filtering options from state
     let filterOptions: ModelFilterOptions = {};
 
-    // PROD-2546: selective page sync. Resolved and validated here — before the first pusher
-    // runs — so a bad selector or an unsynced parent page stops the run with nothing written,
-    // and so the user sees the exact page tree that is about to be synced.
+    // PROD-2546 / PROD-2547: selective page and container sync. Resolved and validated here —
+    // before the first pusher runs — so a bad selector, or a page whose parent has never been
+    // synced, stops the run with nothing written, and so the user sees the exact scope that is
+    // about to be synced.
     const { parsePageSelectors } = await import("../pages/page-scope");
+    const { parseContainerSelectors } = await import("../containers/container-scope");
     const pageSelectors = parsePageSelectors(state.pages);
+    const containerSelectors = parseContainerSelectors(state.containers);
+
+    const hasModelFilter =
+      (state.models && state.models.trim().length > 0) ||
+      (state.modelsWithDeps && state.modelsWithDeps.trim().length > 0);
+
+    if (pageSelectors.length > 0 && containerSelectors.length > 0) {
+      throw new Error(
+        "Page validation failed. --pages cannot be combined with --containers — each defines a " +
+          "different sync scope. Run them as separate syncs."
+      );
+    }
 
     if (pageSelectors.length > 0) {
-      const hasModelFilter =
-        (state.models && state.models.trim().length > 0) ||
-        (state.modelsWithDeps && state.modelsWithDeps.trim().length > 0);
       if (hasModelFilter) {
         throw new Error(
           "Page validation failed. --pages cannot be combined with --models or --models-with-deps — " +
@@ -231,6 +242,26 @@ export class Pushers {
       printPageSyncScope(pageScope);
       state.pageScope = pageScope;
       filterOptions.pageScope = pageScope;
+    } else if (containerSelectors.length > 0) {
+      if (hasModelFilter) {
+        throw new Error(
+          "Container validation failed. --containers cannot be combined with --models or " +
+            "--models-with-deps — each defines a different sync scope. Run them as separate syncs."
+        );
+      }
+
+      const { resolveContainerSyncScope, printContainerSyncScope } = await import(
+        "../containers/resolve-container-sync-scope"
+      );
+      const containerScope = await resolveContainerSyncScope({
+        sourceGuid,
+        targetGuid,
+        locales,
+        selectors: containerSelectors,
+      });
+
+      printContainerSyncScope(containerScope);
+      filterOptions.containerScope = containerScope;
     } else {
       if (state.models && state.models.trim().length > 0) {
         filterOptions.models = state.models.split(",").map((m) => m.trim());
