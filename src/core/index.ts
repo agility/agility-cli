@@ -48,7 +48,6 @@ export {
 } from "../types";
 
 // Content and data services
-export { content } from "./content";
 export { assets } from "./assets";
 export { fileOperations } from "./fileOperations";
 export { getApiClient } from "./state";
