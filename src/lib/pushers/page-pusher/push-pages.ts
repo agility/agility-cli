@@ -19,6 +19,10 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
     return { status: "success", successful: 0, failed: 0, skipped: 0, failureDetails: [], warningDetails: [] };
   }
 
+  // PROD-2546: when --pages is in play, this locale's slice of the resolved scope tells the
+  // sitemap walk which pages to push and which ancestors to merely walk through.
+  const pageScope = state.pageScope?.byLocale.get(locale);
+
   const sitemapHierarchy = new SitemapHierarchy();
 
   // Reset processed page IDs tracking for this locale
@@ -73,6 +77,7 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
         // Top-level pages have no parent
         parentPageID: -1,
         logger,
+        pageScope,
       });
 
       successful += res.successful;

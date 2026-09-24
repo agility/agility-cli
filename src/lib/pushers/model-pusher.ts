@@ -50,6 +50,67 @@ function crossKindCollisionMessage(source: mgmtApi.Model, target: mgmtApi.Model)
 }
 
 /**
+ * PROD-2604: structural equality of two model definitions, ignoring everything that legitimately
+ * differs between instances — the model `id`, each field's `fieldID` (a per-instance GUID),
+ * `lastModifiedDate`, and the PhotoGallery field's per-instance gallery ID. Fields are paired by
+ * `name`; every other field property and every remaining settings key must match. `null`,
+ * `undefined` and `""` are treated as the same empty value because the pulled JSON and the API
+ * response are not consistent about which one they use for blank descriptions.
+ *
+ * Used as a guard before any model write: when the two sides are already identical there is nothing
+ * to push, whatever the dates say. A needless model save is not free — the server bumps the
+ * lastModifiedDate of every container of that model, which the container pusher then reports as an
+ * independent target edit ("target changed; use --overwrite") on the next pass.
+ */
+const STRUCTURE_IGNORED_FIELD_KEYS = new Set(["fieldID"]);
+const STRUCTURE_IGNORED_SETTINGS_KEYS = new Set(["PhotoGalleryID"]);
+
+function normalizeStructureValue(v: unknown): unknown {
+  return v === null || v === undefined ? "" : v;
+}
+
+function sameStructureValue(a: unknown, b: unknown): boolean {
+  const na = normalizeStructureValue(a);
+  const nb = normalizeStructureValue(b);
+  if (typeof na === "object" || typeof nb === "object") {
+    return JSON.stringify(na) === JSON.stringify(nb);
+  }
+  return na === nb;
+}
+
+export function modelStructureMatches(source: mgmtApi.Model, target: mgmtApi.Model): boolean {
+  if (!source || !target) return false;
+  for (const key of ["referenceName", "displayName", "description"] as const) {
+    if (!sameStructureValue((source as any)[key], (target as any)[key])) return false;
+  }
+  if (!modelTypeMatches(source, target)) return false;
+
+  const sourceFields = source.fields || [];
+  const targetFields = target.fields || [];
+  if (sourceFields.length !== targetFields.length) return false;
+
+  for (const sourceField of sourceFields) {
+    const targetField = targetFields.find((f) => f?.name === sourceField?.name);
+    if (!targetField) return false;
+
+    const keys = Array.from(new Set([...Object.keys(sourceField), ...Object.keys(targetField)]));
+    for (const key of keys) {
+      if (STRUCTURE_IGNORED_FIELD_KEYS.has(key) || key === "settings") continue;
+      if (!sameStructureValue((sourceField as any)[key], (targetField as any)[key])) return false;
+    }
+
+    const sourceSettings = (sourceField as any).settings || {};
+    const targetSettings = (targetField as any).settings || {};
+    const settingKeys = Array.from(new Set([...Object.keys(sourceSettings), ...Object.keys(targetSettings)]));
+    for (const key of settingKeys) {
+      if (STRUCTURE_IGNORED_SETTINGS_KEYS.has(key)) continue;
+      if (!sameStructureValue(sourceSettings[key], targetSettings[key])) return false;
+    }
+  }
+  return true;
+}
+
+/**
  * Re-query the target for a model matching (referenceName, contentDefinitionTypeID).
  *
  * Used after a `saveModel` rejection to detect a false-negative — the SDK rethrows any failure as
@@ -187,7 +248,19 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     const modelLastModifiedDate = new Date(sourceModel.lastModifiedDate);
     const targetLastModifiedDate = targetModel ? new Date(targetModel.lastModifiedDate) : null;
     const mappingLastModifiedDate = sourceMapping ? new Date(sourceMapping.targetLastModifiedDate) : null;
-    const hasSourceChanged = modelLastModifiedDate > targetLastModifiedDate;
+    // PROD-2604: "has the source changed" must be answered against the source date the mapping
+    // recorded at the last sync — the same way hasTargetChanged below (and content-item versions)
+    // work. Comparing against the TARGET model's date instead made whichever side was written last
+    // look "changed" from the other direction, so alternating sync directions (reverse-sync, or a
+    // pair synced both ways) rewrote every mapped model on every run. Fall back to the old
+    // comparison only for mapping records that predate the sourceLastModifiedDate column.
+    const mappingSourceLastModifiedDate = sourceMapping?.sourceLastModifiedDate
+      ? new Date(sourceMapping.sourceLastModifiedDate)
+      : null;
+    const hasSourceChanged =
+      mappingSourceLastModifiedDate && !isNaN(mappingSourceLastModifiedDate.getTime())
+        ? modelLastModifiedDate > mappingSourceLastModifiedDate
+        : modelLastModifiedDate > targetLastModifiedDate;
     const hasTargetChanged = targetLastModifiedDate > mappingLastModifiedDate;
     const sourceFieldCount = sourceModel?.fields?.length || 0;
     const targetFieldCount = targetModel?.fields?.length || 0;
@@ -279,6 +352,17 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
           reason: `Warning: mapped target model (ID: ${sourceMapping.targetID}) no longer exists on the target! Add \`--overwrite\` flag to recreate it.`,
         });
       }
+      continue;
+    }
+    // PROD-2604: nothing to push when both sides are already structurally identical, whatever the
+    // dates say — skip, and bring the mapping's recorded dates up to date so the next run is quiet.
+    // This also covers a target-side date bump on an unchanged definition, which used to surface as a
+    // "target model has changed" conflict. (In preflight the mapping file is never written.)
+    if (sourceMapping && targetModel && modelStructureMatches(sourceModel, targetModel)) {
+      if (!state.preflight && (hasSourceChanged || hasTargetChanged)) {
+        referenceMapper.addMapping(sourceModel, targetModel);
+      }
+      shouldSkip.push({ model: sourceModel, reason: "Model structure is identical on both sides, skipping." });
       continue;
     }
     // if the mapping exists, and the source has changed, we need to update the fields
