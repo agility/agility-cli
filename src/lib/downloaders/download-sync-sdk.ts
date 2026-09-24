@@ -6,21 +6,61 @@ import { fileOperations } from "core/fileOperations";
 import { handleSyncToken } from "./sync-token-handler";
 import { getAllChannels } from "lib/shared/get-all-channels";
 import { Auth } from "core/auth";
+import { clearLocalJson, removeLocalJsonOlderThan } from "./reconcile-local-files";
 
 const storeInterfaceFileSystem = require("./store-interface-filesystem");
 
 export async function downloadAllSyncSDK(guid: string) {
   const locales: string[] = state.guidLocaleMap.get(guid);
   const channels = await getAllChannels(guid, locales[0]);
-  const downloads: Promise<any>[] = [];
+  const logger = getLoggerForGuid(guid);
+  const log = (m: string) => logger?.info?.(m);
 
+  // PROD-2614: the sync SDK only delivers deletes as events on an INCREMENTAL run. A full run (no
+  // sync token, or --fullPull) rewrites every current item and page but never touches files for items
+  // deleted while no token was in place, so those ghosts survived forever. Decide per locale, before
+  // any run starts, whether this is a full pull; afterwards remove whatever the full pull did not
+  // rewrite. List files are merged incrementally too, so on a full pull they are rebuilt from scratch.
+  const runStartedAt = Date.now();
+  const fullPullLocales = new Set<string>();
+  for (const locale of locales) {
+    const fileOps = new fileOperations(guid, locale);
+    const tokenPath = fileOps.getDataFilePath("state", "sync.json");
+    if (state.fullPull || !fs.existsSync(tokenPath)) {
+      fullPullLocales.add(locale);
+      clearLocalJson(fileOps.getDataFolderPath("list"));
+    }
+  }
+
+  const downloads: Promise<any>[] = [];
+  const runsByLocale = new Map<string, Promise<any>[]>();
   channels.forEach((channel) => {
     locales.forEach((locale) => {
-      downloads.push(downloadSyncSDKByLocaleAndChannel(guid, channel.channel.toLowerCase(), locale));
+      const run = downloadSyncSDKByLocaleAndChannel(guid, channel.channel.toLowerCase(), locale);
+      downloads.push(run);
+      if (!runsByLocale.has(locale)) runsByLocale.set(locale, []);
+      runsByLocale.get(locale).push(run);
     });
   });
 
   await Promise.allSettled(downloads);
+
+  // Reconcile only locales whose every channel run completed: a failed or interrupted full pull has
+  // not rewritten everything, and deleting on top of it would wipe valid files. A 2s tolerance
+  // covers filesystems with coarse mtime granularity.
+  for (const locale of Array.from(fullPullLocales)) {
+    const settled = await Promise.allSettled(runsByLocale.get(locale) || []);
+    if (settled.some((r) => r.status === "rejected")) {
+      logger?.warning?.(
+        `[${locale}] Full content pull did not complete for every channel; skipping removal of stale content/page files.`
+      );
+      continue;
+    }
+    const fileOps = new fileOperations(guid, locale);
+    const cutoff = runStartedAt - 2000;
+    removeLocalJsonOlderThan(fileOps.getDataFolderPath("item"), cutoff, `content [${locale}]`, log);
+    removeLocalJsonOlderThan(fileOps.getDataFolderPath("page"), cutoff, `page [${locale}]`, log);
+  }
 }
 
 export async function downloadSyncSDKByLocaleAndChannel(guid: string, channel: string, locale: string): Promise<void> {
@@ -34,7 +74,8 @@ export async function downloadSyncSDKByLocaleAndChannel(guid: string, channel: s
   const instanceSpecificPath = fileOps.getDataFolderPath();
   const syncTokenPath = fileOps.getDataFilePath("state", "sync.json");
 
-  const isIncrementalSync = await handleSyncToken(syncTokenPath, false);
+  // PROD-2614: --fullPull discards the stored token so this becomes a full content pull.
+  const isIncrementalSync = await handleSyncToken(syncTokenPath, state.fullPull === true);
 
   const logger = getLoggerForGuid(guid);
   // Configure the Agility Sync client

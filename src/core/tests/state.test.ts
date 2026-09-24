@@ -430,3 +430,20 @@ describe("setState — --containers", () => {
     expect(getState().containers).toBe("");
   });
 });
+
+// ─── full content re-pull (PROD-2614) ─────────────────────────────────────────
+
+describe("setState — --fullPull", () => {
+  it("defaults to off", () => {
+    resetState();
+    expect(getState().fullPull).toBe(false);
+  });
+
+  it("takes the flag from argv and clears it on reset", () => {
+    resetState();
+    setState({ fullPull: true } as any);
+    expect(getState().fullPull).toBe(true);
+    resetState();
+    expect(getState().fullPull).toBe(false);
+  });
+});

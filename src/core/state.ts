@@ -37,6 +37,7 @@ export interface State {
   // Operation control
   overwrite: boolean;
   preflight: boolean; // Preflight mode - report planned sync actions without writing to target/mappings
+  fullPull: boolean; // PROD-2614: discard content sync tokens and do a full content re-pull that removes stale local files
   jsonSummary: string; // Path to write the machine-readable run summary to; empty = disabled
 
   // Workflow operation control
@@ -140,6 +141,7 @@ export const state: State = {
   // Operation control
   overwrite: false,
   preflight: false,
+  fullPull: false,
   jsonSummary: "",
   autoPublish: "", // Empty string = disabled
 
@@ -241,6 +243,9 @@ export function setState(argv: any) {
 
   // Operation control (preflight)
   if (argv.preflight !== undefined) state.preflight = argv.preflight;
+
+  // Full content re-pull (PROD-2614)
+  if (argv.fullPull !== undefined) state.fullPull = argv.fullPull;
 
   // Machine-readable run summary
   if (argv.jsonSummary !== undefined) state.jsonSummary = String(argv.jsonSummary);
@@ -433,6 +438,7 @@ export function resetState() {
   // Operation control
   state.overwrite = false;
   state.preflight = false;
+  state.fullPull = false;
   state.jsonSummary = "";
 
   // Workflow operation control

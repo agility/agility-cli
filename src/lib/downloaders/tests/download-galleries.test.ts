@@ -164,3 +164,48 @@ describe("downloadAllGalleries", () => {
     });
   });
 });
+
+// ─── PROD-2614: ghost gallery files ───────────────────────────────────────────
+
+describe("downloadAllGalleries — removes local galleries deleted upstream (PROD-2614)", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+  let tmp: string;
+
+  function apiWith(groupings: any[], totalCount: number | null) {
+    return { assetMethods: { getGalleries: jest.fn().mockResolvedValue({ totalCount, assetMediaGroupings: groupings }) } };
+  }
+
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agility-gal-ghost-"));
+    fs.writeFileSync(path.join(tmp, "7.json"), JSON.stringify({ mediaGroupingID: 7, modifiedOn: "2025-01-01" }));
+    fs.writeFileSync(path.join(tmp, "3.json"), JSON.stringify({ mediaGroupingID: 3, modifiedOn: "2025-01-01" }));
+    const { fileOperations } = require("core/fileOperations");
+    fileOperations.mockImplementation(() => ({
+      createFolder: jest.fn(),
+      exportFiles: jest.fn(),
+      readJsonFile: jest.fn().mockReturnValue(null),
+      getDataFolderPath: jest.fn().mockReturnValue(tmp),
+    }));
+    jest.spyOn(require("core/state"), "getLoggerForGuid").mockReturnValue(makeMockLogger());
+  });
+  afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  it("deletes a local gallery file the API no longer lists when the page holds the whole list", async () => {
+    jest.spyOn(require("core/state"), "getApiClient").mockReturnValue(apiWith([{ mediaGroupingID: 3, modifiedOn: "2025-01-01" }], 1));
+
+    await downloadAllGalleries("test-guid-u");
+
+    expect(fs.existsSync(path.join(tmp, "7.json"))).toBe(false);
+    expect(fs.existsSync(path.join(tmp, "3.json"))).toBe(true);
+  });
+
+  it("does NOT delete when the page is only part of the list (totalCount larger than returned)", async () => {
+    jest.spyOn(require("core/state"), "getApiClient").mockReturnValue(apiWith([{ mediaGroupingID: 3, modifiedOn: "2025-01-01" }], 400));
+
+    await downloadAllGalleries("test-guid-u");
+
+    expect(fs.existsSync(path.join(tmp, "7.json"))).toBe(true);
+  });
+});

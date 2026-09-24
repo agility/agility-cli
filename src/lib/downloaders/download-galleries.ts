@@ -3,6 +3,7 @@ import { getApiClient, getLoggerForGuid } from "../../core/state";
 import ansiColors from "ansi-colors";
 import { getAllChannels } from "../shared/get-all-channels";
 import * as mgmtApi from "@agility/management-sdk";
+import { removeLocalJsonNotIn } from "./reconcile-local-files";
 
 export async function downloadAllGalleries(guid: string): Promise<void> {
   const fileOps = new fileOperations(guid);
@@ -30,6 +31,20 @@ export async function downloadAllGalleries(guid: string): Promise<void> {
       console.log("Error loading galleries:");
       console.error(error);
       return;
+    }
+
+    // PROD-2614: remove local gallery files for galleries deleted upstream — but only when this single
+    // page holds the whole list (totalCount is the server's count; the request asked for 250).
+    const liveGalleries = (initialRecords.assetMediaGroupings || []).filter((g) => g != null);
+    const haveCompleteList =
+      initialRecords.totalCount == null || liveGalleries.length >= initialRecords.totalCount;
+    if (haveCompleteList) {
+      removeLocalJsonNotIn(
+        fileOps.getDataFolderPath("galleries"),
+        liveGalleries.map((g) => g.mediaGroupingID),
+        "gallery",
+        (m) => logger.info(m)
+      );
     }
 
     for (const gallery of initialRecords.assetMediaGroupings) {
