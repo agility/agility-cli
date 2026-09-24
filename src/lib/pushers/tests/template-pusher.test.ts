@@ -455,3 +455,36 @@ describe("pushTemplates — section ID mapping backfill when skipping up-to-date
     );
   });
 });
+
+// ─── PROD-2603: mapping points at a target template that no longer exists ──────
+
+describe("pushTemplates — stale mapping to a deleted target template (PROD-2603)", () => {
+  it("recreates the template once and repoints the record instead of appending a second one", async () => {
+    const sourceTpl = makeTemplate({ pageTemplateID: 20, pageTemplateName: "LeftSideBarTemplate" });
+    const deadTargetTpl = makeTemplate({ pageTemplateID: 2, pageTemplateName: "LeftSideBarTemplate" });
+    new TemplateMapper("src-tpl-u", "tgt-tpl-u").addMapping(sourceTpl, deadTargetTpl);
+
+    const savedTpl = makeTemplate({ pageTemplateID: 21, pageTemplateName: "LeftSideBarTemplate" });
+    const savePageTemplate = jest.fn().mockResolvedValue(savedTpl);
+    state.cachedApiClient = { pageMethods: { savePageTemplate } } as any;
+
+    const { pushTemplates } = await import("../template-pusher");
+
+    // target template 2 is gone from the pulled target data
+    const result = await pushTemplates([sourceTpl], [], "en-us");
+    expect(savePageTemplate).toHaveBeenCalledTimes(1);
+    expect(result.successful).toBe(1);
+
+    const mapper = new TemplateMapper("src-tpl-u", "tgt-tpl-u");
+    const record = mapper.getTemplateMappingByPageTemplateID(20, "source")!;
+    expect(record.targetPageTemplateID).toBe(21);
+    expect(mapper.getTemplateMappingByPageTemplateID(2, "target")).toBeNull();
+
+    // second run: the recreated template is now present on the target and structurally identical -> skip
+    savePageTemplate.mockClear();
+    const { pushTemplates: pushAgain } = await import("../template-pusher");
+    const second = await pushAgain([sourceTpl], [savedTpl], "en-us");
+    expect(savePageTemplate).not.toHaveBeenCalled();
+    expect(second.skipped).toBe(1);
+  });
+});

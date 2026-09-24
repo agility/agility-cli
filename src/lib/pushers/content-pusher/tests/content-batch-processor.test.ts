@@ -603,7 +603,7 @@ describe("ContentBatchProcessor.prepareContentPayloads — stale container mappi
     item.properties.definitionName = "TestModel";
 
     const consoleErrorSpy = jest.spyOn(console, "error");
-    const result = await (processor as any).prepareContentPayloads([item], sourceGuid, targetGuid);
+    const result = await (processor as any).prepareContentPayloads([item], sourceGuid, targetGuid, makeLogger());
 
     expect(result.payloads).toHaveLength(0);
     expect(result.includedItems).toHaveLength(0);
@@ -628,7 +628,7 @@ describe("ContentBatchProcessor.prepareContentPayloads — stale container mappi
     item.properties.referenceName = "ref-1";
     item.properties.definitionName = "TestModel";
 
-    const result = await (processor as any).prepareContentPayloads([item], sourceGuid, targetGuid);
+    const result = await (processor as any).prepareContentPayloads([item], sourceGuid, targetGuid, makeLogger());
 
     expect(result.skippedCount).toBe(0);
     expect(result.payloads).toHaveLength(1);

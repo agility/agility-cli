@@ -230,3 +230,21 @@ describe("ModelMapper.hasTargetChanged", () => {
     expect(mapper.hasTargetChanged(makeModel({ id: 20, lastModifiedDate: "2025-12-01T00:00:00Z" }))).toBe(true);
   });
 });
+
+// ─── PROD-2603: repoint a stale record instead of appending a second one ──────
+
+describe("ModelMapper.addMapping — stale source record (PROD-2603)", () => {
+  it("repoints the existing source record when the source model is mapped to a target that is gone", () => {
+    const mapper = makeMapper();
+    const src = makeModel({ id: 37, referenceName: "checkYourTicket", lastModifiedDate: "2025-01-01T00:00:00" });
+    mapper.addMapping(src, makeModel({ id: 133, referenceName: "checkYourTicket", lastModifiedDate: "2025-01-01T00:00:00" }));
+    // the pusher recreated the target model as ID 500
+    mapper.addMapping(src, makeModel({ id: 500, referenceName: "checkYourTicket", lastModifiedDate: "2026-01-01T00:00:00" }));
+
+    const bySource = mapper.getModelMappingByID(37, "source")!;
+    expect(bySource.targetID).toBe(500);
+    expect(bySource.targetLastModifiedDate).toBe("2026-01-01T00:00:00");
+    expect(mapper.getModelMappingByID(133, "target")).toBeNull();
+    expect(mapper.getModelMappingByID(500, "target")).toBe(bySource);
+  });
+});

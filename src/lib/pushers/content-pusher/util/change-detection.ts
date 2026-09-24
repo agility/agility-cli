@@ -58,6 +58,50 @@ export function changeDetection(
   const mappedSourceVersion = (mapping?.sourceVersionID || 0) as number;
   const mappedTargetVersion = (mapping?.targetVersionID || 0) as number;
 
+  if (mapping && !targetEntity) {
+    // PROD-2603: the mapping points at a target item that is no longer in the pulled target data —
+    // it was deleted, or unpublished (the pull omits state-7 items, so the two are indistinguishable
+    // here). Previously this fell into the "source update only" branch with a null entity, the batch
+    // processor created a brand-new item, and addMapping refused to repoint the stale record, so the
+    // same create repeated on every run (and under reverse-sync the orphans then round-tripped).
+    //
+    // - Source unchanged: nothing to push; respect the target-side removal and skip.
+    // - Source changed, no --overwrite: surface it as a conflict so the user decides.
+    // - Source changed, --overwrite: recreate (the batch processor reuses the mapped ID per PROD-1320,
+    //   or repoints the mapping when the API assigns a new one).
+    if (sourceVersion <= mappedSourceVersion) {
+      return {
+        entity: null,
+        shouldUpdate: false,
+        shouldCreate: false,
+        shouldSkip: true,
+        isConflict: false,
+        reason: "Mapped target item no longer exists (deleted or unpublished) and the source is unchanged; nothing to push",
+      };
+    }
+    if (overwrite) {
+      return {
+        entity: null,
+        shouldUpdate: true,
+        shouldCreate: false,
+        shouldSkip: false,
+        isConflict: false,
+        reason: "Overwrite mode enabled: mapped target item no longer exists and will be recreated",
+      };
+    }
+    const sourceUrl = `https://app.agilitycms.com/instance/${state.sourceGuid}/${locale}/content/listitem-${sourceEntity.contentID}`;
+    return {
+      entity: null,
+      shouldUpdate: false,
+      shouldCreate: false,
+      shouldSkip: false,
+      isConflict: true,
+      reason:
+        `Mapped target item (contentID ${mapping.targetContentID}) no longer exists on the target — it was deleted or unpublished. ` +
+        `Use --overwrite to recreate it and repoint the mapping.\n   - source: ${sourceUrl}`,
+    };
+  }
+
   if (sourceVersion > 0 && targetVersion > 0) {
     //both the source and the target exist
 

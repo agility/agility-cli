@@ -134,7 +134,7 @@ export class ContentBatchProcessor {
           skippedCount: batchSkippedCount,
           includedItems,
           failedItems: prepFailedItems,
-        } = await this.prepareContentPayloads(contentBatch, this.config.sourceGuid, this.config.targetGuid);
+        } = await this.prepareContentPayloads(contentBatch, this.config.sourceGuid, this.config.targetGuid, logger);
 
         // Track skipped items from this batch
         totalSkippedCount += batchSkippedCount;
@@ -301,7 +301,9 @@ export class ContentBatchProcessor {
   private async prepareContentPayloads(
     contentBatch: mgmtApi.ContentItem[],
     sourceGuid: string,
-    targetGuid: string
+    targetGuid: string,
+    // PROD-2533: needed so an item skipped here is written to the push log, not just the console.
+    logger: Logs
   ): Promise<{
     payloads: any[];
     skippedCount: number;
@@ -352,7 +354,7 @@ export class ContentBatchProcessor {
             // Enhanced error reporting for missing content definitions
 
             const errorDetails = [
-              `📋 Content Definition Not Found: "${contentItem.properties.definitionName}"`,
+              `📋 Content Model Not Found: "${contentItem.properties.definitionName}"`,
               `🔍 Content Item: ${contentItem.properties.referenceName}`,
               `💡 Common causes:`,
               `   • Model was deleted from source instance`,
@@ -360,7 +362,7 @@ export class ContentBatchProcessor {
             ].join("\n   ");
 
             throw new Error(
-              `Source model not found for content definition: ${contentItem.properties.definitionName}\n   ${errorDetails}`
+              `Source model not found for content model "${contentItem.properties.definitionName}"\n   ${errorDetails}`
             );
           }
 
@@ -529,18 +531,26 @@ export class ContentBatchProcessor {
           payloads.push(payload);
           includedItems.push(contentItem);
         } catch (error: any) {
+          const prepareError = error.message || "payload preparation failed";
+
           console.error(
             ansiColors.red(
-              `✗ Failed to prepare content item ${contentItem.contentID} (${contentItem.properties?.referenceName ?? "unknown"}) - ${error.message || "payload preparation failed"}`
+              `✗ Failed to prepare content item ${contentItem.contentID} (${contentItem.properties?.referenceName ?? "unknown"}) - ${prepareError}`
             )
           );
+
+          // PROD-2533: this previously went to the console only, so the push log carried no line
+          // at the point an item was skipped - the failure surfaced later, and only as prose
+          // inside a page's dropped-module message ("content ... failed earlier"). Log it here so
+          // the cause is greppable in the log file at the moment it happens.
+          logger.content.error(contentItem, prepareError, this.config.locale, targetGuid);
 
           // PROD-2310: this item will never reach the target — it's a failure, not a
           // benign skip. Counting it only as `skippedCount` meant it never affected
           // totalFailed/the sync exit code, even though the item didn't sync.
           failedItems.push({
             originalContent: contentItem,
-            error: error.message || "payload preparation failed",
+            error: prepareError,
           });
           continue;
         }

@@ -69,7 +69,7 @@ function safeStringify(obj: any, indent?: number): string {
   }
 }
 
-export type OperationType = "pull" | "push" | "sync";
+export type OperationType = "pull" | "push" | "sync" | "reverse-sync";
 
 export type EntityType =
   | "model"
@@ -107,6 +107,51 @@ export type Action =
   | "progressed";
 
 export type Status = "success" | "failed" | "skipped" | "conflict" | "pending" | "in_progress" | "info";
+
+/**
+ * PROD-2533: collapse an upstream HTTP error body to a single line.
+ *
+ * When an origin or CDN returns an HTML error page, the whole document was written into the log
+ * verbatim - the Fastly 503 on the 2026-09-11 Brightstar run pasted 17 lines of XHTML mid-stream,
+ * breaking the one-line-per-event format and producing the only lines in the file with no
+ * severity. Keep the useful bits (title / status / error code) and drop the markup.
+ */
+export function collapseErrorBody(body: string): string {
+  if (!body) return body;
+
+  const looksLikeMarkup = /<\s*(html|!doctype|\?xml)/i.test(body);
+  if (!looksLikeMarkup && !/\r|\n/.test(body)) return body;
+
+  if (looksLikeMarkup) {
+    const title = body.match(/<title[^>]*>([^<]+)<\/title>/i)?.[1]?.trim();
+    const heading = body.match(/<h[1-3][^>]*>([^<]+)<\/h[1-3]>/i)?.[1]?.trim();
+    const detail = body.match(/<p[^>]*>\s*(Details:[^<]+)<\/p>/i)?.[1]?.trim();
+    const parts = [title, heading && heading !== title ? heading : null, detail].filter(Boolean);
+    const summary = parts.length ? parts.join(" - ") : "HTML error response";
+    return `${summary} (HTML body, ${body.length} bytes, suppressed)`;
+  }
+
+  // Not markup, but multi-line: keep it on one line so the log stays parseable.
+  return body.replace(/\s*(?:\r\n|\r|\n)+\s*/g, " ").trim();
+}
+
+/**
+ * PROD-2533: the severity a structured data element is written at.
+ *
+ * Every line used to be written at INFO regardless of outcome, so a run that failed was
+ * indistinguishable from a clean one by severity alone - `grep ERROR` over a 4,300-line push log
+ * returned nothing. The status is already known at the call site; this is simply the mapping that
+ * was missing.
+ */
+const LOG_LEVEL_BY_STATUS: Record<Status, LogLevel> = {
+  success: "INFO",
+  failed: "ERROR",
+  skipped: "INFO",
+  conflict: "WARN",
+  pending: "INFO",
+  in_progress: "INFO",
+  info: "INFO",
+};
 
 export type LogLevel = "DEBUG" | "INFO" | "WARN" | "ERROR";
 
@@ -396,7 +441,8 @@ export class Logs {
       }`;
     }
 
-    this.log("INFO", message);
+    // PROD-2533: write at the severity the status already implies, rather than INFO for everything.
+    this.log(LOG_LEVEL_BY_STATUS[status] ?? "INFO", message);
   }
 
   /**
@@ -478,7 +524,7 @@ export class Logs {
       }
 
       // Build filename with GUID
-      if (this.operationType === "push" || this.operationType === "sync") {
+      if (this.operationType === "push" || this.operationType === "sync" || this.operationType === "reverse-sync") {
         const sourceGuid = state.sourceGuid || "unknown";
         const targetGuid = state.targetGuid || "unknown";
         filename = `${sourceGuid}-${targetGuid}-${this.operationType}-${timestamp}.txt`;
@@ -710,6 +756,9 @@ export class Logs {
         }
       }
 
+      // PROD-2533: an HTML error page must not be pasted into the log line by line.
+      errorDetails = collapseErrorBody(errorDetails);
+
       this.logDataElement("asset", "failed", "failed", itemName, targetGuid || this.guid, errorDetails);
 
       // Log comprehensive error details for debugging
@@ -936,6 +985,7 @@ export class Logs {
       const itemName = entity?.name || entity?.menuText || `Page ${entity?.pageID || "Unknown"}`;
       this.logDataElement("page", "skipped", "skipped", itemName, targetGuid || this.guid, details, locale, channel);
     },
+
 
     error: (payload: any, apiError: any, locale?: string, channel?: string, targetGuid?: string) => {
       const itemName = payload?.name || payload?.menuText || `Page ${payload?.pageID || "Unknown"}`;

@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import { Logs, OperationType, EntityType } from "./logs";
 import { Options } from "@agility/management-sdk";
+import { PageSyncScope } from "../types/pageScope";
 
 export interface State {
   // Environment modes
@@ -49,6 +50,16 @@ export interface State {
   models: string;
   modelsWithDeps: string;
 
+  // Page-specific (PROD-2546): raw --pages selectors, and the scope they resolve to.
+  // The resolved scope is populated once per run, after the pull and before any push.
+  pages: string;
+  pageScope?: PageSyncScope;
+
+  // Container-specific (PROD-2547): the raw --containers selectors. Unlike --pages, there is no
+  // resolved scope on state: the container scope is threaded straight to the data loader, and
+  // nothing further down the push path needs to see it.
+  containers: string;
+
   // Content-specific
   contentItems?: string;
 
@@ -84,6 +95,14 @@ export interface State {
   isPush: boolean;
   isPull: boolean;
   isSync: boolean;
+
+  // Reverse sync (PROD-2526): push the original target back to the original source while
+  // reusing the forward sync's mapping files. When enabled, sourceGuid/targetGuid are the
+  // SWAPPED pair the pipeline runs against, and mappingPair is the ORIGINAL pair that names
+  // the on-disk mapping directory. fileOperations transposes source*/target* fields on
+  // read/write so the files stay in their original orientation.
+  reverseSync: boolean;
+  mappingPair?: { sourceGuid: string; targetGuid: string };
 
   // Failed content registry - tracks content items that failed during sync
   // Used by page pusher to provide better error messages when content mappings are missing
@@ -130,6 +149,13 @@ export const state: State = {
   models: "",
   modelsWithDeps: "",
 
+  // Page-specific
+  pages: "",
+  pageScope: undefined,
+
+  // Container-specific
+  containers: "",
+
   // Content-specific
   contentItems: undefined,
 
@@ -147,6 +173,8 @@ export const state: State = {
   isPush: false,
   isPull: false,
   isSync: false,
+  reverseSync: false,
+  mappingPair: undefined,
 
   // Failed content registry - tracks content items that failed during sync
   failedContentRegistry: new Map(),
@@ -241,6 +269,12 @@ export function setState(argv: any) {
   // Model-specific
   if (argv.models !== undefined) state.models = argv.models;
   if (argv.modelsWithDeps !== undefined) state.modelsWithDeps = argv.modelsWithDeps;
+
+  // Page-specific (PROD-2546)
+  if (argv.pages !== undefined) state.pages = argv.pages;
+
+  // Container-specific (PROD-2547)
+  if (argv.containers !== undefined) state.containers = argv.containers;
 
   // Content-specific
   if (argv.contentItems !== undefined) state.contentItems = argv.contentItems;
@@ -405,6 +439,14 @@ export function resetState() {
 
   // Model-specific
   state.models = "";
+  state.modelsWithDeps = "";
+
+  // Page-specific
+  state.pages = "";
+  state.pageScope = undefined;
+
+  // Container-specific
+  state.containers = "";
 
   // Content-specific
   state.contentItems = undefined;
@@ -425,6 +467,38 @@ export function resetState() {
   state.token = null;
   state.localServer = "";
   state.isAgilityDev = false;
+
+  // Reverse sync
+  state.reverseSync = false;
+  state.mappingPair = undefined;
+}
+
+/**
+ * Enable reverse sync (PROD-2526).
+ *
+ * Call AFTER setState() has populated sourceGuid/targetGuid from the ORIGINAL (forward) pair,
+ * and BEFORE auth runs, because auth pins the Management API base URL to state.targetGuid.
+ *
+ * Records the original pair as `mappingPair` (so mapping files keep their
+ * `mappings/{origSource}-{origTarget}` directory and orientation) and swaps
+ * sourceGuid/targetGuid so the unchanged push pipeline pushes original target → original source.
+ */
+export function enableReverseSync(): void {
+  if (!state.sourceGuid || !state.targetGuid) {
+    throw new Error("reverse-sync requires both --sourceGuid and --targetGuid (the original sync pair)");
+  }
+  if (state.sourceGuid === state.targetGuid) {
+    throw new Error("reverse-sync requires two different instances (sourceGuid equals targetGuid)");
+  }
+
+  state.mappingPair = { sourceGuid: state.sourceGuid, targetGuid: state.targetGuid };
+
+  const originalSource = state.sourceGuid;
+  state.sourceGuid = state.targetGuid;
+  state.targetGuid = originalSource;
+
+  state.reverseSync = true;
+  state.isSync = true;
 }
 
 /**
