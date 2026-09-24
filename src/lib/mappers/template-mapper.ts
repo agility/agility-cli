@@ -76,6 +76,16 @@ export class TemplateMapper {
 
     if (targetMapping) {
       this.updateMapping(sourceTemplate, targetTemplate, targetMapping);
+    } else if (sourceMapping) {
+      // PROD-2603: the source template already has a record but its target is gone (the pusher
+      // recreated it). A source template maps to exactly one target, so repoint the existing record
+      // rather than appending a second one — with two records the lookup kept finding the stale one
+      // first and recreated the template again on every run.
+      sourceMapping.sourceGuid = this.sourceGuid;
+      sourceMapping.targetGuid = this.targetGuid;
+      sourceMapping.targetPageTemplateID = targetTemplate.pageTemplateID;
+      sourceMapping.sourcePageTemplateName = sourceTemplate.pageTemplateName;
+      sourceMapping.targetPageTemplateName = targetTemplate.pageTemplateName;
     } else {
       const newMapping: TemplateMapping = {
         sourceGuid: this.sourceGuid,

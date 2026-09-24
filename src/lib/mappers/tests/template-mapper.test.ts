@@ -363,3 +363,20 @@ describe("TemplateMapper.hasTemplateChanged — with SectionMapper", () => {
     expect(mapper.hasTemplateChanged(source, target, sectionMapper)).toBe(false);
   });
 });
+
+// ─── PROD-2603: repoint a stale record instead of appending a second one ──────
+
+describe("TemplateMapper.addMapping — stale source record (PROD-2603)", () => {
+  it("repoints the existing source record when the source template is mapped to a target that is gone", () => {
+    const mapper = makeMapper();
+    const src = makeTemplate({ pageTemplateID: 20, pageTemplateName: "LeftSideBarTemplate" });
+    mapper.addMapping(src, makeTemplate({ pageTemplateID: 2, pageTemplateName: "LeftSideBarTemplate" }));
+    // the pusher recreated the target template as ID 21
+    mapper.addMapping(src, makeTemplate({ pageTemplateID: 21, pageTemplateName: "LeftSideBarTemplate" }));
+
+    const bySource = mapper.getTemplateMappingByPageTemplateID(20, "source")!;
+    expect(bySource.targetPageTemplateID).toBe(21);
+    expect(mapper.getTemplateMappingByPageTemplateID(2, "target")).toBeNull();
+    expect(mapper.getTemplateMappingByPageTemplateID(21, "target")).toBe(bySource);
+  });
+});

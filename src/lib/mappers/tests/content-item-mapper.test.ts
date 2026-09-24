@@ -180,14 +180,40 @@ describe("ContentItemMapper.addMapping", () => {
     );
   });
 
-  it('throws when source already has a mapping but a different unmapped target is provided (duplicate mapping attempt)', () => {
+  it("throws when source already has a mapping to a target that still exists and a different unmapped target is provided (duplicate mapping attempt)", () => {
     const mapper = makeMapper();
-    // source 10 is already mapped to target 20
+    // source 10 is already mapped to target 20, and target 20 is still present in the pulled target data
     mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 20 }));
-    // now try to map source 10 to target 99 — target 99 has no mapping, but source already points to 20
+    const itemDir = path.join(tmpDir, currentTgt, LOCALE, "item");
+    fs.mkdirSync(itemDir, { recursive: true });
+    fs.writeFileSync(path.join(itemDir, "20.json"), JSON.stringify({ contentID: 20, properties: { versionID: 1 } }));
+    // now try to map source 10 to target 99 — a genuine second live copy
+    expect(() => mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 99 }))).toThrow(
+      "Aborting a duplicate mapping attempt"
+    );
+    expect(mapper.getContentItemMappingByContentID(10, "source")!.targetContentID).toBe(20);
+  });
+
+  // PROD-2603: a mapping whose target item is gone (deleted, or unpublished — the pull omits state-7
+  // items) is stale. When the pusher recreates the item, the record must be repointed at the
+  // replacement; throwing here left the stale record in place and produced a new orphan on every run.
+  it("repoints a stale mapping when its target item is missing from the pulled target data (PROD-2603)", () => {
+    const mapper = makeMapper();
+    mapper.addMapping(makeItem({ contentID: 10, properties: { versionID: 1 } }), makeItem({ contentID: 20, properties: { versionID: 1 } }));
+    // target 20 has no file on disk: deleted or unpublished on the target instance
     expect(() =>
-      mapper.addMapping(makeItem({ contentID: 10 }), makeItem({ contentID: 99 }))
-    ).toThrow('Aborting a duplicate mapping attempt');
+      mapper.addMapping(makeItem({ contentID: 10, properties: { versionID: 7 } }), makeItem({ contentID: 99, properties: { versionID: 3 } }))
+    ).not.toThrow();
+    const bySource = mapper.getContentItemMappingByContentID(10, "source")!;
+    expect(bySource.targetContentID).toBe(99);
+    expect(bySource.sourceVersionID).toBe(7);
+    expect(bySource.targetVersionID).toBe(3);
+    // the stale record was replaced, not duplicated
+    expect(mapper.getContentItemMappingByContentID(20, "target")).toBeNull();
+    expect(mapper.getContentItemMappingByContentID(99, "target")).toBe(bySource);
+    // and the repointed record survives a reload from disk
+    const reloaded = new ContentItemMapper(currentSrc, currentTgt, LOCALE);
+    expect(reloaded.getContentItemMappingByContentID(10, "source")!.targetContentID).toBe(99);
   });
 });
 

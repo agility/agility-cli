@@ -121,9 +121,23 @@ export class ContentItemMapper {
 
     // If there is a source mapping and it does not match the incoming ID
     if (sourceMapping && !targetMapping && sourceMapping.targetContentID !== targetContentItem.contentID) {
-      throw new Error(
-        `Aborting a duplicate mapping attempt! sourceContentID: ${sourceContentItem.contentID}, orphaned targetContentID: ${targetContentItem.contentID}`
-      );
+      // PROD-2603: if the previously mapped target item is still present in the pulled target data,
+      // this really is a second live copy — refuse, as before. If it is gone (deleted or unpublished),
+      // the record is stale and the incoming item is its replacement: repoint the record instead of
+      // throwing, otherwise the stale record survives and every run creates another orphan.
+      const staleTarget = this.getMappedEntity(sourceMapping, "target");
+      if (staleTarget) {
+        throw new Error(
+          `Aborting a duplicate mapping attempt! sourceContentID: ${sourceContentItem.contentID}, orphaned targetContentID: ${targetContentItem.contentID}`
+        );
+      }
+      sourceMapping.sourceGuid = this.sourceGuid;
+      sourceMapping.targetGuid = this.targetGuid;
+      sourceMapping.targetContentID = targetContentItem.contentID;
+      sourceMapping.sourceVersionID = sourceContentItem.properties.versionID;
+      sourceMapping.targetVersionID = targetContentItem.properties.versionID;
+      this.saveMapping();
+      return;
     }
 
     // At this point target and source mappings should be the same

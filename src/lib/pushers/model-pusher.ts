@@ -338,6 +338,22 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       shouldCreateStub.push(sourceModel);
       continue;
     }
+    // PROD-2603: the mapping points at a target model that is no longer in the pulled target data
+    // (deleted on the target). `new Date(x) > null` is true for any valid date, so this used to fall
+    // into the update branch and saveModel was sent the dead target ID on every run. Treat it like a
+    // target-side change: conflict unless --overwrite, which recreates the model (createNewModel ->
+    // addMapping repoints the stale record).
+    if (sourceMapping && !targetModel) {
+      if (state.overwrite) {
+        shouldCreateStub.push(sourceModel);
+      } else {
+        shouldSkip.push({
+          model: sourceModel,
+          reason: `Warning: mapped target model (ID: ${sourceMapping.targetID}) no longer exists on the target! Add \`--overwrite\` flag to recreate it.`,
+        });
+      }
+      continue;
+    }
     // PROD-2604: nothing to push when both sides are already structurally identical, whatever the
     // dates say — skip, and bring the mapping's recorded dates up to date so the next run is quiet.
     // This also covers a target-side date bump on an unchanged definition, which used to surface as a
@@ -396,7 +412,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       preflightReport.record({ phase: "Models", action: "update", name: model.referenceName });
     }
     for (const { model, reason } of shouldSkip) {
-      const isConflict = /target model has changed/i.test(reason);
+      const isConflict = /target model has changed|no longer exists on the target/i.test(reason);
       preflightReport.record({
         phase: "Models",
         action: isConflict ? "conflict" : "skip",

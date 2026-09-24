@@ -682,6 +682,81 @@ describe("pushModels — create failure surfaces the server error (PROD-2315)", 
   });
 });
 
+// ─── PROD-2603: mapping points at a target model that no longer exists ─────────
+
+describe("pushModels — stale mapping to a deleted target model (PROD-2603)", () => {
+  async function seedStaleMapping() {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    const seeder = new ModelMapper(state.sourceGuid, state.targetGuid);
+    seeder.addMapping(
+      { id: 37, referenceName: "checkYourTicket", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
+      { id: 133, referenceName: "checkYourTicket", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any
+    );
+    return makeModel({
+      id: 37,
+      referenceName: "checkYourTicket",
+      lastModifiedDate: new Date(2025, 6, 1).toISOString(),
+      fields: [{ name: "a" }],
+    });
+  }
+
+  it("skips with a conflict-style warning and does not call saveModel when overwrite is off", async () => {
+    const sourceModel = await seedStaleMapping();
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 999 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    // target data does not contain model 133 any more
+    const result = await pushModels([sourceModel], []);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(result.successful).toBe(0);
+    expect(result.failed).toBe(0);
+  });
+
+  it("reports it as a conflict under --preflight", async () => {
+    const sourceModel = await seedStaleMapping();
+    setState({ preflight: true });
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    preflightReport.reset();
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    await pushModels([sourceModel], []);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(preflightReport.hasConflicts()).toBe(true);
+    const entry = preflightReport.getEntries().find((e) => e.name === "checkYourTicket");
+    expect(entry?.action).toBe("conflict");
+    expect(entry?.detail).toMatch(/no longer exists on the target/);
+  });
+
+  it("recreates the model and repoints the mapping when overwrite is on", async () => {
+    const sourceModel = await seedStaleMapping();
+    setState({ overwrite: true });
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 500, referenceName: "checkYourTicket" }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    const result = await pushModels([sourceModel], []);
+
+    // first call is the stub create (id: 0), not an update against the dead ID 133
+    expect(saveModel).toHaveBeenCalled();
+    expect(saveModel.mock.calls[0][0].id).toBe(0);
+    expect(saveModel.mock.calls.some((c) => c[0].id === 133)).toBe(false);
+    expect(result.successful).toBe(1);
+    expect(result.failed).toBe(0);
+
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    const mapper = new ModelMapper(state.sourceGuid, state.targetGuid);
+    const record = mapper.getModelMappingByID(37, "source")!;
+    expect(record.targetID).toBe(500);
+    expect(mapper.getModelMappingByID(133, "target")).toBeNull();
+  });
+});
+
 // ─── PROD-2604: source-change detection and structural guard ──────────────────
 
 describe("modelStructureMatches (PROD-2604)", () => {
