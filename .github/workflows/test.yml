@@ -1,4 +1,8 @@
-name: Tests
+name: Unit tests
+
+# Per-module tests only. The multi-module sync tests live in integration-tests.yml so the
+# two report as separate checks and a broad pipeline failure is not mistaken for a unit
+# regression.
 
 on:
   pull_request:
@@ -24,25 +28,16 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Type-checks the whole repo including tests, which nothing else does: tsconfig.json
+      # excludes **/*.test.ts and **/tests/**, and ts-jest runs transpile-only. That gap is
+      # not cosmetic — under this repo's es5 target, `for...of` over a Map compiles to an
+      # array-index loop that silently iterates zero times, so a test whose setup runs
+      # inside such a loop passes without doing any setup at all.
+      #
+      # It lives here rather than being duplicated into the integration workflow: it is one
+      # repo-wide check, and running it twice per PR buys nothing.
+      - name: Type-check (including tests)
+        run: npm run type-check:tests
+
       - name: Run unit tests
         run: npx jest src/core src/lib --no-coverage
-
-  sync-scenarios:
-    name: Scenario tests
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Run sync scenarios
-        run: npx jest src/tests/sync/sync-scenarios.test.ts --no-coverage
