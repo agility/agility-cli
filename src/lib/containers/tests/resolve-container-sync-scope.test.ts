@@ -174,7 +174,9 @@ describe("resolveContainerSyncScope — resolution", () => {
   });
 
   it("passes the selected container IDs to the tree builder", async () => {
-    const buildTree = jest.fn(() => emptyTree());
+    // Typed parameters so `mock.calls[0][1]` type-checks under `npm run type-check:tests`
+    // (a zero-arg jest.fn types its recorded calls as `[]`).
+    const buildTree = jest.fn((_entities: any, _containerIDs: number[]) => emptyTree());
     await resolve(["AONHomeLinks", "Games"], { buildTree });
     expect(buildTree.mock.calls[0][1]).toEqual([200, 300]);
   });
