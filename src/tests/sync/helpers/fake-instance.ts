@@ -35,7 +35,15 @@ export interface FakeInstanceOptions {
   locales?: string[];
 }
 
-export type EntityKind = "model" | "container" | "gallery" | "template" | "content" | "page" | "asset";
+export type EntityKind =
+  | "model"
+  | "container"
+  | "gallery"
+  | "template"
+  | "content"
+  | "page"
+  | "asset"
+  | "urlRedirection";
 
 const DEFAULT_STARTING_IDS: Record<EntityKind, number> = {
   model: 7001,
@@ -45,6 +53,7 @@ const DEFAULT_STARTING_IDS: Record<EntityKind, number> = {
   template: 5001,
   page: 4001,
   asset: 3001,
+  urlRedirection: 2001,
 };
 
 /** One instance's contents. Locale-scoped kinds are keyed `${locale}:${id}`. */
@@ -56,6 +65,7 @@ interface InstanceStore {
   assets: any[];
   content: Map<string, any>;
   pages: Map<string, any>;
+  urlRedirections: Map<number, any>;
   sitemap: any[];
   locales: string[];
 }
@@ -69,6 +79,7 @@ function emptyStore(locales: string[]): InstanceStore {
     assets: [],
     content: new Map(),
     pages: new Map(),
+    urlRedirections: new Map(),
     sitemap: [],
     locales,
   };
@@ -172,7 +183,12 @@ export class FakeInstance {
     writeEach(path.join(base, "templates"), Array.from(store.templates.values()), (t) =>
       String(t.pageTemplateID)
     );
-    writeEach(path.join(base, "assets", "json"), store.assets, (_a, i) => String(i));
+    // Assets are NOT one file per asset: the getter unwraps an `assetMedias` array out of each
+    // file, so a bare media object per file reads back as zero assets and run 2 recreates
+    // everything while looking like a clean fresh sync.
+    if (store.assets.length > 0) {
+      writeJsonFile(path.join(base, "assets", "json", "0.json"), { assetMedias: store.assets });
+    }
 
     store.content.forEach((item, key) => {
       const locale = key.split(":")[0];
@@ -182,6 +198,21 @@ export class FakeInstance {
       const locale = key.split(":")[0];
       writeJsonFile(path.join(base, locale, "page", `${page.pageID}.json`), page);
     });
+
+    // Redirections live under the LOCALE, not the guid root. The set is instance-wide, so the
+    // same file is written for every locale the instance reports — which is what a pull does.
+    if (store.urlRedirections.size > 0) {
+      const items = Array.from(store.urlRedirections.values()).map((r) => ({
+        ...r,
+        id: r.urlRedirectionID,
+      }));
+      store.locales.forEach((locale) => {
+        writeJsonFile(path.join(base, locale, "urlredirections", "urlredirections.json"), {
+          items,
+          lastAccessDate: nextTimestamp(),
+        });
+      });
+    }
   }
 
   // ─── the mgmtApi.ApiClient surface ─────────────────────────────────────────
@@ -231,6 +262,18 @@ export class FakeInstance {
     },
   };
 
+  /**
+   * The IDs assigned by the most recent `saveContentItems`, in payload order.
+   *
+   * Content does not come back from the save call — the real API returns a batch ID and the
+   * results are read later via `extractContentBatchResults`. `buildContentBatchResults`
+   * replays these so the batch layer can hand the pusher the same IDs this store holds.
+   */
+  private lastContentSaveIds: number[] = [];
+
+  /** Same idea as `lastContentSaveIds`, for pages — they batch one page at a time. */
+  private lastPageSaveIds: number[] = [];
+
   contentMethods = {
     saveContentItems: async (items: any[], guid: string, locale: string) => {
       this.record("contentMethods.saveContentItems", guid, items, locale);
@@ -241,8 +284,9 @@ export class FakeInstance {
         store.content.set(`${locale}:${id}`, { ...item, contentID: id });
         return id;
       });
+      this.lastContentSaveIds = ids;
       // Real API returns batch IDs; the polling layer is stubbed, so any stable number works.
-      return ids;
+      return [1000 + this.callsTo("contentMethods.saveContentItems").length];
     },
     saveContentItem: async (item: any, guid: string, locale: string) => {
       this.record("contentMethods.saveContentItem", guid, item, locale);
@@ -275,7 +319,8 @@ export class FakeInstance {
       this.record("assetMethods.getGalleries", guid);
       return { assetMediaGroupings: Array.from(this.instance(guid).galleries.values()) };
     },
-    getGalleryByName: async (name: string, guid: string) => {
+    // (guid, name) — note the order, see the note on saveGallery below.
+    getGalleryByName: async (guid: string, name: string) => {
       this.record("assetMethods.getGalleryByName", guid, { name });
       return Array.from(this.instance(guid).galleries.values()).find((g: any) => g.name === name) ?? null;
     },
@@ -283,12 +328,23 @@ export class FakeInstance {
       this.record("assetMethods.getDefaultContainer", guid);
       return { edgeUrl: "https://cdn.test.invalid", originKey: "test" };
     },
-    saveGallery: async (gallery: any, guid: string) => {
+    /**
+     * ⚠️ `(guid, payload)` — the reverse of `saveModel(payload, guid)` and
+     * `saveContainer(payload, guid, …)`. The SDK is not consistent about this, and getting it
+     * backwards here does not fail loudly: the fake stores the guid *string* as the entity,
+     * and the error only surfaces on the next run when something reads a field off it.
+     * Argument order for every method on this fake is taken from its real call site.
+     */
+    saveGallery: async (guid: string, gallery: any) => {
       this.record("assetMethods.saveGallery", guid, gallery);
       const store = this.instance(guid);
       const incoming = gallery?.mediaGroupingID;
       const id = incoming && incoming > 0 ? incoming : this.allocate("gallery");
-      const saved = { ...gallery, mediaGroupingID: id };
+      // `modifiedOn` is not decoration: change detection runs it through date-fns `parse`,
+      // which calls .match() on the value. A gallery without one fails the next sync with
+      // "Cannot read properties of null (reading 'match')", which names neither the gallery
+      // nor the field.
+      const saved = { ...gallery, mediaGroupingID: id, modifiedOn: nextLegacyTimestamp() };
       store.galleries.set(id, saved);
       return saved;
     },
@@ -315,7 +371,8 @@ export class FakeInstance {
       this.record("pageMethods.getPageTemplates", guid, { includeModuleZones }, locale);
       return Array.from(this.instance(guid).templates.values());
     },
-    savePageTemplate: async (template: any, guid: string, locale: string) => {
+    // (guid, locale, payload) — again the reverse of savePage(payload, guid, locale, …).
+    savePageTemplate: async (guid: string, locale: string, template: any) => {
       this.record("pageMethods.savePageTemplate", guid, template, locale);
       const store = this.instance(guid);
       const incoming = template?.pageTemplateID;
@@ -329,7 +386,10 @@ export class FakeInstance {
       const incoming = page?.pageID;
       const id = incoming && incoming > 0 ? incoming : this.allocate("page");
       this.instance(guid).pages.set(`${locale}:${id}`, { ...page, pageID: id });
-      return id;
+      this.lastPageSaveIds = [id];
+      // The pusher calls savePage with returnBatchID=true and requires an ARRAY back; a bare
+      // id falls through to "Unexpected response format" and the page is reported as failed.
+      return [2000 + this.callsTo("pageMethods.savePage").length];
     },
     publishPage: async (id: number, guid: string, locale: string) => {
       this.record("pageMethods.publishPage", guid, { id }, locale);
@@ -366,6 +426,117 @@ export class FakeInstance {
       return batchID;
     },
   };
+
+  /**
+   * Replay the last content save as the batch layer would report it.
+   *
+   * Content is written through a batch: the save call returns a batch ID, and the pusher
+   * learns the new IDs only by polling and then calling `extractContentBatchResults`. The
+   * harness stubs that layer, so this supplies its output from what the store actually
+   * assigned — keeping the IDs in the mapping files identical to the IDs in the fake.
+   *
+   * Shape matches `BatchSuccessItem` in `lib/pushers/batch-polling` — `originalItem`, not
+   * `originalContent`; the processor renames it downstream.
+   */
+  buildContentBatchResults(includedItems: any[]): {
+    successfulItems: Array<{ originalItem: any; newId: number; newItem: any; index: number }>;
+    failedItems: any[];
+  } {
+    return {
+      successfulItems: includedItems.map((item, index) => {
+        const newId = this.lastContentSaveIds[index];
+        return {
+          originalItem: item,
+          newId,
+          newItem: { itemID: newId, processedItemVersionID: 100 + index },
+          index,
+        };
+      }),
+      failedItems: [],
+    };
+  }
+
+  /**
+   * Record a call that bypassed the API client — asset upload via axios, redirections via
+   * global fetch. Kept in the same ordered log so a golden file sees the whole conversation,
+   * not just the part that happened to go through the SDK.
+   */
+  recordExternal(method: string, url: string): void {
+    this.calls.push({ method, payload: { url } });
+  }
+
+  /**
+   * Response body the asset pusher expects back from its direct multipart upload, and the
+   * point at which the uploaded asset enters the store.
+   *
+   * The upload bypasses the API client entirely, so nothing else would record it — and an
+   * asset missing from the store is an asset missing from `projectToDisk`, which makes run 2
+   * upload it again while reporting a clean create.
+   *
+   * `originKey` is what the pusher matches on to decide an asset already exists on the target,
+   * so it must be derived from the request rather than invented, or the match never hits.
+   */
+  buildAssetUploadResponse(guid: string, folderPath: string, fileName: string): any[] {
+    const mediaID = this.allocate("asset");
+    const originKey = folderPath ? `${folderPath}/${fileName}` : fileName;
+    const media = {
+      mediaID,
+      fileName,
+      originKey,
+      size: 1,
+      isFolder: false,
+      edgeUrl: `https://cdn.test.invalid/${originKey}`,
+      originUrl: `https://cdn.test.invalid/${originKey}`,
+    };
+    this.instance(guid).assets.push(media);
+    return [media];
+  }
+
+  /**
+   * Stand-in for `lib/pushers/url-redirection-api.saveUrlRedirections`.
+   *
+   * Returns the `{ created, updated, skipped }` shape the pusher reads. `index` is the
+   * position within *this* request's payload — the pusher uses it to look the source item
+   * back up, so getting it wrong silently maps the wrong redirection.
+   *
+   * An incoming `urlRedirectionID` means the caller is updating an existing redirection;
+   * without one it is a create.
+   */
+  async saveUrlRedirections(guid: string, redirections: any[]): Promise<any> {
+    this.record("urlRedirectionApi.saveUrlRedirections", guid, redirections);
+    const store = this.instance(guid);
+    const created: any[] = [];
+    const updated: any[] = [];
+
+    redirections.forEach((payload, index) => {
+      const existingId = payload?.urlRedirectionID;
+      const id = existingId && existingId > 0 ? existingId : this.allocate("urlRedirection");
+      store.urlRedirections.set(id, { ...payload, urlRedirectionID: id });
+      const result = { index, urlRedirectionID: id, originUrl: payload?.originUrl };
+      (existingId && existingId > 0 ? updated : created).push(result);
+    });
+
+    return { created, updated, skipped: [] };
+  }
+
+  /** As `buildContentBatchResults`, for the page batch. */
+  buildPageBatchResults(includedItems: any[]): {
+    successfulItems: Array<{ originalItem: any; newId: number; newItem: any; index: number }>;
+    failedItems: any[];
+  } {
+    return {
+      successfulItems: includedItems.map((item, index) => {
+        const newId = this.lastPageSaveIds[index];
+        return {
+          originalItem: item,
+          newId,
+          newItem: { itemID: newId, processedItemVersionID: 200 + index },
+          index,
+        };
+      }),
+      failedItems: [],
+    };
+  }
 
   /**
    * Hand this to `state.cachedApiClient`. The cast is the point of the seam: `getApiClient()`

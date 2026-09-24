@@ -16,8 +16,9 @@ import { installNetworkStubs, InstalledNetworkStubs } from "./helpers/network-st
 // `jest.mock` above the import statements, so a factory referencing an imported binding
 // throws "Cannot read properties of undefined" before a single test runs.
 jest.mock("lib/pushers/batch-polling", () => ({
-  pollBatchUntilComplete: jest.fn().mockResolvedValue({}),
-  extractContentBatchResults: jest.fn().mockReturnValue([]),
+  pollBatchUntilComplete: jest.fn(),
+  extractContentBatchResults: jest.fn(),
+  extractPageBatchResults: jest.fn(),
 }));
 
 const POST_MODEL = {
