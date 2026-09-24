@@ -231,3 +231,37 @@ describe("systemArgs.pages", () => {
     expect((systemArgs.pages as any).describe).toContain("Cannot be combined with --models");
   });
 });
+
+// ─── selective container sync (PROD-2547) ────────────────────────────────
+
+describe("systemArgs.containers", () => {
+  it("is exposed as a string option", () => {
+    expect(systemArgs).toHaveProperty("containers");
+    expect((systemArgs.containers as any).type).toBe("string");
+  });
+
+  it("defaults to no selectors, so a sync is unscoped unless asked", () => {
+    expect((systemArgs.containers as any).default).toBe("");
+  });
+
+  it("is optional", () => {
+    expect((systemArgs.containers as any).demandOption).toBe(false);
+  });
+
+  it('accepts the singular "container" spelling', () => {
+    expect((systemArgs.containers as any).alias).toContain("container");
+  });
+
+  it("explains the shared-model case it exists for", () => {
+    expect((systemArgs.containers as any).describe).toContain("share one model");
+  });
+
+  it("says that no pages or templates are touched", () => {
+    expect((systemArgs.containers as any).describe).toContain("No pages, templates");
+  });
+
+  it("states that it cannot be combined with the other scoping flags", () => {
+    expect((systemArgs.containers as any).describe).toContain("Cannot be combined with --models");
+    expect((systemArgs.containers as any).describe).toContain("--pages");
+  });
+});

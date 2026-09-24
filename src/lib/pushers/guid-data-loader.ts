@@ -20,7 +20,16 @@ import * as mgmtApi from "@agility/management-sdk";
 // --models (here) and --models-with-deps (tree builder) paths use the same logic. 
 import { resolveReferencedModels, ModelDependencyTree } from "../models/model-dependency-tree-builder";
 import { PageSyncScope } from "../pages/resolve-page-sync-scope";
+import { ContainerSyncScope } from "../../types/containerScope";
 export { resolveReferencedModels };
+
+/**
+ * The URL an asset is keyed by in a dependency tree. Assets carry up to three URLs and a tree
+ * may have matched on any of them, so both scope filters resolve the key the same way.
+ */
+function assetKey(asset: any): string {
+  return asset?.url || asset?.originUrl || asset?.edgeUrl;
+}
 
 export interface ModelFilterOptions {
   models?: string[]; // Simple model filtering
@@ -28,6 +37,9 @@ export interface ModelFilterOptions {
   // PROD-2546: selective page sync. Already resolved (and validated) by
   // resolvePageSyncScope before any pusher runs.
   pageScope?: PageSyncScope;
+  // PROD-2547: selective container sync. Already resolved (and validated), with its per-locale
+  // dependency trees built, by resolveContainerSyncScope before any pusher runs.
+  containerScope?: ContainerSyncScope;
 }
 
 export interface GuidEntities {
@@ -72,7 +84,13 @@ export class GuidDataLoader {
     // decides which push phases run, it just no longer hides a dependency from the scope builder.
     // Both the flag and the resolved scope are checked: the flag covers the unfiltered target-side
     // load, and the resolved scope covers a caller that passes one without going through state.
-    const needsCompleteData = state.isSync || state.modelsWithDeps || state.pages || !!filterOptions?.pageScope;
+    const needsCompleteData =
+      state.isSync ||
+      state.modelsWithDeps ||
+      state.pages ||
+      state.containers ||
+      !!filterOptions?.pageScope ||
+      !!filterOptions?.containerScope;
     const elements = needsCompleteData
       ? ["Galleries", "Assets", "Models", "Containers", "Content", "Templates", "Pages", "Sitemaps", "UrlRedirections"]
       : state.elements.split(",");
@@ -153,6 +171,12 @@ export class GuidDataLoader {
       return await this.applyPageScopeFiltering(guidEntities, filterOptions.pageScope, locale);
     }
 
+    // PROD-2547: likewise for a --containers scope, which is rejected alongside every other
+    // scoping flag up front.
+    if (filterOptions?.containerScope) {
+      return this.applyContainerScopeFiltering(guidEntities, filterOptions.containerScope, locale);
+    }
+
     // Apply model filtering if requested
     if (filterOptions) {
       return await this.applyModelFiltering(guidEntities, filterOptions, locale, state.targetGuid, state.sourceGuid);
@@ -181,7 +205,6 @@ export class GuidDataLoader {
     const localeTree = await this.getPageScopeTree(pageScope, locale);
     const instanceWide = await this.getInstanceWidePageScope(pageScope);
 
-    const assetKey = (asset: any): string => asset?.url || asset?.originUrl || asset?.edgeUrl;
     // Templates are keyed by pageTemplateID; `id` is tolerated for any caller that supplies it.
     const templateKey = (template: any): number => template?.pageTemplateID ?? template?.id;
 
@@ -247,6 +270,48 @@ export class GuidDataLoader {
     }
 
     return union;
+  }
+
+  /**
+   * Narrow the loaded entities to a selective container sync (PROD-2547).
+   *
+   * The trees were built by resolveContainerSyncScope, so that the scope it printed and the
+   * scope pushed here cannot drift apart.
+   *
+   * Content is filtered against THIS locale's tree. Containers, models, assets and galleries are
+   * instance-wide and filtered against the union of every locale's tree: the guid-level push
+   * phases run once with the first locale, so scoping them to that locale alone would drop a
+   * container or model that only content in another locale needs.
+   *
+   * Pages, templates and URL redirections are dropped outright. A container sync moves content
+   * and the shape around it; what surfaces that content on a page is a separate decision, and
+   * --pages (PROD-2546) is the flag for it.
+   */
+  private applyContainerScopeFiltering(
+    guidEntities: GuidEntities,
+    containerScope: ContainerSyncScope,
+    locale: string
+  ): GuidEntities {
+    const localeContent = containerScope.byLocale.get(locale)?.tree.content ?? new Set<number>();
+
+    const instanceWideAssets = new Set<string>();
+    const instanceWideGalleries = new Set<number>();
+    containerScope.byLocale.forEach((localeScope) => {
+      localeScope.tree.assets.forEach((url) => instanceWideAssets.add(url));
+      localeScope.tree.galleries.forEach((galleryID) => instanceWideGalleries.add(galleryID));
+    });
+
+    return {
+      models: guidEntities.models.filter((m: any) => containerScope.allModelReferenceNames.has(m.referenceName)),
+      containers: guidEntities.containers.filter((c: any) => containerScope.allContainerIDs.has(c.contentViewID)),
+      lists: [],
+      content: guidEntities.content.filter((c: any) => localeContent.has(c.contentID)),
+      templates: [],
+      pages: [],
+      assets: guidEntities.assets.filter((a: any) => instanceWideAssets.has(assetKey(a))),
+      galleries: guidEntities.galleries.filter((g: any) => instanceWideGalleries.has(g.galleryID)),
+      urlRedirections: [],
+    };
   }
 
   /**
@@ -497,8 +562,11 @@ export class GuidDataLoader {
 
   /**
    * Load complete GUID entities without any filtering - needed for dependency tree building
+   *
+   * Public because the --containers scope resolver (PROD-2547) builds its dependency trees before
+   * any pusher runs, and needs the same unfiltered view of the instance this class uses.
    */
-  private async loadCompleteGuidEntities(locale: string): Promise<GuidEntities> {
+  async loadCompleteGuidEntities(locale: string): Promise<GuidEntities> {
     const guidFileOps = new fileOperations(this.guid);
     const localeFileOps = new fileOperations(this.guid, locale);
 

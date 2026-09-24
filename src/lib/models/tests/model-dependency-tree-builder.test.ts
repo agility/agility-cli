@@ -1061,3 +1061,193 @@ describe("ModelDependencyTreeBuilder — buildDependencyTreeFromPages", () => {
     expect(tree.pages.has(3)).toBe(false);
   });
 });
+
+describe("ModelDependencyTreeBuilder — buildDependencyTreeFromContainers", () => {
+  it("keeps exactly the containers it was given", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10), makeContainer(201, 10), makeContainer(202, 11)],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(Array.from(tree.containers)).toEqual([200]);
+  });
+
+  it("leaves a sibling container on the same model out of scope — the whole point of the flag", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(10, "HomeLinks")],
+      containers: [makeContainer(200, 10, "AONHomeLinks"), makeContainer(201, 10, "MegaMillionsHomeLinks")],
+      content: [makeContent(1, "HomeLinks", "AONHomeLinks"), makeContent(2, "HomeLinks", "MegaMillionsHomeLinks")],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.containers.has(201)).toBe(false);
+    expect(Array.from(tree.content)).toEqual([1]);
+    // The shared model still comes along: the container cannot be created on the target without it.
+    expect(tree.models.has("HomeLinks")).toBe(true);
+  });
+
+  it("includes the content living in a selected container", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [makeContent(1, "Post", "Posts"), makeContent(2, "Post", "Posts"), makeContent(3, "Author", "Authors")],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it("matches content to its container case-insensitively", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "news1_RichTextArea")],
+      content: [makeContent(1, "RichTextArea", "news1_richtextarea")],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.content.has(1)).toBe(true);
+  });
+
+  it("follows single-item linked content out of the selected container", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [
+        makeContent(1, "Post", "Posts", { author: { contentid: 2, fulllist: false } }),
+        makeContent(2, "Author", "Authors", { agency: { contentid: 3, fulllist: false } }),
+        makeContent(3, "Agency", "Agencies"),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 2, 3]);
+  });
+
+  it("follows a whole-list linked-content reference to every item in that list", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Listings")],
+      content: [
+        makeContent(1, "Listing", "Listings", { posts: { referencename: "Posts", fulllist: true } }),
+        makeContent(50, "Post", "Posts"),
+        makeContent(51, "Post", "Posts"),
+        makeContent(90, "Other", "SomethingElse"),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 50, 51]);
+  });
+
+  it("brings in the container a linked item lives in, so the item has somewhere to land", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts"), makeContainer(300, 11, "Authors")],
+      content: [
+        makeContent(1, "Post", "Posts", { author: { contentid: 2, fulllist: false } }),
+        makeContent(2, "Author", "Authors"),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.containers.has(300)).toBe(true);
+  });
+
+  it("pulls only the linked item out of a shared container, not the rest of its contents", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts"), makeContainer(300, 11, "Authors")],
+      content: [
+        makeContent(1, "Post", "Posts", { author: { contentid: 2, fulllist: false } }),
+        makeContent(2, "Author", "Authors"),
+        makeContent(3, "Author", "Authors"),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.containers.has(300)).toBe(true);
+    expect(tree.content.has(3)).toBe(false);
+  });
+
+  it("includes the model behind every container in the tree", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(10, "Post"), makeModel(11, "Author"), makeModel(12, "Unused")],
+      containers: [makeContainer(200, 10, "Posts"), makeContainer(300, 11, "Authors")],
+      content: [
+        makeContent(1, "Post", "Posts", { author: { contentid: 2, fulllist: false } }),
+        makeContent(2, "Author", "Authors"),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.models.has("Post")).toBe(true);
+    expect(tree.models.has("Author")).toBe(true);
+    expect(tree.models.has("Unused")).toBe(false);
+  });
+
+  it("includes a model referenced by an in-scope model through a linked-content field", () => {
+    const sourceData = makeSourceData({
+      models: [makeModelWithRefs(10, "FooterLinks", ["FooterLinksLists"]), makeModelWithRefs(11, "FooterLinksLists")],
+      containers: [makeContainer(200, 10, "Footer")],
+      content: [makeContent(1, "FooterLinks", "Footer")],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.models.has("FooterLinksLists")).toBe(true);
+  });
+
+  it("includes the model of a selected container that holds no content", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(10, "Post")],
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.models.has("Post")).toBe(true);
+  });
+
+  it("collects the assets and galleries the in-scope content points at", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [
+        makeContent(1, "Post", "Posts", {
+          image: "https://cdn.aglty.io/hero.jpg",
+          gallery: { mediaGroupingID: 77 },
+        }),
+      ],
+      assets: [makeAsset("https://cdn.aglty.io/hero.jpg")],
+      galleries: [makeGallery(77)],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.assets.has("https://cdn.aglty.io/hero.jpg")).toBe(true);
+    expect(tree.galleries.has(77)).toBe(true);
+  });
+
+  it("never includes pages or templates", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [makeContent(1, "Post", "Posts")],
+      templates: [makeTemplate(500, [{ contentViewID: 200 }])],
+      pages: [makePage(10, { pageTemplateID: 500, zones: { Main: [{ module: "M", item: { contentid: 1 } }] } })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.pages.size).toBe(0);
+    expect(tree.templates.size).toBe(0);
+  });
+
+  it("returns an empty tree when no containers are in scope", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(10, "Post")],
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [makeContent(1, "Post", "Posts")],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([]);
+    expect(tree.containers.size).toBe(0);
+    expect(tree.content.size).toBe(0);
+    expect(tree.models.size).toBe(0);
+  });
+
+  it("terminates on a reference cycle between two content items", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [
+        makeContent(1, "A", "Posts", { other: { contentid: 2, fulllist: false } }),
+        makeContent(2, "B", "Others", { other: { contentid: 1, fulllist: false } }),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it("handles missing containers and content arrays gracefully", () => {
+    const tree = makeBuilder(
+      makeSourceData({ containers: undefined, content: undefined })
+    ).buildDependencyTreeFromContainers([200]);
+    expect(tree.containers.has(200)).toBe(true);
+    expect(tree.content.size).toBe(0);
+  });
+});

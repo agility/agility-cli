@@ -55,6 +55,11 @@ export interface State {
   pages: string;
   pageScope?: PageSyncScope;
 
+  // Container-specific (PROD-2547): the raw --containers selectors. Unlike --pages, there is no
+  // resolved scope on state: the container scope is threaded straight to the data loader, and
+  // nothing further down the push path needs to see it.
+  containers: string;
+
   // Content-specific
   contentItems?: string;
 
@@ -139,6 +144,9 @@ export const state: State = {
   // Page-specific
   pages: "",
   pageScope: undefined,
+
+  // Container-specific
+  containers: "",
 
   // Content-specific
   contentItems: undefined,
@@ -254,6 +262,9 @@ export function setState(argv: any) {
 
   // Page-specific (PROD-2546)
   if (argv.pages !== undefined) state.pages = argv.pages;
+
+  // Container-specific (PROD-2547)
+  if (argv.containers !== undefined) state.containers = argv.containers;
 
   // Content-specific
   if (argv.contentItems !== undefined) state.contentItems = argv.contentItems;
@@ -423,6 +434,9 @@ export function resetState() {
   // Page-specific
   state.pages = "";
   state.pageScope = undefined;
+
+  // Container-specific
+  state.containers = "";
 
   // Content-specific
   state.contentItems = undefined;
