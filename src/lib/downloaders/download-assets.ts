@@ -129,17 +129,24 @@ export async function downloadAllAssets(guid: string): Promise<void> {
       const liveMediaIds = new Set(allAssets.map((a) => String(a.mediaID)));
       if (fs.existsSync(assetsRoot)) {
         for (const file of fs.readdirSync(assetsRoot) || []) {
-          if (!file.endsWith(".json")) continue;
-          if (liveMediaIds.has(file.slice(0, -".json".length))) continue;
+          // Media files that are themselves JSON (translation files, config mocks, ...) live at this
+          // same root under their own names. Only a `{digits}.json` whose content carries that mediaID
+          // is metadata; anything else is a binary and must be left alone.
+          const match = /^(\d+)\.json$/.exec(file);
+          if (!match) continue;
+          const mediaId = match[1];
+          if (liveMediaIds.has(mediaId)) continue;
           const jsonPath = path.join(assetsRoot, file);
+          let stale: any;
           try {
-            const stale = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
-            if (stale?.originUrl) {
-              const binaryPath = path.join(assetsRoot, getAssetFilePath(stale.originUrl));
-              if (fs.existsSync(binaryPath)) fs.unlinkSync(binaryPath);
-            }
+            stale = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
           } catch {
-            // unreadable metadata: still remove the JSON below
+            continue; // not parseable as metadata: not ours to delete
+          }
+          if (!stale || typeof stale !== "object" || String(stale.mediaID) !== mediaId) continue;
+          if (stale.originUrl) {
+            const binaryPath = path.join(assetsRoot, getAssetFilePath(stale.originUrl));
+            if (fs.existsSync(binaryPath)) fs.unlinkSync(binaryPath);
           }
           fs.unlinkSync(jsonPath);
           logger.info(`Removed deleted asset file: ${file}`);

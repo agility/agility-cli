@@ -40,6 +40,9 @@ function seedCache() {
   // stale paged dump from an earlier, longer listing
   fs.mkdirSync(path.join(assets, "json"), { recursive: true });
   fs.writeFileSync(path.join(assets, "json", "5.json"), "{}");
+  // media files that are themselves JSON live at the root under their own names — never metadata
+  fs.writeFileSync(path.join(assets, "en-us.json"), JSON.stringify({ hello: "world" }));
+  fs.writeFileSync(path.join(assets, "2026.json"), JSON.stringify({ year: 2026 })); // numeric name, but no mediaID
   return { assets, ghostBinary };
 }
 
@@ -67,6 +70,9 @@ describe("downloadAllAssets — removes local assets deleted upstream (PROD-2614
     expect(fs.existsSync(path.join(assets, "99.json"))).toBe(false);
     expect(fs.existsSync(ghostBinary)).toBe(false);
     expect(fs.existsSync(path.join(assets, "json", "5.json"))).toBe(false);
+    // JSON media binaries at the root survive, even one with a numeric name
+    expect(fs.existsSync(path.join(assets, "en-us.json"))).toBe(true);
+    expect(fs.existsSync(path.join(assets, "2026.json"))).toBe(true);
   });
 
   it("does NOT delete anything when the collected list is shorter than totalCount", async () => {
