@@ -8,6 +8,7 @@ import fs from "fs";
 import path from "path";
 import { Logs, OperationType, EntityType } from "./logs";
 import { Options } from "@agility/management-sdk";
+import { PageSyncScope } from "../types/pageScope";
 
 export interface State {
   // Environment modes
@@ -48,6 +49,16 @@ export interface State {
   // Model-specific
   models: string;
   modelsWithDeps: string;
+
+  // Page-specific (PROD-2546): raw --pages selectors, and the scope they resolve to.
+  // The resolved scope is populated once per run, after the pull and before any push.
+  pages: string;
+  pageScope?: PageSyncScope;
+
+  // Container-specific (PROD-2547): the raw --containers selectors. Unlike --pages, there is no
+  // resolved scope on state: the container scope is threaded straight to the data loader, and
+  // nothing further down the push path needs to see it.
+  containers: string;
 
   // Content-specific
   contentItems?: string;
@@ -137,6 +148,13 @@ export const state: State = {
   // Model-specific
   models: "",
   modelsWithDeps: "",
+
+  // Page-specific
+  pages: "",
+  pageScope: undefined,
+
+  // Container-specific
+  containers: "",
 
   // Content-specific
   contentItems: undefined,
@@ -251,6 +269,12 @@ export function setState(argv: any) {
   // Model-specific
   if (argv.models !== undefined) state.models = argv.models;
   if (argv.modelsWithDeps !== undefined) state.modelsWithDeps = argv.modelsWithDeps;
+
+  // Page-specific (PROD-2546)
+  if (argv.pages !== undefined) state.pages = argv.pages;
+
+  // Container-specific (PROD-2547)
+  if (argv.containers !== undefined) state.containers = argv.containers;
 
   // Content-specific
   if (argv.contentItems !== undefined) state.contentItems = argv.contentItems;
@@ -415,6 +439,14 @@ export function resetState() {
 
   // Model-specific
   state.models = "";
+  state.modelsWithDeps = "";
+
+  // Page-specific
+  state.pages = "";
+  state.pageScope = undefined;
+
+  // Container-specific
+  state.containers = "";
 
   // Content-specific
   state.contentItems = undefined;

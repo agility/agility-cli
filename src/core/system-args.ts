@@ -78,6 +78,26 @@ export const systemArgs = {
     default: "",
   },
 
+  // **Selective page sync (PROD-2546)**
+  pages: {
+    describe:
+      "(sync/push only) Sync only these pages and everything beneath them. Accepts a comma-separated list of page paths (e.g. '/my-lottery'), page names, or page IDs. Each selected page brings its child pages and the templates, content, models, containers, assets and galleries those pages need — nothing else is synced. The resolved page tree is printed before anything is written. Parent pages of a selection are NOT synced, and must already exist in the target. Cannot be combined with --models or --models-with-deps.",
+    demandOption: false,
+    alias: ["Pages", "PAGES", "page", "Page"],
+    type: "string" as const,
+    default: "",
+  },
+
+  // **Selective container sync (PROD-2547)**
+  containers: {
+    describe:
+      "(sync/push only) Sync only these content containers and what they depend on. Accepts a comma-separated list of container reference names, container titles, or container IDs. Use it when several containers share one model and you want to promote just one of them — unlike --models-with-deps, the other containers on that model are left alone. Brings the content in the selected containers, the content it links to, the containers holding that linked content, the models behind all of it, and the assets and galleries it points at. No pages, templates or URL redirections are touched. The resolved scope is printed before anything is written. Cannot be combined with --models, --models-with-deps or --pages.",
+    demandOption: false,
+    alias: ["Containers", "CONTAINERS", "container", "Container"],
+    type: "string" as const,
+    default: "",
+  },
+
   // Preflight (dry-run preview) args
   preflight: {
     describe:
@@ -182,6 +202,8 @@ export interface SystemArgs {
   targetGuid?: string;
   locales?: string;
   channel?: string;
+  pages?: string; // Selective page sync: page paths / names / IDs to scope the sync to
+  containers?: string; // Selective container sync: container reference names / titles / IDs to scope the sync to
   contentIDs?: string; // Explicit content IDs (bypasses mappings)
   pageIDs?: string; // Explicit page IDs (bypasses mappings)
 }

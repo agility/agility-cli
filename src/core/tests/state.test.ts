@@ -344,3 +344,67 @@ describe("initializeGuidLogger / getLoggerForGuid", () => {
     expect(getLoggerForGuid("does-not-exist")).toBeNull();
   });
 });
+
+// ─── selective page sync (PROD-2546) ─────────────────────────────────────
+
+describe("setState — --pages", () => {
+  it("defaults to an empty selector list", () => {
+    resetState();
+    expect(getState().pages).toBe("");
+  });
+
+  it("stores the raw --pages value", () => {
+    resetState();
+    setState({ pages: "/my-lottery,/promos" });
+    expect(getState().pages).toBe("/my-lottery,/promos");
+  });
+
+  it("leaves the existing value alone when --pages is not supplied", () => {
+    resetState();
+    setState({ pages: "/my-lottery" });
+    setState({ locales: "en-us" });
+    expect(getState().pages).toBe("/my-lottery");
+  });
+
+  it("clears both the selectors and the resolved scope on reset", () => {
+    setState({ pages: "/my-lottery" });
+    getState().pageScope = { selectors: [], byLocale: new Map(), allPageIDs: new Set(), sitemapsByLocale: {} };
+    resetState();
+    expect(getState().pages).toBe("");
+    expect(getState().pageScope).toBeUndefined();
+  });
+
+  it("clears modelsWithDeps on reset so a scope does not leak between commands", () => {
+    setState({ modelsWithDeps: "BlogPost" });
+    resetState();
+    expect(getState().modelsWithDeps).toBe("");
+  });
+});
+
+// ─── selective container sync (PROD-2547) ────────────────────────────────
+
+describe("setState — --containers", () => {
+  it("defaults to an empty selector list", () => {
+    resetState();
+    expect(getState().containers).toBe("");
+  });
+
+  it("stores the raw --containers value", () => {
+    resetState();
+    setState({ containers: "AONHomeLinks,Games" });
+    expect(getState().containers).toBe("AONHomeLinks,Games");
+  });
+
+  it("leaves the existing value alone when --containers is not supplied", () => {
+    resetState();
+    setState({ containers: "AONHomeLinks" });
+    setState({ locales: "en-us" });
+    expect(getState().containers).toBe("AONHomeLinks");
+  });
+
+  it("clears the selectors on reset, so a scope does not leak between commands", () => {
+    setState({ containers: "AONHomeLinks" });
+    resetState();
+    expect(getState().containers).toBe("");
+  });
+});

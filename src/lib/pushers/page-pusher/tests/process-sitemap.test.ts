@@ -320,3 +320,108 @@ describe("resetProcessedPageIDs", () => {
     expect(mockProcessPage).toHaveBeenCalledTimes(2);
   });
 });
+
+// ─── selective page sync scope (PROD-2546) ────────────────────────────────────
+
+describe("processSitemap — --pages scope", () => {
+  /**
+   *   /products (3)              ancestor: walked through, never pushed
+   *     /my-lottery (10)         selected
+   *       /rules (11)            descendant
+   *     /other (20)              out of scope
+   *   /about (4)                 out of scope
+   *     /about/team (5)          out of scope, below an out-of-scope page
+   */
+  function scopedSitemap(): SitemapNode[] {
+    return [
+      makeNode(3, [makeNode(10, [makeNode(11)]), makeNode(20)]),
+      makeNode(4, [makeNode(5)]),
+    ];
+  }
+
+  const scope = (overrides: Partial<any> = {}) => ({
+    locale: "en-us",
+    pageIDs: new Set<number>([10, 11]),
+    traversePageIDs: new Set<number>([3]),
+    matches: [],
+    unmatched: [],
+    ancestors: [],
+    ...overrides,
+  });
+
+  function pushedPageIDs(): number[] {
+    return mockProcessPage.mock.calls.map((call) => call[0].page.pageID).sort((a, b) => a - b);
+  }
+
+  it("pushes only the selected page and its descendants", async () => {
+    const pages = [makePage(10), makePage(11)];
+    await processSitemap(makeProps({ sitemapNodes: scopedSitemap(), sourcePages: pages, pageScope: scope() }));
+    expect(pushedPageIDs()).toEqual([10, 11]);
+  });
+
+  it("does not push the ancestor it walks through to reach the selection", async () => {
+    const pages = [makePage(10), makePage(11)];
+    await processSitemap(makeProps({ sitemapNodes: scopedSitemap(), sourcePages: pages, pageScope: scope() }));
+    expect(pushedPageIDs()).not.toContain(3);
+  });
+
+  it("parents the selected page under its ancestor rather than at the sitemap root", async () => {
+    const pages = [makePage(10), makePage(11)];
+    await processSitemap(makeProps({ sitemapNodes: scopedSitemap(), sourcePages: pages, pageScope: scope() }));
+    const lotteryCall = mockProcessPage.mock.calls.find((call) => call[0].page.pageID === 10);
+    expect(lotteryCall[0].parentPageID).toBe(3);
+  });
+
+  it("does not report out-of-scope pages as missing from source data", async () => {
+    // sourcePages holds ONLY the in-scope pages, as the scoped data loader supplies them.
+    const pages = [makePage(10), makePage(11)];
+    const result = await processSitemap(
+      makeProps({ sitemapNodes: scopedSitemap(), sourcePages: pages, pageScope: scope() })
+    );
+    expect(result.failed).toBe(0);
+    expect(result.failureDetails).toHaveLength(0);
+  });
+
+  it("does not descend into a branch that contains nothing in scope", async () => {
+    const pages = [makePage(10), makePage(11), makePage(5)];
+    await processSitemap(makeProps({ sitemapNodes: scopedSitemap(), sourcePages: pages, pageScope: scope() }));
+    expect(pushedPageIDs()).not.toContain(5);
+  });
+
+  it("still counts an in-scope page that is genuinely missing from source data as a failure", async () => {
+    const result = await processSitemap(
+      makeProps({ sitemapNodes: scopedSitemap(), sourcePages: [makePage(10)], pageScope: scope() })
+    );
+    expect(result.failed).toBe(1);
+    expect(result.failureDetails[0].pageID).toBe(11);
+  });
+
+  it("uses a skipped sibling as the placement anchor for a new page", async () => {
+    // Reverse order means node 20 is visited first and becomes the anchor for node 10.
+    const nodes = [makeNode(10), makeNode(20)];
+    await processSitemap(
+      makeProps({
+        sitemapNodes: nodes,
+        sourcePages: [makePage(10)],
+        pageScope: scope({ pageIDs: new Set<number>([10]), traversePageIDs: new Set<number>() }),
+      })
+    );
+    const lotteryCall = mockProcessPage.mock.calls.find((call) => call[0].page.pageID === 10);
+    expect(lotteryCall[0].insertBeforePageId).toBe(20);
+  });
+
+  it("rolls the counts from an in-scope subtree up through its ancestors", async () => {
+    mockProcessPage.mockResolvedValue({ status: "success" });
+    const pages = [makePage(10), makePage(11)];
+    const result = await processSitemap(
+      makeProps({ sitemapNodes: scopedSitemap(), sourcePages: pages, pageScope: scope() })
+    );
+    expect(result.successful).toBe(2);
+  });
+
+  it("pushes every page when no scope is supplied", async () => {
+    const pages = [3, 4, 5, 10, 11, 20].map((id) => makePage(id));
+    await processSitemap(makeProps({ sitemapNodes: scopedSitemap(), sourcePages: pages }));
+    expect(pushedPageIDs()).toEqual([3, 4, 5, 10, 11, 20]);
+  });
+});
