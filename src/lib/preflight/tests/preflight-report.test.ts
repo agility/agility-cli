@@ -274,6 +274,71 @@ describe("print", () => {
   });
 });
 
+// ─── toJSON (--jsonSummary) ───────────────────────────────────────────────────
+
+describe("toJSON", () => {
+  function recordAll(entries: PreflightEntry[]) {
+    setState({ preflight: true });
+    entries.forEach((e) => preflightReport.record(e));
+  }
+
+  it("mirrors the totals the table renders", () => {
+    recordAll([
+      { phase: "Models", action: "create", name: "Hero" },
+      { phase: "Models", action: "update", name: "Footer" },
+      { phase: "Content", action: "skip", name: "Post 1" },
+      { phase: "Content", action: "conflict", name: "Post 2" },
+    ]);
+
+    const json = preflightReport.toJSON();
+
+    expect(json.totals).toEqual({ create: 1, update: 1, skip: 1, conflict: 1 });
+    expect(json.hasConflicts).toBe(true);
+  });
+
+  it("groups counts per phase, preserving first-seen order", () => {
+    recordAll([
+      { phase: "Models", action: "create", name: "A" },
+      { phase: "Containers", action: "create", name: "B" },
+      { phase: "Models", action: "create", name: "C" },
+    ]);
+
+    const json = preflightReport.toJSON();
+
+    expect(json.phases.map((p) => p.phase)).toEqual(["Models", "Containers"]);
+    expect(json.phases[0]).toEqual({ phase: "Models", create: 2, update: 0, skip: 0, conflict: 0 });
+  });
+
+  it("carries every entry through, with locale and detail intact", () => {
+    recordAll([
+      { phase: "Content", action: "conflict", name: "Post", locale: "en-us", detail: "target changed" },
+    ]);
+
+    expect(preflightReport.toJSON().entries).toEqual([
+      { phase: "Content", action: "conflict", name: "Post", locale: "en-us", detail: "target changed" },
+    ]);
+  });
+
+  it("reports an empty plan rather than nothing when preflight ran and planned no actions", () => {
+    // The caller writes `null` when preflight never ran, so an empty-but-present object is how
+    // "predicted nothing" is distinguished from "never predicted".
+    setState({ preflight: true });
+
+    const json = preflightReport.toJSON();
+
+    expect(json.totals).toEqual({ create: 0, update: 0, skip: 0, conflict: 0 });
+    expect(json.hasConflicts).toBe(false);
+    expect(json.phases).toEqual([]);
+    expect(json.entries).toEqual([]);
+  });
+
+  it("is JSON-serializable", () => {
+    recordAll([{ phase: "Models", action: "create", name: "Hero" }]);
+    const json = preflightReport.toJSON();
+    expect(JSON.parse(JSON.stringify(json))).toEqual(json);
+  });
+});
+
 // ─── page-scoped runs (PROD-2546) ──────────────────────────────────────────
 
 describe("renderTable — --pages scope", () => {

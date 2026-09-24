@@ -17,6 +17,7 @@ describe("systemArgs – required keys exist", () => {
     "targetGuid",
     "overwrite",
     "autoPublish",
+    "jsonSummary",
   ];
 
   it.each(expectedKeys)('has key "%s"', (key) => {

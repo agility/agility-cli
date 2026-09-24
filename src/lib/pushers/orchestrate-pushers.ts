@@ -5,6 +5,7 @@ import { GuidDataLoader, GuidEntities, ModelFilterOptions } from "./guid-data-lo
 import { PusherResult, SourceData, FailureDetail } from "../../types/sourceData";
 import { state } from "../../core/state";
 import { PUSH_OPERATIONS, PushOperationsRegistry, PushOperationConfig } from "./push-operations-config";
+import type { JsonSummaryPhase } from "../../core/json-summary";
 
 export interface PushResults {
   successful: string[];
@@ -26,6 +27,10 @@ export interface PushResults {
   failureDetails: FailureDetail[];
   // PROD-2316: non-blocking notices (e.g. page modules dropped due to unresolvable content)
   warningDetails: FailureDetail[];
+  // Per-pusher breakdown, kept alongside the collapsed totals above. Locale-scoped phases run
+  // once per locale, so an entry is identified by (operation, locale), not operation alone.
+  // Consumed by --jsonSummary; the console summary still reads the totals.
+  phases: JsonSummaryPhase[];
 }
 
 export interface PusherConfig {
@@ -69,6 +74,7 @@ export class Pushers {
       publishablePageIdsByLocale: new Map(),
       failureDetails: [],
       warningDetails: [],
+      phases: [],
     };
 
     try {
@@ -88,6 +94,7 @@ export class Pushers {
       results.publishablePageIdsByLocale = pushResults.publishablePageIdsByLocale;
       results.failureDetails = pushResults.failureDetails;
       results.warningDetails = pushResults.warningDetails;
+      results.phases = pushResults.phases;
 
       // Calculate final duration
       results.totalDuration = Date.now() - startTime;
@@ -160,6 +167,7 @@ export class Pushers {
     publishablePageIdsByLocale: Map<string, number[]>;
     failureDetails: FailureDetail[];
     warningDetails: FailureDetail[];
+    phases: JsonSummaryPhase[];
   }> {
     const { locale: locales, elements: stateElements } = state;
     const elements = stateElements.split(",");
@@ -177,6 +185,8 @@ export class Pushers {
     const failureDetails: FailureDetail[] = [];
     // PROD-2316: collect non-blocking warning details
     const warningDetails: FailureDetail[] = [];
+    // Per-pusher breakdown for --jsonSummary, recorded in execution order.
+    const phases: JsonSummaryPhase[] = [];
 
     // PROD-2202: Models run FIRST so the model-mapping validation (the rename/reassignment
     // mismatch detection in pushModels) fails the sync before any galleries or assets are
@@ -306,6 +316,7 @@ export class Pushers {
         totalSuccess += result.success;
         totalFailures += result.failures;
         totalSkipped += result.skipped;
+        phases.push(result.phase);
         if (result.failureDetails) {
           failureDetails.push(...result.failureDetails);
         }
@@ -353,6 +364,7 @@ export class Pushers {
           totalSuccess += result.success;
           totalFailures += result.failures;
           totalSkipped += result.skipped;
+          phases.push(result.phase);
           if (result.failureDetails) {
             failureDetails.push(...result.failureDetails);
           }
@@ -384,6 +396,7 @@ export class Pushers {
         publishablePageIdsByLocale,
         failureDetails,
         warningDetails,
+        phases,
       };
     } catch (error) {
       console.error(ansiColors.red("Error during pusher execution:"), error);
@@ -413,6 +426,9 @@ export class Pushers {
     skipped: number;
     failureDetails?: FailureDetail[];
     warningDetails?: FailureDetail[];
+    // The same numbers, tagged with which pusher produced them. Additive: the flat counts
+    // above stay because callers and tests already read them.
+    phase: JsonSummaryPhase;
   }> {
     const elementData = sourceData[config.dataKey as keyof GuidEntities] || [];
 
@@ -424,7 +440,17 @@ export class Pushers {
       console.log(
         ansiColors.yellow(`⚠️ Skipping ${config.description} for locale ${locale} - no data or filtered by --locales`)
       );
-      return { success: 0, failures: 0, skipped: 0, failureDetails: [], warningDetails: [] };
+      // "notRun", not a zero-count success: the pusher was never invoked. Reporting this as a
+      // clean run would hide an --elements filter that silently excluded a phase someone meant
+      // to sync.
+      return {
+        success: 0,
+        failures: 0,
+        skipped: 0,
+        failureDetails: [],
+        warningDetails: [],
+        phase: this.buildPhaseRecord(config, locale, { successful: 0, failed: 0, skipped: 0, status: "notRun" }),
+      };
     }
 
     this.config.onOperationStart?.(config.name, state.sourceGuid, state.targetGuid);
@@ -466,6 +492,37 @@ export class Pushers {
       skipped: pusherResult.skipped || 0,
       failureDetails: pusherResult.failureDetails || [],
       warningDetails: pusherResult.warningDetails || [],
+      phase: this.buildPhaseRecord(config, locale, {
+        successful: pusherResult.successful || 0,
+        failed: pusherResult.failed || 0,
+        skipped: pusherResult.skipped || 0,
+        status: pusherResult.status === "error" ? "error" : "success",
+      }),
+    };
+  }
+
+  /**
+   * Tag a set of counts with the pusher that produced them.
+   *
+   * `locale` is recorded only for locale-scoped phases (Content, Pages). Guid-level phases run
+   * once for locales[0] purely as an implementation detail of how the orchestrator loads data,
+   * so stamping that locale on them would imply a per-locale result that does not exist.
+   *
+   * Scoping is decided from `dataKey`, not by comparing the config against PUSH_OPERATIONS by
+   * reference: a caller that passes a spread copy (`{ ...PUSH_OPERATIONS.content, handler }`)
+   * is still pushing content, and an identity check would silently drop its locale.
+   */
+  private buildPhaseRecord(
+    config: PushOperationConfig,
+    locale: string,
+    counts: { successful: number; failed: number; skipped: number; status: JsonSummaryPhase["status"] }
+  ): JsonSummaryPhase {
+    const isLocaleScoped = config.dataKey === "content" || config.dataKey === "pages";
+    return {
+      operation: config.name,
+      description: config.description,
+      ...(isLocaleScoped ? { locale } : {}),
+      ...counts,
     };
   }
 

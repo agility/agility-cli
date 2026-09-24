@@ -377,10 +377,13 @@ describe("pushTemplates — section ID mapping backfill when skipping up-to-date
     // Pre-seed a stale mapping pointing at a different target ID than the current name match
     // would find — proves the skip path only creates a mapping when one is missing, it never
     // refreshes an existing one.
+    // Partial on purpose: addMapping reads only the ID and reference name, so the other 26
+    // ContentSectionDefinition fields would be noise. Cast so this stays honest under
+    // `npm run type-check:tests` rather than silently untyped.
     new SectionMapper("src-tpl-u", "tgt-tpl-u").addMapping(sourceTpl.contentSectionDefinitions[0], {
       pageItemTemplateID: 999,
       pageItemTemplateReferenceName: "Main",
-    });
+    } as any);
 
     const savePageTemplate = jest.fn();
     state.cachedApiClient = { pageMethods: { savePageTemplate } } as any;

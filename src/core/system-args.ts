@@ -108,6 +108,16 @@ export const systemArgs = {
     default: false,
   },
 
+  // Machine-readable run summary
+  jsonSummary: {
+    describe:
+      "(sync/push only) Write a machine-readable JSON summary of the run to this path: per-phase success/failure/skip counts, failure and warning details, the exit signal, and the preflight plan when --preflight is used. Intended for CI assertions and test harnesses; parent directories are created, and a write failure warns rather than failing the run.",
+    demandOption: false,
+    alias: ["json-summary", "jsonsummary", "JsonSummary", "JSONSUMMARY"],
+    type: "string" as const,
+    default: "",
+  },
+
   // Instance identification args
   sourceGuid: {
     describe:
@@ -206,4 +216,5 @@ export interface SystemArgs {
   containers?: string; // Selective container sync: container reference names / titles / IDs to scope the sync to
   contentIDs?: string; // Explicit content IDs (bypasses mappings)
   pageIDs?: string; // Explicit page IDs (bypasses mappings)
+  jsonSummary?: string; // Path to write the machine-readable run summary to
 }

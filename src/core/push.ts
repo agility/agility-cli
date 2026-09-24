@@ -15,6 +15,7 @@ import type { OperationType } from "./logs";
 import { Pushers, PushResults } from "../lib/pushers/orchestrate-pushers";
 import { Pull } from "./pull";
 import { preflightReport } from "../lib/preflight/preflight-report";
+import { buildJsonSummary, writeJsonSummary, JsonSummaryDetail, JsonSummaryPhase } from "./json-summary";
 
 /**
  * PROD-2310: Decide whether a set of auto-publish errors should fail the sync exit code.
@@ -113,6 +114,7 @@ export class Push {
     // Mark the start of this pull operation for incremental tracking
     markPushStart();
     const totalStartTime = Date.now();
+    const startedAt = new Date();
 
     try {
       // Execute sequential pushes for all GUIDs, locales and channels (sitemaps)
@@ -309,6 +311,22 @@ export class Push {
         }
       }
 
+      // Machine-readable run summary (--jsonSummary). Written last, so it records the
+      // preflight exit code set just above.
+      this.emitJsonSummary({
+        isSync,
+        success,
+        exitCode: typeof process.exitCode === "number" ? process.exitCode : success ? 0 : 1,
+        phases: results.flatMap((r) => r.phases ?? []),
+        failures: syncFailureDetails,
+        warnings: syncWarningDetails,
+        operationErrors: syncErrors,
+        autoPublishErrors,
+        startedAt,
+        elapsedMs: totalElapsedTime,
+        logFiles: logFilePaths,
+      });
+
       // Only exit if not called from another operation
 
       return {
@@ -320,10 +338,96 @@ export class Push {
       console.error(ansiColors.red("\n❌ An error occurred during the push command:"), error);
       finalizeLogger(); // Finalize logger even on error
 
+      // A crashed run is exactly when a machine-readable record is most useful, so emit one
+      // here too. The phase breakdown is unavailable — the orchestrator threw rather than
+      // returning — so the summary carries the throw as an operation-level error and reports
+      // failure. A consumer tells this apart from a clean run by `phases` being empty.
+      this.emitJsonSummary({
+        isSync,
+        success: false,
+        exitCode: 1,
+        phases: [],
+        failures: [],
+        warnings: [],
+        operationErrors: [{ type: "fatal", error: error?.message || String(error) }],
+        autoPublishErrors: [],
+        startedAt,
+        elapsedMs: Date.now() - totalStartTime,
+        logFiles: [],
+      });
+
       // Only exit if not called from another operation
       // process.exit(1);
 
       throw error; // Let calling code handle error response
+    }
+  }
+
+  /**
+   * Serialize the run to `state.jsonSummary` when the flag is set; no-op otherwise.
+   *
+   * Deliberately swallows its own errors: this is a reporting artifact, and an unwritable
+   * path must not turn an otherwise-successful sync into a failure. A failed write warns on
+   * the console instead — visible to a human, invisible to the exit code.
+   */
+  private emitJsonSummary(input: {
+    isSync: boolean;
+    success: boolean;
+    exitCode: number;
+    phases: JsonSummaryPhase[];
+    failures: JsonSummaryDetail[];
+    warnings: JsonSummaryDetail[];
+    operationErrors: Array<{ type: string; error: string; locale?: string }>;
+    autoPublishErrors: Array<{ locale?: string; type: string; error: string }>;
+    startedAt: Date;
+    elapsedMs: number;
+    logFiles: string[];
+  }): void {
+    const outputPath = state.jsonSummary;
+    if (!outputPath) return;
+
+    try {
+      const summary = buildJsonSummary({
+        command: input.isSync ? "sync" : "push",
+        success: input.success,
+        exitCode: input.exitCode,
+        source: state.sourceGuid || "",
+        target: state.targetGuid || "",
+        options: {
+          preflight: state.preflight === true,
+          overwrite: state.overwrite === true,
+          autoPublish: state.autoPublish || "",
+          elements: (state.elements || "").split(",").filter(Boolean),
+          locales: Array.isArray(state.locale) ? state.locale : [],
+          channel: state.channel || "",
+        },
+        phases: input.phases,
+        failures: input.failures,
+        warnings: input.warnings,
+        operationErrors: input.operationErrors,
+        autoPublishErrors: input.autoPublishErrors,
+        // Null when preflight did not run, so a consumer can tell "planned nothing" from
+        // "never predicted anything".
+        preflight: state.preflight ? preflightReport.toJSON() : null,
+        startedAt: input.startedAt,
+        finishedAt: new Date(),
+        elapsedMs: input.elapsedMs,
+        logFiles: input.logFiles,
+      });
+
+      const result = writeJsonSummary(outputPath, summary);
+      if (result.written) {
+        console.log(ansiColors.cyan(`
+📊 JSON summary: ${outputPath}`));
+      } else {
+        console.log(ansiColors.yellow(`
+⚠️  Could not write JSON summary to ${outputPath} — ${result.error}`));
+      }
+    } catch (error: any) {
+      console.log(
+        ansiColors.yellow(`
+⚠️  Could not build JSON summary — ${error?.message || error}`)
+      );
     }
   }
 

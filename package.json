@@ -16,12 +16,14 @@
     "postbuild": "node -e \"require('fs').chmodSync('dist/index.js', 0o755); console.log('✓ chmod +x dist/index.js')\"",
     "refresh": "rm -rf ./node_modules ./package-lock.json && npm install",
     "test": "jest",
-    "test:unit": "jest",
+    "test:unit": "jest src/core src/lib",
+    "test:hermetic": "jest src/tests/sync",
     "test:integration": "jest --testMatch=\"**/*.integration.test.ts\" --testPathIgnorePatterns=\"/node_modules/|/dist/|/src/index.ts\"",
     "lint": "eslint src",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "type-check": "tsc --noEmit",
+    "type-check:tests": "tsc --noEmit -p tsconfig.test.json",
     "debug": "node --inspect-brk -r ts-node/register src/index.ts"
   },
   "keywords": [

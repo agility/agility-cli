@@ -108,6 +108,37 @@ class PreflightReport {
     return totals;
   }
 
+  /**
+   * Machine-readable form of the same report, for --jsonSummary.
+   *
+   * Emitted even when no actions were recorded, so a consumer can tell "preflight ran and
+   * planned nothing" from "preflight did not run" (the latter is a null preflight key).
+   *
+   * This is a *plan*, not an observation. It is what change-detection predicts a real sync
+   * would do, and the mapping to real outcomes is not 1:1 — a cross-kind model collision
+   * (PROD-2315) is previewed as `conflict` precisely because a real run fails it. Assert
+   * against this only for scenarios that actually ran with --preflight.
+   */
+  toJSON(): {
+    totals: Record<PreflightAction, number>;
+    hasConflicts: boolean;
+    phases: Array<{ phase: string; create: number; update: number; skip: number; conflict: number }>;
+    entries: PreflightEntry[];
+  } {
+    return {
+      totals: this.getTotals(),
+      hasConflicts: this.hasConflicts(),
+      phases: this.getPhaseSummaries().map(({ phase, create, update, skip, conflict }) => ({
+        phase,
+        create,
+        update,
+        skip,
+        conflict,
+      })),
+      entries: this.getEntries(),
+    };
+  }
+
   /** Human-readable, colorized per-phase summary. */
   renderTable(): string {
     const lines: string[] = [];
