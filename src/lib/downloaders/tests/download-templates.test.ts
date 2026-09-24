@@ -137,3 +137,62 @@ describe("downloadAllTemplates", () => {
     });
   });
 });
+
+// ─── PROD-2614: ghost template files ──────────────────────────────────────────
+
+describe("downloadAllTemplates — removes local templates deleted upstream (PROD-2614)", () => {
+  const fs = require("fs");
+  const os = require("os");
+  const path = require("path");
+  let tmp: string;
+
+  beforeEach(() => {
+    tmp = fs.mkdtempSync(path.join(os.tmpdir(), "agility-tpl-ghost-"));
+    fs.writeFileSync(path.join(tmp, "12.json"), JSON.stringify({ pageTemplateID: 12, pageTemplateName: "Ghost" }));
+    fs.writeFileSync(path.join(tmp, "1.json"), JSON.stringify({ pageTemplateID: 1, pageTemplateName: "Live" }));
+    const { fileOperations } = require("core/fileOperations");
+    fileOperations.mockImplementation(() => ({
+      createFolder: jest.fn(),
+      exportFiles: jest.fn(),
+      getDataFolderPath: jest.fn().mockReturnValue(tmp),
+    }));
+    state.guidLocaleMap.set("test-guid-u", ["en-us"]);
+  });
+  afterEach(() => fs.rmSync(tmp, { recursive: true, force: true }));
+
+  it("deletes a local template file whose ID the API no longer returns", async () => {
+    const mockLogger = makeMockLogger();
+    jest.spyOn(require("core/state"), "getLoggerForGuid").mockReturnValue(mockLogger);
+    jest.spyOn(require("core/state"), "getApiClient").mockReturnValue({
+      pageMethods: { getPageTemplates: jest.fn().mockResolvedValue([{ pageTemplateID: 1, pageTemplateName: "Live" }]) },
+    });
+
+    await downloadAllTemplates("test-guid-u");
+
+    expect(fs.existsSync(path.join(tmp, "12.json"))).toBe(false);
+    expect(fs.existsSync(path.join(tmp, "1.json"))).toBe(true);
+    expect(mockLogger.info).toHaveBeenCalledWith("Removed deleted template file: 12.json");
+  });
+
+  it("does NOT delete anything when the API returns an empty list", async () => {
+    jest.spyOn(require("core/state"), "getLoggerForGuid").mockReturnValue(makeMockLogger());
+    jest.spyOn(require("core/state"), "getApiClient").mockReturnValue({
+      pageMethods: { getPageTemplates: jest.fn().mockResolvedValue([]) },
+    });
+
+    await downloadAllTemplates("test-guid-u");
+
+    expect(fs.existsSync(path.join(tmp, "12.json"))).toBe(true);
+    expect(fs.existsSync(path.join(tmp, "1.json"))).toBe(true);
+  });
+
+  it("does NOT delete anything when the list call fails", async () => {
+    jest.spyOn(require("core/state"), "getLoggerForGuid").mockReturnValue(makeMockLogger());
+    jest.spyOn(require("core/state"), "getApiClient").mockReturnValue({
+      pageMethods: { getPageTemplates: jest.fn().mockRejectedValue(new Error("boom")) },
+    });
+
+    await expect(downloadAllTemplates("test-guid-u")).rejects.toThrow("boom");
+    expect(fs.existsSync(path.join(tmp, "12.json"))).toBe(true);
+  });
+});

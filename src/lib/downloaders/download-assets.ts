@@ -119,6 +119,51 @@ export async function downloadAllAssets(guid: string): Promise<void> {
       }
     }
 
+    // PROD-2614: reconcile the local asset cache against the complete media list. Metadata JSON lives
+    // at assets/{mediaID}.json (binaries under sub-folders, page dumps under assets/json/), so a root
+    // .json whose mediaID is not in the list belongs to an asset deleted upstream: remove its binary
+    // (path derived from its own originUrl) and then the JSON. Only when every page was fetched —
+    // a partial list must never trigger deletes.
+    if (allAssets.length >= totalRecords) {
+      const assetsRoot = fileOps.getDataFolderPath("assets");
+      const liveMediaIds = new Set(allAssets.map((a) => String(a.mediaID)));
+      if (fs.existsSync(assetsRoot)) {
+        for (const file of fs.readdirSync(assetsRoot) || []) {
+          // Media files that are themselves JSON (translation files, config mocks, ...) live at this
+          // same root under their own names. Only a `{digits}.json` whose content carries that mediaID
+          // is metadata; anything else is a binary and must be left alone.
+          const match = /^(\d+)\.json$/.exec(file);
+          if (!match) continue;
+          const mediaId = match[1];
+          if (liveMediaIds.has(mediaId)) continue;
+          const jsonPath = path.join(assetsRoot, file);
+          let stale: any;
+          try {
+            stale = JSON.parse(fs.readFileSync(jsonPath, "utf8"));
+          } catch {
+            continue; // not parseable as metadata: not ours to delete
+          }
+          if (!stale || typeof stale !== "object" || String(stale.mediaID) !== mediaId) continue;
+          if (stale.originUrl) {
+            const binaryPath = path.join(assetsRoot, getAssetFilePath(stale.originUrl));
+            if (fs.existsSync(binaryPath)) fs.unlinkSync(binaryPath);
+          }
+          fs.unlinkSync(jsonPath);
+          logger.info(`Removed deleted asset file: ${file}`);
+        }
+      }
+      // Paged metadata dumps (assets/json/N.json) beyond the pages written by this run are stale.
+      const pagesDir = path.join(assetsRoot, "json");
+      if (fs.existsSync(pagesDir)) {
+        for (const file of fs.readdirSync(pagesDir) || []) {
+          const n = Number(file.replace(/\.json$/, ""));
+          if (file.endsWith(".json") && Number.isInteger(n) && n >= index) {
+            fs.unlinkSync(path.join(pagesDir, file));
+          }
+        }
+      }
+    }
+
     // Group assets by downloadable batches
     const downloadableAssets = [];
     const skippableAssets = [];

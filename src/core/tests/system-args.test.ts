@@ -266,3 +266,16 @@ describe("systemArgs.containers", () => {
     expect((systemArgs.containers as any).describe).toContain("--pages");
   });
 });
+
+// ─── PROD-2614: --fullPull ────────────────────────────────────────────────────
+
+describe("systemArgs – fullPull (PROD-2614)", () => {
+  it("exposes fullPull as an opt-in boolean with a full-pull alias, and does not resurrect --reset", () => {
+    const { systemArgs } = require("../system-args");
+    expect(systemArgs).toHaveProperty("fullPull");
+    expect(systemArgs.fullPull.type).toBe("boolean");
+    expect(systemArgs.fullPull.default).toBe(false);
+    expect(systemArgs.fullPull.alias).toContain("full-pull");
+    expect(systemArgs).not.toHaveProperty("reset");
+  });
+});

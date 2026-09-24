@@ -108,6 +108,17 @@ export const systemArgs = {
     default: false,
   },
 
+  // Full content re-pull (PROD-2614). Not called --reset: that name belonged to a removed
+  // "delete the whole instance folder" flag (PROD-2195) and is guarded against coming back.
+  fullPull: {
+    describe:
+      "Discard the stored content sync token for every locale and re-pull all content items and pages from scratch, removing local content/page files that no longer exist on the instance. Use when a local cache is suspected stale (e.g. copied or renamed from another instance). Models, containers, templates, galleries and assets reconcile against the instance on every pull regardless.",
+    demandOption: false,
+    type: "boolean" as const,
+    alias: ["full-pull", "FullPull", "FULLPULL"],
+    default: false,
+  },
+
   // Machine-readable run summary
   jsonSummary: {
     describe:
