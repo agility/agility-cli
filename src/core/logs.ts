@@ -69,7 +69,7 @@ function safeStringify(obj: any, indent?: number): string {
   }
 }
 
-export type OperationType = "pull" | "push" | "sync";
+export type OperationType = "pull" | "push" | "sync" | "reverse-sync";
 
 export type EntityType =
   | "model"
@@ -524,7 +524,7 @@ export class Logs {
       }
 
       // Build filename with GUID
-      if (this.operationType === "push" || this.operationType === "sync") {
+      if (this.operationType === "push" || this.operationType === "sync" || this.operationType === "reverse-sync") {
         const sourceGuid = state.sourceGuid || "unknown";
         const targetGuid = state.targetGuid || "unknown";
         filename = `${sourceGuid}-${targetGuid}-${this.operationType}-${timestamp}.txt`;

@@ -303,6 +303,38 @@ agility-files/
 > - **Do not run multiple CLI processes against the same source→target pair at the same time** - each invocation handles exactly one source/target pair; running two overlapping processes against that same pair can still cause mapping conflicts and duplicate content
 > - **Back up your `agility-files/mappings/` directory** before performing destructive operations
 
+### Reverse Sync
+
+Push changes made in the **target** instance back to the **source** instance, reusing the mapping files from the original sync.
+
+```bash
+agility reverse-sync --sourceGuid <original-source> --targetGuid <original-target> [options]
+```
+
+Pass the **same** `--sourceGuid` / `--targetGuid` you used for the forward `sync`. The CLI swaps the direction internally: it reads from the original target and writes into the original source. All other sync options (`--locales`, `--models`, `--preflight`, `--autoPublish`, ...) work the same way.
+
+#### How it reuses mappings
+
+- Mapping files stay in `agility-files/mappings/{sourceGuid}-{targetGuid}/` in their original orientation. No `{targetGuid}-{sourceGuid}` directory is created.
+- Items that were synced forward are matched through the existing mapping records, so they are **updated** in the source rather than duplicated.
+- Items that exist only in the target (created there after the forward sync) are created in the source, and a new mapping record is appended to the original file. A later forward `sync` picks that record up and treats the pair as already synced.
+- Because reverse-sync writes to the original source instance, the CLI snapshots the mapping pair to `agility-files/mappings-backups/{sourceGuid}-{targetGuid}/{timestamp}/` before the first write of each run (skipped in `--preflight`).
+
+#### Semantics to be aware of
+
+- Sync never deletes. Items that exist only in the source are left alone.
+- Do not run a forward `sync` and a `reverse-sync` against the same pair at the same time. Both rewrite the same mapping files and will clobber each other.
+- Run `reverse-sync --preflight` first, review the report, then run for real.
+
+```bash
+# Forward sync A → B
+agility sync --sourceGuid A --targetGuid B --locales en-us
+
+# Later: pull B's edits back into A, reusing mappings/A-B
+agility reverse-sync --sourceGuid A --targetGuid B --locales en-us --preflight
+agility reverse-sync --sourceGuid A --targetGuid B --locales en-us
+```
+
 ## File Structure
 
 The CLI organizes downloaded content in a structured format:

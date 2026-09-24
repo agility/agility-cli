@@ -85,6 +85,14 @@ export interface State {
   isPull: boolean;
   isSync: boolean;
 
+  // Reverse sync (PROD-2526): push the original target back to the original source while
+  // reusing the forward sync's mapping files. When enabled, sourceGuid/targetGuid are the
+  // SWAPPED pair the pipeline runs against, and mappingPair is the ORIGINAL pair that names
+  // the on-disk mapping directory. fileOperations transposes source*/target* fields on
+  // read/write so the files stay in their original orientation.
+  reverseSync: boolean;
+  mappingPair?: { sourceGuid: string; targetGuid: string };
+
   // Failed content registry - tracks content items that failed during sync
   // Used by page pusher to provide better error messages when content mappings are missing
   failedContentRegistry: Map<number, { referenceName: string; error: string; locale: string }>;
@@ -147,6 +155,8 @@ export const state: State = {
   isPush: false,
   isPull: false,
   isSync: false,
+  reverseSync: false,
+  mappingPair: undefined,
 
   // Failed content registry - tracks content items that failed during sync
   failedContentRegistry: new Map(),
@@ -425,6 +435,38 @@ export function resetState() {
   state.token = null;
   state.localServer = "";
   state.isAgilityDev = false;
+
+  // Reverse sync
+  state.reverseSync = false;
+  state.mappingPair = undefined;
+}
+
+/**
+ * Enable reverse sync (PROD-2526).
+ *
+ * Call AFTER setState() has populated sourceGuid/targetGuid from the ORIGINAL (forward) pair,
+ * and BEFORE auth runs, because auth pins the Management API base URL to state.targetGuid.
+ *
+ * Records the original pair as `mappingPair` (so mapping files keep their
+ * `mappings/{origSource}-{origTarget}` directory and orientation) and swaps
+ * sourceGuid/targetGuid so the unchanged push pipeline pushes original target → original source.
+ */
+export function enableReverseSync(): void {
+  if (!state.sourceGuid || !state.targetGuid) {
+    throw new Error("reverse-sync requires both --sourceGuid and --targetGuid (the original sync pair)");
+  }
+  if (state.sourceGuid === state.targetGuid) {
+    throw new Error("reverse-sync requires two different instances (sourceGuid equals targetGuid)");
+  }
+
+  state.mappingPair = { sourceGuid: state.sourceGuid, targetGuid: state.targetGuid };
+
+  const originalSource = state.sourceGuid;
+  state.sourceGuid = state.targetGuid;
+  state.targetGuid = originalSource;
+
+  state.reverseSync = true;
+  state.isSync = true;
 }
 
 /**
