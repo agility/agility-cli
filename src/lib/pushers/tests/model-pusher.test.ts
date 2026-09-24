@@ -681,3 +681,250 @@ describe("pushModels — create failure surfaces the server error (PROD-2315)", 
     expect(result.failureDetails![0].error).toMatch(/A content model with the reference name 'Foo' already exists\./);
   });
 });
+
+// ─── PROD-2603: mapping points at a target model that no longer exists ─────────
+
+describe("pushModels — stale mapping to a deleted target model (PROD-2603)", () => {
+  async function seedStaleMapping() {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    const seeder = new ModelMapper(state.sourceGuid, state.targetGuid);
+    seeder.addMapping(
+      { id: 37, referenceName: "checkYourTicket", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any,
+      { id: 133, referenceName: "checkYourTicket", lastModifiedDate: new Date(2025, 0, 1).toISOString() } as any
+    );
+    return makeModel({
+      id: 37,
+      referenceName: "checkYourTicket",
+      lastModifiedDate: new Date(2025, 6, 1).toISOString(),
+      fields: [{ name: "a" }],
+    });
+  }
+
+  it("skips with a conflict-style warning and does not call saveModel when overwrite is off", async () => {
+    const sourceModel = await seedStaleMapping();
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 999 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    // target data does not contain model 133 any more
+    const result = await pushModels([sourceModel], []);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(result.successful).toBe(0);
+    expect(result.failed).toBe(0);
+  });
+
+  it("reports it as a conflict under --preflight", async () => {
+    const sourceModel = await seedStaleMapping();
+    setState({ preflight: true });
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    preflightReport.reset();
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    await pushModels([sourceModel], []);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(preflightReport.hasConflicts()).toBe(true);
+    const entry = preflightReport.getEntries().find((e) => e.name === "checkYourTicket");
+    expect(entry?.action).toBe("conflict");
+    expect(entry?.detail).toMatch(/no longer exists on the target/);
+  });
+
+  it("recreates the model and repoints the mapping when overwrite is on", async () => {
+    const sourceModel = await seedStaleMapping();
+    setState({ overwrite: true });
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 500, referenceName: "checkYourTicket" }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    const result = await pushModels([sourceModel], []);
+
+    // first call is the stub create (id: 0), not an update against the dead ID 133
+    expect(saveModel).toHaveBeenCalled();
+    expect(saveModel.mock.calls[0][0].id).toBe(0);
+    expect(saveModel.mock.calls.some((c) => c[0].id === 133)).toBe(false);
+    expect(result.successful).toBe(1);
+    expect(result.failed).toBe(0);
+
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    const mapper = new ModelMapper(state.sourceGuid, state.targetGuid);
+    const record = mapper.getModelMappingByID(37, "source")!;
+    expect(record.targetID).toBe(500);
+    expect(mapper.getModelMappingByID(133, "target")).toBeNull();
+  });
+});
+
+// ─── PROD-2604: source-change detection and structural guard ──────────────────
+
+describe("modelStructureMatches (PROD-2604)", () => {
+  function field(overrides: Record<string, any> = {}): any {
+    return {
+      name: "Title",
+      label: "Title",
+      type: "Text",
+      labelHelpDescription: "",
+      itemOrder: 0,
+      designerOnly: false,
+      isDataField: true,
+      editable: true,
+      hiddenField: false,
+      fieldID: "aaaa-1111",
+      description: "",
+      settings: { Required: "True", Length: "100", Unique: "False" },
+      ...overrides,
+    };
+  }
+
+  it("ignores per-instance ids, fieldIDs and dates", async () => {
+    const { modelStructureMatches } = await import("../model-pusher");
+    const src = makeModel({ id: 151, referenceName: "SocialLinks", lastModifiedDate: "2026-09-22T16:45:25.413", fields: [field()] });
+    const tgt = makeModel({ id: 56, referenceName: "SocialLinks", displayName: src.displayName, lastModifiedDate: "2026-06-17T09:49:47.407", fields: [field({ fieldID: "bbbb-2222" })] });
+    expect(modelStructureMatches(src, tgt)).toBe(true);
+  });
+
+  it("treats null, undefined and empty-string descriptions as equal", async () => {
+    const { modelStructureMatches } = await import("../model-pusher");
+    const src = makeModel({ referenceName: "M", description: null, fields: [field({ description: undefined })] });
+    const tgt = makeModel({ referenceName: "M", displayName: src.displayName, description: "", fields: [field({ description: "" })] });
+    expect(modelStructureMatches(src, tgt)).toBe(true);
+  });
+
+  it("detects a changed field label, a changed setting, a changed field count and a renamed model", async () => {
+    const { modelStructureMatches } = await import("../model-pusher");
+    const base = () => makeModel({ referenceName: "M", displayName: "M", fields: [field()] });
+    expect(modelStructureMatches(base(), { ...base(), fields: [field({ label: "Headline" })] })).toBe(false);
+    expect(modelStructureMatches(base(), { ...base(), fields: [field({ settings: { Required: "False", Length: "100", Unique: "False" } })] })).toBe(false);
+    expect(modelStructureMatches(base(), { ...base(), fields: [field(), field({ name: "Extra" })] })).toBe(false);
+    expect(modelStructureMatches(base(), { ...base(), referenceName: "Renamed" })).toBe(false);
+  });
+
+  it("ignores the per-instance PhotoGalleryID setting", async () => {
+    const { modelStructureMatches } = await import("../model-pusher");
+    const src = makeModel({ referenceName: "G", displayName: "G", fields: [field({ type: "PhotoGallery", settings: { PhotoGalleryID: "12" } })] });
+    const tgt = makeModel({ referenceName: "G", displayName: "G", fields: [field({ type: "PhotoGallery", settings: { PhotoGalleryID: "99" } })] });
+    expect(modelStructureMatches(src, tgt)).toBe(true);
+  });
+});
+
+describe("pushModels — alternating-direction ping-pong (PROD-2604)", () => {
+  const JAN = new Date(2025, 0, 1).toISOString();
+  const JUN = new Date(2025, 5, 1).toISOString();
+  const SEP = new Date(2025, 8, 1).toISOString();
+
+  function fields(label = "Title") {
+    return [{ name: "Title", label, type: "Text", itemOrder: 0, settings: { Required: "True" } }];
+  }
+
+  async function seed(sourceDate: string, targetDate: string) {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    new ModelMapper(state.sourceGuid, state.targetGuid).addMapping(
+      { id: 1, referenceName: "Article", lastModifiedDate: sourceDate } as any,
+      { id: 10, referenceName: "Article", lastModifiedDate: targetDate } as any
+    );
+  }
+
+  it("skips an unchanged source model even though the target was stamped newer by the previous sync", async () => {
+    // After a forward sync the written side carries the newer date, and the mapping recorded both
+    // dates as they stand. Seen from the other direction (mapping transposed) the source is the
+    // newer side: the old code read "source newer than target" as a change and rewrote every model.
+    await seed(JUN, JAN);
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    const source = makeModel({ id: 1, referenceName: "Article", displayName: "Article", lastModifiedDate: JUN, fields: fields() });
+    const target = makeModel({ id: 10, referenceName: "Article", displayName: "Article", lastModifiedDate: JAN, fields: fields("Headline") });
+    // structure deliberately differs so only the date logic decides
+    const result = await pushModels([source], [target]);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(result.successful).toBe(0);
+  });
+
+  it("still updates when the source really changed since the mapping was written", async () => {
+    await seed(JAN, JAN);
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 10, referenceName: "Article", lastModifiedDate: SEP }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    const source = makeModel({ id: 1, referenceName: "Article", displayName: "Article", lastModifiedDate: JUN, fields: fields("Headline") });
+    const target = makeModel({ id: 10, referenceName: "Article", displayName: "Article", lastModifiedDate: JAN, fields: fields() });
+    const result = await pushModels([source], [target]);
+
+    expect(saveModel).toHaveBeenCalledTimes(1);
+    expect(saveModel.mock.calls[0][0].id).toBe(10);
+    expect(result.successful).toBe(1);
+  });
+
+  it("falls back to the old source-vs-target comparison for a mapping record without sourceLastModifiedDate", async () => {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    const mapper = new ModelMapper(state.sourceGuid, state.targetGuid);
+    mapper.addMapping(
+      { id: 1, referenceName: "Article", lastModifiedDate: JAN } as any,
+      { id: 10, referenceName: "Article", lastModifiedDate: JAN } as any
+    );
+    // simulate a record written by an older CLI: no source date column
+    const record = mapper.getModelMappingByID(1, "source")!;
+    delete (record as any).sourceLastModifiedDate;
+    mapper.saveMapping();
+
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 10, referenceName: "Article", lastModifiedDate: SEP }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    const source = makeModel({ id: 1, referenceName: "Article", displayName: "Article", lastModifiedDate: JUN, fields: fields("Headline") });
+    const target = makeModel({ id: 10, referenceName: "Article", displayName: "Article", lastModifiedDate: JAN, fields: fields() });
+    const result = await pushModels([source], [target]);
+
+    expect(saveModel).toHaveBeenCalledTimes(1);
+    expect(result.successful).toBe(1);
+  });
+
+  it("skips a structurally identical model whatever the dates say, and refreshes the mapping dates", async () => {
+    // dates say: source newer than recorded AND target newer than recorded -> used to be a conflict
+    await seed(JAN, JAN);
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    const source = makeModel({ id: 1, referenceName: "Article", displayName: "Article", lastModifiedDate: JUN, fields: fields() });
+    const target = makeModel({ id: 10, referenceName: "Article", displayName: "Article", lastModifiedDate: SEP, fields: fields() });
+    const result = await pushModels([source], [target]);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(result.failed).toBe(0);
+
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    const record = new ModelMapper(state.sourceGuid, state.targetGuid).getModelMappingByID(1, "source")!;
+    expect(record.sourceLastModifiedDate).toBe(JUN);
+    expect(record.targetLastModifiedDate).toBe(SEP);
+  });
+
+  it("reports the identical-structure case as a skip (not a conflict) under --preflight and writes nothing", async () => {
+    await seed(JAN, JAN);
+    setState({ preflight: true });
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    preflightReport.reset();
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    const source = makeModel({ id: 1, referenceName: "Article", displayName: "Article", lastModifiedDate: JUN, fields: fields() });
+    const target = makeModel({ id: 10, referenceName: "Article", displayName: "Article", lastModifiedDate: SEP, fields: fields() });
+    await pushModels([source], [target]);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    const entry = preflightReport.getEntries().find((e) => e.name === "Article");
+    expect(entry?.action).toBe("skip");
+    expect(preflightReport.hasConflicts()).toBe(false);
+    // mapping dates untouched in preflight
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    const record = new ModelMapper(state.sourceGuid, state.targetGuid).getModelMappingByID(1, "source")!;
+    expect(record.sourceLastModifiedDate).toBe(JAN);
+  });
+});

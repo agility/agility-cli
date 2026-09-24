@@ -56,8 +56,13 @@ export async function filterContentItemsForProcessing({
       const { content, shouldUpdate, shouldCreate, shouldSkip, isConflict, reason } = findResult;
       if (isConflict) {
         // CONFLICT DETECTED - log warning and skip
+        // PROD-2603: a mapped target item that no longer exists is also reported as a conflict, so
+        // pick the headline from the reason rather than hard-coding "changes detected in both".
+        const headline = /no longer exists/i.test(reason || "")
+          ? "mapped target item no longer exists"
+          : "changes detected in both source and target";
         console.warn(
-          `⚠️  Conflict detected content ${ansiColors.underline(itemName)} ${ansiColors.bold.grey("changes detected in both source and target")}. Please resolve manually.`
+          `⚠️  Conflict detected content ${ansiColors.underline(itemName)} ${ansiColors.bold.grey(headline)}. Please resolve manually.`
         );
         if (reason) {
           console.warn(`   ${reason}`);

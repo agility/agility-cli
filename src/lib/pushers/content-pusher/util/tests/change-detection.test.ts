@@ -228,3 +228,42 @@ describe("changeDetection — referenceName fallback", () => {
     expect(() => changeDetection(source, target, mapping, "en-us")).not.toThrow();
   });
 });
+
+// ─── PROD-2603: mapping exists but the target item is missing ─────────────────
+
+describe("changeDetection — mapped target item missing (PROD-2603)", () => {
+  it("skips when the source is unchanged (nothing to push; respects the target-side removal)", () => {
+    const source = makeContent(1, 5);
+    const result = changeDetection(source, null, makeMapping({ sourceVersionID: 5, targetVersionID: 5 }), "en-us");
+    expect(result.shouldSkip).toBe(true);
+    expect(result.shouldCreate).toBe(false);
+    expect(result.shouldUpdate).toBe(false);
+    expect(result.isConflict).toBe(false);
+    expect(result.reason).toMatch(/no longer exists/i);
+  });
+
+  it("flags a conflict (not a create) when the source changed and overwrite is off", () => {
+    setState({ overwrite: false, sourceGuid: "src-guid", targetGuid: "tgt-guid" });
+    const source = makeContent(1, 9);
+    const result = changeDetection(source, null, makeMapping({ sourceVersionID: 5, targetVersionID: 5 }), "en-us");
+    expect(result.isConflict).toBe(true);
+    expect(result.shouldCreate).toBe(false);
+    expect(result.shouldUpdate).toBe(false);
+    expect(result.shouldSkip).toBe(false);
+    expect(result.entity).toBeNull();
+    expect(result.reason).toMatch(/contentID 100/);
+    expect(result.reason).toMatch(/--overwrite/);
+    expect(result.reason).toContain("listitem-1");
+  });
+
+  it("returns shouldUpdate with a null entity when the source changed and overwrite is on (recreate path)", () => {
+    setState({ overwrite: true, sourceGuid: "src-guid", targetGuid: "tgt-guid" });
+    const source = makeContent(1, 9);
+    const result = changeDetection(source, null, makeMapping({ sourceVersionID: 5, targetVersionID: 5 }), "en-us");
+    expect(result.shouldUpdate).toBe(true);
+    expect(result.isConflict).toBe(false);
+    expect(result.shouldCreate).toBe(false);
+    expect(result.entity).toBeNull();
+    expect(result.reason).toMatch(/recreated/i);
+  });
+});

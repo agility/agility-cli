@@ -537,3 +537,313 @@ describe("Pushers.executePushOperation — phase record", () => {
     expect(result.phase.locale).toBeUndefined();
   });
 });
+
+// ─── selective page sync (PROD-2546) ───────────────────────────────────────
+
+describe("Pushers.instanceOrchestrator — --pages scope", () => {
+  function makeEntities(): any {
+    return {
+      pages: [{ pageID: 10 }],
+      templates: [{ pageTemplateID: 1, pageTemplateName: "T" }],
+      containers: [{ contentViewID: 1 }],
+      lists: [],
+      models: [{ id: 1, referenceName: "ModelA" }],
+      content: [{ contentID: 1 }],
+      assets: [{ mediaID: 1 }],
+      galleries: [{ galleryID: 1 }],
+      urlRedirections: [],
+    };
+  }
+
+  async function stubAllHandlers(): Promise<void> {
+    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    for (const key of Object.keys(PUSH_OPERATIONS)) {
+      jest
+        .spyOn(PUSH_OPERATIONS[key], "handler")
+        .mockResolvedValue({ status: "success", successful: 0, failed: 0, skipped: 0 } as any);
+    }
+  }
+
+  async function stubDataLoader(): Promise<jest.SpyInstance> {
+    const { GuidDataLoader } = await import("../guid-data-loader");
+    return jest.spyOn(GuidDataLoader.prototype, "loadGuidEntities").mockResolvedValue(makeEntities());
+  }
+
+  /** A sitemap with one root-level page (no ancestors, so no mapping is required). */
+  async function stubSitemaps(): Promise<void> {
+    const { SitemapHierarchy } = await import("../page-pusher/sitemap-hierarchy");
+    jest.spyOn(SitemapHierarchy.prototype, "loadAllSitemaps").mockReturnValue({
+      website: [
+        {
+          title: "My Lottery",
+          name: "my-lottery",
+          pageID: 10,
+          menuText: "My Lottery",
+          visible: { menu: true, sitemap: true },
+          path: "/my-lottery",
+          redirect: null,
+          isFolder: false,
+        },
+      ],
+    } as any);
+  }
+
+  it("rejects --pages combined with --models", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us", pages: "/my-lottery", models: "ModelA" });
+    await stubDataLoader();
+    await stubAllHandlers();
+    await stubSitemaps();
+
+    const results = await new Pushers().instanceOrchestrator();
+
+    expect(results[0].failed[0].error).toMatch(/cannot be combined with --models/);
+  });
+
+  it("rejects --pages combined with --models-with-deps", async () => {
+    setState({
+      sourceGuid: "src-u",
+      targetGuid: "tgt-u",
+      locales: "en-us",
+      pages: "/my-lottery",
+      modelsWithDeps: "ModelA",
+    });
+    await stubDataLoader();
+    await stubAllHandlers();
+    await stubSitemaps();
+
+    const results = await new Pushers().instanceOrchestrator();
+
+    expect(results[0].failed[0].error).toMatch(/cannot be combined with --models/);
+  });
+
+  it("aborts before any pusher runs when a selector matches no page", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us", pages: "/typo" });
+    await stubDataLoader();
+    await stubAllHandlers();
+    await stubSitemaps();
+
+    const started: string[] = [];
+    const results = await new Pushers({ onOperationStart: (name) => started.push(name) }).instanceOrchestrator();
+
+    expect(results[0].failed[0].error).toMatch(/No page matched/);
+    expect(started).toEqual([]);
+  });
+
+  it("hands the resolved scope to the source data loader, but not the target one", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us", pages: "/my-lottery" });
+    const loadSpy = await stubDataLoader();
+    await stubAllHandlers();
+    await stubSitemaps();
+
+    await new Pushers().instanceOrchestrator();
+
+    const withScope = loadSpy.mock.calls.filter((call) => (call[1] as any)?.pageScope);
+    const withoutScope = loadSpy.mock.calls.filter((call) => !(call[1] as any)?.pageScope);
+    expect(withScope.length).toBeGreaterThan(0);
+    expect(withoutScope.length).toBeGreaterThan(0);
+    expect((withScope[0][1] as any).pageScope.allPageIDs.has(10)).toBe(true);
+  });
+
+  it("publishes the resolved scope on state so the page pusher can narrow its sitemap walk", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us", pages: "/my-lottery" });
+    await stubDataLoader();
+    await stubAllHandlers();
+    await stubSitemaps();
+
+    await new Pushers().instanceOrchestrator();
+
+    expect(Array.from(state.pageScope!.byLocale.get("en-us")!.pageIDs)).toEqual([10]);
+  });
+
+  it("prints the page tree before any pusher runs", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us", pages: "/my-lottery" });
+    await stubDataLoader();
+    await stubAllHandlers();
+    await stubSitemaps();
+
+    const logSpy = jest.spyOn(console, "log");
+    let printedBeforeFirstPush: string | null = null;
+    await new Pushers({
+      onOperationStart: () => {
+        if (printedBeforeFirstPush === null) {
+          printedBeforeFirstPush = logSpy.mock.calls.map((c) => String(c[0])).join(" | ");
+        }
+      },
+    }).instanceOrchestrator();
+
+    expect(printedBeforeFirstPush).toContain("PAGE SCOPE");
+    expect(printedBeforeFirstPush).toContain("/my-lottery");
+  });
+
+  it("leaves the loader unfiltered when --pages is not set", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us" });
+    const loadSpy = await stubDataLoader();
+    await stubAllHandlers();
+
+    await new Pushers().instanceOrchestrator();
+
+    expect(loadSpy.mock.calls.every((call) => call[1] === undefined)).toBe(true);
+    expect(state.pageScope).toBeUndefined();
+  });
+});
+
+// ─── selective container sync (PROD-2547) ──────────────────────────────────
+
+describe("Pushers.instanceOrchestrator — --containers scope", () => {
+  const CONTAINERS = [
+    { contentViewID: 200, contentDefinitionID: 10, referenceName: "AONHomeLinks", title: "AON Home Links" },
+    {
+      contentViewID: 201,
+      contentDefinitionID: 10,
+      referenceName: "MegaMillionsHomeLinks",
+      title: "Mega Millions Home Links",
+    },
+  ];
+
+  function makeEntities(): any {
+    return {
+      pages: [],
+      templates: [],
+      containers: CONTAINERS,
+      lists: [],
+      models: [{ id: 10, referenceName: "HomeLinks" }],
+      content: [{ contentID: 1, properties: { definitionName: "HomeLinks", referenceName: "AONHomeLinks" } }],
+      assets: [],
+      galleries: [],
+      urlRedirections: [],
+    };
+  }
+
+  async function stubAllHandlers(): Promise<void> {
+    const { PUSH_OPERATIONS } = await import("../push-operations-config");
+    for (const key of Object.keys(PUSH_OPERATIONS)) {
+      jest
+        .spyOn(PUSH_OPERATIONS[key], "handler")
+        .mockResolvedValue({ status: "success", successful: 0, failed: 0, skipped: 0 } as any);
+    }
+  }
+
+  async function stubDataLoader(): Promise<jest.SpyInstance> {
+    const { GuidDataLoader } = await import("../guid-data-loader");
+    // The scope resolver builds its trees from the unfiltered load, so both entry points are stubbed.
+    jest.spyOn(GuidDataLoader.prototype, "loadCompleteGuidEntities").mockResolvedValue(makeEntities());
+    return jest.spyOn(GuidDataLoader.prototype, "loadGuidEntities").mockResolvedValue(makeEntities());
+  }
+
+  it("rejects --containers combined with --models", async () => {
+    setState({
+      sourceGuid: "src-u",
+      targetGuid: "tgt-u",
+      locales: "en-us",
+      containers: "AONHomeLinks",
+      models: "HomeLinks",
+    });
+    await stubDataLoader();
+    await stubAllHandlers();
+
+    const results = await new Pushers().instanceOrchestrator();
+
+    expect(results[0].failed[0].error).toMatch(/cannot be combined with --models/);
+  });
+
+  it("rejects --containers combined with --models-with-deps", async () => {
+    setState({
+      sourceGuid: "src-u",
+      targetGuid: "tgt-u",
+      locales: "en-us",
+      containers: "AONHomeLinks",
+      modelsWithDeps: "HomeLinks",
+    });
+    await stubDataLoader();
+    await stubAllHandlers();
+
+    const results = await new Pushers().instanceOrchestrator();
+
+    expect(results[0].failed[0].error).toMatch(/cannot be combined with --models/);
+  });
+
+  it("rejects --containers combined with --pages", async () => {
+    setState({
+      sourceGuid: "src-u",
+      targetGuid: "tgt-u",
+      locales: "en-us",
+      containers: "AONHomeLinks",
+      pages: "/my-lottery",
+    });
+    await stubDataLoader();
+    await stubAllHandlers();
+
+    const results = await new Pushers().instanceOrchestrator();
+
+    expect(results[0].failed[0].error).toMatch(/cannot be combined with --containers/);
+  });
+
+  it("aborts before any pusher runs when a selector matches no container", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us", containers: "NoSuchContainer" });
+    await stubDataLoader();
+    await stubAllHandlers();
+
+    const started: string[] = [];
+    const results = await new Pushers({
+      onOperationStart: (name: string) => started.push(name),
+    }).instanceOrchestrator();
+
+    expect(results[0].failed[0].error).toMatch(/Container validation failed/);
+    expect(started).toEqual([]);
+  });
+
+  it("hands the resolved scope to the source data loader, but not the target one", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us", containers: "AONHomeLinks" });
+    const loadSpy = await stubDataLoader();
+    await stubAllHandlers();
+
+    await new Pushers().instanceOrchestrator();
+
+    const withScope = loadSpy.mock.calls.filter((call) => (call[1] as any)?.containerScope);
+    const withoutScope = loadSpy.mock.calls.filter((call) => !(call[1] as any)?.containerScope);
+    expect(withScope.length).toBeGreaterThan(0);
+    expect(withoutScope.length).toBeGreaterThan(0);
+    expect((withScope[0][1] as any).containerScope.allContainerIDs.has(200)).toBe(true);
+  });
+
+  it("resolves the named container and reports the sibling it leaves behind", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us", containers: "AONHomeLinks" });
+    const loadSpy = await stubDataLoader();
+    await stubAllHandlers();
+
+    await new Pushers().instanceOrchestrator();
+
+    const scope = loadSpy.mock.calls.find((call) => (call[1] as any)?.containerScope)?.[1] as any;
+    expect(scope.containerScope.matches.map((m: any) => m.contentViewID)).toEqual([200]);
+    expect(scope.containerScope.siblings.map((s: any) => s.contentViewID)).toEqual([201]);
+  });
+
+  it("prints the container scope before any pusher runs", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us", containers: "AONHomeLinks" });
+    await stubDataLoader();
+    await stubAllHandlers();
+
+    const logSpy = jest.spyOn(console, "log");
+    let printedBeforeFirstPush: string | null = null;
+    await new Pushers({
+      onOperationStart: () => {
+        if (printedBeforeFirstPush === null) {
+          printedBeforeFirstPush = logSpy.mock.calls.map((c) => String(c[0])).join(" | ");
+        }
+      },
+    }).instanceOrchestrator();
+
+    expect(printedBeforeFirstPush).toContain("CONTAINER SCOPE");
+    expect(printedBeforeFirstPush).toContain("AON Home Links");
+  });
+
+  it("leaves the loader unfiltered when --containers is not set", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us" });
+    const loadSpy = await stubDataLoader();
+    await stubAllHandlers();
+
+    await new Pushers().instanceOrchestrator();
+
+    expect(loadSpy.mock.calls.every((call) => call[1] === undefined)).toBe(true);
+  });
+});

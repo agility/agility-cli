@@ -95,6 +95,8 @@ agility sync [options]
 | `--elements`         | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps,UrlRedirections` | Comma-separated list of elements to process                                                                                                                          |
 | `--models`           | string | _(empty)_                                                            | Comma-separated list of model reference names to sync (only syncs the specified models)                                                                              |
 | `--models-with-deps` | string | _(empty)_                                                            | Comma-separated list of model reference names to sync with their full dependency tree — includes dependent content, pages, templates, assets, galleries, and containers |
+| `--pages`            | string | _(empty)_                                                            | Comma-separated list of page paths, page names, or page IDs to sync. Each selected page brings its child pages and the templates, content, models, containers, assets and galleries they need — nothing else is synced. See [Selective Page Sync](#selective-page-sync). |
+| `--containers`       | string | _(empty)_                                                            | Comma-separated list of container reference names, titles, or container IDs to sync. Syncs just those containers and what their content depends on — other containers on the same model are left alone. See [Selective Container Sync](#selective-container-sync). |
 | `--contentIDs`       | string | _(empty)_                                                            | Comma-separated list of target content IDs to process directly, bypassing the mappings lookup (e.g. `--contentIDs=121,1221`)                                          |
 | `--pageIDs`          | string | _(empty)_                                                            | Comma-separated list of target page IDs to process directly, bypassing the mappings lookup (e.g. `--pageIDs=12,45`)                                                   |
 
@@ -102,7 +104,7 @@ agility sync [options]
 
 | Option          | Type    | Default      | Description                                                                                                                                                                                                                                           |
 | --------------- | ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `--overwrite`   | boolean | `false`      | Conflict-scoped override. By default, when a target item has its own changes that conflict with the source, the CLI skips it to avoid data loss. With `--overwrite`, those conflicting target items are overwritten with the source version. Non-conflicting updates are applied either way. |
+| `--overwrite`   | boolean | `false`      | Conflict-scoped override. By default, when a target item has its own changes that conflict with the source, the CLI skips it to avoid data loss. With `--overwrite`, those conflicting target items are overwritten with the source version. Non-conflicting updates are applied either way. Also covers a mapped target item that no longer exists (deleted or unpublished on the target): by default that is reported as a conflict and skipped, with `--overwrite` the item is recreated and the mapping repointed. |
 | `--autoPublish` | string  | _(disabled)_ | Automatically publish synced items that were published in the source instance. Values: `content`, `pages`, `both`. If flag is provided without a value, defaults to `both`. Items that are only in staging (not published) in the source are skipped. |
 | `--preflight`   | boolean | `false`      | Dry-run preview. Runs the full source-pull, target-pull, dependency analysis and change detection, then reports the creates/updates/skips/conflicts a real sync would produce — **without writing anything** to the target instance or mapping files. Exits non-zero when conflicts are detected, so CI can gate a real sync on a clean preflight. |
 
@@ -143,6 +145,12 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,Blog
 
 # Sync models with their full dependency tree (content, pages, templates, assets, galleries, containers)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="BlogPost,BlogCategory"
+
+# Sync one page structure and its child pages, and nothing else
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery"
+
+# Sync one container, leaving the other containers on the same model alone
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks"
 
 # Sync and auto-publish everything that was published in source
 agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish
@@ -243,6 +251,179 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="Pro
 - **Targeted Updates**: Perfect for content-specific deployments
 - **Flexible Control**: Choose between models-only or models with dependencies
 
+---
+
+### Selective Page Sync
+
+`--pages` narrows a sync to one or more page structures. Use it when you want to promote the
+pages belonging to a single feature up through your environments, instead of running a full
+sync and resolving conflicts on every unrelated page that has drifted.
+
+```bash
+# Sync the /my-lottery page and every page underneath it
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery"
+
+# Several page structures at once
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery,/promotions"
+```
+
+#### Naming a page
+
+Each selector is matched, case-insensitively, against:
+
+- the page path — `/my-lottery` (a leading slash is optional, a trailing slash is ignored),
+- the page name — `my-lottery`, or
+- the page ID — `1042`.
+
+Selectors are matched across every channel in the source instance.
+
+> **Git Bash on Windows:** the shell rewrites a leading-slash argument into a Windows path, so
+> `--pages=/my-lottery` arrives as `C:/Program Files/Git/my-lottery`. Drop the leading slash
+> (`--pages="my-lottery"`), double it (`--pages="//my-lottery"`), or set `MSYS_NO_PATHCONV=1`.
+> PowerShell and cmd are unaffected. The CLI detects this and says so rather than syncing the
+> wrong thing.
+
+#### What gets synced
+
+- **The pages you named, plus all of their child pages,** to any depth.
+- **Everything those pages need to render on the target:** the page templates they use, the
+  content their Components reference (followed through linked-content fields, including whole
+  lists), the models and containers behind that content, and the assets and galleries it
+  points at.
+
+Nothing else is touched. URL redirections, unrelated models and every page outside the
+selected structures are left alone on the target.
+
+#### What does NOT get synced: parent pages
+
+A selected page's **parents are not synced**. They are only used to work out where the
+selected pages belong in the target sitemap, which means they must already exist there.
+
+If a parent has never been synced to the target, the run stops before writing anything:
+
+```
+❌ Parent pages of the selected pages have never been synced to the target:
+  • [en-us] /products (pageID 3)
+💡 Add them to --pages to sync them too, or run a sync that covers them first.
+```
+
+Either add the parent to `--pages`, or run a sync that covers it first.
+
+#### Seeing the scope before anything is written
+
+Every `--pages` run prints the resolved page tree before the first write, so you can confirm
+the scope is what you expected:
+
+```
+🎯 PAGE SCOPE — only these pages and their dependencies will be synced
+
+en-us
+  website
+    · /products (parent — left unchanged)
+      → /products/my-lottery (pageID 10)
+        + /products/my-lottery/rules (pageID 11)
+        + /products/my-lottery/winners (pageID 12)
+```
+
+`→` is a page you named, `+` a child page that comes with it, and `·` a parent shown only for
+context. Combine with `--preflight` to see the creates, updates and conflicts that scope
+would produce without writing anything.
+
+```bash
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery" --preflight
+```
+
+#### Notes and limits
+
+- `--pages` cannot be combined with `--models`, `--models-with-deps` or `--containers`; each
+  defines a different sync scope. Run them as separate syncs.
+- A selector that matches no page anywhere stops the run and lists the available page paths.
+- With multiple locales, the scope is resolved per locale. A page that exists in one locale
+  but not another is reported per locale rather than failing the run.
+
+---
+
+### Selective Container Sync
+
+`--containers` narrows a sync to one or more content containers.
+
+Use it when several containers share a content model. Reusing one model across containers is
+the right thing to do — but it means `--models-with-deps` acts on the model and sweeps in
+*every* container built on it. If "AON Home Links" and "Mega Millions Home Links" are both
+built on a Home Links model, syncing the model promotes both. `--containers` promotes the one
+you name.
+
+```bash
+# Sync just this container and what its content depends on
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks"
+
+# Several containers at once
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks,AONPromotions"
+```
+
+#### Naming a container
+
+Each selector is matched, case-insensitively, against:
+
+- the container reference name — `AONHomeLinks`,
+- the container title as it reads in the CMS — `AON Home Links`, or
+- the container ID — `312`.
+
+#### What gets synced
+
+- **The containers you named**, and the content items in them.
+- **Everything that content needs:** the content it links to through linked-content fields
+  (followed transitively, including whole lists), the containers that linked content lives in,
+  the models behind all of it, and the assets and galleries it points at.
+
+Nothing else is touched. Other containers on the same model, every page, every page template
+and every URL redirection are left alone on the target.
+
+A linked container comes in with only the items that were actually linked to, not its whole
+contents — one reference into a large shared container does not drag the rest of it across.
+
+#### Seeing the scope before anything is written
+
+Every `--containers` run prints the resolved scope before the first write:
+
+```
+📦 CONTAINER SCOPE — only these containers and their dependencies will be synced
+
+  → AON Home Links (AONHomeLinks) · model: HomeLinks
+
+  Also synced, because in-scope content links to items in them:
+  + Games (Games) · model: Game
+
+  Content items in scope — en-us: 12
+  Models in scope (2): Game, HomeLinks
+
+  Other containers on these models — left unchanged on the target:
+  · Mega Millions Home Links (MegaMillionsHomeLinks) · model: HomeLinks
+
+  No pages, templates or URL redirections are touched by a container sync.
+```
+
+`→` is a container you named, `+` one that came along because your content links into it, and
+`·` a container on the same model that this run leaves alone — the containers
+`--models-with-deps` would have swept in.
+
+Combine with `--preflight` to see the creates, updates and conflicts that scope would produce
+without writing anything:
+
+```bash
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks" --preflight
+```
+
+#### Notes and limits
+
+- `--containers` cannot be combined with `--models`, `--models-with-deps` or `--pages`; each
+  defines a different sync scope. Run them as separate syncs.
+- A selector that matches no container stops the run and lists the available container names.
+- The model behind a selected container *is* synced — it has to be, or the container cannot be
+  created on the target. What stays behind is the other containers built on that model.
+- With multiple locales, the container selection is the same for all of them; the content in
+  scope is resolved per locale.
+
 ### Sync Token Management
 
 The Agility CLI uses the Content Sync SDK for incremental content synchronization. Understanding how sync tokens work is crucial for managing pull and sync operations effectively.
@@ -302,6 +483,38 @@ agility-files/
 > - **Persist your mappings** through shared file storage or a repository (e.g., Git) when working on a team
 > - **Do not run multiple CLI processes against the same source→target pair at the same time** - each invocation handles exactly one source/target pair; running two overlapping processes against that same pair can still cause mapping conflicts and duplicate content
 > - **Back up your `agility-files/mappings/` directory** before performing destructive operations
+
+### Reverse Sync
+
+Push changes made in the **target** instance back to the **source** instance, reusing the mapping files from the original sync.
+
+```bash
+agility reverse-sync --sourceGuid <original-source> --targetGuid <original-target> [options]
+```
+
+Pass the **same** `--sourceGuid` / `--targetGuid` you used for the forward `sync`. The CLI swaps the direction internally: it reads from the original target and writes into the original source. All other sync options (`--locales`, `--models`, `--preflight`, `--autoPublish`, ...) work the same way.
+
+#### How it reuses mappings
+
+- Mapping files stay in `agility-files/mappings/{sourceGuid}-{targetGuid}/` in their original orientation. No `{targetGuid}-{sourceGuid}` directory is created.
+- Items that were synced forward are matched through the existing mapping records, so they are **updated** in the source rather than duplicated.
+- Items that exist only in the target (created there after the forward sync) are created in the source, and a new mapping record is appended to the original file. A later forward `sync` picks that record up and treats the pair as already synced.
+- Because reverse-sync writes to the original source instance, the CLI snapshots the mapping pair to `agility-files/mappings-backups/{sourceGuid}-{targetGuid}/{timestamp}/` before the first write of each run (skipped in `--preflight`).
+
+#### Semantics to be aware of
+
+- Sync never deletes. Items that exist only in the source are left alone.
+- Do not run a forward `sync` and a `reverse-sync` against the same pair at the same time. Both rewrite the same mapping files and will clobber each other.
+- Run `reverse-sync --preflight` first, review the report, then run for real.
+
+```bash
+# Forward sync A → B
+agility sync --sourceGuid A --targetGuid B --locales en-us
+
+# Later: pull B's edits back into A, reusing mappings/A-B
+agility reverse-sync --sourceGuid A --targetGuid B --locales en-us --preflight
+agility reverse-sync --sourceGuid A --targetGuid B --locales en-us
+```
 
 ## File Structure
 

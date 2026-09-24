@@ -834,3 +834,420 @@ describe("ModelDependencyTreeBuilder — full pipeline integration", () => {
     expect(tree.assets.has("https://cdn.aglty.io/hero.jpg")).toBe(true);
   });
 });
+
+// ─── page-rooted dependency tree (PROD-2546) ──────────────────────────────────
+
+describe("ModelDependencyTreeBuilder — buildDependencyTreeFromPages", () => {
+  function zonesWith(...contentIDs: number[]): any {
+    return {
+      MainContentZone: contentIDs.map((contentid) => ({ module: "Mod", item: { contentid, fulllist: false } })),
+    };
+  }
+
+  it("keeps exactly the pages it was given, without widening to parents", () => {
+    const sourceData = makeSourceData({
+      pages: [makePage(10), makePage(11), makePage(99)],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10, 11]);
+    expect(Array.from(tree.pages).sort((a, b) => a - b)).toEqual([10, 11]);
+  });
+
+  it("includes the template each in-scope page uses", () => {
+    const sourceData = makeSourceData({
+      templates: [makeTemplate(500), makeTemplate(600)],
+      pages: [makePage(10, { pageTemplateID: 500 }), makePage(99, { pageTemplateID: 600 })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.templates.has(500)).toBe(true);
+    expect(tree.templates.has(600)).toBe(false);
+  });
+
+  it("resolves a template referenced by name rather than ID", () => {
+    const sourceData = makeSourceData({
+      templates: [makeTemplate(500, [], "Main Template")],
+      pages: [{ pageID: 10, name: "p", templateName: "Main Template" }],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.templates.has(500)).toBe(true);
+  });
+
+  it("includes the content the in-scope pages reference through their Components", () => {
+    const sourceData = makeSourceData({
+      content: [makeContent(1, "Hero"), makeContent(2, "Hero"), makeContent(3, "Hero")],
+      pages: [makePage(10, { zones: zonesWith(1, 2) }), makePage(99, { zones: zonesWith(3) })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it("follows single-item linked content out from page content", () => {
+    const sourceData = makeSourceData({
+      content: [
+        makeContent(1, "Hero", "ref-1", { related: { contentid: 2, fulllist: false } }),
+        makeContent(2, "Related", "ref-2", { deeper: { contentid: 3, fulllist: false } }),
+        makeContent(3, "Deeper"),
+      ],
+      pages: [makePage(10, { zones: zonesWith(1) })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 2, 3]);
+  });
+
+  it("follows a whole-list linked-content reference to every item in that list", () => {
+    const sourceData = makeSourceData({
+      content: [
+        makeContent(1, "Listing", "ref-1", { posts: { referencename: "Posts", fulllist: true } }),
+        makeContent(50, "Post", "Posts"),
+        makeContent(51, "Post", "Posts"),
+        makeContent(90, "Other", "SomethingElse"),
+      ],
+      pages: [makePage(10, { zones: zonesWith(1) })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 50, 51]);
+  });
+
+  it("terminates on a reference cycle between two content items", () => {
+    const sourceData = makeSourceData({
+      content: [
+        makeContent(1, "A", "ref-1", { other: { contentid: 2, fulllist: false } }),
+        makeContent(2, "B", "ref-2", { other: { contentid: 1, fulllist: false } }),
+      ],
+      pages: [makePage(10, { zones: zonesWith(1) })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it("includes the model behind every content item it pulled in", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(1, "Hero"), makeModel(2, "Related"), makeModel(3, "Unused")],
+      content: [
+        makeContent(1, "Hero", "ref-1", { related: { contentid: 2, fulllist: false } }),
+        makeContent(2, "Related"),
+      ],
+      pages: [makePage(10, { zones: zonesWith(1) })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.models.has("Hero")).toBe(true);
+    expect(tree.models.has("Related")).toBe(true);
+    expect(tree.models.has("Unused")).toBe(false);
+  });
+
+  it("includes a model reachable only through another model's linked-content field", () => {
+    const sourceData = makeSourceData({
+      models: [makeModelWithRefs(1, "Hero", ["HeroLinks"]), makeModelWithRefs(2, "HeroLinks")],
+      content: [makeContent(1, "Hero")],
+      pages: [makePage(10, { zones: zonesWith(1) })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.models.has("HeroLinks")).toBe(true);
+  });
+
+  it("includes the container each in-scope content item lives in", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(1, "Hero")],
+      containers: [makeContainer(100, 1, "HeroContainer"), makeContainer(200, 9, "Unrelated")],
+      content: [makeContent(1, "Hero", "HeroContainer")],
+      pages: [makePage(10, { zones: zonesWith(1) })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.containers.has(100)).toBe(true);
+    expect(tree.containers.has(200)).toBe(false);
+  });
+
+  it("leaves out other containers of an in-scope model that hold nothing in scope", () => {
+    // A model commonly has many containers. Pushing them all would create empty containers on
+    // the target for a sync the user scoped to one page.
+    const sourceData = makeSourceData({
+      models: [makeModel(1, "Hero")],
+      containers: [
+        makeContainer(100, 1, "HeroContainer"),
+        makeContainer(101, 1, "OtherHeroContainer"),
+        makeContainer(102, 1, "YetAnotherHeroContainer"),
+      ],
+      content: [makeContent(1, "Hero", "HeroContainer")],
+      pages: [makePage(10, { zones: zonesWith(1) })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(Array.from(tree.containers).sort((a, b) => a - b)).toEqual([100]);
+  });
+
+  it("includes a container an in-scope template points at through itemContainerID", () => {
+    // The template pusher remaps itemContainerID through the container mappings; an unpushed
+    // container would leave the source ID on the target template.
+    const sourceData = makeSourceData({
+      models: [makeModel(7, "Listing")],
+      containers: [makeContainer(700, 7, "ListingContainer")],
+      templates: [makeTemplate(500, [{ itemContainerID: 700 }])],
+      pages: [makePage(10, { pageTemplateID: 500 })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.containers.has(700)).toBe(true);
+  });
+
+  it("includes a container an in-scope template points at through contentViewID", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(7, "Listing")],
+      containers: [makeContainer(700, 7, "ListingContainer")],
+      templates: [makeTemplate(500, [{ contentViewID: 700 }])],
+      pages: [makePage(10, { pageTemplateID: 500 })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.containers.has(700)).toBe(true);
+  });
+
+  it("includes the model behind a container that only a template pulled in", () => {
+    // The container pusher skips a container whose model has no target mapping.
+    const sourceData = makeSourceData({
+      models: [makeModel(7, "Listing")],
+      containers: [makeContainer(700, 7, "ListingContainer")],
+      templates: [makeTemplate(500, [{ itemContainerID: 700 }])],
+      pages: [makePage(10, { pageTemplateID: 500 })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.models.has("Listing")).toBe(true);
+  });
+
+  it("ignores placeholder container IDs on a template section", () => {
+    const sourceData = makeSourceData({
+      templates: [makeTemplate(500, [{ itemContainerID: -1, contentViewID: 0 }])],
+      pages: [makePage(10, { pageTemplateID: 500 })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.containers.size).toBe(0);
+  });
+
+  it("includes assets referenced by the discovered content", () => {
+    const sourceData = makeSourceData({
+      content: [makeContent(1, "Hero", "ref-1", { image: "https://cdn.aglty.io/hero.jpg" })],
+      pages: [makePage(10, { zones: zonesWith(1) })],
+      assets: [makeAsset("https://cdn.aglty.io/hero.jpg")],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.assets.has("https://cdn.aglty.io/hero.jpg")).toBe(true);
+  });
+
+  it("includes galleries referenced by the discovered content", () => {
+    const sourceData = makeSourceData({
+      content: [makeContent(1, "Hero", "ref-1", { gallery: { mediaGroupingID: 77 } })],
+      pages: [makePage(10, { zones: zonesWith(1) })],
+      galleries: [makeGallery(77)],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.galleries.has(77)).toBe(true);
+  });
+
+  it("returns an empty tree when no pages are in scope", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(1, "Hero")],
+      content: [makeContent(1, "Hero")],
+      pages: [makePage(10, { zones: zonesWith(1) })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([]);
+    expect(tree.pages.size).toBe(0);
+    expect(tree.content.size).toBe(0);
+    expect(tree.models.size).toBe(0);
+  });
+
+  it("never adds ancestor pages, even when the sitemap reports one", () => {
+    MockedSitemapHierarchy.prototype.findPageParentInSourceSitemap = jest.fn().mockReturnValue({
+      parentId: 3,
+      parentName: "products",
+      foundIn: "direct-match",
+    });
+    const sourceData = makeSourceData({ pages: [makePage(3), makePage(10)] });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromPages([10]);
+    expect(tree.pages.has(3)).toBe(false);
+  });
+});
+
+describe("ModelDependencyTreeBuilder — buildDependencyTreeFromContainers", () => {
+  it("keeps exactly the containers it was given", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10), makeContainer(201, 10), makeContainer(202, 11)],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(Array.from(tree.containers)).toEqual([200]);
+  });
+
+  it("leaves a sibling container on the same model out of scope — the whole point of the flag", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(10, "HomeLinks")],
+      containers: [makeContainer(200, 10, "AONHomeLinks"), makeContainer(201, 10, "MegaMillionsHomeLinks")],
+      content: [makeContent(1, "HomeLinks", "AONHomeLinks"), makeContent(2, "HomeLinks", "MegaMillionsHomeLinks")],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.containers.has(201)).toBe(false);
+    expect(Array.from(tree.content)).toEqual([1]);
+    // The shared model still comes along: the container cannot be created on the target without it.
+    expect(tree.models.has("HomeLinks")).toBe(true);
+  });
+
+  it("includes the content living in a selected container", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [makeContent(1, "Post", "Posts"), makeContent(2, "Post", "Posts"), makeContent(3, "Author", "Authors")],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it("matches content to its container case-insensitively", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "news1_RichTextArea")],
+      content: [makeContent(1, "RichTextArea", "news1_richtextarea")],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.content.has(1)).toBe(true);
+  });
+
+  it("follows single-item linked content out of the selected container", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [
+        makeContent(1, "Post", "Posts", { author: { contentid: 2, fulllist: false } }),
+        makeContent(2, "Author", "Authors", { agency: { contentid: 3, fulllist: false } }),
+        makeContent(3, "Agency", "Agencies"),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 2, 3]);
+  });
+
+  it("follows a whole-list linked-content reference to every item in that list", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Listings")],
+      content: [
+        makeContent(1, "Listing", "Listings", { posts: { referencename: "Posts", fulllist: true } }),
+        makeContent(50, "Post", "Posts"),
+        makeContent(51, "Post", "Posts"),
+        makeContent(90, "Other", "SomethingElse"),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 50, 51]);
+  });
+
+  it("brings in the container a linked item lives in, so the item has somewhere to land", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts"), makeContainer(300, 11, "Authors")],
+      content: [
+        makeContent(1, "Post", "Posts", { author: { contentid: 2, fulllist: false } }),
+        makeContent(2, "Author", "Authors"),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.containers.has(300)).toBe(true);
+  });
+
+  it("pulls only the linked item out of a shared container, not the rest of its contents", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts"), makeContainer(300, 11, "Authors")],
+      content: [
+        makeContent(1, "Post", "Posts", { author: { contentid: 2, fulllist: false } }),
+        makeContent(2, "Author", "Authors"),
+        makeContent(3, "Author", "Authors"),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.containers.has(300)).toBe(true);
+    expect(tree.content.has(3)).toBe(false);
+  });
+
+  it("includes the model behind every container in the tree", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(10, "Post"), makeModel(11, "Author"), makeModel(12, "Unused")],
+      containers: [makeContainer(200, 10, "Posts"), makeContainer(300, 11, "Authors")],
+      content: [
+        makeContent(1, "Post", "Posts", { author: { contentid: 2, fulllist: false } }),
+        makeContent(2, "Author", "Authors"),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.models.has("Post")).toBe(true);
+    expect(tree.models.has("Author")).toBe(true);
+    expect(tree.models.has("Unused")).toBe(false);
+  });
+
+  it("includes a model referenced by an in-scope model through a linked-content field", () => {
+    const sourceData = makeSourceData({
+      models: [makeModelWithRefs(10, "FooterLinks", ["FooterLinksLists"]), makeModelWithRefs(11, "FooterLinksLists")],
+      containers: [makeContainer(200, 10, "Footer")],
+      content: [makeContent(1, "FooterLinks", "Footer")],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.models.has("FooterLinksLists")).toBe(true);
+  });
+
+  it("includes the model of a selected container that holds no content", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(10, "Post")],
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.models.has("Post")).toBe(true);
+  });
+
+  it("collects the assets and galleries the in-scope content points at", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [
+        makeContent(1, "Post", "Posts", {
+          image: "https://cdn.aglty.io/hero.jpg",
+          gallery: { mediaGroupingID: 77 },
+        }),
+      ],
+      assets: [makeAsset("https://cdn.aglty.io/hero.jpg")],
+      galleries: [makeGallery(77)],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.assets.has("https://cdn.aglty.io/hero.jpg")).toBe(true);
+    expect(tree.galleries.has(77)).toBe(true);
+  });
+
+  it("never includes pages or templates", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [makeContent(1, "Post", "Posts")],
+      templates: [makeTemplate(500, [{ contentViewID: 200 }])],
+      pages: [makePage(10, { pageTemplateID: 500, zones: { Main: [{ module: "M", item: { contentid: 1 } }] } })],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(tree.pages.size).toBe(0);
+    expect(tree.templates.size).toBe(0);
+  });
+
+  it("returns an empty tree when no containers are in scope", () => {
+    const sourceData = makeSourceData({
+      models: [makeModel(10, "Post")],
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [makeContent(1, "Post", "Posts")],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([]);
+    expect(tree.containers.size).toBe(0);
+    expect(tree.content.size).toBe(0);
+    expect(tree.models.size).toBe(0);
+  });
+
+  it("terminates on a reference cycle between two content items", () => {
+    const sourceData = makeSourceData({
+      containers: [makeContainer(200, 10, "Posts")],
+      content: [
+        makeContent(1, "A", "Posts", { other: { contentid: 2, fulllist: false } }),
+        makeContent(2, "B", "Others", { other: { contentid: 1, fulllist: false } }),
+      ],
+    });
+    const tree = makeBuilder(sourceData).buildDependencyTreeFromContainers([200]);
+    expect(Array.from(tree.content).sort((a, b) => a - b)).toEqual([1, 2]);
+  });
+
+  it("handles missing containers and content arrays gracefully", () => {
+    const tree = makeBuilder(
+      makeSourceData({ containers: undefined, content: undefined })
+    ).buildDependencyTreeFromContainers([200]);
+    expect(tree.containers.has(200)).toBe(true);
+    expect(tree.content.size).toBe(0);
+  });
+});

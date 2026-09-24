@@ -146,6 +146,15 @@ class PreflightReport {
 
     lines.push(ansiColors.cyan(bar));
     lines.push(ansiColors.cyan("🔎 PREFLIGHT — no changes were written to the target or mappings"));
+    // PROD-2546: say so when the run was narrowed to a page subtree, or the report reads as
+    // "the whole instance is up to date" when it only ever looked at part of it.
+    if (state.pages && state.pages.trim().length > 0) {
+      lines.push(ansiColors.gray(`Scoped to --pages: ${state.pages.trim()}`));
+    }
+    // PROD-2547: same for a container-scoped run.
+    if (state.containers && state.containers.trim().length > 0) {
+      lines.push(ansiColors.gray(`Scoped to --containers: ${state.containers.trim()}`));
+    }
     lines.push(ansiColors.cyan(bar));
 
     const phases = this.getPhaseSummaries();

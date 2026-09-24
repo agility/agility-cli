@@ -121,6 +121,17 @@ export class ModelMapper {
 
     if (targetMapping) {
       this.updateMapping(sourceModel, targetModel, targetMapping);
+    } else if (sourceMapping) {
+      // PROD-2603: the source model already has a record but its target is gone (the pusher
+      // recreated it under --overwrite). Repoint the existing record instead of appending a second
+      // one for the same source ID.
+      sourceMapping.sourceGuid = this.sourceGuid;
+      sourceMapping.targetGuid = this.targetGuid;
+      sourceMapping.targetID = targetModel.id;
+      sourceMapping.sourceReferenceName = sourceModel.referenceName;
+      sourceMapping.targetReferenceName = targetModel.referenceName;
+      sourceMapping.sourceLastModifiedDate = sourceModel.lastModifiedDate;
+      sourceMapping.targetLastModifiedDate = targetModel.lastModifiedDate;
     } else {
       const newMapping: ModelMapping = {
         sourceGuid: this.sourceGuid,
