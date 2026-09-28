@@ -4,6 +4,7 @@ import { Logs } from "core/logs";
 import { state, getState, getApiClient, getLoggerForGuid } from "core/state";
 import { GalleryMapper } from "lib/mappers/gallery-mapper";
 import { preflightReport } from "../preflight/preflight-report";
+import { FailureDetail, PusherResult } from "types/sourceData";
 
 /**
  * Extract meaningful error message from API errors
@@ -37,7 +38,7 @@ function extractErrorMessage(error: any): string {
 export async function pushGalleries(
   sourceData: mgmtApi.assetMediaGrouping[],
   targetData: mgmtApi.assetMediaGrouping[]
-): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
+): Promise<PusherResult> {
   // Extract data from sourceData - unified parameter pattern
   const galleries: mgmtApi.assetMediaGrouping[] = sourceData || [];
 
@@ -62,6 +63,7 @@ export async function pushGalleries(
   let skipped = 0;
   let processedCount = 0;
   let overallStatus: "success" | "error" = "success";
+  const failureDetails: FailureDetail[] = [];
 
   for (const sourceGallery of galleries) {
     let currentStatus: "success" | "error" = "success";
@@ -149,6 +151,7 @@ export async function pushGalleries(
     } catch (error: any) {
       const errorMsg = extractErrorMessage(error);
       logger.gallery.error(sourceGallery, errorMsg, targetGuid);
+      failureDetails.push({ name: sourceGallery.name, error: errorMsg, type: "gallery", guid: sourceGuid });
       failed++;
       currentStatus = "error";
       overallStatus = "error";
@@ -162,7 +165,7 @@ export async function pushGalleries(
       `Processed ${successful}/${totalGroupings} gallery groupings (${failed} failed, ${skipped} skipped)`
     )
   );
-  return { status: overallStatus, successful, failed, skipped };
+  return { status: overallStatus, successful, failed, skipped, failureDetails };
 }
 
 /**

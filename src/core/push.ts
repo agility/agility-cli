@@ -17,6 +17,7 @@ import { Pushers, PushResults } from "../lib/pushers/orchestrate-pushers";
 import { Pull } from "./pull";
 import { preflightReport } from "../lib/preflight/preflight-report";
 import { buildJsonSummary, writeJsonSummary, JsonSummaryDetail, JsonSummaryPhase } from "./json-summary";
+import type { FailureDetail } from "../types/sourceData";
 
 /**
  * PROD-2310: Decide whether a set of auto-publish errors should fail the sync exit code.
@@ -28,6 +29,17 @@ export function hasBlockingAutoPublishErrors(
   autoPublishErrors: Array<{ locale: string; type: string; error: string }>
 ): boolean {
   return autoPublishErrors.some((e) => e.type === "publish" || e.type === "fatal");
+}
+
+/**
+ * PROD-2629: label a failed item in the ERROR SUMMARY. Content and page failures keep their bare
+ * name (they get a CMS link on the next line); other kinds are prefixed with the kind, and assets
+ * carry their source mediaID since there is no per-asset CMS link.
+ */
+export function formatFailureName(name: string, type?: FailureDetail["type"], mediaID?: number): string {
+  if (!type || type === "content" || type === "page") return name;
+  const label = type === "urlRedirection" ? "URL redirection" : type;
+  return mediaID ? `${label} ${name} (mediaID ${mediaID})` : `${label} ${name}`;
 }
 
 export class Push {
@@ -142,15 +154,7 @@ export class Push {
       // Collect sync failure details from results for error summary
       let totalSyncFailures = 0;
       const syncErrors: Array<{ locale?: string; type: string; error: string }> = [];
-      const syncFailureDetails: Array<{
-        name: string;
-        error: string;
-        type?: "content" | "page";
-        pageID?: number;
-        contentID?: number;
-        guid?: string;
-        locale?: string;
-      }> = [];
+      const syncFailureDetails: FailureDetail[] = [];
       // PROD-2316: non-blocking notices (e.g. page modules dropped because their content
       // couldn't be resolved). Shown in their own section; never affect success/exit code.
       const syncWarningDetails: typeof syncFailureDetails = [];
@@ -224,10 +228,10 @@ export class Push {
         // Show sync failure details line by line with links
         if (syncFailureDetails.length > 0) {
           console.log(ansiColors.red(`\n  Sync Failures (${syncFailureDetails.length}):`));
-          syncFailureDetails.forEach(({ name, error, type, pageID, contentID, guid, locale }) => {
-            // Format: [guid][locale] • name: error
+          syncFailureDetails.forEach(({ name, error, type, pageID, contentID, mediaID, guid, locale }) => {
+            // Format: [guid][locale] • name: error  (non-content/page kinds are labelled, e.g. "asset x.png (mediaID 12)")
             const prefix = guid && locale ? `[${guid}][${locale}]` : guid ? `[${guid}]` : "";
-            console.log(ansiColors.red(`    ${prefix} • ${name}: ${error}`));
+            console.log(ansiColors.red(`    ${prefix} • ${formatFailureName(name, type, mediaID)}: ${error}`));
             // Add link for page failures
             if (type === "page" && pageID && guid && locale) {
               const pageLink = getPageCmsLink(guid, locale, pageID);
@@ -244,6 +248,12 @@ export class Push {
               console.log(ansiColors.gray(`      ${link}`));
             }
           });
+          // PROD-2629: say so when some failures carried no detail, rather than silently
+          // listing fewer items than the failed count.
+          const undetailed = totalSyncFailures - syncFailureDetails.length;
+          if (undetailed > 0) {
+            console.log(ansiColors.red(`    …and ${undetailed} more item(s) failed without details (see the log file)`));
+          }
         } else if (totalSyncFailures > 0) {
           // Fallback if no detailed failure info available
           console.log(ansiColors.red(`  Sync: ${totalSyncFailures} items failed (see details above)`));

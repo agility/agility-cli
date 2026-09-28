@@ -229,6 +229,7 @@ export async function pushContainers(
             overallStatus = "error";
             failureDetails.push({
               name: sourceContainer.referenceName,
+              type: "container",
               error: `Failed to update container "${sourceContainer.referenceName}" (ID: ${sourceContainer.contentViewID})`,
               guid: sourceGuid,
             });
@@ -273,6 +274,7 @@ export async function pushContainers(
             overallStatus = "error";
             failureDetails.push({
               name: sourceContainer.referenceName,
+              type: "container",
               error: `Failed to create container "${sourceContainer.referenceName}"`,
               guid: sourceGuid,
             });
@@ -286,6 +288,7 @@ export async function pushContainers(
       overallStatus = "error";
       failureDetails.push({
         name: sourceContainer.referenceName,
+        type: "container",
         error: error?.message || String(error),
         guid: sourceGuid,
       });

@@ -1,4 +1,4 @@
-import { Push, hasBlockingAutoPublishErrors } from "../push";
+import { Push, hasBlockingAutoPublishErrors, formatFailureName } from "../push";
 import { resetState, setState } from "../state";
 
 beforeEach(() => {
@@ -78,6 +78,20 @@ describe("hasBlockingAutoPublishErrors", () => {
 });
 
 // ─── --jsonSummary: the run is written as a machine-readable artifact ─────────
+
+describe("formatFailureName (PROD-2629)", () => {
+  it("keeps content and page names bare (they get a CMS link)", () => {
+    expect(formatFailureName("hero", "content")).toBe("hero");
+    expect(formatFailureName("home", "page")).toBe("home");
+    expect(formatFailureName("legacy")).toBe("legacy");
+  });
+
+  it("labels other kinds, and adds the mediaID for assets", () => {
+    expect(formatFailureName("bg.png", "asset", 131)).toBe("asset bg.png (mediaID 131)");
+    expect(formatFailureName("Logos", "gallery")).toBe("gallery Logos");
+    expect(formatFailureName("~/old", "urlRedirection")).toBe("URL redirection ~/old");
+  });
+});
 
 describe("Push.pushInstances — --jsonSummary", () => {
   const fs = require("fs");
@@ -183,6 +197,35 @@ describe("Push.pushInstances — --jsonSummary", () => {
 
     const parsed = JSON.parse(fs.readFileSync(out, "utf8"));
     expect(parsed.failures).toEqual([{ name: "Broken", error: "no mapping", type: "page", pageID: 7 }]);
+  });
+
+  it("records asset failures with their mediaID and lists them in the ERROR SUMMARY (PROD-2629)", async () => {
+    const out = path.join(tmp, "summary.json");
+    const assetFailure = {
+      name: "NASPL_KENO.html",
+      error: "Invalid Mappings detected! Source mediaID: 1718, Target mediaID: 1536",
+      type: "asset",
+      mediaID: 1718,
+      guid: "e711e981-us2",
+    };
+    await runPush([pushResult({ totalFailures: 1, failureDetails: [assetFailure] })], { jsonSummary: out });
+
+    const parsed = JSON.parse(fs.readFileSync(out, "utf8"));
+    expect(parsed.failures).toEqual([assetFailure]);
+
+    const printed = (console.log as jest.Mock).mock.calls.map((c) => String(c[0])).join("\n");
+    expect(printed).toContain("asset NASPL_KENO.html (mediaID 1718): Invalid Mappings detected!");
+    expect(printed).not.toContain("see details above");
+  });
+
+  it("says how many failures carried no detail instead of listing fewer items than failed", async () => {
+    await runPush([
+      pushResult({ totalFailures: 3, failureDetails: [{ name: "Broken", error: "no mapping", type: "page", pageID: 7 }] }),
+    ]);
+
+    const printed = (console.log as jest.Mock).mock.calls.map((c) => String(c[0])).join("\n");
+    expect(printed).toContain("Broken: no mapping");
+    expect(printed).toContain("and 2 more item(s) failed without details");
   });
 
   it("records non-blocking warnings separately from failures (PROD-2316)", async () => {

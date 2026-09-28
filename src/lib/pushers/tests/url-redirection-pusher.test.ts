@@ -319,6 +319,11 @@ describe("pushUrlRedirections — API error", () => {
     expect(result.failed).toBe(2);
     expect(result.successful).toBe(0);
     expect(result.status).toBe("error");
+    // PROD-2629: one detail per item in the failed batch
+    expect(result.failureDetails).toEqual([
+      expect.objectContaining({ name: "/fail-1", type: "urlRedirection", error: "API unavailable" }),
+      expect.objectContaining({ name: "/fail-2", type: "urlRedirection", error: "API unavailable" }),
+    ]);
   });
 });
 

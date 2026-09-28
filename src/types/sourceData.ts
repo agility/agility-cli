@@ -30,15 +30,28 @@ export type PusherProgressCallback = (
   itemName?: string
 ) => void;
 
+/** Entity kind a FailureDetail refers to. */
+export type FailureDetailType =
+  | "content"
+  | "page"
+  | "asset"
+  | "gallery"
+  | "container"
+  | "model"
+  | "template"
+  | "urlRedirection";
+
 /**
  * Individual failure detail with optional link metadata
  */
 export interface FailureDetail {
   name: string;
   error: string;
-  type?: "content" | "page"; // For generating appropriate link
+  // Entity kind. "content"/"page" also drive the CMS link in the ERROR SUMMARY.
+  type?: FailureDetailType;
   pageID?: number; // Source page ID for page links
   contentID?: number; // Source content ID for content links
+  mediaID?: number; // Source media ID for asset failures
   guid?: string; // Source instance GUID
   locale?: string; // Locale code
 }

@@ -9,6 +9,7 @@ import { fileOperations } from "../../core/fileOperations";
 import path from "path";
 import { GalleryMapper } from "lib/mappers/gallery-mapper";
 import { preflightReport } from "../preflight/preflight-report";
+import { FailureDetail, PusherResult } from "../../types/sourceData";
 
 /**
  * Build the focal-point query string (`&focalX=..&focalY=..`) for an asset upload.
@@ -72,7 +73,7 @@ export async function pushAssets(
   sourceData: mgmtApi.Media[], // TODO: Type these
   targetData: mgmtApi.Media[], // TODO: Type these
   onProgress?: (processed: number, total: number, status?: "success" | "error") => void
-): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
+): Promise<PusherResult> {
   // Extract data from sourceData - unified parameter pattern
   const assets: mgmtApi.Media[] = sourceData || [];
 
@@ -106,6 +107,7 @@ export async function pushAssets(
   let skipped = 0;
   let processedAssetsCount = 0;
   let overallStatus: "success" | "error" = "success";
+  const failureDetails: FailureDetail[] = [];
 
   const fileOps = new fileOperations(sourceGuid);
   const basePath = fileOps.getDataFolderPath();
@@ -222,6 +224,15 @@ export async function pushAssets(
     } catch (error: any) {
       const errorMsg = extractErrorMessage(error);
       logger.asset.error(media, errorMsg, targetGuid);
+      // PROD-2629: without a detail the ERROR SUMMARY and --jsonSummary `failures` carried only
+      // the count ("N items failed (see details above)").
+      failureDetails.push({
+        name: media.fileName,
+        error: errorMsg,
+        type: "asset",
+        mediaID: media.mediaID,
+        guid: sourceGuid,
+      });
 
       failed++;
       currentStatus = "error";
@@ -238,7 +249,7 @@ export async function pushAssets(
   console.log(
     ansiColors.yellow(`Processed ${successful}/${totalAssets} assets (${failed} failed, ${skipped} skipped)`)
   );
-  return { status: overallStatus, successful, failed, skipped };
+  return { status: overallStatus, successful, failed, skipped, failureDetails };
 }
 
 /**
