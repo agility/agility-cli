@@ -211,6 +211,47 @@ describe("processPage — up-to-date page", () => {
     const result = await processPage(makeProps({ pageMapper, overwrite: false }));
     expect(result.status).toBe("skip");
   });
+
+  it("does not rewrite a record that another locale's save already moved forward (PROD-2628)", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
+    }));
+
+    // pulled at the start of the run: v862; the en-us save earlier in this run refreshed the
+    // es-us record to v1365
+    const pulledTargetPage = makePage({ pageID: 15, properties: { state: 2, versionID: 862 } });
+    const pageMapper = makePageMapper({
+      getPageMapping: jest.fn().mockReturnValue({ targetPageID: 15, sourcePageID: 114, targetVersionID: 1365 }),
+      getMappedEntity: jest.fn().mockReturnValue(pulledTargetPage),
+      hasSourceChanged: jest.fn().mockReturnValue(false),
+      hasTargetChanged: jest.fn().mockReturnValue(null),
+    });
+
+    const result = await processPage(makeProps({ pageMapper, overwrite: false }));
+    expect(result.status).toBe("skip");
+    expect(pageMapper.addMapping).not.toHaveBeenCalled();
+  });
+
+  it("still records the pulled page on skip when it is not behind the record", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
+    }));
+
+    const pulledTargetPage = makePage({ pageID: 15, properties: { state: 2, versionID: 900 } });
+    const pageMapper = makePageMapper({
+      getPageMapping: jest.fn().mockReturnValue({ targetPageID: 15, sourcePageID: 114, targetVersionID: 900 }),
+      getMappedEntity: jest.fn().mockReturnValue(pulledTargetPage),
+      hasSourceChanged: jest.fn().mockReturnValue(false),
+      hasTargetChanged: jest.fn().mockReturnValue(null),
+    });
+
+    await processPage(makeProps({ pageMapper, overwrite: false }));
+    expect(pageMapper.addMapping).toHaveBeenCalledWith(expect.anything(), pulledTargetPage);
+  });
 });
 
 // ─── guard: conflict without overwrite ────────────────────────────────────────

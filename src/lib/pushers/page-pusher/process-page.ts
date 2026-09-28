@@ -175,7 +175,15 @@ export async function processPage({
     } else if (createRequired) {
       //CREATE NEW PAGE - nothing to do here yet...
     } else if (!updateRequired) {
-      if (existingPage) {
+      // PROD-2628: existingPage is the target page as pulled at the start of the run. If a save
+      // of this page in another locale earlier in this run already moved the record's target
+      // version forward (refreshOtherLocaleVersions), rewriting it from the pulled page would put
+      // the stale version back and the next run would read our own write as a target change.
+      const wouldRegress =
+        !!existingPage &&
+        !!pageMapping &&
+        (existingPage.properties?.versionID ?? 0) < (pageMapping.targetVersionID ?? 0);
+      if (existingPage && !wouldRegress) {
         pageMapper.addMapping(page, existingPage);
       }
 
