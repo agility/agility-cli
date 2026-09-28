@@ -446,6 +446,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       failed++;
       failureDetails.push({
         name: model.referenceName,
+        type: "model",
         // PROD-2315: surface the server's reason (e.g. the 409 detail) in the ERROR SUMMARY instead
         // of the generic message; the detail was previously only in the push-log file.
         error: error
@@ -477,6 +478,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       failed++;
       failureDetails.push({
         name: model.referenceName,
+        type: "model",
         error: `Failed to update model "${model.referenceName}" (target ID: ${sourceMapping.targetID})`,
         guid: sourceGuid,
       });
@@ -495,7 +497,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     const message = crossKindCollisionMessage(model, target);
     logger.model.error(model, new Error(message), targetGuid);
     failed++;
-    failureDetails.push({ name: model.referenceName, error: message, guid: sourceGuid });
+    failureDetails.push({ name: model.referenceName, error: message, type: "model", guid: sourceGuid });
   }
 
   return {

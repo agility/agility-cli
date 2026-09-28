@@ -5,6 +5,7 @@ import { UrlRedirectionMapper } from "lib/mappers/url-redirection-mapper";
 import { UrlRedirectionSyncItem, UrlRedirectionSavePayload } from "../../types/urlRedirection";
 import { preflightReport } from "../preflight/preflight-report";
 import { saveUrlRedirections, MAX_URL_REDIRECTION_BATCH_SIZE } from "./url-redirection-api";
+import { FailureDetail, PusherResult } from "../../types/sourceData";
 
 /** A queued create/update: the source item plus the payload the API will receive. */
 interface PendingSave {
@@ -51,7 +52,7 @@ function toSavePayload(item: UrlRedirectionSyncItem, targetUrlRedirectionID: num
 export async function pushUrlRedirections(
   sourceData: UrlRedirectionSyncItem[],
   targetData: UrlRedirectionSyncItem[]
-): Promise<{ status: "success" | "error"; successful: number; failed: number; skipped: number }> {
+): Promise<PusherResult> {
   const redirections: UrlRedirectionSyncItem[] = sourceData || [];
   const targetRedirections: UrlRedirectionSyncItem[] = targetData || [];
 
@@ -70,6 +71,7 @@ export async function pushUrlRedirections(
   let failed = 0;
   let skipped = 0;
   let overallStatus: "success" | "error" = "success";
+  const failureDetails: FailureDetail[] = [];
 
   // Phase 1: classify every source redirection as create / update / skip.
   const pending: PendingSave[] = [];
@@ -179,6 +181,12 @@ export async function pushUrlRedirections(
       overallStatus = "error";
       for (const item of batch) {
         logger.urlRedirection.error(item.source, error?.message || error, targetGuid);
+        failureDetails.push({
+          name: item.source.originUrl,
+          error: error?.message || String(error),
+          type: "urlRedirection",
+          guid: sourceGuid,
+        });
       }
     }
   }
@@ -188,5 +196,5 @@ export async function pushUrlRedirections(
       `Processed ${successful}/${redirections.length} URL redirections (${failed} failed, ${skipped} skipped)`
     )
   );
-  return { status: overallStatus, successful, failed, skipped };
+  return { status: overallStatus, successful, failed, skipped, failureDetails };
 }

@@ -25,6 +25,7 @@
  */
 import * as fs from "fs";
 import * as path from "path";
+import type { FailureDetailType } from "../types/sourceData";
 
 /** Bump when a field is removed or its meaning changes. Additions do not require a bump. */
 export const JSON_SUMMARY_SCHEMA_VERSION = 1;
@@ -33,9 +34,10 @@ export const JSON_SUMMARY_SCHEMA_VERSION = 1;
 export interface JsonSummaryDetail {
   name: string;
   error: string;
-  type?: "content" | "page";
+  type?: FailureDetailType;
   pageID?: number;
   contentID?: number;
+  mediaID?: number;
   guid?: string;
   locale?: string;
 }

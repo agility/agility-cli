@@ -137,6 +137,49 @@ describe("pushAssets — skip when asset exists in target by originKey", () => {
   });
 });
 
+// ─── pushAssets — failure details (PROD-2629) ─────────────────────────────────
+
+describe("pushAssets — failure details", () => {
+  it("returns a failure detail with name, type, mediaID and guid when an asset fails", async () => {
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeMockApiClient());
+
+    const { pushAssets } = await import("../asset-pusher");
+
+    // New asset whose local file was never downloaded -> createAsset throws "Local asset file not found"
+    const sourceAsset = makeMedia({
+      mediaID: 1718,
+      fileName: "NASPL_KENO.html",
+      originUrl: "https://example.com/assets/keno/NASPL_KENO.html",
+      originKey: "keno/NASPL_KENO.html",
+    });
+
+    const result = await pushAssets([sourceAsset], []);
+
+    expect(result.failed).toBe(1);
+    expect(result.status).toBe("error");
+    expect(result.failureDetails).toEqual([
+      {
+        name: "NASPL_KENO.html",
+        error: expect.stringContaining("Local asset file not found"),
+        type: "asset",
+        mediaID: 1718,
+        guid: "src-guid-u",
+      },
+    ]);
+  });
+
+  it("returns an empty failureDetails list when nothing fails", async () => {
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeMockApiClient());
+    const { pushAssets } = await import("../asset-pusher");
+
+    const originKey = "/assets/ok.jpg";
+    const result = await pushAssets([makeMedia({ originKey, mediaID: 5 })], [makeMedia({ originKey, mediaID: 6 })]);
+
+    expect(result.failed).toBe(0);
+    expect(result.failureDetails).toEqual([]);
+  });
+});
+
 // ─── pushAssets — onProgress callback ────────────────────────────────────────
 
 describe("pushAssets — onProgress callback", () => {

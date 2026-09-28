@@ -233,6 +233,7 @@ export async function pushTemplates(
         overallStatus = "error";
         failureDetails.push({
           name: sourceTemplate.pageTemplateName,
+          type: "template",
           error: error?.message || String(error),
           guid: sourceGuid,
         });

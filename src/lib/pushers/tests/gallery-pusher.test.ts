@@ -142,6 +142,10 @@ describe("pushGalleries — create new gallery", () => {
     expect(result.failed).toBe(1);
     expect(result.status).toBe("error");
     expect(result.successful).toBe(0);
+    // PROD-2629: the failure must carry a detail for the ERROR SUMMARY / --jsonSummary
+    expect(result.failureDetails).toEqual([
+      expect.objectContaining({ name: "Error Gallery", type: "gallery", error: expect.stringContaining("API error") }),
+    ]);
   });
 });
 
