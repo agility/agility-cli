@@ -6,6 +6,7 @@ import { TemplateMapper } from "lib/mappers/template-mapper"; // Internal helper
 import { SectionMapper } from "lib/mappers/section-mapper";
 import { translateZoneNames } from "./translate-zone-names";
 import { findPageInOtherLocale, OtherLocaleMapping } from "./find-page-in-other-locale";
+import { refreshOtherLocaleVersions } from "./refresh-other-locale-versions";
 import { Logs } from "core/logs";
 import {
   state,
@@ -519,6 +520,18 @@ export async function processPage({
         } else {
           pageMapper.addMapping(page, createdPageData); // Use original page for source key
         }
+
+        // PROD-2628: this save may also have given the page a new version in its other locales;
+        // move those locales' recorded target version forward so the next run doesn't read our
+        // own write as an independent target change.
+        await refreshOtherLocaleVersions({
+          targetPageID: actualPageID,
+          savedLocale: locale,
+          locales: Array.isArray(state.locale) ? state.locale : [],
+          sourceGuid,
+          targetGuid,
+          apiClient,
+        });
 
         const pageTypeDisplay =
           {

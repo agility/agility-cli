@@ -9,6 +9,10 @@ jest.mock("../find-page-in-other-locale", () => ({
   findPageInOtherLocale: jest.fn().mockResolvedValue(null),
 }));
 
+jest.mock("../refresh-other-locale-versions", () => ({
+  refreshOtherLocaleVersions: jest.fn().mockResolvedValue([]),
+}));
+
 jest.mock("lib/pushers/batch-polling", () => ({
   pollBatchUntilComplete: jest.fn(),
   extractPageBatchResults: jest.fn(),
@@ -16,6 +20,7 @@ jest.mock("lib/pushers/batch-polling", () => ({
 
 import { findPageInOtherLocale } from "../find-page-in-other-locale";
 import { pollBatchUntilComplete, extractPageBatchResults } from "lib/pushers/batch-polling";
+import { refreshOtherLocaleVersions } from "../refresh-other-locale-versions";
 
 const mockFindInOtherLocale = findPageInOtherLocale as jest.Mock;
 const mockPoll = pollBatchUntilComplete as jest.Mock;
@@ -325,6 +330,45 @@ describe("processPage — successful batch save", () => {
 
     await processPage(makeProps({ pageMapper }));
     expect(pageMapper.addMapping).toHaveBeenCalledTimes(1);
+  });
+
+  it("refreshes the page's other locales after a successful save (PROD-2628)", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
+    }));
+    const { state } = require("core/state");
+    state.locale = ["en-us", "es-us"];
+
+    const mockRefresh = refreshOtherLocaleVersions as jest.Mock;
+    mockRefresh.mockClear();
+    mockExtract.mockReturnValue({
+      successfulItems: [{ newId: 202, newItem: { processedItemVersionID: 3 } }],
+      failedItems: [],
+    });
+
+    const props = makeProps({ locale: "es-us" });
+    await processPage(props);
+    expect(mockRefresh).toHaveBeenCalledTimes(1);
+    expect(mockRefresh).toHaveBeenCalledWith(
+      expect.objectContaining({ targetPageID: 202, savedLocale: "es-us", locales: ["en-us", "es-us"] })
+    );
+  });
+
+  it("does not refresh other locales when the save failed", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
+    }));
+
+    const mockRefresh = refreshOtherLocaleVersions as jest.Mock;
+    mockRefresh.mockClear();
+    mockExtract.mockReturnValue({ successfulItems: [], failedItems: [{ error: "nope" }] });
+
+    await processPage(makeProps());
+    expect(mockRefresh).not.toHaveBeenCalled();
   });
 });
 
