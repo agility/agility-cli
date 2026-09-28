@@ -422,6 +422,114 @@ describe("AssetMapper.addMapping", () => {
     const found = mapper.getAssetMappingByMediaID(20, "target");
     expect(found!.sourceMediaID).toBe(11);
   });
+
+  it("repoints the existing source record instead of appending a second one (PROD-2627)", () => {
+    const mapper = makeMapper();
+    const src = makeAsset({ mediaID: 1536 });
+    mapper.addMapping(src, makeAsset({ mediaID: 212 }));
+
+    // target 212 is gone; a new copy 1718 was uploaded
+    mapper.addMapping(src, makeAsset({ mediaID: 1718 }));
+
+    expect(mapper.getAssetMappingByMediaID(1536, "source")!.targetMediaID).toBe(1718);
+    expect(mapper.getAssetMappingByMediaID(212, "target")).toBeNull();
+    expect((mapper as any).mappings).toHaveLength(1);
+  });
+});
+
+// ─── relinkTarget / resolveDuplicateRecords (PROD-2627) ───────────────────────
+
+describe("AssetMapper.relinkTarget", () => {
+  it("points the record at a new target but keeps the recorded source date", () => {
+    const mapper = makeMapper();
+    const src = makeAsset({ mediaID: 1, dateModified: "2024-01-01T00:00:00Z" });
+    mapper.addMapping(src, makeAsset({ mediaID: 2 }));
+    const record = mapper.getAssetMappingByMediaID(1, "source")!;
+
+    mapper.relinkTarget(record, makeAsset({ mediaID: 3, dateModified: "2024-05-01T00:00:00Z" }));
+
+    expect(record.targetMediaID).toBe(3);
+    expect(record.targetDateModified).toBe("2024-05-01T00:00:00Z");
+    expect(record.sourceDateModified).toBe("2024-01-01T00:00:00Z");
+  });
+
+  it("refuses a target that is already mapped to another source", () => {
+    const mapper = makeMapper();
+    mapper.addMapping(makeAsset({ mediaID: 1 }), makeAsset({ mediaID: 2 }));
+    mapper.addMapping(makeAsset({ mediaID: 5 }), makeAsset({ mediaID: 6 }));
+    const record = mapper.getAssetMappingByMediaID(1, "source")!;
+
+    expect(() => mapper.relinkTarget(record, makeAsset({ mediaID: 6 }))).toThrow(/already mapped/);
+  });
+});
+
+describe("AssetMapper.resolveDuplicateRecords", () => {
+  // Seed raw records the way earlier versions left them (appended, never repointed).
+  function seed(mapper: AssetMapper, pairs: Array<[number, number]>) {
+    (mapper as any).mappings = pairs.map(([s, t]) => ({
+      sourceGuid: "s",
+      targetGuid: "t",
+      sourceMediaID: s,
+      targetMediaID: t,
+      sourceDateModified: "2024-01-01T00:00:00Z",
+      targetDateModified: "2024-01-01T00:00:00Z",
+    }));
+  }
+  const at = (mediaID: number, originKey: string) => ({ mediaID, originKey }) as any;
+
+  it("keeps the live, same-path pair for each side (moved-folder round trip)", () => {
+    const mapper = makeMapper();
+    // 1614 (folder a) was mapped to 131, which then moved to folder b on the target; forward
+    // uploaded a copy 1775 in folder a; reverse uploaded 131 back to the source as 1927 in folder b
+    seed(mapper, [
+      [1614, 131],
+      [1614, 1775],
+      [1927, 131],
+    ]);
+    const source = [at(1614, "a/bg.png"), at(1927, "b/bg.png")];
+    const target = [at(131, "b/bg.png"), at(1775, "a/bg.png")];
+
+    expect(mapper.resolveDuplicateRecords(source, target)).toBe(1);
+    expect(mapper.getAssetMappingByMediaID(1614, "source")!.targetMediaID).toBe(1775);
+    expect(mapper.getAssetMappingByMediaID(131, "target")!.sourceMediaID).toBe(1927);
+  });
+
+  it("drops the record whose target is gone", () => {
+    const mapper = makeMapper();
+    seed(mapper, [
+      [1536, 212],
+      [1536, 1718],
+    ]);
+    const removed = mapper.resolveDuplicateRecords(
+      [at(1536, "k/NASPL_KENO.html")],
+      [at(1718, "k/NASPL_KENO.html")]
+    );
+
+    expect(removed).toBe(1);
+    expect(mapper.getAssetMappingByMediaID(1536, "source")!.targetMediaID).toBe(1718);
+  });
+
+  it("leaves a group alone when the pulled data can't tell the records apart", () => {
+    const mapper = makeMapper();
+    seed(mapper, [
+      [1, 10],
+      [1, 11],
+    ]);
+    // both targets live, neither at the source's path
+    const removed = mapper.resolveDuplicateRecords([at(1, "a/x.png")], [at(10, "b/x.png"), at(11, "c/x.png")]);
+
+    expect(removed).toBe(0);
+    expect((mapper as any).mappings).toHaveLength(2);
+  });
+
+  it("does nothing when there are no duplicates", () => {
+    const mapper = makeMapper();
+    seed(mapper, [
+      [1, 10],
+      [2, 20],
+    ]);
+    expect(mapper.resolveDuplicateRecords([at(1, "a"), at(2, "b")], [at(10, "a"), at(20, "b")])).toBe(0);
+  });
 });
 
 // ─── hasSourceChanged ─────────────────────────────────────────────────────────

@@ -169,6 +169,12 @@ export class AssetMapper {
 
     if (targetMapping) {
       this.updateMapping(sourceAsset, targetAsset, targetMapping);
+    } else if (sourceMapping) {
+      // PROD-2627: the source asset already has a record but it points at a different target asset
+      // (the old one was deleted, or a copy was uploaded). A source asset maps to exactly one target,
+      // so repoint the existing record rather than appending a second one — with two records the
+      // source and target lookups return different records and addMapping throws "Invalid Mappings".
+      this.writeMapping(sourceAsset, targetAsset, sourceMapping);
     } else {
       const newMapping: AssetMapping = {
         sourceGuid: this.sourceGuid,
@@ -197,6 +203,10 @@ export class AssetMapper {
         `Invalid items trying to be mapped! Source mediaID: ${sourceAsset.mediaID}, Target mediaID: ${targetAsset.mediaID}`
       );
     }
+    this.writeMapping(sourceAsset, targetAsset, mapping);
+  }
+
+  private writeMapping(sourceAsset: mgmtApi.Media, targetAsset: mgmtApi.Media, mapping: AssetMapping) {
     mapping.sourceGuid = this.sourceGuid;
     mapping.targetGuid = this.targetGuid;
     mapping.sourceDateModified = sourceAsset.dateModified;
@@ -210,6 +220,80 @@ export class AssetMapper {
     mapping.sourceContainerOriginUrl = sourceAsset.containerOriginUrl;
     mapping.targetContainerOriginUrl = targetAsset.containerOriginUrl;
     this.saveMapping();
+  }
+
+  /**
+   * PROD-2627: point an existing record at a different (live) target asset without touching its
+   * source side. Used when the mapped target asset is gone but an asset at the same path exists on
+   * the target: the recorded source date is kept so a pending source change is still pushed.
+   */
+  relinkTarget(mapping: AssetMapping, targetAsset: mgmtApi.Media) {
+    const other = this.getAssetMapping(targetAsset, "target");
+    if (other && other !== mapping) {
+      throw new Error(
+        `Invalid Mappings detected! Target mediaID ${targetAsset.mediaID} is already mapped to source mediaID ${other.sourceMediaID}`
+      );
+    }
+    mapping.targetMediaID = targetAsset.mediaID;
+    mapping.targetDateModified = targetAsset.dateModified;
+    mapping.targetUrl = targetAsset.edgeUrl;
+    mapping.targetContainerEdgeUrl = targetAsset.containerEdgeUrl;
+    mapping.targetContainerOriginUrl = targetAsset.containerOriginUrl;
+    this.saveMapping();
+  }
+
+  /**
+   * PROD-2627: collapse duplicate records left by earlier runs (one source asset mapped to several
+   * target assets, or several sources to one target). Earlier versions appended a record instead of
+   * repointing, so the source and target lookups could return different records.
+   *
+   * For each group of records sharing a source (or target) mediaID, keep the one whose other side
+   * is live in the pulled data and sits at the same path, dropping the rest. A group is only
+   * resolved when the pulled data can tell the records apart; otherwise it is left alone.
+   * Returns the number of records removed.
+   */
+  resolveDuplicateRecords(sourceAssets: mgmtApi.Media[], targetAssets: mgmtApi.Media[]): number {
+    const sourceByID = new Map(sourceAssets.map((a) => [a.mediaID, a]));
+    const targetByID = new Map(targetAssets.map((a) => [a.mediaID, a]));
+    const removed = new Set<AssetMapping>();
+
+    const collapse = (side: "source" | "target") => {
+      const groups = new Map<number, AssetMapping[]>();
+      for (const m of this.mappings) {
+        if (removed.has(m)) continue;
+        const key = side === "source" ? m.sourceMediaID : m.targetMediaID;
+        const group = groups.get(key);
+        if (group) group.push(m);
+        else groups.set(key, [m]);
+      }
+
+      for (const group of Array.from(groups.values())) {
+        if (group.length < 2) continue;
+        const score = (m: AssetMapping) => {
+          const source = sourceByID.get(m.sourceMediaID);
+          const target = targetByID.get(m.targetMediaID);
+          // the side that differs between the records in this group
+          const otherLive = side === "source" ? !!target : !!source;
+          const samePath = !!source && !!target && !!source.originKey && source.originKey === target.originKey;
+          return (otherLive ? 2 : 0) + (samePath ? 1 : 0);
+        };
+        const scores = group.map(score);
+        const best = Math.max(...scores);
+        const winners = group.filter((_, i) => scores[i] === best);
+        // can't tell them apart from the pulled data -> leave the group for a person to resolve
+        if (best === 0 || winners.length !== 1) continue;
+        for (const m of group) if (m !== winners[0]) removed.add(m);
+      }
+    };
+
+    collapse("source");
+    collapse("target");
+
+    if (removed.size > 0) {
+      this.mappings = this.mappings.filter((m) => !removed.has(m));
+      this.saveMapping();
+    }
+    return removed.size;
   }
 
   loadMapping() {
