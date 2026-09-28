@@ -7,7 +7,13 @@ import { SectionMapper } from "lib/mappers/section-mapper";
 import { translateZoneNames } from "./translate-zone-names";
 import { findPageInOtherLocale, OtherLocaleMapping } from "./find-page-in-other-locale";
 import { Logs } from "core/logs";
-import { state, getFailedContent, contentExistsInSourceData, contentExistsInOtherLocale } from "core/state";
+import {
+  state,
+  getFailedContent,
+  getHeldBackTemplate,
+  contentExistsInSourceData,
+  contentExistsInOtherLocale,
+} from "core/state";
 import { FailureDetail, PageModuleExtended } from "types/sourceData";
 import { preflightReport } from "../../preflight/preflight-report";
 
@@ -76,6 +82,16 @@ export async function processPage({
           locale,
           detail: `missing page template ${page.templateName}`,
         });
+        return { status: "skip" };
+      }
+      // PROD-2603: the template pusher held this page's template back because its mapped target
+      // template is gone and --overwrite was not set. Saving the page would point it at the dead
+      // target template ID, so skip it; it pushes once the template is recreated.
+      const heldBackReason = getHeldBackTemplate(page.templateName);
+      if (heldBackReason) {
+        const detail = `page template ${page.templateName} is missing on the target and was not recreated (use --overwrite to recreate it)`;
+        logger.page.skipped(page, `${detail}, skipping`, locale, channel, targetGuid);
+        preflightReport.record({ phase: "Pages", action: "skip", name: page.name, locale, detail });
         return { status: "skip" };
       }
       targetTemplate = templateMapper.getMappedEntity(templateRef, "target") as mgmtApi.PageModel;
