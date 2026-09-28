@@ -109,6 +109,10 @@ export interface State {
   // Failed content registry - tracks content items that failed during sync
   // Used by page pusher to provide better error messages when content mappings are missing
   failedContentRegistry: Map<number, { referenceName: string; error: string; locale: string }>;
+
+  // Held-back template registry - source template names whose mapped target template is gone and
+  // was not recreated (no --overwrite). Used by page pusher to skip pages that depend on them.
+  heldBackTemplateRegistry: Map<string, string>;
 }
 
 // Global state - populated from argv and referenced throughout the app
@@ -182,6 +186,9 @@ export const state: State = {
 
   // Failed content registry - tracks content items that failed during sync
   failedContentRegistry: new Map(),
+
+  // Held-back template registry - templates whose mapped target is gone and was not recreated
+  heldBackTemplateRegistry: new Map(),
 };
 
 /**
@@ -771,6 +778,31 @@ export function getFailedContent(
  */
 export function clearFailedContentRegistry(): void {
   state.failedContentRegistry.clear();
+}
+
+/**
+ * Register a source template that was held back because its mapped target template no longer
+ * exists and --overwrite was not set
+ * @param pageTemplateName - The source template name (what pages reference in templateName)
+ * @param reason - Why it was held back
+ */
+export function registerHeldBackTemplate(pageTemplateName: string, reason: string): void {
+  state.heldBackTemplateRegistry.set(pageTemplateName, reason);
+}
+
+/**
+ * Look up a held-back template by its source template name
+ * @returns The reason it was held back, or undefined
+ */
+export function getHeldBackTemplate(pageTemplateName: string): string | undefined {
+  return state.heldBackTemplateRegistry.get(pageTemplateName);
+}
+
+/**
+ * Clear the held-back template registry (should be called at start of each sync)
+ */
+export function clearHeldBackTemplateRegistry(): void {
+  state.heldBackTemplateRegistry.clear();
 }
 
 /**

@@ -4,6 +4,7 @@ import {
   getLogger,
   state,
   clearFailedContentRegistry,
+  clearHeldBackTemplateRegistry,
   getPageCmsLink,
   getContentCmsLink,
 } from "./state";
@@ -40,8 +41,9 @@ export class Push {
   async pushInstances(fromSync: boolean = false): Promise<{ success: boolean; results: any[]; elapsedTime: number }> {
     const { isSync, sourceGuid, targetGuid, models, modelsWithDeps, autoPublish } = state;
 
-    // Clear failed content registry from any previous sync
+    // Clear failed content and held-back template registries from any previous sync
     clearFailedContentRegistry();
+    clearHeldBackTemplateRegistry();
 
     // Preflight (PROD-2203): start each run with a clean report of planned actions
     preflightReport.reset();

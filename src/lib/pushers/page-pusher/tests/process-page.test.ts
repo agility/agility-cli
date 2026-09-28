@@ -146,6 +146,43 @@ describe("processPage — missing template", () => {
     const result = await processPage(makeProps());
     expect(result.status).toBe("skip");
   });
+
+  it("returns skip without saving when the template pusher held the page's template back (PROD-2603)", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue(null),
+    }));
+    const { registerHeldBackTemplate, clearHeldBackTemplateRegistry } = require("core/state");
+    registerHeldBackTemplate("MainTemplate", "mapped target template (ID: 2) no longer exists on the target");
+
+    const props = makeProps();
+    try {
+      const result = await processPage(props);
+      expect(result.status).toBe("skip");
+      expect(props.apiClient.pageMethods.savePage).not.toHaveBeenCalled();
+    } finally {
+      clearHeldBackTemplateRegistry();
+    }
+  });
+
+  it("does not skip when a different template was held back", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
+    }));
+    const { registerHeldBackTemplate, clearHeldBackTemplateRegistry } = require("core/state");
+    registerHeldBackTemplate("SomeOtherTemplate", "held back");
+
+    try {
+      // new page (no mapping) with source changes -> proceeds to the API path, not a skip
+      const result = await processPage(makeProps());
+      expect(result.status).not.toBe("skip");
+    } finally {
+      clearHeldBackTemplateRegistry();
+    }
+  });
 });
 
 // ─── guard: up-to-date page (no change) ───────────────────────────────────────

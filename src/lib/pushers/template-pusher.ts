@@ -1,5 +1,5 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { state, getLoggerForGuid } from "../../core/state";
+import { state, getLoggerForGuid, registerHeldBackTemplate } from "../../core/state";
 import { TemplateMapper } from "lib/mappers/template-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContainerMapper } from "lib/mappers/container-mapper";
@@ -64,9 +64,31 @@ export async function pushTemplates(
       }
     }
 
+    // PROD-2603: the mapping points at a target template that is no longer in the pulled target
+    // data (deleted on the target). Treat it like a target-side change, as model-pusher does:
+    // conflict unless --overwrite, which falls through and recreates it (addMapping repoints the
+    // stale record). Templates have no lastModifiedDate, so unlike content there is no
+    // "source unchanged -> skip" branch. Pages that use a held-back template are skipped by the
+    // page pusher rather than saved against the dead target ID.
+    if (existingMapping && !targetTemplate && !state.overwrite) {
+      const reason = `Warning: mapped target template (ID: ${existingMapping.targetPageTemplateID}) no longer exists on the target! Add \`--overwrite\` flag to recreate it.`;
+      console.warn(`⚠️  Conflict detected Template ${sourceTemplate.pageTemplateName} — ${reason}`);
+      logger.template.skipped(sourceTemplate, reason, targetGuid);
+      preflightReport.record({
+        phase: "Templates",
+        action: "conflict",
+        name: sourceTemplate.pageTemplateName,
+        detail: reason,
+      });
+      registerHeldBackTemplate(sourceTemplate.pageTemplateName, reason);
+      skipped++;
+      processedCount++;
+      continue;
+    }
+
     // Templates have no lastModifiedDate, so compare the source and target
     // structure directly: identical -> skip, different -> update (source wins),
-    // mapped but missing on target -> fall through and recreate.
+    // mapped but missing on target (only reached with --overwrite) -> fall through and recreate.
     const templateChanged = templateMapper.hasTemplateChanged(sourceTemplate, targetTemplate, sectionMapper);
 
     const shouldUpdate = existingMapping !== null && targetTemplate !== null && templateChanged;
