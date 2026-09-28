@@ -6,6 +6,7 @@ import { TemplateMapper } from "lib/mappers/template-mapper"; // Internal helper
 import { SectionMapper } from "lib/mappers/section-mapper";
 import { translateZoneNames } from "./translate-zone-names";
 import { findPageInOtherLocale, OtherLocaleMapping } from "./find-page-in-other-locale";
+import { refreshOtherLocaleVersions } from "./refresh-other-locale-versions";
 import { Logs } from "core/logs";
 import {
   state,
@@ -174,7 +175,15 @@ export async function processPage({
     } else if (createRequired) {
       //CREATE NEW PAGE - nothing to do here yet...
     } else if (!updateRequired) {
-      if (existingPage) {
+      // PROD-2628: existingPage is the target page as pulled at the start of the run. If a save
+      // of this page in another locale earlier in this run already moved the record's target
+      // version forward (refreshOtherLocaleVersions), rewriting it from the pulled page would put
+      // the stale version back and the next run would read our own write as a target change.
+      const wouldRegress =
+        !!existingPage &&
+        !!pageMapping &&
+        (existingPage.properties?.versionID ?? 0) < (pageMapping.targetVersionID ?? 0);
+      if (existingPage && !wouldRegress) {
         pageMapper.addMapping(page, existingPage);
       }
 
@@ -519,6 +528,18 @@ export async function processPage({
         } else {
           pageMapper.addMapping(page, createdPageData); // Use original page for source key
         }
+
+        // PROD-2628: this save may also have given the page a new version in its other locales;
+        // move those locales' recorded target version forward so the next run doesn't read our
+        // own write as an independent target change.
+        await refreshOtherLocaleVersions({
+          targetPageID: actualPageID,
+          savedLocale: locale,
+          locales: Array.isArray(state.locale) ? state.locale : [],
+          sourceGuid,
+          targetGuid,
+          apiClient,
+        });
 
         const pageTypeDisplay =
           {
