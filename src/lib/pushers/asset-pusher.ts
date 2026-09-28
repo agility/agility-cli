@@ -92,6 +92,18 @@ export async function pushAssets(
   // const referenceMapper = new ReferenceMapperV2();
   const referenceMapper = new AssetMapper(sourceGuid, targetGuid);
 
+  // PROD-2627: earlier versions appended a second record instead of repointing, so a source asset
+  // could be mapped to two target assets (or two sources to one target). Collapse those first,
+  // using the pulled data to pick the live, same-path pair. Scoped runs (--models, --pages,
+  // --containers) only see part of the source assets, so they can't judge and leave records alone.
+  const isScopedRun = !!(state.models || state.modelsWithDeps || state.pages || state.pageScope || state.containers);
+  if (!isScopedRun) {
+    const removedRecords = referenceMapper.resolveDuplicateRecords(assets, targetData || []);
+    if (removedRecords > 0) {
+      logger.log("INFO", `Removed ${removedRecords} duplicate asset mapping record(s) left by an earlier sync`);
+    }
+  }
+
   let defaultContainer: mgmtApi.assetContainer | null = null;
   try {
     defaultContainer = await apiClient.assetMethods.getDefaultContainer(targetGuid);
@@ -149,11 +161,101 @@ export async function pushAssets(
         continue;
       }
 
-      const shouldCreate = existingMapping === null && !targetAssetByOriginKey;
-
       // get the target asset, check if the source and targets need updates
-      const targetAsset: mgmtApi.Media =
+      let targetAsset: mgmtApi.Media =
         targetData.find((targetAsset) => targetAsset.mediaID === existingMapping?.targetMediaID) || null;
+
+      // PROD-2627: an asset upload is path-based, so pushing to a target asset that is missing or sits
+      // at a different path creates a second copy instead of updating it. Resolve those cases first.
+      let recreate = false;
+      let recreateReason = "";
+      let moveToFolder: string | null = null;
+      let conflictReason: string | null = null;
+
+      if (existingMapping && !targetAsset) {
+        const sameKeyOwner = targetAssetByOriginKey
+          ? referenceMapper.getAssetMapping(targetAssetByOriginKey, "target")
+          : null;
+        if (targetAssetByOriginKey && !sameKeyOwner) {
+          // the mapped target asset is gone but an unmapped asset sits at the same path: relink to it
+          referenceMapper.relinkTarget(existingMapping, targetAssetByOriginKey);
+          targetAsset = targetAssetByOriginKey;
+        } else if (state.overwrite) {
+          recreate = true;
+          recreateReason = `mapped target asset (ID: ${existingMapping.targetMediaID}) no longer exists on the target; recreating`;
+        } else if (referenceMapper.hasSourceChanged(media)) {
+          conflictReason = `Warning: mapped target asset (ID: ${existingMapping.targetMediaID}) no longer exists on the target! Add \`--overwrite\` flag to recreate it.`;
+        } else {
+          // deleted on the target and unchanged on the source: nothing to push, leave the deletion alone
+          const detail = `mapped target asset (ID: ${existingMapping.targetMediaID}) was deleted on the target and the source is unchanged`;
+          logger.asset.skipped(media, detail, targetGuid);
+          preflightReport.record({ phase: "Assets", action: "skip", name: media.fileName, detail });
+          skipped++;
+          continue;
+        }
+      } else if (existingMapping && targetAsset) {
+        const sourcePath = getAssetFilePath(media.originUrl);
+        const targetPath = getAssetFilePath(targetAsset.originUrl);
+        // Gallery assets live under MediaGroupings/{galleryID}/, and gallery IDs differ per instance;
+        // their placement follows the gallery mapping on upload, not the folder path.
+        const isGalleryPath = (p: string) => p.startsWith("MediaGroupings/");
+        if (sourcePath !== targetPath && !isGalleryPath(sourcePath) && !isGalleryPath(targetPath)) {
+          // Use the paths recorded at the last sync to tell which side moved.
+          const recordedSourcePath = existingMapping.sourceUrl ? getAssetFilePath(existingMapping.sourceUrl) : null;
+          const recordedTargetPath = existingMapping.targetUrl ? getAssetFilePath(existingMapping.targetUrl) : null;
+          const sourceMoved = recordedSourcePath !== null && recordedSourcePath !== sourcePath;
+          const targetMoved = recordedTargetPath === null || recordedTargetPath !== targetPath;
+
+          if (path.basename(sourcePath) !== path.basename(targetPath)) {
+            // a rename can't be moved into place; with --overwrite upload it under the source name
+            if (state.overwrite) {
+              recreate = true;
+              recreateReason = `target asset is named ${path.basename(targetPath)}, source is ${path.basename(sourcePath)}; uploading under the source name`;
+            } else {
+              conflictReason = `asset is ${targetPath} on the target but ${sourcePath} on the source (renamed); use --overwrite to upload it under the source name`;
+            }
+          } else if ((sourceMoved && !targetMoved) || state.overwrite) {
+            moveToFolder = folderPath;
+          } else {
+            const who = sourceMoved ? "moved on both sides" : "moved on the target";
+            conflictReason = `asset is in ${path.dirname(targetPath)} on the target but ${path.dirname(sourcePath)} on the source (${who}); use --overwrite to move it to ${path.dirname(sourcePath)}`;
+          }
+        }
+      }
+
+      if (conflictReason) {
+        logger.asset.skipped(media, conflictReason, targetGuid);
+        preflightReport.record({ phase: "Assets", action: "conflict", name: media.fileName, detail: conflictReason });
+        skipped++;
+        continue;
+      }
+
+      if (moveToFolder !== null) {
+        const moveDetail = `move from ${path.dirname(getAssetFilePath(targetAsset.originUrl))} to ${moveToFolder}`;
+        if (state.preflight) {
+          preflightReport.record({ phase: "Assets", action: "update", name: media.fileName, detail: moveDetail });
+        } else {
+          await apiClient.assetMethods.moveFile(targetAsset.mediaID, moveToFolder, targetGuid);
+          // the target asset now sits at the source path, so the upload replaces it in place
+          const updatedAsset = await updateAsset(
+            media,
+            absoluteLocalFilePath,
+            folderPath,
+            apiClient,
+            sourceGuid,
+            targetGuid,
+            referenceMapper,
+            logger
+          );
+          referenceMapper.addMapping(media, updatedAsset);
+          logger.asset.uploaded(media, moveDetail, targetGuid);
+        }
+        successful++;
+        continue;
+      }
+
+      const shouldCreate = (existingMapping === null && !targetAssetByOriginKey) || recreate;
+
       const hasTargetChanges = existingMapping !== null && referenceMapper.hasTargetChanged(targetAsset);
       const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(media);
 
@@ -171,7 +273,12 @@ export async function pushAssets(
       if (shouldCreate) {
         // Asset needs to be created (doesn't exist in target)
         if (state.preflight) {
-          preflightReport.record({ phase: "Assets", action: "create", name: media.fileName });
+          preflightReport.record({
+            phase: "Assets",
+            action: "create",
+            name: media.fileName,
+            ...(recreate ? { detail: recreateReason } : {}),
+          });
         } else {
           const createdAsset = await createAsset(
             media,
