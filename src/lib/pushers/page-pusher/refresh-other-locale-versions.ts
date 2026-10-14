@@ -1,5 +1,9 @@
 import * as mgmtApi from "@agility/management-sdk";
 import { PageMapper } from "../../mappers/page-mapper";
+import { registerOtherLocaleStaging } from "core/state";
+
+const STAGING_STATE = 1;
+const PUBLISHED_STATE = 2;
 
 interface Props {
   targetPageID: number;
@@ -24,6 +28,13 @@ interface Props {
  *
  * Mapping files are oriented through PageMapper/fileOperations, so under reverse-sync this moves
  * the original source's recorded version, which is the side reverse-sync wrote to.
+ *
+ * PROD-2782: a save that changes the page's components (add, remove, reorder) also puts the page in
+ * staging in every other locale, because the zones are shared and the server cuts a staging
+ * version for each language. Auto-publish only republishes pages saved in that locale, so the same
+ * re-read records the page for republishing when it was Published on the target before the run,
+ * is Staging now, and is Published on the source. A page left in staging on the source stays in
+ * staging on the target.
  *
  * Returns the locales whose mapping was refreshed. Never throws — a failed re-read only leaves
  * the old behaviour (a spurious conflict on the next run) for that locale.
@@ -56,6 +67,19 @@ export async function refreshOtherLocaleVersions({
       const currentPage = await apiClient.pageMethods.getPage(targetPageID, targetGuid, otherLocale);
       const currentVersion = currentPage?.properties?.versionID;
       if (!currentVersion || currentVersion <= record.targetVersionID) continue;
+
+      const sourcePage = otherMapper.getMappedEntity(record, "source");
+      if (
+        pulledTargetPage.properties?.state === PUBLISHED_STATE &&
+        currentPage.properties?.state === STAGING_STATE &&
+        sourcePage?.properties?.state === PUBLISHED_STATE
+      ) {
+        registerOtherLocaleStaging(otherLocale, {
+          targetPageID,
+          pageName: currentPage.name || pulledTargetPage.name || `Page ${targetPageID}`,
+          savedLocale,
+        });
+      }
 
       const result = otherMapper.updateTargetVersionID(targetPageID, currentVersion);
       if (result.success) refreshed.push(otherLocale);

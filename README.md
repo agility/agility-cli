@@ -187,6 +187,8 @@ The `--autoPublish` flag lets you automatically publish synced content and/or pa
 4. Publishing is done per-locale to match the workflow API requirements
 5. After publishing, reference mappings are updated to reflect the new published versions
 
+A page's components are shared by all of its locales, so a save that adds, removes or reorders components in one locale also puts the page in staging in its other locales. When the page was published in another locale of the run before the save, and is published in the source, `pages` and `both` republish it in that locale too. With `content` or no `--autoPublish`, the sync lists those pages under "Pages Left in Staging by Another Locale's Save" (and in `--jsonSummary` under `autoPublish.warnings`, type `staging`). Locales not included in the run are not checked.
+
 #### Examples
 
 ```bash

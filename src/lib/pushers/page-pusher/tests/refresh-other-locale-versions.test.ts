@@ -1,7 +1,13 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { resetState, setState } from "core/state";
+import {
+  resetState,
+  setState,
+  getOtherLocaleStaging,
+  clearOtherLocaleStagingRegistry,
+  blockOtherLocaleStaging,
+} from "core/state";
 import { PageMapper } from "lib/mappers/page-mapper";
 import { refreshOtherLocaleVersions } from "../refresh-other-locale-versions";
 
@@ -17,6 +23,7 @@ afterAll(() => {
 
 beforeEach(() => {
   resetState();
+  clearOtherLocaleStagingRegistry();
   setState({ rootPath: tmpDir });
   jest.spyOn(console, "log").mockImplementation(() => {});
   jest.spyOn(console, "warn").mockImplementation(() => {});
@@ -39,15 +46,25 @@ function nextPair() {
   TGT = `tgt-rl-${testCounter}`;
 }
 
-function makePage(pageID: number, versionID: number): any {
-  return { pageID, name: "how-it-works", templateName: "Main", properties: { versionID } };
+const STAGING = 1;
+const PUBLISHED = 2;
+
+function makePage(pageID: number, versionID: number, state?: number): any {
+  return { pageID, name: "how-it-works", templateName: "Main", properties: { versionID, state } };
 }
 
 /** Write the pulled target page file for a locale (what the run read at start). */
-function writePulledTargetPage(locale: string, pageID: number, versionID: number) {
+function writePulledTargetPage(locale: string, pageID: number, versionID: number, state?: number) {
   const dir = path.join(tmpDir, TGT, locale, "page");
   fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(path.join(dir, `${pageID}.json`), JSON.stringify(makePage(pageID, versionID)));
+  fs.writeFileSync(path.join(dir, `${pageID}.json`), JSON.stringify(makePage(pageID, versionID, state)));
+}
+
+/** Write the pulled source page file for a locale. */
+function writePulledSourcePage(locale: string, pageID: number, versionID: number, state?: number) {
+  const dir = path.join(tmpDir, SRC, locale, "page");
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(path.join(dir, `${pageID}.json`), JSON.stringify(makePage(pageID, versionID, state)));
 }
 
 /** Seed a locale's mapping record: source page 176 v{sourceVersion} -> target page 98 v{targetVersion}. */
@@ -59,10 +76,12 @@ function recordFor(locale: string) {
   return new PageMapper(SRC, TGT, locale).getPageMappingByPageID(98, "target")!;
 }
 
-function makeApiClient(versionsByLocale: Record<string, number>): any {
+function makeApiClient(versionsByLocale: Record<string, number>, statesByLocale: Record<string, number> = {}): any {
   return {
     pageMethods: {
-      getPage: jest.fn(async (pageID: number, _guid: string, locale: string) => makePage(pageID, versionsByLocale[locale])),
+      getPage: jest.fn(async (pageID: number, _guid: string, locale: string) =>
+        makePage(pageID, versionsByLocale[locale], statesByLocale[locale])
+      ),
     },
   };
 }
@@ -205,5 +224,84 @@ describe("refreshOtherLocaleVersions (PROD-2628)", () => {
       })
     ).resolves.toEqual([]);
     expect(recordFor("en-us").targetVersionID).toBe(1349);
+  });
+});
+
+// ─── PROD-2782: other locale left in staging ──────────────────────────────────
+
+describe("refreshOtherLocaleVersions records pages put in staging in another locale (PROD-2782)", () => {
+  /**
+   * en-us was in sync and Published (target page 98 v1349, source page 176 Published). The pt-br
+   * save just cut en-us version 1362 in state {currentState}.
+   */
+  async function runAfterSave(opts: {
+    pulledTargetState?: number;
+    currentState?: number;
+    sourceState?: number;
+    pulledTargetVersion?: number;
+  }) {
+    nextPair();
+    seedMapping("en-us", 4071, 1349);
+    writePulledTargetPage("en-us", 98, opts.pulledTargetVersion ?? 1349, opts.pulledTargetState ?? PUBLISHED);
+    writePulledSourcePage("en-us", 176, 4071, opts.sourceState ?? PUBLISHED);
+    seedMapping("pt-br", 5000, 1362);
+    const apiClient = makeApiClient({ "en-us": 1362 }, { "en-us": opts.currentState ?? STAGING });
+
+    const refreshed = await refreshOtherLocaleVersions({
+      targetPageID: 98,
+      savedLocale: "pt-br",
+      locales: ["en-us", "pt-br"],
+      sourceGuid: SRC,
+      targetGuid: TGT,
+      apiClient,
+    });
+    return { refreshed, apiClient };
+  }
+
+  it("records the page when it was Published on the target, is Staging now, and is Published on the source", async () => {
+    const { refreshed } = await runAfterSave({});
+
+    expect(refreshed).toEqual(["en-us"]);
+    expect(getOtherLocaleStaging()).toEqual(
+      new Map([["en-us", [{ targetPageID: 98, pageName: "how-it-works", savedLocale: "pt-br" }]]])
+    );
+    // the saved locale itself is never recorded
+    expect(getOtherLocaleStaging().has("pt-br")).toBe(false);
+  });
+
+  it("does not record a page that was already in staging on the target before the run", async () => {
+    await runAfterSave({ pulledTargetState: STAGING });
+    expect(getOtherLocaleStaging().size).toBe(0);
+  });
+
+  it("does not record a page the save left Published (a field-only save)", async () => {
+    await runAfterSave({ currentState: PUBLISHED });
+    expect(getOtherLocaleStaging().size).toBe(0);
+  });
+
+  it("does not record a page that is in staging on the source - the target mirrors it", async () => {
+    await runAfterSave({ sourceState: STAGING });
+    expect(getOtherLocaleStaging().size).toBe(0);
+  });
+
+  it("does not record a page with an independent target edit (it still conflicts)", async () => {
+    // pulled en-us page is ahead of the mapping's 1349
+    const { apiClient } = await runAfterSave({ pulledTargetVersion: 1355 });
+    expect(apiClient.pageMethods.getPage).not.toHaveBeenCalled();
+    expect(getOtherLocaleStaging().size).toBe(0);
+  });
+
+  it("does not record a page whose own save in that locale failed earlier in the run", async () => {
+    blockOtherLocaleStaging("en-us", 98);
+    await runAfterSave({});
+    expect(getOtherLocaleStaging().size).toBe(0);
+  });
+
+  it("drops a recorded page when its own save in that locale fails later in the run", async () => {
+    await runAfterSave({});
+    expect(getOtherLocaleStaging().get("en-us")).toHaveLength(1);
+
+    blockOtherLocaleStaging("en-us", 98);
+    expect(getOtherLocaleStaging().size).toBe(0);
   });
 });
