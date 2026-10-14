@@ -6,6 +6,8 @@ import {
   clearFailedContentRegistry,
   clearHeldBackTemplateRegistry,
   clearEffectiveTargetModels,
+  clearOtherLocaleStagingRegistry,
+  getOtherLocaleStaging,
   getPageCmsLink,
   getContentCmsLink,
 } from "./state";
@@ -19,6 +21,50 @@ import { Pull } from "./pull";
 import { preflightReport } from "../lib/preflight/preflight-report";
 import { buildJsonSummary, writeJsonSummary, JsonSummaryDetail, JsonSummaryPhase } from "./json-summary";
 import type { FailureDetail } from "../types/sourceData";
+import { foreignCdnReport } from "../lib/content/foreign-cdn-report";
+import { resetForeignCdnDetectorCache } from "../lib/pushers/content-pusher/util/report-foreign-cdn-references";
+import type { OtherLocaleStagingEntry } from "./state";
+
+/**
+ * PROD-2782: whether an --autoPublish mode publishes pages ("pages" or "both").
+ */
+export function autoPublishIncludesPages(autoPublishMode: string | undefined): boolean {
+  return autoPublishMode === "pages" || autoPublishMode === "both";
+}
+
+/**
+ * PROD-2782: add the pages a save in one locale put in staging in another locale to that locale's
+ * page publish list. Duplicates are left in; executeAutoPublish de-duplicates per locale.
+ */
+export function mergeOtherLocaleStaging(
+  pageIdsByLocale: Map<string, number[]>,
+  stagingByLocale: Map<string, OtherLocaleStagingEntry[]>
+): void {
+  stagingByLocale.forEach((entries, locale) => {
+    const existing = pageIdsByLocale.get(locale) || [];
+    pageIdsByLocale.set(locale, [...existing, ...entries.map((e) => e.targetPageID)]);
+  });
+}
+
+/**
+ * PROD-2782: non-blocking "staging" notices for pages a save in one locale put in staging in
+ * another locale, used when auto-publish does not publish pages and so cannot republish them.
+ */
+export function otherLocaleStagingWarnings(
+  stagingByLocale: Map<string, OtherLocaleStagingEntry[]>
+): Array<{ locale: string; type: string; error: string }> {
+  const warnings: Array<{ locale: string; type: string; error: string }> = [];
+  stagingByLocale.forEach((entries, locale) => {
+    for (const { targetPageID, pageName, savedLocale } of entries) {
+      warnings.push({
+        locale,
+        type: "staging",
+        error: `page "${pageName}" (target page ${targetPageID}) was put in staging by the ${savedLocale} save and was not republished (auto-publish does not include pages)`,
+      });
+    }
+  });
+  return warnings;
+}
 
 /**
  * PROD-2310: Decide whether a set of auto-publish errors should fail the sync exit code.
@@ -59,9 +105,13 @@ export class Push {
     clearHeldBackTemplateRegistry();
     // PROD-2542: models saved by a previous run must not stand in for this run's target models
     clearEffectiveTargetModels();
+    clearOtherLocaleStagingRegistry();
 
     // Preflight (PROD-2203): start each run with a clean report of planned actions
     preflightReport.reset();
+    // PROD-2773: foreign CDN references are reported once per URL per run
+    foreignCdnReport.reset();
+    resetForeignCdnDetectorCache();
 
     // Initialize logger for push operation
     // Determine if this is a sync operation by checking if both source and target GUIDs exist
@@ -205,6 +255,12 @@ export class Push {
         autoPublishErrors = await this.executeAutoPublish(results, autoPublish);
       }
 
+      // PROD-2782: pages a save in one locale put in staging in another locale are republished by
+      // auto-publish when it covers pages. Otherwise, say which ones were left in staging.
+      if (!autoPublishIncludesPages(autoPublish) || !isSync || state.preflight) {
+        autoPublishErrors.push(...otherLocaleStagingWarnings(getOtherLocaleStaging()));
+      }
+
       // Split auto-publish outcomes: genuine publish failures (blocking) vs
       // post-publish mapping/refresh bookkeeping notices (non-blocking). PROD-2311
       const genuinePublishErrors = autoPublishErrors.filter(
@@ -213,6 +269,7 @@ export class Push {
       const mappingWarnings = autoPublishErrors.filter(
         ({ type }) => type === "mapping" || type === "refresh"
       );
+      const stagingWarnings = autoPublishErrors.filter(({ type }) => type === "staging");
 
       // PROD-2310: Fold auto-publish failures into the returned success signal so the
       // entry point can exit non-zero. "mapping"/"refresh" entries are post-publish
@@ -299,6 +356,14 @@ export class Push {
         });
       }
 
+      // PROD-2773: asset URLs into a CDN container owned by neither instance — passed through
+      // unchanged, so non-blocking, but an image/file field holding one may arrive empty.
+      if (foreignCdnReport.hasEntries()) {
+        const [headline, ...rest] = foreignCdnReport.renderSummaryLines();
+        console.log(ansiColors.yellow(`\n  ${headline}`));
+        rest.forEach((line) => console.log(ansiColors.yellow(`  ${line}`)));
+      }
+
       // PROD-2311: post-publish mapping/version bookkeeping notices are NOT publish
       // failures — show them under a non-blocking header so they don't read as broken.
       if (mappingWarnings.length > 0) {
@@ -306,6 +371,16 @@ export class Push {
         mappingWarnings.forEach(({ locale, type, error }) => {
           const localeDisplay = locale ? `[${locale}]` : "";
           console.log(ansiColors.yellow(`    • ${localeDisplay} ${type}: ${error}`));
+        });
+      }
+
+      // PROD-2782: pages left in staging in a locale by another locale's save (no auto-publish of
+      // pages). Non-blocking: nothing was lost, the page needs publishing in that locale.
+      if (stagingWarnings.length > 0) {
+        console.log(ansiColors.yellow(`\n  Pages Left in Staging by Another Locale's Save (non-blocking):`));
+        stagingWarnings.forEach(({ locale, error }) => {
+          const localeDisplay = locale ? `[${locale}]` : "";
+          console.log(ansiColors.yellow(`    • ${localeDisplay} ${error}`));
         });
       }
 
@@ -320,6 +395,9 @@ export class Push {
       // Preflight (PROD-2203): print the report of actions that WOULD have been
       // taken, and signal conflicts via a non-zero exit code so automation can gate on it.
       if (state.preflight) {
+        if (foreignCdnReport.hasEntries()) {
+          preflightReport.recordWarning(`${foreignCdnReport.headline()} — see the list above`);
+        }
         preflightReport.print();
         if (preflightReport.hasConflicts()) {
           process.exitCode = 1;
@@ -334,7 +412,8 @@ export class Push {
         exitCode: typeof process.exitCode === "number" ? process.exitCode : success ? 0 : 1,
         phases: results.flatMap((r) => r.phases ?? []),
         failures: syncFailureDetails,
-        warnings: syncWarningDetails,
+        // PROD-2773: one additive entry per foreign CDN URL (code "foreignCdnReference")
+        warnings: [...syncWarningDetails, ...foreignCdnReport.toWarningDetails(sourceGuid)],
         operationErrors: syncErrors,
         autoPublishErrors,
         startedAt,
@@ -477,7 +556,14 @@ export class Push {
 
     // Determine what to publish based on mode
     const publishContent = autoPublishMode === "content" || autoPublishMode === "both";
-    const publishPages = autoPublishMode === "pages" || autoPublishMode === "both";
+    const publishPages = autoPublishIncludesPages(autoPublishMode);
+
+    // PROD-2782: a page saved in one locale may have been put in staging in another locale that
+    // this run did not save it in. Republish it there too.
+    const otherLocaleStaging = getOtherLocaleStaging();
+    if (publishPages && otherLocaleStaging.size > 0) {
+      mergeOtherLocaleStaging(pageIdsByLocale, otherLocaleStaging);
+    }
 
     // Get all locales that have items to publish
     const allLocales = new Set<string>();
@@ -510,6 +596,11 @@ export class Push {
     console.log(ansiColors.gray(`Locales to publish: ${Array.from(allLocales).join(", ")}`));
     console.log(ansiColors.gray(`Total content items: ${totalContent}`));
     console.log(ansiColors.gray(`Total pages: ${totalPages}`));
+    if (publishPages && otherLocaleStaging.size > 0) {
+      let count = 0;
+      otherLocaleStaging.forEach((entries) => (count += entries.length));
+      console.log(ansiColors.gray(`  incl. ${count} page(s) put in staging by a save in another locale`));
+    }
 
     // Import workflow dependencies
     const { processBatches } = await import("../lib/workflows/process-batches");

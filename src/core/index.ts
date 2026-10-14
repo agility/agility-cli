@@ -6,7 +6,7 @@
 // Core authentication and state management
 export { Auth } from "./auth";
 export { state, setState, resetState, primeFromEnv, getState, getUIMode, enableReverseSync } from "./state";
-export { systemArgs, workflowArgs, type SystemArgsType } from "./system-args";
+export { systemArgs, workflowArgs, verifyArgs, type SystemArgsType } from "./system-args";
 export { normalizeProcessArgs, normalizeArgv } from "./arg-normalizer";
 
 // Main operation services

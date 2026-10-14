@@ -1,5 +1,15 @@
-import { Push, hasBlockingAutoPublishErrors, formatFailureName } from "../push";
+import {
+  Push,
+  hasBlockingAutoPublishErrors,
+  formatFailureName,
+  autoPublishIncludesPages,
+  mergeOtherLocaleStaging,
+  otherLocaleStagingWarnings,
+} from "../push";
 import { resetState, setState } from "../state";
+import { Pull } from "../pull";
+import { Pushers } from "../../lib/pushers/orchestrate-pushers";
+import { foreignCdnReport } from "../../lib/content/foreign-cdn-report";
 
 beforeEach(() => {
   resetState();
@@ -74,6 +84,57 @@ describe("hasBlockingAutoPublishErrors", () => {
         { locale: "en-us", type: "publish", error: "boom" },
       ])
     ).toBe(true);
+  });
+
+  it("does not treat a page left in staging by another locale's save as blocking (PROD-2782)", () => {
+    expect(hasBlockingAutoPublishErrors([{ locale: "en-us", type: "staging", error: "left in staging" }])).toBe(false);
+  });
+});
+
+// ─── PROD-2782: pages another locale's save put in staging ──────────────────
+
+describe("autoPublishIncludesPages (PROD-2782)", () => {
+  it("is true for pages and both, false otherwise", () => {
+    expect(autoPublishIncludesPages("pages")).toBe(true);
+    expect(autoPublishIncludesPages("both")).toBe(true);
+    expect(autoPublishIncludesPages("content")).toBe(false);
+    expect(autoPublishIncludesPages("")).toBe(false);
+    expect(autoPublishIncludesPages(undefined)).toBe(false);
+  });
+});
+
+describe("mergeOtherLocaleStaging (PROD-2782)", () => {
+  it("adds each locale's pages to that locale's publish list, creating it if needed", () => {
+    const pageIdsByLocale = new Map<string, number[]>([["en-us", [10, 98]]]);
+    mergeOtherLocaleStaging(
+      pageIdsByLocale,
+      new Map([
+        ["en-us", [{ targetPageID: 98, pageName: "a", savedLocale: "pt-br" }]],
+        ["pt-br", [{ targetPageID: 40, pageName: "promotions", savedLocale: "en-us" }]],
+      ])
+    );
+    expect(pageIdsByLocale.get("en-us")).toEqual([10, 98, 98]);
+    expect(pageIdsByLocale.get("pt-br")).toEqual([40]);
+  });
+});
+
+describe("otherLocaleStagingWarnings (PROD-2782)", () => {
+  it("emits one non-blocking staging notice per page, in the page's locale", () => {
+    const warnings = otherLocaleStagingWarnings(
+      new Map([["pt-br", [{ targetPageID: 40, pageName: "promotions", savedLocale: "en-us" }]]])
+    );
+    expect(warnings).toEqual([
+      {
+        locale: "pt-br",
+        type: "staging",
+        error:
+          'page "promotions" (target page 40) was put in staging by the en-us save and was not republished (auto-publish does not include pages)',
+      },
+    ]);
+  });
+
+  it("is empty when nothing was recorded", () => {
+    expect(otherLocaleStagingWarnings(new Map())).toEqual([]);
   });
 });
 
@@ -284,6 +345,85 @@ describe("Push.pushInstances — --jsonSummary", () => {
     expect(parsed.exitCode).toBe(1);
     expect(parsed.phases).toEqual([]);
     expect(parsed.operationErrors).toEqual([{ type: "fatal", error: "Model validation failed" }]);
+  });
+
+  describe("foreign CDN references (PROD-2773)", () => {
+    const FOREIGN = "https://cdn-usa2.aglty.io/upstream-qa/hero-background-image.png";
+
+    /** Have the mocked orchestrator record what the content pusher would have found. */
+    async function runWithForeignReference(extraState: Record<string, any>) {
+      jest.spyOn(Pull.prototype, "pullInstances").mockResolvedValue(undefined as any);
+      jest.spyOn(Pushers.prototype, "instanceOrchestrator").mockImplementation(async () => {
+        foreignCdnReport.setOwnContainers(["site-qa"], ["site-cat"]);
+        foreignCdnReport.record(
+          { url: FOREIGN, container: "upstream-qa", field: "mobileBackgroundImage", kind: "attachment" },
+          { contentID: 474, referenceName: "home_homebanner_homebanner", locale: "en-us" }
+        );
+        return [pushResult({ warningDetails: [{ name: "Home", error: "Dropped Component Hero — unresolved" }] })] as any;
+      });
+      setState({ sourceGuid: "src-u", targetGuid: "tgt-u", ...extraState });
+      return new Push().pushInstances();
+    }
+
+    it("adds one warning per URL to --jsonSummary without affecting success", async () => {
+      const out = path.join(tmp, "summary.json");
+      const result = await runWithForeignReference({ jsonSummary: out });
+
+      const parsed = JSON.parse(fs.readFileSync(out, "utf8"));
+      expect(result.success).toBe(true);
+      expect(parsed.success).toBe(true);
+      expect(parsed.exitCode).toBe(0);
+      expect(parsed.schemaVersion).toBe(1);
+      expect(parsed.failures).toEqual([]);
+      expect(parsed.warnings).toHaveLength(2);
+      expect(parsed.warnings[0]).toEqual({ name: "Home", error: "Dropped Component Hero — unresolved" });
+      expect(parsed.warnings[1]).toMatchObject({
+        name: FOREIGN,
+        type: "content",
+        contentID: 474,
+        guid: "src-u",
+        locale: "en-us",
+        code: "foreignCdnReference",
+        url: FOREIGN,
+        container: "upstream-qa",
+        references: [
+          {
+            contentID: 474,
+            referenceName: "home_homebanner_homebanner",
+            locale: "en-us",
+            field: "mobileBackgroundImage",
+            kind: "attachment",
+          },
+        ],
+      });
+      expect(parsed.warnings[1].error).toContain("belongs to neither the source (site-qa)");
+
+      const printed = (console.log as jest.Mock).mock.calls.map((c) => String(c[0])).join("\n");
+      expect(printed).toContain("Foreign CDN references: 1 URL in 1 item (non-blocking):");
+      expect(printed).toContain(FOREIGN);
+    });
+
+    it("lists the count in the preflight report without changing its totals or exit code", async () => {
+      const out = path.join(tmp, "summary.json");
+      await runWithForeignReference({ jsonSummary: out, preflight: true });
+
+      const parsed = JSON.parse(fs.readFileSync(out, "utf8"));
+      expect(parsed.exitCode).toBe(0);
+      expect(process.exitCode).toBeUndefined();
+      expect(parsed.preflight.totals).toEqual({ create: 0, update: 0, skip: 0, conflict: 0, invalid: 0 });
+      expect(parsed.preflight.hasConflicts).toBe(false);
+      expect(parsed.warnings.some((w: any) => w.code === "foreignCdnReference")).toBe(true);
+
+      const printed = (console.log as jest.Mock).mock.calls.map((c) => String(c[0])).join("\n");
+      expect(printed).toContain("Warnings (1, non-blocking — not counted above):");
+    });
+
+    it("starts each run with an empty report", async () => {
+      const out = path.join(tmp, "summary.json");
+      await runWithForeignReference({});
+      await runPush([pushResult()], { jsonSummary: out });
+      expect(JSON.parse(fs.readFileSync(out, "utf8")).warnings).toEqual([]);
+    });
   });
 
   it("does not fail the run when the summary path cannot be written", async () => {

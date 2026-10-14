@@ -44,6 +44,21 @@ export interface JsonSummaryDetail {
   model?: string;
   /** PROD-2542: the required fields it was missing, as "name (Type)". */
   fields?: string[];
+  /**
+   * PROD-2773 (additive): set on warnings that are not item failures, e.g. "foreignCdnReference"
+   * — one entry per asset URL into a CDN container owned by neither instance, with the URL, its
+   * container and every item/field/locale that references it.
+   */
+  code?: string;
+  url?: string;
+  container?: string;
+  references?: Array<{
+    contentID: number;
+    referenceName: string;
+    locale: string;
+    field: string;
+    kind: "attachment" | "text";
+  }>;
 }
 
 /**
@@ -286,9 +301,12 @@ export function buildJsonSummary(input: BuildJsonSummaryInput): JsonSummary {
   );
 
   // Same split the console summary uses (PROD-2311): "publish"/"fatal" block the run,
-  // "mapping"/"refresh" are post-publish bookkeeping and deliberately do not.
+  // "mapping"/"refresh" are post-publish bookkeeping and deliberately do not, nor does "staging"
+  // (PROD-2782: a page another locale's save left in staging, not republished).
   const autoPublishErrors = input.autoPublishErrors.filter((e) => e.type === "publish" || e.type === "fatal");
-  const autoPublishWarnings = input.autoPublishErrors.filter((e) => e.type === "mapping" || e.type === "refresh");
+  const autoPublishWarnings = input.autoPublishErrors.filter(
+    (e) => e.type === "mapping" || e.type === "refresh" || e.type === "staging"
+  );
 
   return {
     schemaVersion: JSON_SUMMARY_SCHEMA_VERSION,
@@ -316,13 +334,14 @@ export function buildJsonSummary(input: BuildJsonSummaryInput): JsonSummary {
 }
 
 /**
- * Write the summary to disk, creating parent directories as needed.
+ * Write the summary to disk, creating parent directories as needed. Also used for the
+ * `agility verify` report (PROD-2552), which has its own schema but the same write contract.
  *
  * Never throws. A reporting artifact must not be able to fail a sync that otherwise
  * succeeded — an unwritable path is worth a warning, not a non-zero exit. Returns whether
  * the write landed so the caller can say so.
  */
-export function writeJsonSummary(filePath: string, summary: JsonSummary): { written: boolean; error?: string } {
+export function writeJsonSummary(filePath: string, summary: JsonSummary | object): { written: boolean; error?: string } {
   try {
     const resolved = path.resolve(filePath);
     const dir = path.dirname(resolved);

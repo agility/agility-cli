@@ -1,6 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
-import { state, getApiClient } from "../../../core/state";
+import { state, getApiClient, blockOtherLocaleStaging } from "../../../core/state";
 import { FailureDetail, PusherResult } from "../../../types/sourceData";
 import { SitemapHierarchy } from "./sitemap-hierarchy";
 import { PageMapper } from "../../mappers/page-mapper";
@@ -201,6 +201,12 @@ export async function processSitemap({
     } else {
       // pageRes.status is "failure"
       returnData.failed++;
+      // PROD-2782: a save in another locale may queue this page for republishing in this locale
+      // (before or after this point in the run). Its own save here failed, so leave it in staging.
+      const failedMapping = pageMapper.getPageMappingByPageID(sourcePage.pageID, "source");
+      if (failedMapping) {
+        blockOtherLocaleStaging(locale, failedMapping.targetPageID);
+      }
       returnData.failureDetails.push({
         name: sourcePage.name || `Page ${sourcePage.pageID}`,
         error: pageRes.error || "Unknown error",

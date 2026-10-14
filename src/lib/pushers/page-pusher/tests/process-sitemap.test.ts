@@ -1,7 +1,13 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { resetState, setState } from "core/state";
+import {
+  resetState,
+  setState,
+  registerOtherLocaleStaging,
+  getOtherLocaleStaging,
+  clearOtherLocaleStagingRegistry,
+} from "core/state";
 import { processSitemap, resetProcessedPageIDs } from "../process-sitemap";
 import { SitemapNode } from "types/syncAnalysis";
 
@@ -26,6 +32,7 @@ afterAll(() => {
 
 beforeEach(() => {
   resetState();
+  clearOtherLocaleStagingRegistry();
   setState({ rootPath: tmpDir, sourceGuid: "src", targetGuid: "tgt" });
   resetProcessedPageIDs();
   mockProcessPage.mockClear();
@@ -249,6 +256,28 @@ describe("processSitemap — failed page processing", () => {
     const pages = [makePage(5)];
     const result = await processSitemap(makeProps({ sitemapNodes: nodes, sourcePages: pages }));
     expect(result.failureDetails[0].name).toContain("Page 5");
+  });
+
+  it("does not republish a page whose own save failed, even if another locale's save queued it (PROD-2782)", async () => {
+    // the pt-br save earlier in the run put target page 999 in staging in en-us
+    registerOtherLocaleStaging("en-us", { targetPageID: 999, pageName: "Page 5", savedLocale: "pt-br" });
+    mockProcessPage.mockResolvedValue({ status: "failure", error: "boom" });
+
+    await processSitemap(makeProps({ sitemapNodes: [makeNode(5)], sourcePages: [makePage(5)] }));
+
+    expect(getOtherLocaleStaging().size).toBe(0);
+    // and a later save in another locale cannot queue it again
+    registerOtherLocaleStaging("en-us", { targetPageID: 999, pageName: "Page 5", savedLocale: "fr-ca" });
+    expect(getOtherLocaleStaging().size).toBe(0);
+  });
+
+  it("keeps a queued page when its own locale skipped it as up to date (PROD-2782)", async () => {
+    registerOtherLocaleStaging("en-us", { targetPageID: 999, pageName: "Page 5", savedLocale: "pt-br" });
+    mockProcessPage.mockResolvedValue({ status: "skip" });
+
+    await processSitemap(makeProps({ sitemapNodes: [makeNode(5)], sourcePages: [makePage(5)] }));
+
+    expect(getOtherLocaleStaging().get("en-us")).toHaveLength(1);
   });
 });
 

@@ -187,6 +187,8 @@ The `--autoPublish` flag lets you automatically publish synced content and/or pa
 4. Publishing is done per-locale to match the workflow API requirements
 5. After publishing, reference mappings are updated to reflect the new published versions
 
+A page's components are shared by all of its locales, so a save that adds, removes or reorders components in one locale also puts the page in staging in its other locales. When the page was published in another locale of the run before the save, and is published in the source, `pages` and `both` republish it in that locale too. With `content` or no `--autoPublish`, the sync lists those pages under "Pages Left in Staging by Another Locale's Save" (and in `--jsonSummary` under `autoPublish.warnings`, type `staging`). Locales not included in the run are not checked.
+
 #### Examples
 
 ```bash
@@ -515,6 +517,48 @@ agility sync --sourceGuid A --targetGuid B --locales en-us
 # Later: pull B's edits back into A, reusing mappings/A-B
 agility reverse-sync --sourceGuid A --targetGuid B --locales en-us --preflight
 agility reverse-sync --sourceGuid A --targetGuid B --locales en-us
+```
+
+### Verify
+
+Compare a synced target instance against its source and report every difference, independent of the sync's own logs and change tracking.
+
+```bash
+agility verify --sourceGuid <source> --targetGuid <target> [--locales en-us,fr-ca] [--channel website] [--models ...] [--pages ...] [--containers ...] [--jsonSummary <path>]
+```
+
+Use the same `--sourceGuid` / `--targetGuid` as the forward `sync`. Verify never writes to either instance or to the mapping files.
+
+#### What it does
+
+1. Waits until neither instance has a content update in progress (preview and published), up to 10 minutes.
+2. Runs a full pull of both instances, then checks again. If an update ran during the pull, it pulls once more.
+3. Compares the two instances through the mapping files:
+   - mapping integrity (unmapped source items, mappings to missing targets, two sources mapped to one target)
+   - models, containers and templates
+   - content counts per model and container, list order, and field values (linked content, assets and companion fields resolved through the mappings)
+   - component order within each page zone, and which zone each component is in
+   - sitemap parent and sibling order per locale and channel
+
+#### Results
+
+- **Failures**: field mismatches, missing items, components in the wrong order or zone, sitemap order errors.
+- **Warnings**: content that exists only on the target, publish-state differences. These don't fail the run.
+- **Source defects**: differences explained by the source data, such as an item missing a required field or an item in a deleted container. These are listed but don't fail the run.
+
+The console prints a summary table per locale and the first 20 findings per category. The full report is written to `--jsonSummary`, or to `agility-files/logs/verify-{source}-{target}-{timestamp}.json`.
+
+| Exit code | Meaning                                                                       |
+| --------- | ----------------------------------------------------------------------------- |
+| `0`       | Target matches source                                                         |
+| `1`       | Differences found                                                             |
+| `2`       | Could not verify (auth, status check timeout, pull failure, missing mappings) |
+
+```bash
+# Blue/green: sync into the new instance, then prove it before switching traffic
+agility sync --sourceGuid A --targetGuid B --locales en-us --preflight
+agility sync --sourceGuid A --targetGuid B --locales en-us
+agility verify --sourceGuid A --targetGuid B --locales en-us
 ```
 
 ## File Structure
