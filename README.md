@@ -517,6 +517,48 @@ agility reverse-sync --sourceGuid A --targetGuid B --locales en-us --preflight
 agility reverse-sync --sourceGuid A --targetGuid B --locales en-us
 ```
 
+### Verify
+
+Compare a synced target instance against its source and report every difference, independent of the sync's own logs and change tracking.
+
+```bash
+agility verify --sourceGuid <source> --targetGuid <target> [--locales en-us,fr-ca] [--channel website] [--models ...] [--pages ...] [--containers ...] [--jsonSummary <path>]
+```
+
+Use the same `--sourceGuid` / `--targetGuid` as the forward `sync`. Verify never writes to either instance or to the mapping files.
+
+#### What it does
+
+1. Waits until neither instance has a content update in progress (preview and published), up to 10 minutes.
+2. Runs a full pull of both instances, then checks again. If an update ran during the pull, it pulls once more.
+3. Compares the two instances through the mapping files:
+   - mapping integrity (unmapped source items, mappings to missing targets, two sources mapped to one target)
+   - models, containers and templates
+   - content counts per model and container, list order, and field values (linked content, assets and companion fields resolved through the mappings)
+   - component order within each page zone, and which zone each component is in
+   - sitemap parent and sibling order per locale and channel
+
+#### Results
+
+- **Failures**: field mismatches, missing items, components in the wrong order or zone, sitemap order errors.
+- **Warnings**: content that exists only on the target, publish-state differences. These don't fail the run.
+- **Source defects**: differences explained by the source data, such as an item missing a required field or an item in a deleted container. These are listed but don't fail the run.
+
+The console prints a summary table per locale and the first 20 findings per category. The full report is written to `--jsonSummary`, or to `agility-files/logs/verify-{source}-{target}-{timestamp}.json`.
+
+| Exit code | Meaning                                                                       |
+| --------- | ----------------------------------------------------------------------------- |
+| `0`       | Target matches source                                                         |
+| `1`       | Differences found                                                             |
+| `2`       | Could not verify (auth, status check timeout, pull failure, missing mappings) |
+
+```bash
+# Blue/green: sync into the new instance, then prove it before switching traffic
+agility sync --sourceGuid A --targetGuid B --locales en-us --preflight
+agility sync --sourceGuid A --targetGuid B --locales en-us
+agility verify --sourceGuid A --targetGuid B --locales en-us
+```
+
 ## File Structure
 
 The CLI organizes downloaded content in a structured format:
