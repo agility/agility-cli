@@ -44,6 +44,21 @@ export interface JsonSummaryDetail {
   model?: string;
   /** PROD-2542: the required fields it was missing, as "name (Type)". */
   fields?: string[];
+  /**
+   * PROD-2773 (additive): set on warnings that are not item failures, e.g. "foreignCdnReference"
+   * — one entry per asset URL into a CDN container owned by neither instance, with the URL, its
+   * container and every item/field/locale that references it.
+   */
+  code?: string;
+  url?: string;
+  container?: string;
+  references?: Array<{
+    contentID: number;
+    referenceName: string;
+    locale: string;
+    field: string;
+    kind: "attachment" | "text";
+  }>;
 }
 
 /**

@@ -63,6 +63,9 @@ const ACTION_GLYPH: Record<PreflightAction, string> = {
 
 class PreflightReport {
   private entries: PreflightEntry[] = [];
+  // PROD-2773: non-blocking notices shown under their own heading. Kept apart from `entries`
+  // so they never change a phase count, the totals, or the conflict exit code.
+  private warnings: string[] = [];
 
   /** Whether preflight mode is active for the current run. */
   isEnabled(): boolean {
@@ -72,6 +75,7 @@ class PreflightReport {
   /** Clear all recorded actions (called per-command via resetState). */
   reset(): void {
     this.entries = [];
+    this.warnings = [];
   }
 
   /**
@@ -81,6 +85,16 @@ class PreflightReport {
   record(entry: PreflightEntry): void {
     if (!this.isEnabled()) return;
     this.entries.push(entry);
+  }
+
+  /** PROD-2773: record a non-blocking warning line. No-op when preflight mode is off. */
+  recordWarning(message: string): void {
+    if (!this.isEnabled()) return;
+    this.warnings.push(message);
+  }
+
+  getWarnings(): string[] {
+    return this.warnings;
   }
 
   /** True if any item would conflict (used to set a non-zero exit code). */
@@ -176,6 +190,7 @@ class PreflightReport {
     const phases = this.getPhaseSummaries();
     if (phases.length === 0) {
       lines.push(ansiColors.gray("\nNothing to do — no creates, updates, skips, or conflicts detected.\n"));
+      lines.push(...this.renderWarnings());
       return lines.join("\n");
     }
 
@@ -221,9 +236,19 @@ class PreflightReport {
     if (this.hasConflicts()) {
       lines.push(ansiColors.red("\n⚠️  Conflicts detected — a real sync would require --overwrite (exit code 1)."));
     }
+    lines.push(...this.renderWarnings());
     lines.push(ansiColors.cyan(bar));
 
     return lines.join("\n");
+  }
+
+  /** PROD-2773: the warnings section — not counted in the totals and never affects the exit code. */
+  private renderWarnings(): string[] {
+    if (this.warnings.length === 0) return [];
+    return [
+      ansiColors.yellow(`\nWarnings (${this.warnings.length}, non-blocking — not counted above):`),
+      ...this.warnings.map((w) => ansiColors.yellow(`  ⚠ ${w}`)),
+    ];
   }
 
   /** Print the report to stdout. */
