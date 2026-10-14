@@ -201,6 +201,56 @@ export const workflowArgs = {
 };
 
 /**
+ * Args accepted by the `verify` command (PROD-2552).
+ *
+ * A deliberate subset of systemArgs, reusing their parsing and aliases — NOT a spread of the whole
+ * set: verify never writes to an instance, so the sync-only options (overwrite, autoPublish,
+ * preflight, fullPull, elements, modelsWithDeps) would advertise behavior it does not have. Verify
+ * always does a full pull of both instances.
+ */
+export const verifyArgs = {
+  token: systemArgs.token,
+  dev: systemArgs.dev,
+  headless: systemArgs.headless,
+  verbose: systemArgs.verbose,
+  sourceGuid: {
+    ...systemArgs.sourceGuid,
+    describe:
+      "The source instance GUID of the sync being verified. Required; falls back to AGILITY_GUID from .env.",
+  },
+  targetGuid: {
+    ...systemArgs.targetGuid,
+    describe:
+      "The target instance GUID of the sync being verified. Required; falls back to AGILITY_TARGET_GUID from .env.",
+  },
+  locales: systemArgs.locales,
+  channel: {
+    ...systemArgs.channel,
+    describe: "Verify only this channel's sitemap. If not provided, every channel is verified.",
+    default: undefined,
+  },
+  models: {
+    ...systemArgs.models,
+    describe: "Verify only these models (comma-separated reference names), as `sync --models` scopes a sync.",
+  },
+  pages: {
+    ...systemArgs.pages,
+    describe:
+      "Verify only these pages and what they need (comma-separated paths, names or IDs), as `sync --pages` scopes a sync.",
+  },
+  containers: {
+    ...systemArgs.containers,
+    describe:
+      "Verify only these containers and what they depend on (comma-separated reference names, titles or IDs), as `sync --containers` scopes a sync.",
+  },
+  jsonSummary: {
+    ...systemArgs.jsonSummary,
+    describe:
+      "Write the full verify report (every finding, per-locale counts, timings) as JSON to this path. Defaults to agility-files/logs/verify-<source>-<target>-<timestamp>.json.",
+  },
+};
+
+/**
  * Type helper for command arguments that include system args
  */
 export type SystemArgsType = typeof systemArgs;

@@ -993,7 +993,7 @@ export class Auth {
    * Validate command-specific requirements and set up instance access
    * This should be called by each command after auth.init()
    */
-  async validateCommand(commandType: "pull" | "sync" | "clean" | "interactive" | "push"): Promise<boolean> {
+  async validateCommand(commandType: "pull" | "sync" | "clean" | "interactive" | "push" | "verify"): Promise<boolean> {
     const missingFields: string[] = [];
 
     // Check command-specific requirements
@@ -1028,6 +1028,20 @@ export class Auth {
         }
 
         if (!state.channel) missingFields.push("channel (use --channel or AGILITY_WEBSITE in .env)");
+        break;
+
+      case "verify":
+        // Verify (PROD-2552) reads both instances and writes to neither
+        if (!state.sourceGuid)
+          missingFields.push("sourceGuid (use --sourceGuid or AGILITY_GUID in .env)");
+        if (!state.targetGuid)
+          missingFields.push("targetGuid (use --targetGuid or AGILITY_TARGET_GUID in .env)");
+
+        const hasVerifyUserLocales = state.locale && state.locale.length > 0;
+        const hasVerifyAutoDetectedLocales = state.guidLocaleMap && state.guidLocaleMap.size > 0;
+        if (!hasVerifyUserLocales && !hasVerifyAutoDetectedLocales) {
+          missingFields.push("locale (use --locales or AGILITY_LOCALES in .env, or locales will be auto-detected)");
+        }
         break;
 
       case "clean":
@@ -1078,6 +1092,11 @@ export class Auth {
           );
           return false;
         }
+      } else if (commandType === "verify") {
+        // Verify only needs read access to both instances; the pull uses the API keys auth.init()
+        // already resolved for each guid.
+        await this.validateInstanceAccess(state.sourceGuid, "source");
+        await this.validateInstanceAccess(state.targetGuid, "target");
       } else if (commandType === "pull" && state.sourceGuid) {
         // Pull operation - validate source access and get API keys
         await this.validateInstanceAccess(state.sourceGuid, "instance");

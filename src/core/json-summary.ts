@@ -316,13 +316,14 @@ export function buildJsonSummary(input: BuildJsonSummaryInput): JsonSummary {
 }
 
 /**
- * Write the summary to disk, creating parent directories as needed.
+ * Write the summary to disk, creating parent directories as needed. Also used for the
+ * `agility verify` report (PROD-2552), which has its own schema but the same write contract.
  *
  * Never throws. A reporting artifact must not be able to fail a sync that otherwise
  * succeeded — an unwritable path is worth a warning, not a non-zero exit. Returns whether
  * the write landed so the caller can say so.
  */
-export function writeJsonSummary(filePath: string, summary: JsonSummary): { written: boolean; error?: string } {
+export function writeJsonSummary(filePath: string, summary: JsonSummary | object): { written: boolean; error?: string } {
   try {
     const resolved = path.resolve(filePath);
     const dir = path.dirname(resolved);
