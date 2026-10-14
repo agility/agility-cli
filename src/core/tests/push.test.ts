@@ -1,4 +1,11 @@
-import { Push, hasBlockingAutoPublishErrors, formatFailureName } from "../push";
+import {
+  Push,
+  hasBlockingAutoPublishErrors,
+  formatFailureName,
+  autoPublishIncludesPages,
+  mergeOtherLocaleStaging,
+  otherLocaleStagingWarnings,
+} from "../push";
 import { resetState, setState } from "../state";
 import { Pull } from "../pull";
 import { Pushers } from "../../lib/pushers/orchestrate-pushers";
@@ -77,6 +84,57 @@ describe("hasBlockingAutoPublishErrors", () => {
         { locale: "en-us", type: "publish", error: "boom" },
       ])
     ).toBe(true);
+  });
+
+  it("does not treat a page left in staging by another locale's save as blocking (PROD-2782)", () => {
+    expect(hasBlockingAutoPublishErrors([{ locale: "en-us", type: "staging", error: "left in staging" }])).toBe(false);
+  });
+});
+
+// ─── PROD-2782: pages another locale's save put in staging ──────────────────
+
+describe("autoPublishIncludesPages (PROD-2782)", () => {
+  it("is true for pages and both, false otherwise", () => {
+    expect(autoPublishIncludesPages("pages")).toBe(true);
+    expect(autoPublishIncludesPages("both")).toBe(true);
+    expect(autoPublishIncludesPages("content")).toBe(false);
+    expect(autoPublishIncludesPages("")).toBe(false);
+    expect(autoPublishIncludesPages(undefined)).toBe(false);
+  });
+});
+
+describe("mergeOtherLocaleStaging (PROD-2782)", () => {
+  it("adds each locale's pages to that locale's publish list, creating it if needed", () => {
+    const pageIdsByLocale = new Map<string, number[]>([["en-us", [10, 98]]]);
+    mergeOtherLocaleStaging(
+      pageIdsByLocale,
+      new Map([
+        ["en-us", [{ targetPageID: 98, pageName: "a", savedLocale: "pt-br" }]],
+        ["pt-br", [{ targetPageID: 40, pageName: "promotions", savedLocale: "en-us" }]],
+      ])
+    );
+    expect(pageIdsByLocale.get("en-us")).toEqual([10, 98, 98]);
+    expect(pageIdsByLocale.get("pt-br")).toEqual([40]);
+  });
+});
+
+describe("otherLocaleStagingWarnings (PROD-2782)", () => {
+  it("emits one non-blocking staging notice per page, in the page's locale", () => {
+    const warnings = otherLocaleStagingWarnings(
+      new Map([["pt-br", [{ targetPageID: 40, pageName: "promotions", savedLocale: "en-us" }]]])
+    );
+    expect(warnings).toEqual([
+      {
+        locale: "pt-br",
+        type: "staging",
+        error:
+          'page "promotions" (target page 40) was put in staging by the en-us save and was not republished (auto-publish does not include pages)',
+      },
+    ]);
+  });
+
+  it("is empty when nothing was recorded", () => {
+    expect(otherLocaleStagingWarnings(new Map())).toEqual([]);
   });
 });
 

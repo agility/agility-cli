@@ -301,9 +301,12 @@ export function buildJsonSummary(input: BuildJsonSummaryInput): JsonSummary {
   );
 
   // Same split the console summary uses (PROD-2311): "publish"/"fatal" block the run,
-  // "mapping"/"refresh" are post-publish bookkeeping and deliberately do not.
+  // "mapping"/"refresh" are post-publish bookkeeping and deliberately do not, nor does "staging"
+  // (PROD-2782: a page another locale's save left in staging, not republished).
   const autoPublishErrors = input.autoPublishErrors.filter((e) => e.type === "publish" || e.type === "fatal");
-  const autoPublishWarnings = input.autoPublishErrors.filter((e) => e.type === "mapping" || e.type === "refresh");
+  const autoPublishWarnings = input.autoPublishErrors.filter(
+    (e) => e.type === "mapping" || e.type === "refresh" || e.type === "staging"
+  );
 
   return {
     schemaVersion: JSON_SUMMARY_SCHEMA_VERSION,

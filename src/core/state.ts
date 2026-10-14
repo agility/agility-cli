@@ -120,6 +120,20 @@ export interface State {
   // Held-back template registry - source template names whose mapped target template is gone and
   // was not recreated (no --overwrite). Used by page pusher to skip pages that depend on them.
   heldBackTemplateRegistry: Map<string, string>;
+
+  // Other-locale staging registry (PROD-2782) - pages that a save in one locale put in staging in
+  // another locale, keyed by that other locale, then by target page ID. Auto-publish republishes
+  // them; without auto-publish they are reported as warnings.
+  otherLocaleStagingRegistry: Map<string, Map<number, OtherLocaleStagingEntry>>;
+  // "locale:targetPageID" for pages whose own save in that locale failed this run - never republished
+  otherLocaleStagingBlocked: Set<string>;
+}
+
+export interface OtherLocaleStagingEntry {
+  targetPageID: number;
+  pageName: string;
+  /** The locale whose save put this page in staging. */
+  savedLocale: string;
 }
 
 // Global state - populated from argv and referenced throughout the app
@@ -199,6 +213,10 @@ export const state: State = {
 
   // Held-back template registry - templates whose mapped target is gone and was not recreated
   heldBackTemplateRegistry: new Map(),
+
+  // Other-locale staging registry - pages a save in one locale put in staging in another (PROD-2782)
+  otherLocaleStagingRegistry: new Map(),
+  otherLocaleStagingBlocked: new Set(),
 };
 
 /**
@@ -846,6 +864,49 @@ export function getHeldBackTemplate(pageTemplateName: string): string | undefine
  */
 export function clearHeldBackTemplateRegistry(): void {
   state.heldBackTemplateRegistry.clear();
+}
+
+/**
+ * Record a page that a save in another locale put in staging in `locale` (PROD-2782)
+ * @param locale - The locale the page went to staging in
+ * @param entry - The target page and the locale whose save caused it
+ */
+export function registerOtherLocaleStaging(locale: string, entry: OtherLocaleStagingEntry): void {
+  if (state.otherLocaleStagingBlocked.has(`${locale}:${entry.targetPageID}`)) return;
+  let pages = state.otherLocaleStagingRegistry.get(locale);
+  if (!pages) {
+    pages = new Map();
+    state.otherLocaleStagingRegistry.set(locale, pages);
+  }
+  pages.set(entry.targetPageID, entry);
+}
+
+/**
+ * Never republish this page in `locale` this run - its own save in that locale failed. Drops it if
+ * it was already recorded, and keeps a later save in another locale from recording it again.
+ */
+export function blockOtherLocaleStaging(locale: string, targetPageID: number): void {
+  state.otherLocaleStagingRegistry.get(locale)?.delete(targetPageID);
+  state.otherLocaleStagingBlocked.add(`${locale}:${targetPageID}`);
+}
+
+/**
+ * The pages recorded for each locale, as arrays
+ */
+export function getOtherLocaleStaging(): Map<string, OtherLocaleStagingEntry[]> {
+  const result = new Map<string, OtherLocaleStagingEntry[]>();
+  state.otherLocaleStagingRegistry.forEach((pages, locale) => {
+    if (pages.size > 0) result.set(locale, Array.from(pages.values()));
+  });
+  return result;
+}
+
+/**
+ * Clear the other-locale staging registry (should be called at start of each sync)
+ */
+export function clearOtherLocaleStagingRegistry(): void {
+  state.otherLocaleStagingRegistry.clear();
+  state.otherLocaleStagingBlocked.clear();
 }
 
 /**
