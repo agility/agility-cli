@@ -54,6 +54,8 @@ export interface FailureDetail {
   mediaID?: number; // Source media ID for asset failures
   guid?: string; // Source instance GUID
   locale?: string; // Locale code
+  model?: string; // PROD-2542: model of a content item that failed client-side validation
+  fields?: string[]; // PROD-2542: required fields it was missing, as "name (Type)"
 }
 
 /**

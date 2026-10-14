@@ -3,7 +3,7 @@ import ansiColors from "ansi-colors";
 // Removed ContentBatchProcessor import - individual pusher only handles individual processing
 import { getLoggerForGuid, state, registerFailedContent } from "core/state";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
-import { filterContentItemsForProcessing } from "./util/filter-content-items-for-processing";
+import { ContentValidationFailure, filterContentItemsForProcessing } from "./util/filter-content-items-for-processing";
 import { getContentItemTypes } from "./util/get-content-item-types";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContentItem, Model } from "@agility/management-sdk";
@@ -51,7 +51,39 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
     contentID?: number;
     guid?: string;
     locale?: string;
+    model?: string;
+    fields?: string[];
   }> = [];
+
+  // PROD-2542: items the filter rejected client-side (missing required field on the target model).
+  // Register each in the failed-content registry right away, so the next pass's parents and the
+  // page pusher can say why their reference is unresolved. In preflight that is all — the filter
+  // already recorded them as "invalid" — so they count as skips and never touch the exit code; in a
+  // real run they are failures with full detail (console/log, ERROR SUMMARY, --jsonSummary).
+  const reportValidationFailures = (failures: ContentValidationFailure[]): void => {
+    for (const { item, error, model, missing } of failures) {
+      const name = item.properties?.referenceName || "Unknown";
+      if (item.contentID) {
+        registerFailedContent(item.contentID, name, error, locale);
+      }
+      if (state.preflight) {
+        totalSkipped++;
+        continue;
+      }
+      logger.content.error(item, error, locale, targetGuidStr);
+      totalFailed++;
+      allFailureDetails.push({
+        name,
+        error,
+        type: "content",
+        contentID: item.contentID,
+        guid: sourceGuidStr,
+        locale,
+        model,
+        fields: missing.map((m) => `${m.name} (${m.type})`),
+      });
+    }
+  };
 
   try {
     // Import getApiClient for both batch configurations
@@ -82,7 +114,9 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
         referenceMapper,
         targetData,
         logger,
+        sourceGuid: sourceGuidStr,
       });
+      reportValidationFailures(filteredLinkedContentItems.itemsToFail);
 
       // Preflight (PROD-2203): the filter has already recorded create/update/skip/conflict.
       // Skip the batch write entirely so nothing is sent to the target, but keep
@@ -146,7 +180,9 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
         referenceMapper,
         targetData,
         logger,
+        sourceGuid: sourceGuidStr,
       });
+      reportValidationFailures(filteredNormalContentItems.itemsToFail);
       // Preflight (PROD-2203): filter already recorded the actions; skip the write.
       if (state.preflight) {
         totalSuccessful += filteredNormalContentItems.itemsToProcess.length;

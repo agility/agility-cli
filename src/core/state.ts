@@ -107,8 +107,15 @@ export interface State {
   mappingPair?: { sourceGuid: string; targetGuid: string };
 
   // Failed content registry - tracks content items that failed during sync
-  // Used by page pusher to provide better error messages when content mappings are missing
-  failedContentRegistry: Map<number, { referenceName: string; error: string; locale: string }>;
+  // Used by page pusher to provide better error messages when content mappings are missing.
+  // Keyed by `${locale}:${contentID}` (PROD-2542) so a failure in one locale never labels another.
+  failedContentRegistry: Map<string, { referenceName: string; error: string; locale: string }>;
+
+  // Effective target models (PROD-2542) - the model definition content will actually be validated
+  // against on the target, keyed by lower-cased SOURCE model referenceName. Filled by the model
+  // pusher on a saved create/update (and with the source model in preflight), because the target
+  // models/<id>.json cache is not rewritten after saveModel and is stale for the rest of the run.
+  effectiveTargetModels: Map<string, any>;
 
   // Held-back template registry - source template names whose mapped target template is gone and
   // was not recreated (no --overwrite). Used by page pusher to skip pages that depend on them.
@@ -186,6 +193,9 @@ export const state: State = {
 
   // Failed content registry - tracks content items that failed during sync
   failedContentRegistry: new Map(),
+
+  // Effective target models - models saved (or, in preflight, planned) during this run
+  effectiveTargetModels: new Map(),
 
   // Held-back template registry - templates whose mapped target is gone and was not recreated
   heldBackTemplateRegistry: new Map(),
@@ -490,6 +500,9 @@ export function resetState() {
   // Reverse sync
   state.reverseSync = false;
   state.mappingPair = undefined;
+
+  // Run-scoped model registry (PROD-2542)
+  state.effectiveTargetModels = new Map();
 }
 
 /**
@@ -751,26 +764,32 @@ export function clearLogger(): void {
 // better error messages when content mappings are missing
 // ============================================================================
 
+function failedContentKey(contentID: number, locale: string): string {
+  return `${(locale || "").toLowerCase()}:${contentID}`;
+}
+
 /**
  * Register a failed content item
  * @param contentID - The source content ID that failed
  * @param referenceName - The reference name of the content item
  * @param error - The error message
- * @param locale - The locale being processed
+ * @param locale - The locale being processed (part of the key, PROD-2542)
  */
 export function registerFailedContent(contentID: number, referenceName: string, error: string, locale: string): void {
-  state.failedContentRegistry.set(contentID, { referenceName, error, locale });
+  state.failedContentRegistry.set(failedContentKey(contentID, locale), { referenceName, error, locale });
 }
 
 /**
- * Look up a failed content item by its source content ID
+ * Look up a failed content item by its source content ID in a locale
  * @param contentID - The source content ID to look up
+ * @param locale - The locale being processed; a failure registered for another locale is not returned
  * @returns The failure info if found, or undefined
  */
 export function getFailedContent(
-  contentID: number
+  contentID: number,
+  locale: string
 ): { referenceName: string; error: string; locale: string } | undefined {
-  return state.failedContentRegistry.get(contentID);
+  return state.failedContentRegistry.get(failedContentKey(contentID, locale));
 }
 
 /**
@@ -778,6 +797,30 @@ export function getFailedContent(
  */
 export function clearFailedContentRegistry(): void {
   state.failedContentRegistry.clear();
+}
+
+// ============================================================================
+// Effective target model registry (PROD-2542)
+// ============================================================================
+
+/**
+ * Record the model definition content of `sourceReferenceName` will be validated against on the
+ * target for the rest of this run.
+ */
+export function registerEffectiveTargetModel(sourceReferenceName: string, model: any): void {
+  if (!sourceReferenceName || !model) return;
+  state.effectiveTargetModels.set(sourceReferenceName.toLowerCase(), model);
+}
+
+/** Look up a model registered this run by its source referenceName (case-insensitive). */
+export function getEffectiveTargetModel(sourceReferenceName: string): any | undefined {
+  if (!sourceReferenceName) return undefined;
+  return state.effectiveTargetModels.get(sourceReferenceName.toLowerCase());
+}
+
+/** Clear the effective target model registry (called at start of each sync). */
+export function clearEffectiveTargetModels(): void {
+  state.effectiveTargetModels.clear();
 }
 
 /**

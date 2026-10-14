@@ -56,7 +56,24 @@ function createProgressBar(percent: number, width: number = 20): string {
   return `[${"█".repeat(filled)}${"░".repeat(empty)}]`;
 }
 
-function logBatchErrors(batchStatus: CompletedBatch, originalPayloads?: any[]): void {
+/**
+ * Find the payload that produced a batch item, by its batchItemId. The batch's `items` are returned in
+ * the order the payloads were sent, so the item's position is the payload's position — but only when
+ * the two lists have the same length; otherwise alignment is unverifiable and nothing is returned.
+ */
+export function resolvePayloadForBatchItem(
+  batchStatus: CompletedBatch,
+  batchItemId: any,
+  originalPayloads?: any[]
+): any {
+  if (!originalPayloads || batchItemId === undefined || batchItemId === null || batchItemId === "?") return undefined;
+  const items: any[] = Array.isArray(batchStatus?.items) ? batchStatus.items : [];
+  if (items.length !== originalPayloads.length) return undefined;
+  const index = items.findIndex((item) => (item?.batchItemID ?? item?.batchItemId) == batchItemId);
+  return index >= 0 ? originalPayloads[index] : undefined;
+}
+
+export function logBatchErrors(batchStatus: CompletedBatch, originalPayloads?: any[]): void {
   // Prefer structured failedItems array from new API
   if (Array.isArray(batchStatus.failedItems) && batchStatus.failedItems.length > 0) {
     batchStatus.failedItems.forEach((failed: any) => {
@@ -65,18 +82,16 @@ function logBatchErrors(batchStatus: CompletedBatch, originalPayloads?: any[]): 
       const errorMessage = failed.errorMessage || "Unknown error";
       const itemType = failed.itemType || "Item";
 
-      // Try to find the original payload by batchItemId to get referenceName
-      let referenceName = "unknown";
-      if (originalPayloads) {
-        // batchItemId typically corresponds to index in the batch
-        const payload =
-          originalPayloads.find((p, idx) => p?.batchItemId === batchItemId) ||
-          originalPayloads[batchStatus.failedItems.indexOf(failed)];
-        referenceName = payload?.properties?.referenceName || payload?.referenceName || "unknown";
-      }
+      // PROD-2542: resolve the payload via batchItemId → position in batch.items → payload at that
+      // position. (The old fallback used the index within the FAILED list, which named the wrong item
+      // whenever an earlier item in the batch had succeeded.) Unresolvable → "unknown", never a guess.
+      const payload = resolvePayloadForBatchItem(batchStatus, batchItemId, originalPayloads);
+      const referenceName = payload?.properties?.referenceName || payload?.referenceName || payload?.name || "unknown";
 
       console.error(
-        ansiColors.red(`  ✗ ${itemType} ${batchItemId} (${referenceName}): ${formatBatchItemError(errorType, errorMessage)}`)
+        ansiColors.red(
+          `  ✗ ${itemType} ${batchItemId} (${referenceName}): ${formatBatchItemError(errorType, errorMessage)}`
+        )
       );
     });
     return;
@@ -88,7 +103,9 @@ function logBatchErrors(batchStatus: CompletedBatch, originalPayloads?: any[]): 
       if (item.errorMessage) {
         const errorMessage = extractErrorMessage(item.errorMessage);
         const batchItemId = item.batchItemID || item.batchItemId || `idx:${index}`;
-        const referenceName = originalPayloads?.[index]?.properties?.referenceName || "unknown";
+        // Positional match is only trustworthy when every payload has exactly one item.
+        const aligned = originalPayloads?.length === batchStatus.items.length;
+        const referenceName = (aligned && originalPayloads?.[index]?.properties?.referenceName) || "unknown";
 
         console.error(ansiColors.red(`  ✗ Batch item ${batchItemId} (${referenceName}): ${errorMessage}`));
       }
@@ -280,7 +297,21 @@ interface BatchExtractResult<T> {
   summary?: BatchSummary;
 }
 
-function extractBatchResultsImpl<T>(batch: CompletedBatch, originalItems: T[]): BatchExtractResult<T> {
+/**
+ * Pair each returned batch item with the source item at the same position.
+ *
+ * PROD-2542: pairing is positional, so it is only trusted when it can be verified:
+ *   - batch.items must have exactly one entry per original item; on a length mismatch EVERY item is
+ *     failed ("unverifiable batch result alignment") rather than guessing which result is whose —
+ *     a wrong guess writes a source→target mapping to the wrong item.
+ *   - when `expectedIds` is given (the ID each payload was sent with, e.g. contentID for an update),
+ *     a returned itemID that differs from a positive expected ID fails that item.
+ */
+function extractBatchResultsImpl<T>(
+  batch: CompletedBatch,
+  originalItems: T[],
+  expectedIds?: Array<number | undefined | null>
+): BatchExtractResult<T> {
   const successfulItems: BatchSuccessItem<T>[] = [];
   const failedItems: BatchFailureItem<T>[] = [];
 
@@ -308,10 +339,38 @@ function extractBatchResultsImpl<T>(batch: CompletedBatch, originalItems: T[]): 
     };
   }
 
+  if (batch.items.length !== originalItems.length) {
+    const error =
+      `Unverifiable batch result alignment: batch ${batch.batchID ?? "?"} returned ${batch.items.length} item(s) ` +
+      `for ${originalItems.length} sent — not recording any result from it`;
+    return {
+      successfulItems: [],
+      failedItems: originalItems.map((item, index) => ({ originalItem: item, newItem: null, error, index })),
+      summary,
+    };
+  }
+
   batch.items.forEach((item, index: number) => {
     const originalItem = originalItems[index];
+    const expectedId = expectedIds?.[index];
 
-    if (item.itemID > 0 && !item.itemNull) {
+    if (
+      item.itemID > 0 &&
+      !item.itemNull &&
+      typeof expectedId === "number" &&
+      expectedId > 0 &&
+      item.itemID !== expectedId
+    ) {
+      failedItems.push({
+        originalItem,
+        newItem: null,
+        error:
+          `Batch result mismatch: item was sent as ID ${expectedId} but the batch returned itemID ${item.itemID} ` +
+          `at the same position — not recording this result`,
+        batchItemId: item.batchItemID,
+        index,
+      });
+    } else if (item.itemID > 0 && !item.itemNull) {
       successfulItems.push({ originalItem, newId: item.itemID, newItem: item, index });
     } else {
       let errorMsg = "Failed to create item";
@@ -338,11 +397,17 @@ function extractBatchResultsImpl<T>(batch: CompletedBatch, originalItems: T[]): 
   return { successfulItems, failedItems, summary };
 }
 
+/**
+ * @param expectedIds - per original item (same order), the payload contentID the batch must return
+ *   for it — i.e. for an update of an existing target item. A returned itemID that differs from a
+ *   positive expected ID fails the item. Leave an entry undefined where a new ID is legitimate.
+ */
 export function extractContentBatchResults(
   batch: CompletedBatch,
-  originalItems: mgmtApi.ContentItem[]
+  originalItems: mgmtApi.ContentItem[],
+  expectedIds?: Array<number | undefined | null>
 ): BatchExtractResult<mgmtApi.ContentItem> {
-  return extractBatchResultsImpl(batch, originalItems);
+  return extractBatchResultsImpl(batch, originalItems, expectedIds);
 }
 
 export function extractPageBatchResults(

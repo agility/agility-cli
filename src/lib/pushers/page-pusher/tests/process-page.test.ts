@@ -1,8 +1,9 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { resetState, setState } from "core/state";
-import { processPage } from "../process-page";
+import { resetState, setState, registerFailedContent, clearFailedContentRegistry } from "core/state";
+import { processPage, countModulesReferencingFailedContent } from "../process-page";
+import { preflightReport } from "lib/preflight/preflight-report";
 
 // Mock all modules that make real network or disk calls from within processPage
 jest.mock("../find-page-in-other-locale", () => ({
@@ -703,5 +704,105 @@ describe("processPage — channel resolution", () => {
     const result = await processPage(makeProps({ apiClient, pageMapper, channel: "website" }));
     // Should proceed (uses fallback channelID=42) — result is success or failure but not an early return
     expect(["success", "failure", "skip"]).toContain(result.status);
+  });
+});
+
+// ─── PROD-2542: locale-scoped failed-content lookups ─────────────────────────
+
+describe("processPage — failed content is looked up per locale (PROD-2542)", () => {
+  beforeEach(() => clearFailedContentRegistry());
+
+  function setup() {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue({
+        contentSectionDefinitions: [{ pageItemTemplateReferenceName: "Main", itemOrder: 0 }],
+      }),
+    }));
+    const { ContentItemMapper } = require("lib/mappers/content-item-mapper");
+    ContentItemMapper.mockImplementation(() => ({
+      getContentItemMappingByContentID: jest.fn((id: number) => (id === 55 ? { targetContentID: 955 } : null)),
+    }));
+    mockExtract.mockReturnValue({
+      successfulItems: [{ newId: 400, newItem: { processedItemVersionID: 7 } }],
+      failedItems: [],
+    });
+  }
+
+  const page = () =>
+    makePage({
+      zones: {
+        Main: [
+          { module: "Hero", item: { contentid: 55 } },
+          { module: "PromoBanner", item: { contentid: 12942 } },
+        ],
+      },
+    });
+
+  it("does not label an en-us module with an es-us failure", async () => {
+    setup();
+    registerFailedContent(12942, "es-banner", "es-us only failure", "es-us");
+
+    const result = await processPage(makeProps({ page: page(), locale: "en-us" }));
+
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings![0].error).not.toContain("failed earlier");
+    expect(result.warnings![0].error).not.toContain("es-us only failure");
+  });
+
+  it("explains the dropped module with the same-locale failure", async () => {
+    setup();
+    registerFailedContent(
+      12942,
+      "home_promobanner",
+      "Missing required field(s) on model PromoBanner: promoTitle (Text) — skipped client-side",
+      "en-us"
+    );
+
+    const result = await processPage(makeProps({ page: page(), locale: "en-us" }));
+
+    expect(result.warnings![0].error).toContain(
+      "content 'home_promobanner' failed earlier: Missing required field(s) on model PromoBanner: promoTitle (Text)"
+    );
+  });
+
+  it("notes in preflight how many components would be dropped", async () => {
+    setup();
+    setState({ preflight: true });
+    preflightReport.reset();
+    registerFailedContent(12942, "home_promobanner", "Missing required field(s)", "en-us");
+
+    const apiClient = makeApiClient();
+    const result = await processPage(makeProps({ page: page(), locale: "en-us", apiClient }));
+
+    expect(result.status).toBe("success");
+    expect(apiClient.pageMethods.savePage).not.toHaveBeenCalled();
+    expect(preflightReport.getEntries()).toEqual([
+      expect.objectContaining({
+        phase: "Pages",
+        name: "Test Page",
+        detail: "1 component(s) would be dropped (content would fail)",
+      }),
+    ]);
+  });
+});
+
+describe("countModulesReferencingFailedContent (PROD-2542)", () => {
+  beforeEach(() => clearFailedContentRegistry());
+
+  it("counts modules (contentid or contentId) whose content failed in the given locale", () => {
+    registerFailedContent(1, "a", "err", "en-us");
+    registerFailedContent(2, "b", "err", "en-us");
+    registerFailedContent(3, "c", "err", "es-us");
+    const page = makePage({
+      zones: {
+        Main: [{ item: { contentid: 1 } }, { item: { contentId: 2 } }, { item: { contentid: 3 } }, { item: null }],
+        Side: "not-an-array",
+      },
+    });
+    expect(countModulesReferencingFailedContent(page, "en-us")).toBe(2);
+    expect(countModulesReferencingFailedContent(page, "es-us")).toBe(1);
+    expect(countModulesReferencingFailedContent(makePage({ zones: undefined }), "en-us")).toBe(0);
   });
 });

@@ -5,6 +5,8 @@ import {
   logBatchError,
   prettyException,
   formatBatchItemError,
+  logBatchErrors,
+  resolvePayloadForBatchItem,
   CompletedBatch,
 } from "../batch-polling";
 import * as mgmtApi from "@agility/management-sdk";
@@ -371,5 +373,131 @@ describe("formatBatchItemError", () => {
 
   it("falls back to 'Unknown error' when nothing is provided", () => {
     expect(formatBatchItemError(undefined, undefined)).toBe("Unknown error");
+  });
+});
+
+// ─── PROD-2542: verified alignment ───────────────────────────────────────────
+
+describe("extractContentBatchResults — alignment guard (PROD-2542)", () => {
+  it("fails every item when batch.items is shorter than the items sent", () => {
+    const originals = [asContent({ contentID: 1 }), asContent({ contentID: 2 }), asContent({ contentID: 3 })];
+    const batch = { batchID: 55, items: [{ itemID: 101 }, { itemID: 102 }] };
+    const result = extractContentBatchResults(asBatch(batch), originals);
+
+    expect(result.successfulItems).toHaveLength(0);
+    expect(result.failedItems.map((f) => f.originalItem)).toEqual(originals);
+    result.failedItems.forEach((f) => {
+      expect(f.error).toContain("Unverifiable batch result alignment");
+      expect(f.error).toContain("returned 2 item(s) for 3 sent");
+    });
+  });
+
+  it("fails every item when batch.items is longer than the items sent", () => {
+    const batch = { items: [{ itemID: 101 }, { itemID: 102 }] };
+    const result = extractContentBatchResults(asBatch(batch), [asContent({ contentID: 1 })]);
+    expect(result.successfulItems).toHaveLength(0);
+    expect(result.failedItems).toHaveLength(1);
+  });
+
+  it("applies to page batches too", () => {
+    const batch = { items: [] as any[] };
+    const result = extractPageBatchResults(asBatch(batch), [{ pageID: 1 }] as mgmtApi.PageItem[]);
+    expect(result.failedItems[0].error).toContain("Unverifiable batch result alignment");
+  });
+
+  it("fails an item whose returned itemID differs from the expected (update) ID", () => {
+    const originals = [asContent({ contentID: 1 }), asContent({ contentID: 2 })];
+    const batch = {
+      items: [
+        { batchItemID: 1, itemID: 600 },
+        { batchItemID: 2, itemID: 700 },
+      ],
+    };
+    const result = extractContentBatchResults(asBatch(batch), originals, [500, 700]);
+
+    expect(result.successfulItems).toHaveLength(1);
+    expect(result.successfulItems[0].originalItem).toBe(originals[1]);
+    expect(result.failedItems).toHaveLength(1);
+    expect(result.failedItems[0].originalItem).toBe(originals[0]);
+    expect(result.failedItems[0].error).toContain("sent as ID 500 but the batch returned itemID 600");
+  });
+
+  it("does not cross-check creates (no/negative expected ID)", () => {
+    const batch = {
+      items: [
+        { batchItemID: 1, itemID: 900 },
+        { batchItemID: 2, itemID: 901 },
+      ],
+    };
+    const result = extractContentBatchResults(
+      asBatch(batch),
+      [asContent({ contentID: 1 }), asContent({ contentID: 2 })],
+      [-1, undefined]
+    );
+    expect(result.successfulItems.map((s) => s.newId)).toEqual([900, 901]);
+  });
+
+  it("leaves a failed item's own error alone when the expected ID can't be compared", () => {
+    const batch = { items: [{ batchItemID: 1, itemID: 0, errorMessage: "Column 'promoTitle' does not allow nulls." }] };
+    const result = extractContentBatchResults(asBatch(batch), [asContent({ contentID: 1 })], [500]);
+    expect(result.failedItems[0].error).toBe("Column 'promoTitle' does not allow nulls.");
+  });
+});
+
+describe("logBatchErrors — names the right item (PROD-2542)", () => {
+  const payloads = [
+    { properties: { referenceName: "first" } },
+    { properties: { referenceName: "second" } },
+    { properties: { referenceName: "third" } },
+  ];
+
+  it("resolves failedItems via batchItemId → position in batch.items, not position in the failed list", () => {
+    // Item 1 succeeded, item 3 failed: failedItems[0] is the THIRD payload. The old fallback
+    // (index within failedItems) named "first".
+    const batch = {
+      items: [
+        { batchItemID: 11, itemID: 101 },
+        { batchItemID: 12, itemID: 102 },
+        { batchItemID: 13, itemID: 0 },
+      ],
+      failedItems: [{ batchItemId: 13, itemId: 0, itemType: "Content", errorType: "SqlException", errorMessage: "boom" }],
+    };
+    logBatchErrors(asBatch(batch), payloads);
+
+    const logged = (console.error as jest.Mock).mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("(third)");
+    expect(logged).not.toContain("(first)");
+  });
+
+  it("logs 'unknown' rather than guessing when the item can't be located", () => {
+    const batch = {
+      items: [{ batchItemID: 11, itemID: 0 }],
+      failedItems: [{ batchItemId: 99, itemId: 0, itemType: "Content", errorType: "Error", errorMessage: "boom" }],
+    };
+    logBatchErrors(asBatch(batch), payloads.slice(0, 1));
+    const logged = (console.error as jest.Mock).mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("(unknown)");
+  });
+
+  it("works for a single-page batch (page pusher passes [payload])", () => {
+    const batch = {
+      items: [{ batchItemID: 5, itemID: 0 }],
+      failedItems: [{ batchItemId: 5, itemId: 0, itemType: "Page", errorType: "Error", errorMessage: "bad zone" }],
+    };
+    logBatchErrors(asBatch(batch), [{ name: "home" }]);
+    const logged = (console.error as jest.Mock).mock.calls.map((c) => String(c[0])).join("\n");
+    expect(logged).toContain("(home)");
+  });
+});
+
+describe("resolvePayloadForBatchItem", () => {
+  it("returns undefined when items and payloads differ in length", () => {
+    const batch = { items: [{ batchItemID: 1 }, { batchItemID: 2 }] };
+    expect(resolvePayloadForBatchItem(asBatch(batch), 1, [{ a: 1 }])).toBeUndefined();
+  });
+
+  it("matches batchItemId loosely across number/string", () => {
+    const batch = { items: [{ batchItemID: 1 }, { batchItemID: 2 }] };
+    expect(resolvePayloadForBatchItem(asBatch(batch), "2", [{ a: 1 }, { a: 2 }])).toEqual({ a: 2 });
   });
 });

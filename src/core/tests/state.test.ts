@@ -14,6 +14,9 @@ import {
   registerFailedContent,
   getFailedContent,
   clearFailedContentRegistry,
+  registerEffectiveTargetModel,
+  getEffectiveTargetModel,
+  clearEffectiveTargetModels,
   initializeLogger,
   initializeGuidLogger,
   getLoggerForGuid,
@@ -304,18 +307,50 @@ describe("getApiKeysForGuid / getAllApiKeys", () => {
 describe("failed content registry", () => {
   it("registers and retrieves a failed content item", () => {
     registerFailedContent(123, "my-ref", "some error", "en-us");
-    const result = getFailedContent(123);
+    const result = getFailedContent(123, "en-us");
     expect(result).toEqual({ referenceName: "my-ref", error: "some error", locale: "en-us" });
   });
 
   it("returns undefined for unknown content ID", () => {
-    expect(getFailedContent(999)).toBeUndefined();
+    expect(getFailedContent(999, "en-us")).toBeUndefined();
   });
 
   it("clears the registry", () => {
     registerFailedContent(1, "ref", "err", "en-us");
     clearFailedContentRegistry();
-    expect(getFailedContent(1)).toBeUndefined();
+    expect(getFailedContent(1, "en-us")).toBeUndefined();
+  });
+
+  // PROD-2542: the same source contentID failing in es-us must not label the en-us item.
+  it("scopes failures by locale", () => {
+    registerFailedContent(42, "ref-es", "es error", "es-us");
+    expect(getFailedContent(42, "en-us")).toBeUndefined();
+    expect(getFailedContent(42, "es-us")).toEqual({ referenceName: "ref-es", error: "es error", locale: "es-us" });
+    registerFailedContent(42, "ref-en", "en error", "en-us");
+    expect(getFailedContent(42, "en-us")?.error).toBe("en error");
+    expect(getFailedContent(42, "es-us")?.error).toBe("es error");
+  });
+
+  it("matches locale case-insensitively", () => {
+    registerFailedContent(7, "ref", "err", "en-US");
+    expect(getFailedContent(7, "en-us")).toBeDefined();
+  });
+});
+
+describe("effective target model registry (PROD-2542)", () => {
+  it("registers and looks up by source referenceName, case-insensitively", () => {
+    const model = { referenceName: "PromoBanner", fields: [] };
+    registerEffectiveTargetModel("PromoBanner", model);
+    expect(getEffectiveTargetModel("promobanner")).toBe(model);
+  });
+
+  it("is cleared by clearEffectiveTargetModels and resetState", () => {
+    registerEffectiveTargetModel("A", { fields: [] });
+    clearEffectiveTargetModels();
+    expect(getEffectiveTargetModel("A")).toBeUndefined();
+    registerEffectiveTargetModel("B", { fields: [] });
+    resetState();
+    expect(getEffectiveTargetModel("B")).toBeUndefined();
   });
 });
 
