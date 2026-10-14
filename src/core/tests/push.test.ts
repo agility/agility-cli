@@ -1,5 +1,8 @@
 import { Push, hasBlockingAutoPublishErrors, formatFailureName } from "../push";
 import { resetState, setState } from "../state";
+import { Pull } from "../pull";
+import { Pushers } from "../../lib/pushers/orchestrate-pushers";
+import { foreignCdnReport } from "../../lib/content/foreign-cdn-report";
 
 beforeEach(() => {
   resetState();
@@ -284,6 +287,85 @@ describe("Push.pushInstances — --jsonSummary", () => {
     expect(parsed.exitCode).toBe(1);
     expect(parsed.phases).toEqual([]);
     expect(parsed.operationErrors).toEqual([{ type: "fatal", error: "Model validation failed" }]);
+  });
+
+  describe("foreign CDN references (PROD-2773)", () => {
+    const FOREIGN = "https://cdn-usa2.aglty.io/upstream-qa/hero-background-image.png";
+
+    /** Have the mocked orchestrator record what the content pusher would have found. */
+    async function runWithForeignReference(extraState: Record<string, any>) {
+      jest.spyOn(Pull.prototype, "pullInstances").mockResolvedValue(undefined as any);
+      jest.spyOn(Pushers.prototype, "instanceOrchestrator").mockImplementation(async () => {
+        foreignCdnReport.setOwnContainers(["site-qa"], ["site-cat"]);
+        foreignCdnReport.record(
+          { url: FOREIGN, container: "upstream-qa", field: "mobileBackgroundImage", kind: "attachment" },
+          { contentID: 474, referenceName: "home_homebanner_homebanner", locale: "en-us" }
+        );
+        return [pushResult({ warningDetails: [{ name: "Home", error: "Dropped Component Hero — unresolved" }] })] as any;
+      });
+      setState({ sourceGuid: "src-u", targetGuid: "tgt-u", ...extraState });
+      return new Push().pushInstances();
+    }
+
+    it("adds one warning per URL to --jsonSummary without affecting success", async () => {
+      const out = path.join(tmp, "summary.json");
+      const result = await runWithForeignReference({ jsonSummary: out });
+
+      const parsed = JSON.parse(fs.readFileSync(out, "utf8"));
+      expect(result.success).toBe(true);
+      expect(parsed.success).toBe(true);
+      expect(parsed.exitCode).toBe(0);
+      expect(parsed.schemaVersion).toBe(1);
+      expect(parsed.failures).toEqual([]);
+      expect(parsed.warnings).toHaveLength(2);
+      expect(parsed.warnings[0]).toEqual({ name: "Home", error: "Dropped Component Hero — unresolved" });
+      expect(parsed.warnings[1]).toMatchObject({
+        name: FOREIGN,
+        type: "content",
+        contentID: 474,
+        guid: "src-u",
+        locale: "en-us",
+        code: "foreignCdnReference",
+        url: FOREIGN,
+        container: "upstream-qa",
+        references: [
+          {
+            contentID: 474,
+            referenceName: "home_homebanner_homebanner",
+            locale: "en-us",
+            field: "mobileBackgroundImage",
+            kind: "attachment",
+          },
+        ],
+      });
+      expect(parsed.warnings[1].error).toContain("belongs to neither the source (site-qa)");
+
+      const printed = (console.log as jest.Mock).mock.calls.map((c) => String(c[0])).join("\n");
+      expect(printed).toContain("Foreign CDN references: 1 URL in 1 item (non-blocking):");
+      expect(printed).toContain(FOREIGN);
+    });
+
+    it("lists the count in the preflight report without changing its totals or exit code", async () => {
+      const out = path.join(tmp, "summary.json");
+      await runWithForeignReference({ jsonSummary: out, preflight: true });
+
+      const parsed = JSON.parse(fs.readFileSync(out, "utf8"));
+      expect(parsed.exitCode).toBe(0);
+      expect(process.exitCode).toBeUndefined();
+      expect(parsed.preflight.totals).toEqual({ create: 0, update: 0, skip: 0, conflict: 0, invalid: 0 });
+      expect(parsed.preflight.hasConflicts).toBe(false);
+      expect(parsed.warnings.some((w: any) => w.code === "foreignCdnReference")).toBe(true);
+
+      const printed = (console.log as jest.Mock).mock.calls.map((c) => String(c[0])).join("\n");
+      expect(printed).toContain("Warnings (1, non-blocking — not counted above):");
+    });
+
+    it("starts each run with an empty report", async () => {
+      const out = path.join(tmp, "summary.json");
+      await runWithForeignReference({});
+      await runPush([pushResult()], { jsonSummary: out });
+      expect(JSON.parse(fs.readFileSync(out, "utf8")).warnings).toEqual([]);
+    });
   });
 
   it("does not fail the run when the summary path cannot be written", async () => {

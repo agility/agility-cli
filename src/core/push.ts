@@ -19,6 +19,8 @@ import { Pull } from "./pull";
 import { preflightReport } from "../lib/preflight/preflight-report";
 import { buildJsonSummary, writeJsonSummary, JsonSummaryDetail, JsonSummaryPhase } from "./json-summary";
 import type { FailureDetail } from "../types/sourceData";
+import { foreignCdnReport } from "../lib/content/foreign-cdn-report";
+import { resetForeignCdnDetectorCache } from "../lib/pushers/content-pusher/util/report-foreign-cdn-references";
 
 /**
  * PROD-2310: Decide whether a set of auto-publish errors should fail the sync exit code.
@@ -62,6 +64,9 @@ export class Push {
 
     // Preflight (PROD-2203): start each run with a clean report of planned actions
     preflightReport.reset();
+    // PROD-2773: foreign CDN references are reported once per URL per run
+    foreignCdnReport.reset();
+    resetForeignCdnDetectorCache();
 
     // Initialize logger for push operation
     // Determine if this is a sync operation by checking if both source and target GUIDs exist
@@ -299,6 +304,14 @@ export class Push {
         });
       }
 
+      // PROD-2773: asset URLs into a CDN container owned by neither instance — passed through
+      // unchanged, so non-blocking, but an image/file field holding one may arrive empty.
+      if (foreignCdnReport.hasEntries()) {
+        const [headline, ...rest] = foreignCdnReport.renderSummaryLines();
+        console.log(ansiColors.yellow(`\n  ${headline}`));
+        rest.forEach((line) => console.log(ansiColors.yellow(`  ${line}`)));
+      }
+
       // PROD-2311: post-publish mapping/version bookkeeping notices are NOT publish
       // failures — show them under a non-blocking header so they don't read as broken.
       if (mappingWarnings.length > 0) {
@@ -320,6 +333,9 @@ export class Push {
       // Preflight (PROD-2203): print the report of actions that WOULD have been
       // taken, and signal conflicts via a non-zero exit code so automation can gate on it.
       if (state.preflight) {
+        if (foreignCdnReport.hasEntries()) {
+          preflightReport.recordWarning(`${foreignCdnReport.headline()} — see the list above`);
+        }
         preflightReport.print();
         if (preflightReport.hasConflicts()) {
           process.exitCode = 1;
@@ -334,7 +350,8 @@ export class Push {
         exitCode: typeof process.exitCode === "number" ? process.exitCode : success ? 0 : 1,
         phases: results.flatMap((r) => r.phases ?? []),
         failures: syncFailureDetails,
-        warnings: syncWarningDetails,
+        // PROD-2773: one additive entry per foreign CDN URL (code "foreignCdnReference")
+        warnings: [...syncWarningDetails, ...foreignCdnReport.toWarningDetails(sourceGuid)],
         operationErrors: syncErrors,
         autoPublishErrors,
         startedAt,

@@ -420,3 +420,42 @@ describe("invalid action (PROD-2542)", () => {
     expect(preflightReport.renderTable()).not.toContain("invalid");
   });
 });
+
+// ─── warnings (PROD-2773) ─────────────────────────────────────────────────────
+
+describe("recordWarning", () => {
+  it("is a no-op when preflight is disabled", () => {
+    preflightReport.recordWarning("Foreign CDN references: 1 URL in 1 item");
+    expect(preflightReport.getWarnings()).toEqual([]);
+  });
+
+  it("renders a warnings section without changing counts, totals or the conflict signal", () => {
+    setState({ preflight: true });
+    preflightReport.record({ phase: "Content", action: "update", name: "banner", locale: "en-us" });
+    const before = { totals: preflightReport.getTotals(), json: preflightReport.toJSON() };
+
+    preflightReport.recordWarning("Foreign CDN references: 14 URLs in 11 items — see the list above");
+
+    expect(preflightReport.getTotals()).toEqual(before.totals);
+    expect(preflightReport.toJSON()).toEqual(before.json);
+    expect(preflightReport.hasConflicts()).toBe(false);
+    const table = preflightReport.renderTable();
+    expect(table).toContain("Warnings (1, non-blocking — not counted above):");
+    expect(table).toContain("Foreign CDN references: 14 URLs in 11 items");
+  });
+
+  it("renders warnings even when there is nothing to do", () => {
+    setState({ preflight: true });
+    preflightReport.recordWarning("Foreign CDN references: 1 URL in 1 item");
+    const table = preflightReport.renderTable();
+    expect(table).toContain("Nothing to do");
+    expect(table).toContain("Foreign CDN references: 1 URL in 1 item");
+  });
+
+  it("is cleared by reset", () => {
+    setState({ preflight: true });
+    preflightReport.recordWarning("x");
+    preflightReport.reset();
+    expect(preflightReport.getWarnings()).toEqual([]);
+  });
+});
