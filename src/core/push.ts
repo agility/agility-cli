@@ -5,6 +5,7 @@ import {
   state,
   clearFailedContentRegistry,
   clearHeldBackTemplateRegistry,
+  clearEffectiveTargetModels,
   getPageCmsLink,
   getContentCmsLink,
 } from "./state";
@@ -56,6 +57,8 @@ export class Push {
     // Clear failed content and held-back template registries from any previous sync
     clearFailedContentRegistry();
     clearHeldBackTemplateRegistry();
+    // PROD-2542: models saved by a previous run must not stand in for this run's target models
+    clearEffectiveTargetModels();
 
     // Preflight (PROD-2203): start each run with a clean report of planned actions
     preflightReport.reset();

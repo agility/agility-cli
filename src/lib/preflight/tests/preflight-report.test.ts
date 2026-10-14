@@ -121,7 +121,7 @@ describe("hasConflicts", () => {
 describe("getTotals", () => {
   it("returns all-zeros totals when there are no entries", () => {
     setState({ preflight: true });
-    expect(preflightReport.getTotals()).toEqual({ create: 0, update: 0, skip: 0, conflict: 0 });
+    expect(preflightReport.getTotals()).toEqual({ create: 0, update: 0, skip: 0, conflict: 0, invalid: 0 });
   });
 
   it("correctly counts each action type", () => {
@@ -133,14 +133,14 @@ describe("getTotals", () => {
     preflightReport.record({ phase: "Content", action: "skip", name: "c3" });
     preflightReport.record({ phase: "Pages", action: "conflict", name: "p1" });
 
-    expect(preflightReport.getTotals()).toEqual({ create: 2, update: 1, skip: 2, conflict: 1 });
+    expect(preflightReport.getTotals()).toEqual({ create: 2, update: 1, skip: 2, conflict: 1, invalid: 0 });
   });
 
   it("counts only the actions that appear", () => {
     setState({ preflight: true });
     preflightReport.record({ phase: "Models", action: "update", name: "m1" });
 
-    expect(preflightReport.getTotals()).toEqual({ create: 0, update: 1, skip: 0, conflict: 0 });
+    expect(preflightReport.getTotals()).toEqual({ create: 0, update: 1, skip: 0, conflict: 0, invalid: 0 });
   });
 });
 
@@ -292,7 +292,7 @@ describe("toJSON", () => {
 
     const json = preflightReport.toJSON();
 
-    expect(json.totals).toEqual({ create: 1, update: 1, skip: 1, conflict: 1 });
+    expect(json.totals).toEqual({ create: 1, update: 1, skip: 1, conflict: 1, invalid: 0 });
     expect(json.hasConflicts).toBe(true);
   });
 
@@ -306,7 +306,7 @@ describe("toJSON", () => {
     const json = preflightReport.toJSON();
 
     expect(json.phases.map((p) => p.phase)).toEqual(["Models", "Containers"]);
-    expect(json.phases[0]).toEqual({ phase: "Models", create: 2, update: 0, skip: 0, conflict: 0 });
+    expect(json.phases[0]).toEqual({ phase: "Models", create: 2, update: 0, skip: 0, conflict: 0, invalid: 0 });
   });
 
   it("carries every entry through, with locale and detail intact", () => {
@@ -326,7 +326,7 @@ describe("toJSON", () => {
 
     const json = preflightReport.toJSON();
 
-    expect(json.totals).toEqual({ create: 0, update: 0, skip: 0, conflict: 0 });
+    expect(json.totals).toEqual({ create: 0, update: 0, skip: 0, conflict: 0, invalid: 0 });
     expect(json.hasConflicts).toBe(false);
     expect(json.phases).toEqual([]);
     expect(json.entries).toEqual([]);
@@ -374,5 +374,49 @@ describe("renderTable — --containers scope", () => {
   it("says nothing about scope when --containers is blank", () => {
     setState({ preflight: true, containers: "   " });
     expect(preflightReport.renderTable()).not.toContain("Scoped to --containers");
+  });
+});
+
+// ─── PROD-2542: invalid (would fail client-side validation) ──────────────────
+
+describe("invalid action (PROD-2542)", () => {
+  beforeEach(() => setState({ preflight: true }));
+
+  it("is counted separately and does not count as a create/update or a conflict", () => {
+    preflightReport.record({ phase: "Content", action: "create", name: "ok", locale: "en-us" });
+    preflightReport.record({
+      phase: "Content",
+      action: "invalid",
+      name: "banner",
+      locale: "en-us",
+      detail: "would create but Missing required field(s) on model PromoBanner: promoTitle (Text)",
+    });
+
+    expect(preflightReport.getTotals()).toEqual({ create: 1, update: 0, skip: 0, conflict: 0, invalid: 1 });
+    expect(preflightReport.hasConflicts()).toBe(false);
+    expect(preflightReport.toJSON().phases).toEqual([
+      { phase: "Content", create: 1, update: 0, skip: 0, conflict: 0, invalid: 1 },
+    ]);
+  });
+
+  it("renders the item with its reason and a warning footer, without the conflict exit-code notice", () => {
+    preflightReport.record({
+      phase: "Content",
+      action: "invalid",
+      name: "banner",
+      locale: "en-us",
+      detail: "would create but Missing required field(s) on model PromoBanner: promoTitle (Text)",
+    });
+    const table = preflightReport.renderTable();
+    expect(table).toContain("1 invalid");
+    expect(table).toContain("banner");
+    expect(table).toContain("promoTitle (Text)");
+    expect(table).toContain("would skip them and report them as failures");
+    expect(table).not.toContain("exit code 1");
+  });
+
+  it("omits the invalid count from headers when there are none", () => {
+    preflightReport.record({ phase: "Content", action: "create", name: "ok" });
+    expect(preflightReport.renderTable()).not.toContain("invalid");
   });
 });

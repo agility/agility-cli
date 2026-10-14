@@ -13,7 +13,12 @@
 import ansiColors from "ansi-colors";
 import { state } from "../../core/state";
 
-export type PreflightAction = "create" | "update" | "skip" | "conflict";
+/**
+ * "invalid" (PROD-2542): the item would be created/updated, but fails client-side validation against
+ * the target model (e.g. a missing required field), so a real run skips it and reports a failure.
+ * It is a warning in the plan: not a write, and — unlike "conflict" — it doesn't set the exit code.
+ */
+export type PreflightAction = "create" | "update" | "skip" | "conflict" | "invalid";
 
 export interface PreflightEntry {
   /** Phase / element type, e.g. "Models", "Containers", "Content". */
@@ -34,16 +39,18 @@ export interface PreflightPhaseSummary {
   update: number;
   skip: number;
   conflict: number;
+  invalid: number;
   entries: PreflightEntry[];
 }
 
-const ACTION_ORDER: PreflightAction[] = ["create", "update", "skip", "conflict"];
+const ACTION_ORDER: PreflightAction[] = ["create", "update", "skip", "conflict", "invalid"];
 
 const ACTION_COLOR: Record<PreflightAction, (s: string) => string> = {
   create: ansiColors.green,
   update: ansiColors.cyan,
   skip: ansiColors.gray,
   conflict: ansiColors.red,
+  invalid: ansiColors.yellow,
 };
 
 const ACTION_GLYPH: Record<PreflightAction, string> = {
@@ -51,6 +58,7 @@ const ACTION_GLYPH: Record<PreflightAction, string> = {
   update: "~",
   skip: "·",
   conflict: "✗",
+  invalid: "!",
 };
 
 class PreflightReport {
@@ -90,7 +98,7 @@ class PreflightReport {
     for (const entry of this.entries) {
       let summary = byPhase.get(entry.phase);
       if (!summary) {
-        summary = { phase: entry.phase, create: 0, update: 0, skip: 0, conflict: 0, entries: [] };
+        summary = { phase: entry.phase, create: 0, update: 0, skip: 0, conflict: 0, invalid: 0, entries: [] };
         byPhase.set(entry.phase, summary);
       }
       summary[entry.action]++;
@@ -101,7 +109,7 @@ class PreflightReport {
 
   /** Aggregate totals across all phases. */
   getTotals(): Record<PreflightAction, number> {
-    const totals: Record<PreflightAction, number> = { create: 0, update: 0, skip: 0, conflict: 0 };
+    const totals: Record<PreflightAction, number> = { create: 0, update: 0, skip: 0, conflict: 0, invalid: 0 };
     for (const entry of this.entries) {
       totals[entry.action]++;
     }
@@ -122,18 +130,26 @@ class PreflightReport {
   toJSON(): {
     totals: Record<PreflightAction, number>;
     hasConflicts: boolean;
-    phases: Array<{ phase: string; create: number; update: number; skip: number; conflict: number }>;
+    phases: Array<{
+      phase: string;
+      create: number;
+      update: number;
+      skip: number;
+      conflict: number;
+      invalid: number;
+    }>;
     entries: PreflightEntry[];
   } {
     return {
       totals: this.getTotals(),
       hasConflicts: this.hasConflicts(),
-      phases: this.getPhaseSummaries().map(({ phase, create, update, skip, conflict }) => ({
+      phases: this.getPhaseSummaries().map(({ phase, create, update, skip, conflict, invalid }) => ({
         phase,
         create,
         update,
         skip,
         conflict,
+        invalid,
       })),
       entries: this.getEntries(),
     };
@@ -169,7 +185,8 @@ class PreflightReport {
         ACTION_COLOR.create(`${phase.create} create, `) +
         ACTION_COLOR.update(`${phase.update} update, `) +
         ACTION_COLOR.skip(`${phase.skip} skip, `) +
-        ACTION_COLOR.conflict(`${phase.conflict} conflict`);
+        ACTION_COLOR.conflict(`${phase.conflict} conflict`) +
+        (phase.invalid > 0 ? ACTION_COLOR.invalid(`, ${phase.invalid} invalid`) : "");
       lines.push(header);
 
       // List entries grouped by action so creates/updates/conflicts are easy to scan.
@@ -191,8 +208,16 @@ class PreflightReport {
         ACTION_COLOR.create(`${totals.create} create, `) +
         ACTION_COLOR.update(`${totals.update} update, `) +
         ACTION_COLOR.skip(`${totals.skip} skip, `) +
-        ACTION_COLOR.conflict(`${totals.conflict} conflict`)
+        ACTION_COLOR.conflict(`${totals.conflict} conflict`) +
+        (totals.invalid > 0 ? ACTION_COLOR.invalid(`, ${totals.invalid} invalid`) : "")
     );
+    if (totals.invalid > 0) {
+      lines.push(
+        ansiColors.yellow(
+          `\n⚠️  ${totals.invalid} item(s) fail validation against the target model — a real sync would skip them and report them as failures.`
+        )
+      );
+    }
     if (this.hasConflicts()) {
       lines.push(ansiColors.red("\n⚠️  Conflicts detected — a real sync would require --overwrite (exit code 1)."));
     }

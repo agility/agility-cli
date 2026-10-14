@@ -19,7 +19,22 @@ import {
 import { fileOperations } from "core/fileOperations";
 import { collectUnresolvedContentReferences } from "./util/has-unresolved-content-references";
 import { Logs } from "core/logs";
-import { state } from "core/state";
+import { state, getFailedContent } from "core/state";
+
+/**
+ * PROD-2542: one source item and the payload built from it. Prepared items travel as pairs so the
+ * payload list sent to the API and the source list results are matched against are derived from
+ * the same array and can never drift out of step (a skipped item used to shift every later result).
+ */
+interface PreparedContentPayload {
+  source: mgmtApi.ContentItem;
+  payload: any;
+  // The target contentID the batch must return for this item, when that is known for certain (an
+  // update of a target item that exists). Left unset for creates and for a re-sent ID whose target
+  // item is gone (--overwrite recreate), where the server may legitimately assign a new ID.
+  expectedId?: number;
+}
+
 /******
  * USAGE PATTERN:
  * 1. Filter content items BEFORE creating the batch processor using filterContentItemsForProcessing()
@@ -126,15 +141,21 @@ export class ContentBatchProcessor {
         `[${progress}%] Bulk batch ${batchNumber}/${contentBatches.length}: Processing ${contentBatch.length} ${batchType} content items (ETA: ${etaMinutes}m)...`
       );
 
+      // PROD-2542: the items actually sent in this batch (null until prepared), and whether their
+      // results were already counted — so the catch path below fails only what was in flight and
+      // never double-counts prep failures or already-recorded results.
+      let prepared: PreparedContentPayload[] | null = null;
+      let resultsCounted = false;
+
       try {
         // Prepare content payloads for bulk upload
-
-        const {
-          payloads: contentPayloads,
-          skippedCount: batchSkippedCount,
-          includedItems,
-          failedItems: prepFailedItems,
-        } = await this.prepareContentPayloads(contentBatch, this.config.sourceGuid, this.config.targetGuid, logger);
+        const prep = await this.prepareContentPayloads(
+          contentBatch,
+          this.config.sourceGuid,
+          this.config.targetGuid,
+          logger
+        );
+        const { skippedCount: batchSkippedCount, failedItems: prepFailedItems } = prep;
 
         // Track skipped items from this batch
         totalSkippedCount += batchSkippedCount;
@@ -143,6 +164,15 @@ export class ContentBatchProcessor {
         // API failures use, so they reach content-pusher.ts's totalFailed.
         totalFailureCount += prepFailedItems.length;
         allFailedItems.push(...prepFailedItems);
+
+        prepared = prep.prepared;
+        if (prepared.length === 0) {
+          // Nothing left to send (every item skipped or failed preparation) — no API call.
+          continue;
+        }
+        // Both lists derive from the same paired array, so index i of one is index i of the other.
+        const contentPayloads = prepared.map((p) => p.payload);
+        const includedItems = prepared.map((p) => p.source);
 
         // Execute bulk upload using saveContentItems API with returnBatchID flag
         const batchIDResult = await this.config.apiClient.contentMethods.saveContentItems(
@@ -171,7 +201,12 @@ export class ContentBatchProcessor {
         // contentBatch may include skipped items (orphaned content, missing model, etc.) that were
         // never added to contentPayloads; using it here would shift every result after a skip onto
         // the wrong source item, corrupting the source→target ID mappings.
-        const { successfulItems, failedItems } = extractContentBatchResults(completedBatch, includedItems);
+        // The expected IDs let extraction cross-check each returned itemID against the contentID sent.
+        const { successfulItems, failedItems } = extractContentBatchResults(
+          completedBatch,
+          includedItems,
+          prepared.map((p) => p.expectedId)
+        );
 
         // Convert to expected format
         // Filter publishableIds to only include items that are Published (state === 2) in source
@@ -211,6 +246,7 @@ export class ContentBatchProcessor {
         totalFailureCount += batchResult.failureCount;
         allSuccessfulItems.push(...batchResult.successfulItems);
         allFailedItems.push(...batchResult.failedItems);
+        resultsCounted = true;
 
         // Update ID mappings for successful uploads
         if (batchResult.successfulItems.length > 0) {
@@ -255,9 +291,15 @@ export class ContentBatchProcessor {
       } catch (error: any) {
         console.error(`❌ Bulk batch ${batchNumber} failed:`, error.message);
 
-        // Batch pusher only handles batches - mark entire batch as failed
+        // Results already recorded for this batch — the error came from post-processing.
+        if (resultsCounted) continue;
+
+        // Batch pusher only handles batches - mark the items that were in flight as failed.
+        // PROD-2542: only the PREPARED items; prep failures were already counted above. If
+        // preparation itself threw, nothing was counted yet, so the whole batch fails.
         // Individual processing fallbacks should be handled at the sync level
-        const failedBatchItems: BatchFailedItem[] = contentBatch.map((item) => ({
+        const inFlight = prepared ? prepared.map((p) => p.source) : contentBatch;
+        const failedBatchItems: BatchFailedItem[] = inFlight.map((item) => ({
           originalContent: item,
           error: `Batch processing failed: ${error.message}`,
         }));
@@ -305,13 +347,11 @@ export class ContentBatchProcessor {
     // PROD-2533: needed so an item skipped here is written to the push log, not just the console.
     logger: Logs
   ): Promise<{
-    payloads: any[];
+    prepared: PreparedContentPayload[];
     skippedCount: number;
-    includedItems: mgmtApi.ContentItem[];
     failedItems: BatchFailedItem[];
   }> {
-    const payloads: any[] = [];
-    const includedItems: mgmtApi.ContentItem[] = [];
+    const prepared: PreparedContentPayload[] = [];
     let skippedCount = 0;
     const failedItems: BatchFailedItem[] = [];
 
@@ -335,8 +375,13 @@ export class ContentBatchProcessor {
           contentID: existingMapping ? existingMapping.targetContentID : -1,
         };
 
-        payloads.push(payload);
-        includedItems.push(contentItem);
+        const targetExists =
+          !!existingMapping && !!this.config.referenceMapper.getMappedEntity(existingMapping, "target");
+        prepared.push({
+          source: contentItem,
+          payload,
+          expectedId: targetExists ? existingMapping.targetContentID : undefined,
+        });
       } else {
         //map the content item to the target instance
         const modelMapping = modelMapper.getModelMappingByReferenceName(
@@ -424,9 +469,15 @@ export class ContentBatchProcessor {
             sourceModel
           );
           if (unresolvedRefs.length > 0) {
+            // PROD-2542: when a referenced child failed earlier in this locale (e.g. skipped
+            // client-side for a missing required field), say so — that's the actual cause.
             const detail = unresolvedRefs
               .slice(0, 5)
-              .map((r) => `${r.path} → source contentID ${r.contentID}`)
+              .map((r) => {
+                const child = getFailedContent(r.contentID, this.config.locale);
+                const cause = child ? ` (child '${child.referenceName}' skipped: ${child.error})` : "";
+                return `${r.path} → source contentID ${r.contentID}${cause}`;
+              })
               .join("; ");
             const more = unresolvedRefs.length > 5 ? ` (+${unresolvedRefs.length - 5} more)` : "";
             throw new Error(
@@ -528,8 +579,14 @@ export class ContentBatchProcessor {
             scripts: contentItem.scripts ?? defaultScripts,
           };
 
-          payloads.push(payload);
-          includedItems.push(contentItem);
+          prepared.push({
+            source: contentItem,
+            payload,
+            // Only an update of a target item known to exist (or a locale version of one found in
+            // another locale) must come back with the same ID.
+            expectedId:
+              existingTargetContentItem || (!existingMapping && existingContentID > 0) ? existingContentID : undefined,
+          });
         } catch (error: any) {
           const prepareError = error.message || "payload preparation failed";
 
@@ -557,7 +614,7 @@ export class ContentBatchProcessor {
       }
     }
 
-    return { payloads, skippedCount, includedItems, failedItems };
+    return { prepared, skippedCount, failedItems };
   }
 
   /**

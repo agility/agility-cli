@@ -180,9 +180,9 @@ describe("buildJsonSummary — shape", () => {
     const summary = buildJsonSummary(
       makeInput({
         preflight: {
-          totals: { create: 2, update: 1, skip: 0, conflict: 1 },
+          totals: { create: 2, update: 1, skip: 0, conflict: 1, invalid: 0 },
           hasConflicts: true,
-          phases: [{ phase: "Models", create: 2, update: 1, skip: 0, conflict: 1 }],
+          phases: [{ phase: "Models", create: 2, update: 1, skip: 0, conflict: 1, invalid: 0 }],
           entries: [{ phase: "Models", action: "conflict", name: "LinkCard" }],
         },
       })
@@ -370,5 +370,40 @@ describe("buildAbortSummary", () => {
       const result = emitAbortSummary({ jsonSummary: path.join(blocker, "abort.json") }, "boom");
       expect(result.written).toBe(false);
     });
+  });
+});
+
+// ─── PROD-2542: client-side validation failures ──────────────────────────────
+
+describe("buildJsonSummary — required-field validation failures (PROD-2542)", () => {
+  it("carries the model and missing fields of a content failure through to the JSON", () => {
+    const failure = {
+      name: "home_promobanner",
+      error:
+        "Missing required field(s) on model PromoBanner: promoTitle (Text), promoSubtitle (Text) — skipped client-side",
+      type: "content" as const,
+      contentID: 12942,
+      guid: "source-u",
+      locale: "en-us",
+      model: "PromoBanner",
+      fields: ["promoTitle (Text)", "promoSubtitle (Text)"],
+    };
+    const summary = buildJsonSummary(makeInput({ failures: [failure] }));
+    expect(JSON.parse(JSON.stringify(summary)).failures).toEqual([failure]);
+  });
+
+  it("carries the preflight invalid count additively", () => {
+    const preflight = {
+      totals: { create: 1, update: 0, skip: 0, conflict: 0, invalid: 1 },
+      hasConflicts: false,
+      phases: [{ phase: "Content", create: 1, update: 0, skip: 0, conflict: 0, invalid: 1 }],
+      entries: [
+        { phase: "Content", action: "invalid" as const, name: "home_promobanner", locale: "en-us", detail: "x" },
+        { phase: "Content", action: "create" as const, name: "ok", locale: "en-us" },
+      ],
+    };
+    const summary = buildJsonSummary(makeInput({ preflight }));
+    expect(summary.preflight?.totals.invalid).toBe(1);
+    expect(summary.preflight?.hasConflicts).toBe(false);
   });
 });

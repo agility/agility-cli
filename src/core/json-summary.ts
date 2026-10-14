@@ -40,6 +40,10 @@ export interface JsonSummaryDetail {
   mediaID?: number;
   guid?: string;
   locale?: string;
+  /** PROD-2542: model of a content item that failed client-side validation. */
+  model?: string;
+  /** PROD-2542: the required fields it was missing, as "name (Type)". */
+  fields?: string[];
 }
 
 /**
@@ -71,16 +75,18 @@ export interface JsonSummaryPreflightPhase {
   update: number;
   skip: number;
   conflict: number;
+  /** PROD-2542: would-be writes that fail validation against the target model. */
+  invalid: number;
 }
 
 export interface JsonSummaryPreflight {
-  totals: { create: number; update: number; skip: number; conflict: number };
+  totals: { create: number; update: number; skip: number; conflict: number; invalid: number };
   hasConflicts: boolean;
   phases: JsonSummaryPreflightPhase[];
   /** Every recorded action, in the order the pushers recorded them. */
   entries: Array<{
     phase: string;
-    action: "create" | "update" | "skip" | "conflict";
+    action: "create" | "update" | "skip" | "conflict" | "invalid";
     name: string;
     locale?: string;
     detail?: string;

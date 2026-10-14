@@ -195,11 +195,15 @@ export async function processPage({
     // Preflight (PROD-2203): we've decided this page would be created or updated.
     // Record the planned action and skip the actual write to the target.
     if (state.preflight) {
+      // PROD-2542: content the content phase would fail (e.g. skipped for a missing required field)
+      // is in the failed-content registry; a real run drops the modules that point at it.
+      const wouldDrop = countModulesReferencingFailedContent(page, locale);
       preflightReport.record({
         phase: "Pages",
         action: createRequired ? "create" : "update",
         name: page.name,
         locale,
+        ...(wouldDrop > 0 ? { detail: `${wouldDrop} component(s) would be dropped (content would fail)` } : {}),
       });
       return { status: "success" };
     }
@@ -249,7 +253,7 @@ export async function processPage({
                 newZoneContent.push(newModule);
               } else {
                 // Content mapping failed - check why (in priority order)
-                const failedContent = getFailedContent(sourceContentId);
+                const failedContent = getFailedContent(sourceContentId, locale);
                 const isPageUnpublished = page.properties?.state !== 2;
                 const existsInSource = contentExistsInSourceData(sourceGuid, locale, sourceContentId);
                 const otherLocale = !existsInSource
@@ -599,4 +603,20 @@ export async function processPage({
     );
     return { status: "failure", error: error.message };
   }
+}
+
+/**
+ * PROD-2542: number of the page's modules whose source content is registered as failed in `locale`.
+ * Used by preflight to preview the modules a real run would drop.
+ */
+export function countModulesReferencingFailedContent(page: mgmtApi.PageItem, locale: string): number {
+  let count = 0;
+  for (const zoneModules of Object.values(page?.zones || {})) {
+    if (!Array.isArray(zoneModules)) continue;
+    for (const module of zoneModules as any[]) {
+      const sourceContentId = module?.item?.contentid || module?.item?.contentId;
+      if (sourceContentId > 0 && getFailedContent(sourceContentId, locale)) count++;
+    }
+  }
+  return count;
 }

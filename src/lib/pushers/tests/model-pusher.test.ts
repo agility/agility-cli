@@ -928,3 +928,58 @@ describe("pushModels — alternating-direction ping-pong (PROD-2604)", () => {
     expect(record.sourceLastModifiedDate).toBe(JAN);
   });
 });
+
+// ─── PROD-2542: effective target model registry ───────────────────────────────
+
+describe("pushModels — effective target model registry (PROD-2542)", () => {
+  const requiredTitle = [{ name: "Title", type: "Text", settings: { Required: "True" } }];
+
+  it("registers the saved model after a create + field update", async () => {
+    const saved = makeModel({ id: 88, referenceName: "PromoBanner", fields: requiredTitle });
+    const saveModel = jest
+      .fn()
+      .mockResolvedValueOnce(makeModel({ id: 88, referenceName: "PromoBanner", fields: [] })) // stub
+      .mockResolvedValueOnce(saved); // field update
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+    await pushModels([makeModel({ referenceName: "PromoBanner", fields: requiredTitle })], []);
+
+    expect(stateModule.getEffectiveTargetModel("promobanner")).toBe(saved);
+  });
+
+  it("registers the sent payload when the save response carries no fields", async () => {
+    const saveModel = jest.fn().mockResolvedValue({ id: 89, referenceName: "NoFields" });
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+    await pushModels([makeModel({ referenceName: "NoFields", fields: requiredTitle })], []);
+
+    const registered = stateModule.getEffectiveTargetModel("NoFields");
+    expect(registered.fields).toEqual(requiredTitle);
+    expect(registered.id).toBe(89);
+  });
+
+  it("registers nothing when the save fails", async () => {
+    const saveModel = jest.fn().mockRejectedValue(new Error("API error"));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+    await pushModels([makeModel({ referenceName: "Broken", fields: requiredTitle })], []);
+
+    expect(stateModule.getEffectiveTargetModel("Broken")).toBeUndefined();
+  });
+
+  it("registers the source model for a planned create under --preflight (no saveModel)", async () => {
+    setState({ preflight: true });
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+
+    const { pushModels } = await import("../model-pusher");
+    const source = makeModel({ referenceName: "Planned", fields: requiredTitle });
+    await pushModels([source], []);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(stateModule.getEffectiveTargetModel("Planned")).toBe(source);
+  });
+});

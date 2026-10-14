@@ -1,0 +1,13 @@
+{
+  "contentID": 1300,
+  "properties": {
+    "referenceName": "Posts",
+    "definitionName": "Post",
+    "versionID": 1,
+    "state": 2,
+    "itemOrder": 0
+  },
+  "fields": { "title": "Post 1300", "slug": "post-1300" },
+  "seo": null,
+  "scripts": null
+}
