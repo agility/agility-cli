@@ -9,6 +9,7 @@ import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContentItem, Model } from "@agility/management-sdk";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { getApiClient } from "core/state";
+import { reportForeignCdnReferences } from "./util/report-foreign-cdn-references";
 
 /**
  * Push content to the target instance
@@ -39,6 +40,19 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
     referenceMapper,
     logger: logger as any,
   });
+
+  // PROD-2773: warn about asset URLs into a CDN container owned by neither instance. Reporting
+  // only — runs before change detection (and in --preflight) and never alters an item. Items
+  // skipped above for missing container/model mappings are not synced, so they are not scanned.
+  try {
+    reportForeignCdnReferences([...linkedContentItems, ...normalContentItems], locale, {
+      sourceGuid: sourceGuidStr,
+      targetGuid: targetGuidStr,
+      logger,
+    });
+  } catch (scanError: any) {
+    logger?.fileOnly?.(`Foreign CDN reference scan failed: ${scanError?.message || scanError}`);
+  }
 
   let totalSuccessful = 0;
   let totalFailed = 0;

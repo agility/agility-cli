@@ -49,6 +49,11 @@ export class AssetMapper {
     return mapping;
   }
 
+  /** PROD-2773: every record, read-only — the foreign CDN detector reads each side's container URLs. */
+  getMappings(): ReadonlyArray<AssetMapping> {
+    return this.mappings;
+  }
+
   getAssetMappingByMediaUrl(url: string, type: "source" | "target"): AssetMapping | null {
     // Try exact match first
     const exact = this.mappings.find((m: AssetMapping) =>
