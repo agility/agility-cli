@@ -125,12 +125,13 @@ describe("buildJsonSummary — auto-publish classification", () => {
           { type: "fatal", error: "crashed" },
           { type: "mapping", error: "mapping refresh skipped" },
           { type: "refresh", error: "target refresh failed" },
+          { type: "staging", error: "left in staging by another locale's save", locale: "pt-br" },
         ],
       })
     );
 
     expect(summary.autoPublish.errors.map((e) => e.type)).toEqual(["publish", "fatal"]);
-    expect(summary.autoPublish.warnings.map((e) => e.type)).toEqual(["mapping", "refresh"]);
+    expect(summary.autoPublish.warnings.map((e) => e.type)).toEqual(["mapping", "refresh", "staging"]);
   });
 
   it("yields empty groups when auto-publish reported nothing", () => {
