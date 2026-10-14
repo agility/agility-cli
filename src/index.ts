@@ -28,11 +28,13 @@ import {
   primeFromEnv,
   systemArgs,
   workflowArgs,
+  verifyArgs,
   normalizeProcessArgs,
   normalizeArgv,
 } from "./core";
 import { Pull } from "./core/pull";
 import { Push } from "./core/push";
+import { runVerifyCommand } from "./core/verify";
 import { WorkflowOperation } from "./lib/workflows";
 
 import { initializeLogger, getLogger, finalizeLogger } from "./core/state";
@@ -56,6 +58,9 @@ yargs.command({
     console.log(colors.white("  sync              - Sync your instance (alias for push with updates enabled)"));
     console.log(
       colors.white("  reverse-sync      - Sync the target back to the source, reusing the original mapping files")
+    );
+    console.log(
+      colors.white("  verify            - Compare a synced target against its source and report every difference")
     );
     console.log(
       colors.white("  workflowOperation - Perform workflow operations (publish, unpublish, approve, decline)")
@@ -213,6 +218,21 @@ yargs.command({
   },
   handler: async function (argv) {
     await runPushCommand(argv, "reverse-sync");
+  },
+});
+
+// Verify (PROD-2552): full pull of both instances, then an independent comparison of the target
+// against the source. Exit 0 = match, 1 = differences found, 2 = could not verify.
+yargs.command({
+  command: "verify",
+  describe:
+    "Compare a synced target instance against its source (fresh full pull of both) and report every difference. Exit code 0 = match, 1 = differences found, 2 = could not verify. Never writes to either instance or to the mapping files.",
+  builder: {
+    ...verifyArgs,
+  },
+  handler: async function (argv) {
+    const exitCode = await runVerifyCommand(argv);
+    process.exit(exitCode);
   },
 });
 
