@@ -245,6 +245,149 @@ describe("ContentBatchProcessor.processBatches — successful batch", () => {
   });
 });
 
+// ─── processBatches — GEO 400 retry (PROD-2729) ──────────────────────────────
+
+describe("ContentBatchProcessor.processBatches — GEO validation 400 (PROD-2729)", () => {
+  // @agility/management-sdk wraps the AxiosError in its own Exception (`innerError`).
+  function geo400(exceptionMessage: string): any {
+    const err: any = new Error("Unable to create contents.");
+    err.innerError = { response: { status: 400, data: { statusCode: 400, exceptionMessage } } };
+    return err;
+  }
+
+  function preparedWithGeo(items: any[]): Array<{ source: any; payload: any }> {
+    return items.map((source) => ({
+      source,
+      payload: {
+        contentID: -1,
+        fields: source.fields,
+        seo: source.seo,
+        ...(source.geo !== undefined ? { geo: source.geo } : {}),
+      },
+    }));
+  }
+
+  it("saves the batch again without the GEO of the items the 400 names, and warns for each", async () => {
+    const save = jest
+      .fn()
+      .mockRejectedValueOnce(geo400("items[1].geo.structuredData: is not valid JSON (bad token)."))
+      .mockResolvedValueOnce([42]);
+    const processor = new ContentBatchProcessor(makeConfig({ apiClient: makeApiClient(save) }));
+    const item1 = { ...makeContentItem(1), geo: { summary: "Fine." } };
+    const item2 = { ...makeContentItem(2), geo: { summary: "Bad JSON-LD here.", structuredData: "{" } };
+    jest.spyOn(processor as any, "prepareContentPayloads").mockResolvedValue({
+      prepared: preparedWithGeo([item1, item2]),
+      skippedCount: 0,
+      failedItems: [],
+    });
+    mockExtract.mockReturnValue({
+      successfulItems: [
+        { originalItem: item1, newItem: { itemID: 101 }, newId: 101 },
+        { originalItem: item2, newItem: { itemID: 102 }, newId: 102 },
+      ],
+      failedItems: [],
+    });
+
+    const result = await processor.processBatches([item1, item2], makeLogger(), "Test");
+
+    expect(save).toHaveBeenCalledTimes(2);
+    const retried = save.mock.calls[1][0];
+    expect(retried[0].geo).toEqual({ summary: "Fine." }); // not named: untouched
+    expect(retried[1]).not.toHaveProperty("geo"); // deleted, never nulled
+    // Polling matches results against the payloads that were actually sent.
+    expect(mockPoll.mock.calls[mockPoll.mock.calls.length - 1][3]).toBe(retried);
+    expect(result.successCount).toBe(2);
+    expect(result.failureCount).toBe(0);
+    expect(result.warnings).toEqual([
+      expect.objectContaining({
+        name: "ref-2",
+        type: "content",
+        contentID: 2,
+        code: "geoNotCopied",
+        error: expect.stringContaining("GEO not copied: invalid structured data"),
+      }),
+    ]);
+  });
+
+  it("strips only the named seo key when the 400 names a GEO seo field", async () => {
+    const save = jest
+      .fn()
+      .mockRejectedValueOnce(geo400("items[0].seo.canonicalUrl: must be an absolute URL."))
+      .mockResolvedValueOnce([42]);
+    const processor = new ContentBatchProcessor(makeConfig({ apiClient: makeApiClient(save) }));
+    const item = {
+      ...makeContentItem(1),
+      seo: { metaDescription: "d", canonicalUrl: "nope" },
+      geo: { summary: "Kept." },
+    };
+    jest.spyOn(processor as any, "prepareContentPayloads").mockResolvedValue({
+      prepared: preparedWithGeo([item]),
+      skippedCount: 0,
+      failedItems: [],
+    });
+
+    const result = await processor.processBatches([item], makeLogger(), "Test");
+
+    const retried = save.mock.calls[1][0][0];
+    expect(retried.seo).toEqual({ metaDescription: "d" });
+    expect(retried.geo).toEqual({ summary: "Kept." });
+    expect(result.warnings).toHaveLength(1);
+  });
+
+  it("fails the batch as before when the 400 is not about GEO", async () => {
+    const save = jest.fn().mockRejectedValue(geo400("fields.title: is required."));
+    const processor = new ContentBatchProcessor(makeConfig({ apiClient: makeApiClient(save) }));
+    const item = { ...makeContentItem(1), geo: { summary: "x" } };
+    jest.spyOn(processor as any, "prepareContentPayloads").mockResolvedValue({
+      prepared: preparedWithGeo([item]),
+      skippedCount: 0,
+      failedItems: [],
+    });
+
+    const result = await processor.processBatches([item], makeLogger(), "Test");
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.failureCount).toBe(1);
+    expect(result.warnings).toBeUndefined();
+  });
+
+  it("does not retry when no item carries the rejected GEO data", async () => {
+    const save = jest.fn().mockRejectedValue(geo400("items[0].geo.schemaType: must be one of WebPage."));
+    const processor = new ContentBatchProcessor(makeConfig({ apiClient: makeApiClient(save) }));
+    const item = makeContentItem(1);
+    jest.spyOn(processor as any, "prepareContentPayloads").mockResolvedValue({
+      prepared: preparedWithGeo([item]),
+      skippedCount: 0,
+      failedItems: [],
+    });
+
+    const result = await processor.processBatches([item], makeLogger(), "Test");
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.failureCount).toBe(1);
+  });
+
+  it("fails the batch when the retry fails too", async () => {
+    const save = jest
+      .fn()
+      .mockRejectedValueOnce(geo400("items[0].geo.structuredData: is not valid JSON."))
+      .mockRejectedValueOnce(new Error("Request failed with status code 500"));
+    const processor = new ContentBatchProcessor(makeConfig({ apiClient: makeApiClient(save) }));
+    const item = { ...makeContentItem(1), geo: { structuredData: "{" } };
+    jest.spyOn(processor as any, "prepareContentPayloads").mockResolvedValue({
+      prepared: preparedWithGeo([item]),
+      skippedCount: 0,
+      failedItems: [],
+    });
+
+    const result = await processor.processBatches([item], makeLogger(), "Test");
+
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(result.failureCount).toBe(1);
+    expect(result.failedItems[0].error).toContain("status code 500");
+  });
+});
+
 // ─── processBatches — publishableIds filtering ────────────────────────────────
 
 describe("ContentBatchProcessor.processBatches — publishableIds", () => {
@@ -600,9 +743,7 @@ describe("ContentBatchProcessor.prepareContentPayloads — stale container mappi
     expect(result.skippedCount).toBe(0);
     expect(result.failedItems).toHaveLength(1);
     expect(result.failedItems[0].error).toEqual(expect.stringContaining("no longer exists on the target"));
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("no longer exists on the target")
-    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("no longer exists on the target"));
   });
 
   it("ships the payload normally when the target container still exists", async () => {
@@ -622,6 +763,74 @@ describe("ContentBatchProcessor.prepareContentPayloads — stale container mappi
     expect(result.prepared).toHaveLength(1);
     expect(result.prepared[0].source).toBe(item);
     expect(result.prepared[0].payload.properties.referenceName).toBe("ref-1");
+  });
+
+  // PROD-2729: GEO fields. On save, an omitted property keeps the target's value and null clears
+  // it, so the payload must carry `geo` and the GEO seo keys as pulled and never default them.
+  describe("GEO fields (PROD-2729)", () => {
+    async function prepareOne(sourceGuid: string, targetGuid: string, item: any) {
+      seedModelAndContainerMapping(tmpDir, sourceGuid, targetGuid, { createTargetContainerFile: true });
+      const referenceMapper = new ContentItemMapper(sourceGuid, targetGuid, "en-us");
+      const processor = new ContentBatchProcessor(makeConfig({ sourceGuid, targetGuid, referenceMapper }));
+      item.properties.referenceName = "ref-1";
+      item.properties.definitionName = "TestModel";
+      const result = await (processor as any).prepareContentPayloads([item], sourceGuid, targetGuid, makeLogger());
+      expect(result.prepared).toHaveLength(1);
+      return result.prepared[0].payload;
+    }
+
+    it("passes geo and the GEO seo keys through untouched", async () => {
+      const item = makeContentItem(1);
+      item.seo = {
+        metaDescription: "desc",
+        metaKeywords: null,
+        metaHTML: null,
+        menuVisible: true,
+        sitemapVisible: true,
+        title: "Independent title",
+        canonicalUrl: "https://example.com/a",
+        robots: { index: false, follow: true },
+        ogImage: "https://cdn.example.com/og.png",
+      };
+      item.geo = {
+        schemaType: "AboutPage",
+        summary: "Answer first.",
+        structuredData: { "@type": "AboutPage", name: "About" },
+        ai: { llmsInclude: "include", crawl: "inherit" },
+      };
+
+      const payload = await prepareOne("geo-pass-src", "geo-pass-tgt", item);
+
+      expect(payload.seo).toEqual(item.seo);
+      expect(payload.geo).toEqual(item.geo);
+    });
+
+    it("defaults only the five existing seo keys when seo is null, and keeps geo", async () => {
+      const item = makeContentItem(1);
+      item.seo = null;
+      item.geo = { schemaType: "FAQPage", summary: "Kept." };
+
+      const payload = await prepareOne("geo-nullseo-src", "geo-nullseo-tgt", item);
+
+      expect(payload.seo).toEqual({
+        metaDescription: null,
+        metaKeywords: null,
+        metaHTML: null,
+        menuVisible: null,
+        sitemapVisible: null,
+      });
+      // The GEO seo keys are omitted (keep the target's value), never sent as null (clear it).
+      for (const key of ["title", "canonicalUrl", "robots", "ogImage"]) {
+        expect(payload.seo).not.toHaveProperty(key);
+      }
+      expect(payload.geo).toEqual({ schemaType: "FAQPage", summary: "Kept." });
+    });
+
+    it("omits geo (rather than sending null) when the pulled item has none", async () => {
+      const item = makeContentItem(1);
+      const payload = await prepareOne("geo-none-src", "geo-none-tgt", item);
+      expect(payload).not.toHaveProperty("geo");
+    });
   });
 });
 

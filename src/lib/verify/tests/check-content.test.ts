@@ -61,6 +61,29 @@ describe("checkContent", () => {
     expect(collector.talliesFor(LOCALE).content.mismatched).toBe(1);
   });
 
+  // PROD-2729: a dynamic page list item's own GEO data.
+  it("compares an item's geo", () => {
+    const geo = { schemaType: "ItemPage", summary: "In one sentence.", structuredData: { "@type": "BlogPosting" } };
+    const withGeo = (id: number, g: any) => ({ ...item(id, { title: "A" }), ...(g !== undefined ? { geo: g } : {}) });
+
+    expect(run([withGeo(1, geo)], [withGeo(101, geo)], [[1, 101]]).findings).toEqual([]);
+    expect(run([withGeo(1, undefined)], [withGeo(101, undefined)], [[1, 101]]).findings).toEqual([]);
+
+    const missing = run([withGeo(1, geo)], [withGeo(101, undefined)], [[1, 101]]);
+    expect(missing.findings).toEqual([
+      expect.objectContaining({
+        category: "fieldMismatch",
+        path: "geo",
+        sourceID: 1,
+        targetID: 101,
+        actual: undefined,
+      }),
+    ]);
+
+    const differs = run([withGeo(1, geo)], [withGeo(101, { ...geo, summary: "Other." })], [[1, 101]]);
+    expect(differs.findings.map((f) => f.path)).toEqual(["geo"]);
+  });
+
   it("translates linked content IDs before comparing", () => {
     const collector = run(
       [item(1, { title: "A" }), item(2, { title: "B", related: { contentid: 1, fulllist: false } })],

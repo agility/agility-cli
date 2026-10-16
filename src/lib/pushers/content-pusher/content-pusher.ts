@@ -1,5 +1,6 @@
 // Removed finder imports - using mapper directly
 import ansiColors from "ansi-colors";
+import { FailureDetail } from "types/sourceData";
 // Removed ContentBatchProcessor import - individual pusher only handles individual processing
 import { getLoggerForGuid, state, registerFailedContent } from "core/state";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
@@ -68,6 +69,8 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
     model?: string;
     fields?: string[];
   }> = [];
+  // PROD-2729: non-blocking notices (an item's GEO data left out of the save).
+  const allWarningDetails: FailureDetail[] = [];
 
   // PROD-2542: items the filter rejected client-side (missing required field on the target model).
   // Register each in the failed-content registry right away, so the next pass's parents and the
@@ -151,6 +154,7 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
       totalSkipped += filteredLinkedContentItems.skippedCount;
       totalSkipped += linkedResult.skippedCount;
       allPublishableIds.push(...linkedResult.publishableIds);
+      if (linkedResult.warnings) allWarningDetails.push(...linkedResult.warnings);
       // Collect failure details for error summary and register in failed content registry
       if (linkedResult.failedItems && linkedResult.failedItems.length > 0) {
         linkedResult.failedItems.forEach((item) => {
@@ -214,6 +218,7 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
       totalSkipped += filteredNormalContentItems.skippedCount;
       totalSkipped += normalResult.skippedCount;
       allPublishableIds.push(...normalResult.publishableIds);
+      if (normalResult.warnings) allWarningDetails.push(...normalResult.warnings);
       // Collect failure details for error summary and register in failed content registry
       if (normalResult.failedItems && normalResult.failedItems.length > 0) {
         normalResult.failedItems.forEach((item) => {
@@ -244,6 +249,7 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
       skipped: totalSkipped,
       publishableIds: allPublishableIds,
       failureDetails: allFailureDetails,
+      warningDetails: allWarningDetails,
     };
   } catch (batchError: any) {
     console.error(ansiColors.red(`❌ Batch processing failed: ${batchError.message}`));
@@ -254,6 +260,7 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
       skipped: totalSkipped,
       publishableIds: allPublishableIds,
       failureDetails: [...allFailureDetails, { name: "Batch processing", error: batchError.message }],
+      warningDetails: allWarningDetails,
     };
   }
 }
