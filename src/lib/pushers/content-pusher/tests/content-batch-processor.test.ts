@@ -600,9 +600,7 @@ describe("ContentBatchProcessor.prepareContentPayloads — stale container mappi
     expect(result.skippedCount).toBe(0);
     expect(result.failedItems).toHaveLength(1);
     expect(result.failedItems[0].error).toEqual(expect.stringContaining("no longer exists on the target"));
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("no longer exists on the target")
-    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("no longer exists on the target"));
   });
 
   it("ships the payload normally when the target container still exists", async () => {
@@ -622,6 +620,74 @@ describe("ContentBatchProcessor.prepareContentPayloads — stale container mappi
     expect(result.prepared).toHaveLength(1);
     expect(result.prepared[0].source).toBe(item);
     expect(result.prepared[0].payload.properties.referenceName).toBe("ref-1");
+  });
+
+  // PROD-2729: GEO fields. On save, an omitted property keeps the target's value and null clears
+  // it, so the payload must carry `geo` and the GEO seo keys as pulled and never default them.
+  describe("GEO fields (PROD-2729)", () => {
+    async function prepareOne(sourceGuid: string, targetGuid: string, item: any) {
+      seedModelAndContainerMapping(tmpDir, sourceGuid, targetGuid, { createTargetContainerFile: true });
+      const referenceMapper = new ContentItemMapper(sourceGuid, targetGuid, "en-us");
+      const processor = new ContentBatchProcessor(makeConfig({ sourceGuid, targetGuid, referenceMapper }));
+      item.properties.referenceName = "ref-1";
+      item.properties.definitionName = "TestModel";
+      const result = await (processor as any).prepareContentPayloads([item], sourceGuid, targetGuid, makeLogger());
+      expect(result.prepared).toHaveLength(1);
+      return result.prepared[0].payload;
+    }
+
+    it("passes geo and the GEO seo keys through untouched", async () => {
+      const item = makeContentItem(1);
+      item.seo = {
+        metaDescription: "desc",
+        metaKeywords: null,
+        metaHTML: null,
+        menuVisible: true,
+        sitemapVisible: true,
+        title: "Independent title",
+        canonicalUrl: "https://example.com/a",
+        robots: { index: false, follow: true },
+        ogImage: "https://cdn.example.com/og.png",
+      };
+      item.geo = {
+        schemaType: "AboutPage",
+        summary: "Answer first.",
+        structuredData: { "@type": "AboutPage", name: "About" },
+        ai: { llmsInclude: "include", crawl: "inherit" },
+      };
+
+      const payload = await prepareOne("geo-pass-src", "geo-pass-tgt", item);
+
+      expect(payload.seo).toEqual(item.seo);
+      expect(payload.geo).toEqual(item.geo);
+    });
+
+    it("defaults only the five existing seo keys when seo is null, and keeps geo", async () => {
+      const item = makeContentItem(1);
+      item.seo = null;
+      item.geo = { schemaType: "FAQPage", summary: "Kept." };
+
+      const payload = await prepareOne("geo-nullseo-src", "geo-nullseo-tgt", item);
+
+      expect(payload.seo).toEqual({
+        metaDescription: null,
+        metaKeywords: null,
+        metaHTML: null,
+        menuVisible: null,
+        sitemapVisible: null,
+      });
+      // The GEO seo keys are omitted (keep the target's value), never sent as null (clear it).
+      for (const key of ["title", "canonicalUrl", "robots", "ogImage"]) {
+        expect(payload.seo).not.toHaveProperty(key);
+      }
+      expect(payload.geo).toEqual({ schemaType: "FAQPage", summary: "Kept." });
+    });
+
+    it("omits geo (rather than sending null) when the pulled item has none", async () => {
+      const item = makeContentItem(1);
+      const payload = await prepareOne("geo-none-src", "geo-none-tgt", item);
+      expect(payload).not.toHaveProperty("geo");
+    });
   });
 });
 

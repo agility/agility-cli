@@ -806,3 +806,201 @@ describe("countModulesReferencingFailedContent (PROD-2542)", () => {
     expect(countModulesReferencingFailedContent(makePage({ zones: undefined }), "en-us")).toBe(0);
   });
 });
+
+// ─── PROD-2729: GEO fields ────────────────────────────────────────────────────
+
+describe("processPage — GEO fields (PROD-2729)", () => {
+  const GEO = {
+    schemaType: "AboutPage",
+    summary: "Answer first.",
+    structuredData: { "@type": "AboutPage", name: "About us" },
+    ai: { llmsInclude: "include", crawl: "inherit" },
+  };
+  const SEO = {
+    metaDescription: "desc",
+    metaKeywords: "",
+    metaHTML: "",
+    menuVisible: true,
+    sitemapVisible: true,
+    title: "Independent title",
+    canonicalUrl: "https://example.com/about",
+    robots: { index: false, follow: true },
+    ogImage: "https://cdn.example.com/og.png",
+  };
+
+  // What @agility/management-sdk throws for a non-2xx savePage: its Exception wrapping the AxiosError.
+  function sdkError(status: number, data: any): Error {
+    const axiosError: any = new Error(`Request failed with status code ${status}`);
+    axiosError.response = { status, data };
+    const err: any = new Error(`Unable to create page. AxiosError: Request failed with status code ${status}`);
+    err.innerError = axiosError;
+    return err;
+  }
+
+  function geoValidation400(exceptionMessage: string): Error {
+    return sdkError(400, { statusCode: 400, exceptionMessage, additionalParameters: null });
+  }
+
+  beforeEach(() => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
+    }));
+    mockExtract.mockReturnValue({
+      successfulItems: [{ newId: 200, newItem: { processedItemVersionID: 5 } }],
+      failedItems: [],
+    });
+  });
+
+  it("passes geo and the GEO seo keys through to savePage untouched", async () => {
+    const apiClient = makeApiClient();
+    const page = makePage({ seo: SEO, geo: GEO });
+
+    const result = await processPage(makeProps({ apiClient, page }));
+
+    expect(result.status).toBe("success");
+    expect(result.warnings).toBeUndefined();
+    const savedPayload = (apiClient.pageMethods.savePage as jest.Mock).mock.calls[0][0];
+    expect(savedPayload.seo).toEqual(SEO);
+    expect(savedPayload.geo).toEqual(GEO);
+  });
+
+  it("passes a dynamic page's geo through as well", async () => {
+    const apiClient = makeApiClient();
+    const page = makePage({
+      pageType: "static",
+      dynamic: { referenceName: "posts", fieldName: "slug", titleFormula: "title" },
+      seo: SEO,
+      geo: { schemaType: "CollectionPage" },
+    });
+
+    const result = await processPage(makeProps({ apiClient, page }));
+
+    expect(result.status).toBe("success");
+    const savedPayload = (apiClient.pageMethods.savePage as jest.Mock).mock.calls[0][0];
+    expect(savedPayload.geo).toEqual({ schemaType: "CollectionPage" });
+    expect(savedPayload.seo.title).toBe("Independent title");
+  });
+
+  it("does not add geo or GEO seo keys (as null or otherwise) when the pulled page has none", async () => {
+    const apiClient = makeApiClient();
+    const page = makePage({
+      seo: { metaDescription: "d", metaKeywords: "", metaHTML: "", menuVisible: true, sitemapVisible: true },
+    });
+
+    await processPage(makeProps({ apiClient, page }));
+
+    const savedPayload = (apiClient.pageMethods.savePage as jest.Mock).mock.calls[0][0];
+    expect(savedPayload).not.toHaveProperty("geo");
+    for (const key of ["title", "canonicalUrl", "robots", "ogImage"]) {
+      expect(savedPayload.seo).not.toHaveProperty(key);
+    }
+  });
+
+  it("retries without geo on a GEO validation 400, keeps the page a success and reports it", async () => {
+    const apiClient = makeApiClient();
+    apiClient.pageMethods.savePage = jest
+      .fn()
+      .mockRejectedValueOnce(
+        geoValidation400("geo.structuredData: is not valid JSON ('o' is an invalid start of a value.).")
+      )
+      .mockResolvedValueOnce([100]);
+    const logger = makeLogger();
+    const page = makePage({ pageID: 7, name: "About", seo: SEO, geo: { ...GEO, structuredData: "{oops" } });
+
+    const result = await processPage(makeProps({ apiClient, page, logger }));
+
+    expect(result.status).toBe("success");
+    const calls = (apiClient.pageMethods.savePage as jest.Mock).mock.calls;
+    expect(calls).toHaveLength(2);
+    expect(calls[0][0].geo).toBeDefined();
+    // The retry omits geo (keep the target's value); it must not send geo: null (clear it).
+    expect(calls[1][0]).not.toHaveProperty("geo");
+    // Only the offending block is left out: the valid GEO seo keys still copy.
+    expect(calls[1][0].seo).toEqual(SEO);
+    // Every other savePage argument is unchanged on the retry.
+    expect(calls[1].slice(1)).toEqual(calls[0].slice(1));
+
+    expect(result.warnings).toHaveLength(1);
+    expect(result.warnings![0]).toEqual(
+      expect.objectContaining({
+        name: "About",
+        type: "page",
+        pageID: 7,
+        locale: "en-us",
+        guid: "src",
+        code: "geoNotCopied",
+      })
+    );
+    expect(result.warnings![0].error).toContain("GEO not copied: invalid structured data");
+    expect(result.warnings![0].error).toContain("geo.structuredData: is not valid JSON");
+    expect(logger.page.skipped).toHaveBeenCalledWith(
+      page,
+      expect.stringContaining("GEO not copied"),
+      "en-us",
+      "website",
+      "tgt"
+    );
+    expect(logger.page.error).not.toHaveBeenCalled();
+  });
+
+  it("leaves out only the named GEO seo key when that is what the 400 rejects", async () => {
+    const apiClient = makeApiClient();
+    apiClient.pageMethods.savePage = jest
+      .fn()
+      .mockRejectedValueOnce(
+        geoValidation400("seo.canonicalUrl: must be an absolute http or https URL, or a path starting with '/'.")
+      )
+      .mockResolvedValueOnce([100]);
+    const page = makePage({ seo: { ...SEO, canonicalUrl: "not a url" }, geo: GEO });
+
+    const result = await processPage(makeProps({ apiClient, page }));
+
+    expect(result.status).toBe("success");
+    const retry = (apiClient.pageMethods.savePage as jest.Mock).mock.calls[1][0];
+    expect(retry.geo).toEqual(GEO);
+    expect(retry.seo).not.toHaveProperty("canonicalUrl");
+    expect(retry.seo.title).toBe("Independent title");
+    expect(result.warnings![0].error).toContain("GEO not copied: invalid GEO fields");
+  });
+
+  it("does not retry a 400 that isn't about GEO fields", async () => {
+    const apiClient = makeApiClient();
+    apiClient.pageMethods.savePage = jest
+      .fn()
+      .mockRejectedValue(sdkError(400, { statusCode: 400, exceptionMessage: "The page name is required." }));
+    const page = makePage({ seo: SEO, geo: GEO });
+
+    const result = await processPage(makeProps({ apiClient, page }));
+
+    expect(result.status).toBe("failure");
+    expect(apiClient.pageMethods.savePage).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not retry a non-400 error even if it mentions geo", async () => {
+    const apiClient = makeApiClient();
+    apiClient.pageMethods.savePage = jest
+      .fn()
+      .mockRejectedValue(sdkError(500, { statusCode: 500, exceptionMessage: "geo.summary: boom" }));
+
+    const result = await processPage(makeProps({ apiClient, page: makePage({ geo: GEO }) }));
+
+    expect(result.status).toBe("failure");
+    expect(apiClient.pageMethods.savePage).toHaveBeenCalledTimes(1);
+  });
+
+  it("fails the page (once) when the retry without geo fails too", async () => {
+    const apiClient = makeApiClient();
+    apiClient.pageMethods.savePage = jest
+      .fn()
+      .mockRejectedValueOnce(geoValidation400("geo.schemaType: must be one of WebPage, AboutPage (was 'Article')."))
+      .mockRejectedValueOnce(new Error("network error"));
+
+    const result = await processPage(makeProps({ apiClient, page: makePage({ geo: { schemaType: "Article" } }) }));
+
+    expect(result.status).toBe("failure");
+    expect(result.error).toContain("network error");
+    expect(apiClient.pageMethods.savePage).toHaveBeenCalledTimes(2);
+  });
+});
