@@ -5,7 +5,9 @@
  *  - contentModelMismatch      the target item is of a different model (through the model mapping)
  *  - contentContainerMismatch  the target item sits in a different container — skipped for items
  *                              placed on a page, whose container name is auto-generated
- *  - fieldMismatch             one per differing field, compared in canonical form
+ *  - fieldMismatch             one per differing field, compared in canonical form; also path
+ *                              "geo" when the item's own GEO data differs (dynamic page list items,
+ *                              PROD-2729)
  *  - sourceAssetUrlInTarget    a target field still points at an asset in the SOURCE instance
  *  - publishStateDifference    (warning) the two items are in different workflow states
  * Per container / model (unscoped runs only):
@@ -18,7 +20,7 @@
 import { Finding, FindingCollector } from "./verify-report";
 import { ComparablePair, contentSourceDefect } from "./check-mapping-integrity";
 import { sourceCanonicalContext, targetCanonicalContext, VerifyContext } from "./verify-context";
-import { canonicalFields, diffCanonical } from "./canonicalize";
+import { canonicalEquals, canonicalFields, canonicalValue, describeDifference, diffCanonical } from "./canonicalize";
 
 function lower(value: any): string {
   return typeof value === "string" ? value.toLowerCase() : "";
@@ -86,6 +88,20 @@ export function checkContent(ctx: VerifyContext, pairs: ComparablePair[], collec
         actual: diff.actual,
       });
     });
+
+    // PROD-2729: an item in a dynamic page list carries its own `geo`; a sync that didn't copy it
+    // (or a target that rejected it) shows here. Absent on both sides compares equal.
+    const expectedGeo = canonicalValue(source?.geo, sourceCtx);
+    const actualGeo = canonicalValue(target?.geo, targetCtx);
+    if (!canonicalEquals(expectedGeo, actualGeo)) {
+      findings.push({
+        ...base,
+        category: "fieldMismatch",
+        severity: "failure",
+        path: "geo",
+        ...describeDifference(expectedGeo, actualGeo),
+      });
+    }
 
     const leaked = new Map<string, string[]>();
     walkStrings(target?.fields, "fields", (text, path) => {

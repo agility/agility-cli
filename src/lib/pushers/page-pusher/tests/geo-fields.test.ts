@@ -1,4 +1,9 @@
-import { getGeoValidationError, withoutGeoFields, geoNotCopiedMessage } from "../geo-fields";
+import {
+  getGeoValidationError,
+  getItemGeoValidationErrors,
+  withoutGeoFields,
+  geoNotCopiedMessage,
+} from "../geo-fields";
 
 // @agility/management-sdk wraps the AxiosError in its own Exception (`innerError`).
 function sdkError(status: number, data: any): any {
@@ -102,5 +107,63 @@ describe("geoNotCopiedMessage (PROD-2729)", () => {
     expect(message).toMatch(/^GEO not copied: invalid structured data/);
     expect(message).toContain("geo left out");
     expect(message).toContain("geo.structuredData: is not valid JSON.");
+  });
+});
+
+describe("getItemGeoValidationErrors (PROD-2729, content items)", () => {
+  it("attributes each items[i] path to its item", () => {
+    const result = getItemGeoValidationErrors(
+      sdkError(400, {
+        exceptionMessage:
+          "items[0].geo.schemaType: must be one of WebPage, AboutPage (was 'Article'). items[2].geo.structuredData: is not valid JSON. items[2].seo.ogImage: must be an absolute URL.",
+      }),
+      3
+    )!;
+    expect(Array.from(result.keys())).toEqual([0, 2]);
+    expect(result.get(0)).toEqual({
+      message: expect.stringContaining("items[0].geo.schemaType"),
+      strip: ["geo"],
+      structuredDataOnly: false,
+    });
+    expect(result.get(2)!.strip).toEqual(["geo", "seo.ogImage"]);
+    expect(result.get(2)!.message).not.toContain("items[0]");
+    expect(result.get(2)!.structuredDataOnly).toBe(false);
+  });
+
+  it("reads ASP.NET model-binding paths ($[i].geo...)", () => {
+    const result = getItemGeoValidationErrors(
+      sdkError(400, { status: 400, errors: { "$[1].geo.ai.crawl": ["The JSON value could not be converted."] } }),
+      2
+    )!;
+    expect(Array.from(result.keys())).toEqual([1]);
+    expect(result.get(1)!.strip).toEqual(["geo"]);
+  });
+
+  it("attributes an unprefixed error to the only item of a single-item save", () => {
+    const result = getItemGeoValidationErrors(
+      sdkError(400, { exceptionMessage: "geo.structuredData: is not valid JSON." }),
+      1
+    )!;
+    expect(result.get(0)).toEqual(expect.objectContaining({ strip: ["geo"], structuredDataOnly: true }));
+  });
+
+  it("attributes an unprefixed error to every item of a multi-item save", () => {
+    const result = getItemGeoValidationErrors(sdkError(400, { exceptionMessage: "geo.summary: is too long." }), 3)!;
+    expect(Array.from(result.keys())).toEqual([0, 1, 2]);
+  });
+
+  it("ignores indexes outside the batch, non-GEO 400s and other statuses", () => {
+    expect(
+      getItemGeoValidationErrors(sdkError(400, { exceptionMessage: "items[0].fields.title: is required." }), 1)
+    ).toBeUndefined();
+    expect(
+      getItemGeoValidationErrors(sdkError(500, { exceptionMessage: "items[0].geo.summary: boom" }), 1)
+    ).toBeUndefined();
+    const out = getItemGeoValidationErrors(
+      sdkError(400, { exceptionMessage: "items[5].geo.summary: is too long." }),
+      2
+    )!;
+    // No index in range, so it falls back to every item (stripping only ever keeps the target's values).
+    expect(Array.from(out.keys())).toEqual([0, 1]);
   });
 });

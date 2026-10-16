@@ -21,11 +21,23 @@
  *    that isn't a JSON object/array, or schemaType "Article". The Management API won't save that,
  *    so write it through a path that doesn't validate (the classic editor, or the DB on dev).
  *
+ * Dynamic-list items (the MVP's item half), a second, independent block run with a sync scoped to
+ * one container:
+ *  3. An item in a list that backs a dynamic page, carrying `geo`, arrives on the target with the
+ *     same `geo`.
+ *  4. Optionally, an item in the same list whose GEO data the Management API rejects is saved
+ *     without it (the target keeps its own), with a `geoNotCopied` warning, and the rest of its
+ *     batch is not failed.
+ * Fixtures: GEO_ITEM_CONTAINER (the list's reference name; keep it small, the whole list is synced),
+ * GEO_ITEM_ID (an item in it with `geo` set) and, optionally, GEO_INVALID_ITEM_ID (an item in it
+ * with invalid GEO data, written the same way as GEO_INVALID_PAGE_ID).
+ *
  * Required env vars:
  *  - AGILITY_TOKEN        personal access token with access to both instances
  *  - GEO_SOURCE_GUID      source instance GUID (dev, e.g. "xxxxxxxx-d")
  *  - GEO_TARGET_GUID      target instance GUID (dev)
- *  - GEO_STATIC_PAGE_ID, GEO_DYNAMIC_PAGE_ID, GEO_INVALID_PAGE_ID   source page IDs
+ *  - GEO_STATIC_PAGE_ID, GEO_DYNAMIC_PAGE_ID, GEO_INVALID_PAGE_ID   source page IDs (page block)
+ *  - GEO_ITEM_CONTAINER, GEO_ITEM_ID                                 (item block; each block skips on its own)
  * Optional: GEO_LOCALE (default en-us), GEO_CHANNEL (default website), GEO_WORK_DIR (where the CLI
  * keeps its files and mappings between runs; default a fixed folder under the OS temp dir).
  *
@@ -39,6 +51,7 @@ import * as mgmtApi from "@agility/management-sdk";
 import { Auth } from "core/auth";
 import { resetState, setState } from "core/state";
 import { PageMapper } from "lib/mappers/page-mapper";
+import { ContentItemMapper } from "lib/mappers/content-item-mapper";
 
 const env = process.env;
 const TOKEN = env.AGILITY_TOKEN;
@@ -50,7 +63,12 @@ const STATIC_PAGE_ID = Number(env.GEO_STATIC_PAGE_ID);
 const DYNAMIC_PAGE_ID = Number(env.GEO_DYNAMIC_PAGE_ID);
 const INVALID_PAGE_ID = Number(env.GEO_INVALID_PAGE_ID);
 
+const ITEM_CONTAINER = env.GEO_ITEM_CONTAINER;
+const ITEM_ID = Number(env.GEO_ITEM_ID);
+const INVALID_ITEM_ID = Number(env.GEO_INVALID_ITEM_ID) || 0;
+
 const configured = !!TOKEN && !!SOURCE && !!TARGET && STATIC_PAGE_ID > 0 && DYNAMIC_PAGE_ID > 0 && INVALID_PAGE_ID > 0;
+const itemsConfigured = !!TOKEN && !!SOURCE && !!TARGET && !!ITEM_CONTAINER && ITEM_ID > 0;
 
 const describeIfConfigured = configured ? describe : describe.skip;
 
@@ -207,3 +225,117 @@ if (!configured) {
     it.skip("needs AGILITY_TOKEN, GEO_SOURCE_GUID, GEO_TARGET_GUID and the three GEO_*_PAGE_ID fixtures", () => {});
   });
 }
+
+(itemsConfigured ? describe : describe.skip)("GEO fields round trip, dynamic-list items (PROD-2729)", () => {
+  jest.setTimeout(20 * 60 * 1000);
+
+  const auth = new Auth();
+  let workDir: string;
+  let target: mgmtApi.ApiClient;
+  let sourceItems: Record<number, any>;
+  let invalidTargetBefore: any;
+  let run: { exitCode: number | null; summary: any };
+
+  /** The source item as the CLI will pull it: from the Fetch API (preview). */
+  async function fetchSourceItem(contentID: number): Promise<any> {
+    const keyResponse = await fetch(`${auth.determineBaseUrl(SOURCE)}/oauth/GetPreviewKey?guid=${SOURCE}`, {
+      headers: { Authorization: `Bearer ${TOKEN}`, "Cache-Control": "no-cache" },
+    });
+    if (!keyResponse.ok) throw new Error(`GetPreviewKey failed: HTTP ${keyResponse.status}`);
+    const key = (await keyResponse.text()).replace(/^"|"$/g, "");
+    const response = await fetch(
+      `${auth.determineFetchUrl(SOURCE)}/${SOURCE}/preview/${LOCALE}/item/${contentID}?contentLinkDepth=0`,
+      { headers: { APIKey: key } }
+    );
+    if (!response.ok) throw new Error(`Fetch API item ${contentID}: HTTP ${response.status}`);
+    return response.json();
+  }
+
+  function targetContentID(sourceContentID: number): number | undefined {
+    setState({ rootPath: path.join(workDir, "agility-files") });
+    const mapping = new ContentItemMapper(SOURCE!, TARGET!, LOCALE).getContentItemMappingByContentID(
+      sourceContentID,
+      "source"
+    );
+    return mapping && mapping.targetContentID > 0 ? mapping.targetContentID : undefined;
+  }
+
+  beforeAll(async () => {
+    if (!fs.existsSync(CLI)) throw new Error(`Build the CLI first (npm run build): ${CLI} is missing`);
+    resetState();
+    workDir = env.GEO_WORK_DIR || path.join(os.tmpdir(), `agility-geo-roundtrip-${SOURCE}-${TARGET}`);
+    fs.mkdirSync(workDir, { recursive: true });
+    target = new mgmtApi.ApiClient({ token: TOKEN!, baseUrl: auth.determineBaseUrl(TARGET!) } as mgmtApi.Options);
+
+    // Precondition: the source items carry GEO data in the Fetch API output.
+    sourceItems = {};
+    for (const id of [ITEM_ID, INVALID_ITEM_ID].filter((x) => x > 0)) {
+      sourceItems[id] = await fetchSourceItem(id);
+      if (!sourceItems[id]?.geo) {
+        throw new Error(
+          `Source item ${id} has no geo in the Fetch API output. Is the Fetch API item half deployed, is the item in a dynamic page list, and was it re-published after its GEO data was saved?`
+        );
+      }
+    }
+
+    const previousInvalid = INVALID_ITEM_ID > 0 ? targetContentID(INVALID_ITEM_ID) : undefined;
+    invalidTargetBefore = previousInvalid
+      ? (((await target.contentMethods.getContentItem(previousInvalid, TARGET!, LOCALE)) as any)?.geo ?? null)
+      : null;
+
+    const summaryPath = path.join(workDir, "summary-items.json");
+    fs.rmSync(summaryPath, { force: true });
+    const result = spawnSync(
+      process.execPath,
+      [
+        CLI,
+        "sync",
+        `--sourceGuid=${SOURCE}`,
+        `--targetGuid=${TARGET}`,
+        `--token=${TOKEN}`,
+        `--locales=${LOCALE}`,
+        `--containers=${ITEM_CONTAINER}`,
+        "--overwrite",
+        "--headless",
+        `--jsonSummary=${summaryPath}`,
+      ],
+      { cwd: workDir, encoding: "utf8", env: { ...process.env }, maxBuffer: 64 * 1024 * 1024 }
+    );
+    if (!fs.existsSync(summaryPath)) {
+      throw new Error(`sync wrote no summary (exit ${result.status}).\n${result.stdout}\n${result.stderr}`);
+    }
+    run = { exitCode: result.status, summary: JSON.parse(fs.readFileSync(summaryPath, "utf8")) };
+  });
+
+  it("does not fail the fixture items", () => {
+    const failedIDs = (run.summary.failures || [])
+      .filter((f: any) => f.type === "content")
+      .map((f: any) => f.contentID);
+    expect(failedIDs).not.toContain(ITEM_ID);
+    if (INVALID_ITEM_ID > 0) expect(failedIDs).not.toContain(INVALID_ITEM_ID);
+  });
+
+  it("copies the item's geo", async () => {
+    const targetID = targetContentID(ITEM_ID);
+    expect(targetID).toBeDefined();
+    const targetItem: any = await target.contentMethods.getContentItem(targetID!, TARGET!, LOCALE);
+    expect(targetItem?.geo ?? null).toEqual(sourceItems[ITEM_ID].geo);
+  });
+
+  (INVALID_ITEM_ID > 0 ? it : it.skip)(
+    "reports the invalid item as 'GEO not copied' and keeps the target's GEO data",
+    async () => {
+      const warning = (run.summary.warnings || []).find(
+        (w: any) => w.code === "geoNotCopied" && w.contentID === INVALID_ITEM_ID
+      );
+      expect(warning).toBeDefined();
+      expect(warning.error).toMatch(/^GEO not copied: /);
+
+      const targetID = targetContentID(INVALID_ITEM_ID);
+      expect(targetID).toBeDefined();
+      const after: any = await target.contentMethods.getContentItem(targetID!, TARGET!, LOCALE);
+      expect(after?.geo ?? null).not.toEqual(sourceItems[INVALID_ITEM_ID].geo);
+      expect(after?.geo ?? null).toEqual(invalidTargetBefore);
+    }
+  );
+});

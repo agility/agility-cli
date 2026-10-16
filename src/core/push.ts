@@ -341,9 +341,10 @@ export class Push {
       // PROD-2316: dropped-module notices — a page pushed successfully, but one or more of
       // its modules referenced content that couldn't be resolved on the target, so those
       // modules were left off the pushed page. Non-blocking: the modules return automatically
-      // on a future push of the page once the content syncs.
+      // on a future push of the page once the content syncs. PROD-2729: also pages and content
+      // items whose GEO data the target rejected and that were saved without it.
       if (syncWarningDetails.length > 0) {
-        console.log(ansiColors.yellow(`\n  Page Warnings (non-blocking, ${syncWarningDetails.length}):`));
+        console.log(ansiColors.yellow(`\n  Warnings (non-blocking, ${syncWarningDetails.length}):`));
         syncWarningDetails.forEach(({ name, error, pageID, contentID, guid, locale }) => {
           const prefix = guid && locale ? `[${guid}][${locale}]` : guid ? `[${guid}]` : "";
           console.log(ansiColors.yellow(`    ${prefix} • ${name}: ${error}`));

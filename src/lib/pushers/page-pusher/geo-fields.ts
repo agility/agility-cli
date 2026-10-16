@@ -88,6 +88,55 @@ export function getGeoValidationError(error: any): GeoValidationError | undefine
   const message = pieces.join(" ").trim();
   if (!message) return undefined;
 
+  const parsed = parseGeoPaths(message);
+  if (!parsed) return undefined;
+  return { message, ...parsed };
+}
+
+/**
+ * Content items (the MVP's item half): `POST {locale}/item/multi` validates every item's GEO data
+ * before queueing the batch and rejects the whole request with one 400 whose message prefixes each
+ * path with the item's index ("items[3].geo.structuredData: ..."; ASP.NET model binding says
+ * "$[3].geo.schemaType"); a single-item save has no prefix.
+ * Returns the validation errors per payload index, or undefined when the error isn't a GEO 400.
+ *
+ * When the message names no index for a multi-item request, every item is attributed the whole
+ * error: the caller then leaves the named properties out of every item that carries them, which
+ * only ever keeps the target's values.
+ */
+export function getItemGeoValidationErrors(error: any, itemCount: number): Map<number, GeoValidationError> | undefined {
+  const overall = getGeoValidationError(error);
+  if (!overall) return undefined;
+
+  const byIndex = new Map<number, GeoValidationError>();
+  const segments = overall.message.split(/(?=(?:items|\$)\[\d+\]\.)/);
+  for (const segment of segments) {
+    const indexMatch = /^(?:items|\$)\[(\d+)\]\./.exec(segment);
+    if (!indexMatch) continue;
+    const index = parseInt(indexMatch[1], 10);
+    if (index < 0 || index >= itemCount) continue;
+    const parsed = parseGeoPaths(segment.slice(indexMatch[0].length));
+    if (!parsed) continue;
+    const existing = byIndex.get(index);
+    if (existing) {
+      existing.message = `${existing.message} ${segment.trim()}`;
+      parsed.strip.forEach((s) => existing.strip.includes(s) || existing.strip.push(s));
+      existing.structuredDataOnly = existing.structuredDataOnly && parsed.structuredDataOnly;
+    } else {
+      byIndex.set(index, {
+        message: segment.trim(),
+        strip: parsed.strip,
+        structuredDataOnly: parsed.structuredDataOnly,
+      });
+    }
+  }
+  if (byIndex.size > 0) return byIndex;
+
+  for (let i = 0; i < itemCount; i++) byIndex.set(i, { ...overall, strip: [...overall.strip] });
+  return byIndex;
+}
+
+function parseGeoPaths(message: string): Omit<GeoValidationError, "message"> | undefined {
   const strip: string[] = [];
   const paths: string[] = [];
   const pattern = new RegExp(GEO_PATH.source, GEO_PATH.flags);
@@ -99,12 +148,7 @@ export function getGeoValidationError(error: any): GeoValidationError | undefine
     if (!strip.includes(target.strip)) strip.push(target.strip);
   }
   if (strip.length === 0) return undefined;
-
-  return {
-    message,
-    strip,
-    structuredDataOnly: paths.every((p) => p.startsWith("geo.structureddata")),
-  };
+  return { strip, structuredDataOnly: paths.every((p) => p.startsWith("geo.structureddata")) };
 }
 
 /**
@@ -124,7 +168,7 @@ export function withoutGeoFields<T extends Record<string, any>>(payload: T, stri
   return copy;
 }
 
-/** The warning text recorded for a page whose GEO data was not copied. */
+/** The warning text recorded for a page or content item whose GEO data was not copied. */
 export function geoNotCopiedMessage(validation: GeoValidationError): string {
   const what = validation.structuredDataOnly ? "invalid structured data" : "invalid GEO fields";
   return `GEO not copied: ${what} (${validation.strip.join(", ")} left out; the target keeps its existing values). ${validation.message}`;
