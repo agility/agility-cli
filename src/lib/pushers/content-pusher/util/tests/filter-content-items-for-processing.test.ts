@@ -1,4 +1,4 @@
-import { resetState, setState, registerEffectiveTargetModel } from "core/state";
+import { resetState, setState, recordSavedTarget } from "core/state";
 import { preflightReport } from "lib/preflight/preflight-report";
 
 // Mock findContentInTargetInstance so we can control its return value
@@ -326,7 +326,7 @@ describe("filterContentItemsForProcessing — required field validation (PROD-25
 
   beforeEach(() => {
     preflightReport.reset();
-    registerEffectiveTargetModel("PromoBanner", promoBanner);
+    recordSavedTarget("model", 1, promoBanner, "PromoBanner");
   });
 
   it("routes an item missing a required scalar to itemsToFail, never itemsToProcess", async () => {
@@ -395,7 +395,7 @@ describe("filterContentItemsForProcessing — required field validation (PROD-25
 
   it("records an invalid (not create) preflight entry with the reason", async () => {
     setState({ preflight: true });
-    registerEffectiveTargetModel("PromoBanner", promoBanner);
+    recordSavedTarget("model", 1, promoBanner, "PromoBanner");
     mockFind.mockReturnValue(wouldCreate);
     await filterContentItemsForProcessing(
       makeBaseProps([bannerItem(1, { enabled: "true" }), bannerItem(2, { promoTitle: "a", promoSubtitle: "b" })])

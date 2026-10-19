@@ -1,7 +1,7 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { Logs } from "core/logs";
-import { state, getState, getApiClient, getLoggerForGuid } from "core/state";
+import { state, getState, getApiClient, getLoggerForGuid, recordSavedTarget } from "core/state";
 import { GalleryMapper } from "lib/mappers/gallery-mapper";
 import { preflightReport } from "../preflight/preflight-report";
 import { FailureDetail, PusherResult } from "types/sourceData";
@@ -197,6 +197,7 @@ async function createGallery(
   // Let errors propagate to caller for proper failure tracking
   const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
   referenceMapper.addMapping(mediaGrouping, savedGallery);
+  recordSavedTarget("gallery", mediaGrouping.mediaGroupingID, savedGallery, mediaGrouping.name);
   logger.gallery.created(mediaGrouping, "created", targetGuid);
 }
 
@@ -229,5 +230,6 @@ async function updateGallery(
   };
   const savedGallery = await apiClient.assetMethods.saveGallery(targetGuid, payload);
   referenceMapper.addMapping(sourceGallery, savedGallery);
+  recordSavedTarget("gallery", sourceGallery.mediaGroupingID, savedGallery, sourceGallery.name);
   logger.gallery.updated(sourceGallery, "updated", targetGuid);
 }

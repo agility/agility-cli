@@ -1,5 +1,5 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { getApiClient, state, getLoggerForGuid, registerEffectiveTargetModel } from "../../core/state";
+import { getApiClient, state, getLoggerForGuid, recordSavedTarget } from "../../core/state";
 import { PusherResult, FailureDetail } from "../../types/sourceData";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
@@ -408,11 +408,11 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     // PROD-2542: a real run would save the source definition, so content is validated against it.
     for (const model of shouldCreateStub) {
       preflightReport.record({ phase: "Models", action: "create", name: model.referenceName });
-      registerEffectiveTargetModel(model.referenceName, model);
+      recordSavedTarget("model", model.id, model, model.referenceName);
     }
     for (const model of shouldUpdateFields) {
       preflightReport.record({ phase: "Models", action: "update", name: model.referenceName });
-      registerEffectiveTargetModel(model.referenceName, model);
+      recordSavedTarget("model", model.id, model, model.referenceName);
     }
     for (const { model, reason } of shouldSkip) {
       const isConflict = /target model has changed|no longer exists on the target/i.test(reason);
@@ -571,11 +571,13 @@ async function updateExistingModel(
     const updatedModel = await apiClient.modelMethods.saveModel(updatePayload, targetGuid);
     logger.model.updated(sourceModel, "updated", targetGuid);
     referenceMapper.addMapping(sourceModel, updatedModel);
-    // PROD-2542: the target models/<id>.json cache isn't rewritten here, so record what was saved
-    // for content validation later in this run (the payload, if the response omits the fields).
-    registerEffectiveTargetModel(
-      sourceModel.referenceName,
-      Array.isArray(updatedModel?.fields) ? updatedModel : updatePayload
+    // PROD-2542: content later in this run is validated against what was saved, not the pulled
+    // target (the payload stands in if the response omits the fields).
+    recordSavedTarget(
+      "model",
+      sourceModel.id,
+      Array.isArray(updatedModel?.fields) ? updatedModel : updatePayload,
+      sourceModel.referenceName
     );
     return "updated";
   } catch (error: any) {
@@ -587,7 +589,7 @@ async function updateExistingModel(
     if (recovered && (recovered.fields?.length ?? 0) === (sourceModel.fields?.length ?? 0)) {
       logger.model.updated(sourceModel, "updated", targetGuid);
       referenceMapper.addMapping(sourceModel, recovered);
-      registerEffectiveTargetModel(sourceModel.referenceName, recovered);
+      recordSavedTarget("model", sourceModel.id, recovered, sourceModel.referenceName);
       return "updated";
     }
     logger.model.error(sourceModel, error, targetGuid);

@@ -213,3 +213,15 @@ describe("ContainerMapper.hasTargetChanged", () => {
     );
   });
 });
+
+describe("ContainerMapper — getContainerByReferenceName without a mapping", () => {
+  it("scans the instance's containers instead of throwing", () => {
+    const mapper = new ContainerMapper("src-cbr", "tgt-cbr");
+    const containerDir = path.join(tmpDir, "tgt-cbr", "containers");
+    fs.mkdirSync(containerDir, { recursive: true });
+    fs.writeFileSync(path.join(containerDir, "77.json"), JSON.stringify({ contentViewID: 77, referenceName: "Posts" }));
+
+    expect(mapper.getContainerByReferenceName("posts", "target")).toMatchObject({ contentViewID: 77 });
+    expect(mapper.getContainerByReferenceName("missing", "target")).toBeNull();
+  });
+});

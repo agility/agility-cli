@@ -55,6 +55,8 @@ export class PageMapper {
   }
 
   getMappedEntity(mapping: PageMapping, type: "source" | "target"): mgmtApi.PageItem | null {
+    // Deliberately reads only the pulled copy, never a saved target (see SavedTargetKind): the
+    // pusher holds a partial target, and this pulled copy is what conflict detection compares to.
     if (!mapping) return null;
     const guid = type === "source" ? mapping.sourceGuid : mapping.targetGuid;
     const pageID = type === "source" ? mapping.sourcePageID : mapping.targetPageID;

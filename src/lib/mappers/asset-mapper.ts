@@ -1,4 +1,5 @@
 import { fileOperations } from "../../core";
+import { getSavedTarget } from "../../core/state";
 import * as mgmtApi from "@agility/management-sdk";
 
 interface AssetMapping {
@@ -153,6 +154,12 @@ export class AssetMapper {
   }
 
   getMappedEntity(mapping: AssetMapping, type: "source" | "target"): mgmtApi.Media | null {
+    if (!mapping) return null;
+    // Something saved to the target earlier in this run is newer than the pulled copy on disk.
+    if (type === "target") {
+      const saved = getSavedTarget("asset", mapping.sourceMediaID);
+      if (saved) return saved;
+    }
     const guid = type === "source" ? mapping.sourceGuid : mapping.targetGuid;
     const mediaID = type === "source" ? mapping.sourceMediaID : mapping.targetMediaID;
     const fileOps = new fileOperations(guid);

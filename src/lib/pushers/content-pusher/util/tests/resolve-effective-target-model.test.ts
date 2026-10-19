@@ -1,7 +1,7 @@
 import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
-import { resetState, setState, registerEffectiveTargetModel } from "core/state";
+import { resetState, setState, recordSavedTarget } from "core/state";
 import { createEffectiveTargetModelResolver } from "../resolve-effective-target-model";
 
 let tmpDir: string;
@@ -45,10 +45,10 @@ function seed(sourceGuid: string, targetGuid: string, opts: { targetFile: boolea
 }
 
 describe("createEffectiveTargetModelResolver (PROD-2542)", () => {
-  it("prefers the run-scoped registry over the (stale) target cache", () => {
+  it("prefers the model saved this run over the (stale) target cache", () => {
     seed("etm-src-1", "etm-tgt-1", { targetFile: true });
     const saved = { referenceName: "Post", fields: [{ name: "saved" }] };
-    registerEffectiveTargetModel("Post", saved);
+    recordSavedTarget("model", 1, saved, "Post");
     const resolve = createEffectiveTargetModelResolver("etm-src-1", "etm-tgt-1");
     expect(resolve("post")).toBe(saved);
   });

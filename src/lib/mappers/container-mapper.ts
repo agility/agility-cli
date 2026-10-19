@@ -1,5 +1,6 @@
 import { parse } from "date-fns";
 import { fileOperations } from "../../core";
+import { getSavedTarget } from "../../core/state";
 import * as mgmtApi from "@agility/management-sdk";
 
 //TODO: Change to use lastModifiedOn instead of lastModifiedDate when the fix to that is deployed!
@@ -62,6 +63,11 @@ export class ContainerMapper {
 
   getMappedEntity(mapping: ContainerMapping, type: "source" | "target"): mgmtApi.Container | null {
     if (!mapping) return null;
+    // Something saved to the target earlier in this run is newer than the pulled copy on disk.
+    if (type === "target") {
+      const saved = getSavedTarget("container", mapping.sourceContentViewID);
+      if (saved) return saved;
+    }
     //fetch the container from the file system based on source or target GUID
     const guid = type === "source" ? mapping.sourceGuid : mapping.targetGuid;
     const containerID = type === "source" ? mapping.sourceContentViewID : mapping.targetContentViewID;
@@ -78,7 +84,7 @@ export class ContainerMapper {
       return this.getMappedEntity(mapping, type);
     } else {
       //if there's no mappping, we have to loop through ALL the containers to find it
-      const guid = type === "source" ? mapping.sourceGuid : mapping.targetGuid;
+      const guid = type === "source" ? this.sourceGuid : this.targetGuid;
       const fileOps = new fileOperations(guid);
       const containerFiles = fileOps.listFilesInFolder(`containers`);
 

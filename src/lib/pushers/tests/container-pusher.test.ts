@@ -233,14 +233,17 @@ describe("pushContainers — adopt existing target container by referenceName (P
   });
 });
 
-// ─── pushContainers — PROD-2346 local cache write ─────────────────────────────
+// ─── pushContainers — PROD-2346 saved container visible later in the run ─────
 
-describe("pushContainers — writes local container cache file (PROD-2346)", () => {
-  function cachedContainerPath(guid: string, contentViewID: number): string {
-    return path.join(tmpDir, guid, "containers", `${contentViewID}.json`);
+describe("pushContainers — saved container is what the mapper returns for the rest of the run (PROD-2346)", () => {
+  // What later phases (the PROD-2309 content guard) read: the mapped target container.
+  async function mappedTargetContainer(sourceContentViewID: number) {
+    const { ContainerMapper } = await import("lib/mappers/container-mapper");
+    const mapper = new ContainerMapper("src-cont-u", "tgt-cont-u");
+    return mapper.getMappedEntity(mapper.getContainerMappingByContentViewID(sourceContentViewID, "source")!, "target");
   }
 
-  it("writes the target container to disk after a successful create", async () => {
+  it("returns the created container after a successful create", async () => {
     const created = makeContainer({
       contentViewID: 501,
       contentDefinitionID: 1,
@@ -256,16 +259,14 @@ describe("pushContainers — writes local container cache file (PROD-2346)", () 
     const result = await pushContainers([sourceContainer], []);
     expect(result.successful).toBe(1);
 
-    const cachePath = cachedContainerPath("tgt-cont-u", 501);
-    expect(fs.existsSync(cachePath)).toBe(true);
-    expect(JSON.parse(fs.readFileSync(cachePath, "utf8"))).toMatchObject({
+    expect(await mappedTargetContainer(sourceContainer.contentViewID)).toMatchObject({
       contentViewID: 501,
       referenceName: created.referenceName,
       lastModifiedDate: "01/01/2024 10:00AM",
     });
   });
 
-  it("writes the target container to disk after a successful update", async () => {
+  it("returns the updated container after a successful update, not the pulled one", async () => {
     const referenceName = "UpdateCacheTest";
 
     // First run: create the container, establishing the mapping and initial cache file.
@@ -303,16 +304,14 @@ describe("pushContainers — writes local container cache file (PROD-2346)", () 
     const result = await pushContainers([sourceV2], [targetUnchanged]);
     expect(result.successful).toBe(1);
 
-    const cachePath = cachedContainerPath("tgt-cont-u", 502);
-    expect(fs.existsSync(cachePath)).toBe(true);
-    expect(JSON.parse(fs.readFileSync(cachePath, "utf8"))).toMatchObject({
+    expect(await mappedTargetContainer(900)).toMatchObject({
       contentViewID: 502,
       referenceName,
       lastModifiedDate: "06/01/2025 10:00AM",
     });
   });
 
-  it("writes the target container to disk after adopting by referenceName (PROD-2307)", async () => {
+  it("returns the adopted container after adopting by referenceName (PROD-2307)", async () => {
     const saveContainer = jest.fn();
     state.cachedApiClient = { containerMethods: { saveContainer } } as any;
 
@@ -330,9 +329,7 @@ describe("pushContainers — writes local container cache file (PROD-2346)", () 
     expect(result.skipped).toBe(1);
     expect(saveContainer).not.toHaveBeenCalled();
 
-    const cachePath = cachedContainerPath("tgt-cont-u", 503);
-    expect(fs.existsSync(cachePath)).toBe(true);
-    expect(JSON.parse(fs.readFileSync(cachePath, "utf8"))).toMatchObject({
+    expect(await mappedTargetContainer(source.contentViewID)).toMatchObject({
       contentViewID: 503,
       referenceName: "AdoptCacheTest",
     });

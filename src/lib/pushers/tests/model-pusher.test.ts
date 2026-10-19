@@ -945,7 +945,7 @@ describe("pushModels — effective target model registry (PROD-2542)", () => {
     const { pushModels } = await import("../model-pusher");
     await pushModels([makeModel({ referenceName: "PromoBanner", fields: requiredTitle })], []);
 
-    expect(stateModule.getEffectiveTargetModel("promobanner")).toBe(saved);
+    expect(stateModule.getSavedTargetBySourceReferenceName("model", "promobanner")).toBe(saved);
   });
 
   it("registers the sent payload when the save response carries no fields", async () => {
@@ -955,7 +955,7 @@ describe("pushModels — effective target model registry (PROD-2542)", () => {
     const { pushModels } = await import("../model-pusher");
     await pushModels([makeModel({ referenceName: "NoFields", fields: requiredTitle })], []);
 
-    const registered = stateModule.getEffectiveTargetModel("NoFields");
+    const registered = stateModule.getSavedTargetBySourceReferenceName("model", "NoFields");
     expect(registered.fields).toEqual(requiredTitle);
     expect(registered.id).toBe(89);
   });
@@ -967,7 +967,7 @@ describe("pushModels — effective target model registry (PROD-2542)", () => {
     const { pushModels } = await import("../model-pusher");
     await pushModels([makeModel({ referenceName: "Broken", fields: requiredTitle })], []);
 
-    expect(stateModule.getEffectiveTargetModel("Broken")).toBeUndefined();
+    expect(stateModule.getSavedTargetBySourceReferenceName("model", "Broken")).toBeUndefined();
   });
 
   it("registers the source model for a planned create under --preflight (no saveModel)", async () => {
@@ -980,6 +980,6 @@ describe("pushModels — effective target model registry (PROD-2542)", () => {
     await pushModels([source], []);
 
     expect(saveModel).not.toHaveBeenCalled();
-    expect(stateModule.getEffectiveTargetModel("Planned")).toBe(source);
+    expect(stateModule.getSavedTargetBySourceReferenceName("model", "Planned")).toBe(source);
   });
 });

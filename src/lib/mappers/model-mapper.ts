@@ -1,4 +1,5 @@
 import { fileOperations } from "../../core";
+import { getSavedTarget } from "../../core/state";
 import * as mgmtApi from "@agility/management-sdk";
 
 interface ModelMapping {
@@ -99,6 +100,11 @@ export class ModelMapper {
 
   getMappedEntity(mapping: ModelMapping, type: "source" | "target"): mgmtApi.Model | null {
     if (!mapping) return null;
+    // Something saved to the target earlier in this run is newer than the pulled copy on disk.
+    if (type === "target") {
+      const saved = getSavedTarget("model", mapping.sourceID);
+      if (saved) return saved;
+    }
     //fetch the model from the file system based on source or target GUID
     const guid = type === "source" ? mapping.sourceGuid : mapping.targetGuid;
     const modelID = type === "source" ? mapping.sourceID : mapping.targetID;

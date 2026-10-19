@@ -166,3 +166,24 @@ describe("GalleryMapper.hasTargetChanged", () => {
     expect(mapper.hasTargetChanged(makeGallery({ mediaGroupingID: 20, modifiedOn: "12/31/2025 11:59PM" }))).toBe(true);
   });
 });
+
+describe("GalleryMapper — getMappedEntity", () => {
+  it("finds the pulled gallery in the instance's galleries folder, not the working directory", () => {
+    const mapper = new GalleryMapper("src-gme", "tgt-gme");
+    const galleryDir = path.join(tmpDir, "tgt-gme", "galleries");
+    fs.mkdirSync(galleryDir, { recursive: true });
+    fs.writeFileSync(path.join(galleryDir, "40.json"), JSON.stringify({ mediaGroupingID: 40, name: "Hero" }));
+
+    const mapping = {
+      sourceGuid: "src-gme",
+      targetGuid: "tgt-gme",
+      sourceMediaGroupingID: 4,
+      targetMediaGroupingID: 40,
+      sourceModifiedOn: "",
+      targetModifiedOn: "",
+    };
+
+    expect(mapper.getMappedEntity(mapping, "target")).toMatchObject({ mediaGroupingID: 40, name: "Hero" });
+    expect(fs.existsSync(path.join(process.cwd(), "galleries"))).toBe(false);
+  });
+});
