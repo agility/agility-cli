@@ -1,4 +1,5 @@
 import { fileOperations } from "../../core";
+import { getSavedTarget } from "../../core/state";
 import * as mgmtApi from "@agility/management-sdk";
 import { SectionMapper } from "./section-mapper";
 interface TemplateMapping {
@@ -55,6 +56,11 @@ export class TemplateMapper {
 
   getMappedEntity(mapping: TemplateMapping, type: "source" | "target"): mgmtApi.PageModel | null {
     if (!mapping) return null;
+    // Something saved to the target earlier in this run is newer than the pulled copy on disk.
+    if (type === "target") {
+      const saved = getSavedTarget("template", mapping.sourcePageTemplateID);
+      if (saved) return saved;
+    }
     const guid = type === "source" ? mapping.sourceGuid : mapping.targetGuid;
     const pageTemplateID = type === "source" ? mapping.sourcePageTemplateID : mapping.targetPageTemplateID;
     const fileOps = new fileOperations(guid);

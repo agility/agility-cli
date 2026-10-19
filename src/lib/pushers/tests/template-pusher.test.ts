@@ -538,3 +538,52 @@ describe("pushTemplates — stale mapping to a deleted target template (PROD-260
     expect(second.skipped).toBe(1);
   });
 });
+
+// ─── pushTemplates — saved template visible later in the run ─────────────────
+
+describe("pushTemplates — saved template is what the mapper returns for the rest of the run", () => {
+  it("returns the saved template, so the page pusher sees zones added in the same run", async () => {
+    const sourceTpl = makeTemplate({
+      pageTemplateID: 7001,
+      pageTemplateName: "ZoneAddedTemplate",
+      contentSectionDefinitions: [
+        { pageItemTemplateID: 1, pageItemTemplateReferenceName: "banner-zone", itemOrder: 1, contentViewID: -1 },
+        { pageItemTemplateID: 2, pageItemTemplateReferenceName: "main-content-zone", itemOrder: 2, contentViewID: -1 },
+      ],
+    });
+    const targetTplBefore = makeTemplate({
+      pageTemplateID: 7002,
+      pageTemplateName: "ZoneAddedTemplate",
+      contentSectionDefinitions: [
+        { pageItemTemplateID: 20, pageItemTemplateReferenceName: "main-content-zone", itemOrder: 1, contentViewID: -1 },
+      ],
+    });
+
+    // The target template as pulled at the start of the run, before the source's new zone reached it.
+    new TemplateMapper("src-tpl-u", "tgt-tpl-u").addMapping(sourceTpl, targetTplBefore);
+    const { fileOperations } = await import("core");
+    new fileOperations("tgt-tpl-u").exportFiles("templates", 7002, targetTplBefore);
+
+    const savedTpl = {
+      ...targetTplBefore,
+      contentSectionDefinitions: [
+        { pageItemTemplateID: 21, pageItemTemplateReferenceName: "banner-zone", itemOrder: 1, contentViewID: -1 },
+        { pageItemTemplateID: 20, pageItemTemplateReferenceName: "main-content-zone", itemOrder: 2, contentViewID: -1 },
+      ],
+    };
+    const savePageTemplate = jest.fn().mockResolvedValue(savedTpl);
+    state.cachedApiClient = { pageMethods: { savePageTemplate } } as any;
+
+    const { pushTemplates } = await import("../template-pusher");
+    const result = await pushTemplates([sourceTpl], [targetTplBefore], "en-us");
+    expect(result.successful).toBe(1);
+
+    // What the page pusher reads to translate zone names.
+    const mapper = new TemplateMapper("src-tpl-u", "tgt-tpl-u");
+    const cached = mapper.getMappedEntity(mapper.getTemplateMappingByPageTemplateName("ZoneAddedTemplate", "source")!, "target");
+    expect(cached!.contentSectionDefinitions.map((s: any) => s.pageItemTemplateReferenceName)).toEqual([
+      "banner-zone",
+      "main-content-zone",
+    ]);
+  });
+});

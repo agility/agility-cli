@@ -1,7 +1,7 @@
 import ansiColors from "ansi-colors";
 import * as mgmtApi from "@agility/management-sdk";
 import { getAssetFilePath } from "../shared";
-import { state, getApiClient, getLoggerForGuid } from "../../core/state";
+import { state, getApiClient, getLoggerForGuid, recordSavedTarget } from "../../core/state";
 import { AssetMapper } from "../mappers/asset-mapper";
 import { Logs } from "../../core/logs";
 const FormData = require("form-data");
@@ -250,6 +250,7 @@ export async function pushAssets(
             logger
           );
           referenceMapper.addMapping(media, updatedAsset);
+          recordSavedTarget("asset", media.mediaID, updatedAsset, media.originKey);
           logger.asset.uploaded(media, moveDetail, targetGuid);
         }
         successful++;
@@ -293,6 +294,7 @@ export async function pushAssets(
             logger
           );
           referenceMapper.addMapping(media, createdAsset);
+          recordSavedTarget("asset", media.mediaID, createdAsset, media.originKey);
         }
         successful++;
       } else if (shouldUpdate) {
@@ -311,6 +313,7 @@ export async function pushAssets(
             logger
           );
           referenceMapper.addMapping(media, updatedAsset);
+          recordSavedTarget("asset", media.mediaID, updatedAsset, media.originKey);
         }
         successful++;
       } else if (shouldSkip) {

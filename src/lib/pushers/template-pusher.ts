@@ -1,5 +1,5 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { state, getLoggerForGuid, registerHeldBackTemplate } from "../../core/state";
+import { state, getLoggerForGuid, registerHeldBackTemplate, recordSavedTarget } from "../../core/state";
 import { TemplateMapper } from "lib/mappers/template-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContainerMapper } from "lib/mappers/container-mapper";
@@ -211,6 +211,8 @@ export async function pushTemplates(
       try {
         const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid, locale, payload);
         templateMapper.addMapping(sourceTemplate, savedTemplate);
+        // The page pusher translates zone names against this template; the pulled copy lacks any zone added here.
+        recordSavedTarget("template", sourceTemplate.pageTemplateID, savedTemplate, sourceTemplate.pageTemplateName);
 
         // Refresh section-level ID mappings from the confirmed response — this both seeds the
         // mapping the first time a section is seen and keeps it correct going forward, regardless

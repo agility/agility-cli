@@ -48,6 +48,8 @@ export class ContentItemMapper {
   }
 
   getMappedEntity(mapping: ContentItemMapping, type: "source" | "target"): mgmtApi.ContentItem | null {
+    // Deliberately reads only the pulled copy, never a saved target (see SavedTargetKind): the
+    // pusher holds a partial target, and this pulled copy is what conflict detection compares to.
     //fetch the content item from the file system based on source or target GUID
     if (!mapping) {
       return null;

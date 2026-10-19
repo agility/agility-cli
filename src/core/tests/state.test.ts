@@ -14,9 +14,10 @@ import {
   registerFailedContent,
   getFailedContent,
   clearFailedContentRegistry,
-  registerEffectiveTargetModel,
-  getEffectiveTargetModel,
-  clearEffectiveTargetModels,
+  recordSavedTarget,
+  getSavedTarget,
+  getSavedTargetBySourceReferenceName,
+  clearSavedTargets,
   initializeLogger,
   initializeGuidLogger,
   getLoggerForGuid,
@@ -337,20 +338,37 @@ describe("failed content registry", () => {
   });
 });
 
-describe("effective target model registry (PROD-2542)", () => {
-  it("registers and looks up by source referenceName, case-insensitively", () => {
-    const model = { referenceName: "PromoBanner", fields: [] };
-    registerEffectiveTargetModel("PromoBanner", model);
-    expect(getEffectiveTargetModel("promobanner")).toBe(model);
+describe("saved target entities", () => {
+  it("looks up by kind and source ID", () => {
+    const template = { pageTemplateID: 70, contentSectionDefinitions: [] };
+    recordSavedTarget("template", 7, template, "Home");
+    expect(getSavedTarget("template", 7)).toBe(template);
+    expect(getSavedTarget("template", 8)).toBeUndefined();
+    expect(getSavedTarget("container", 7)).toBeUndefined();
   });
 
-  it("is cleared by clearEffectiveTargetModels and resetState", () => {
-    registerEffectiveTargetModel("A", { fields: [] });
-    clearEffectiveTargetModels();
-    expect(getEffectiveTargetModel("A")).toBeUndefined();
-    registerEffectiveTargetModel("B", { fields: [] });
+  it("replaces an earlier save of the same source entity", () => {
+    const first = { id: 10, fields: [] };
+    const second = { id: 10, fields: [{ name: "Title" }] };
+    recordSavedTarget("model", 1, first, "Post");
+    recordSavedTarget("model", 1, second, "Post");
+    expect(getSavedTarget("model", 1)).toBe(second);
+  });
+
+  it("looks up by source referenceName, case-insensitively (PROD-2542)", () => {
+    const model = { referenceName: "PromoBanner", fields: [] };
+    recordSavedTarget("model", 3, model, "PromoBanner");
+    expect(getSavedTargetBySourceReferenceName("model", "promobanner")).toBe(model);
+    expect(getSavedTargetBySourceReferenceName("container", "promobanner")).toBeUndefined();
+  });
+
+  it("is cleared by clearSavedTargets and resetState", () => {
+    recordSavedTarget("model", 1, { fields: [] }, "A");
+    clearSavedTargets();
+    expect(getSavedTarget("model", 1)).toBeUndefined();
+    recordSavedTarget("model", 2, { fields: [] }, "B");
     resetState();
-    expect(getEffectiveTargetModel("B")).toBeUndefined();
+    expect(getSavedTargetBySourceReferenceName("model", "B")).toBeUndefined();
   });
 });
 

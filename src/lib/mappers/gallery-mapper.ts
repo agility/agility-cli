@@ -1,6 +1,7 @@
 import { parse } from "date-fns";
 import * as mgmtApi from "@agility/management-sdk";
 import { fileOperations } from "../../core";
+import { getSavedTarget } from "../../core/state";
 interface GalleryMapping {
   sourceGuid: string;
   targetGuid: string;
@@ -46,15 +47,21 @@ export class GalleryMapper {
 
   getMappedEntity(mapping: GalleryMapping | null, type: "source" | "target"): mgmtApi.assetMediaGrouping | null {
     if (!mapping) return null;
+    // Something saved to the target earlier in this run is newer than the pulled copy on disk.
+    if (type === "target") {
+      const saved = getSavedTarget("gallery", mapping.sourceMediaGroupingID);
+      if (saved) return saved;
+    }
     const guid = type === "source" ? mapping.sourceGuid : mapping.targetGuid;
     const mediaGroupingID = type === "source" ? mapping.sourceMediaGroupingID : mapping.targetMediaGroupingID;
     const fileOps = new fileOperations(guid);
-    const galleriesFiles = fileOps.getFolderContents("galleries");
+    // getFolderContents takes a full path; a bare "galleries" resolved against the working
+    // directory, so the pulled galleries were never found (and an empty folder was created there).
+    const galleriesFiles = fileOps.getFolderContents(fileOps.getDataFolderPath("galleries"));
 
-    console.log("galleriesFiles", galleriesFiles);
     for (const galleryFile of galleriesFiles) {
       const galleryData = fileOps.readJsonFile(`galleries/${galleryFile}`);
-      if (galleryData.mediaGroupingID === mediaGroupingID) {
+      if (galleryData?.mediaGroupingID === mediaGroupingID) {
         return galleryData;
       }
     }

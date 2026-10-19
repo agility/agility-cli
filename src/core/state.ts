@@ -111,11 +111,12 @@ export interface State {
   // Keyed by `${locale}:${contentID}` (PROD-2542) so a failure in one locale never labels another.
   failedContentRegistry: Map<string, { referenceName: string; error: string; locale: string }>;
 
-  // Effective target models (PROD-2542) - the model definition content will actually be validated
-  // against on the target, keyed by lower-cased SOURCE model referenceName. Filled by the model
-  // pusher on a saved create/update (and with the source model in preflight), because the target
-  // models/<id>.json cache is not rewritten after saveModel and is stale for the rest of the run.
-  effectiveTargetModels: Map<string, any>;
+  // Saved targets - the target entity each pusher saved this run (or, for models in preflight, the
+  // definition it would save), by kind, then by SOURCE ID. The mappers' getMappedEntity(…, "target")
+  // read this before the target cache on disk, which holds the target as pulled at the start of the
+  // run and is stale for anything saved since. Generalizes PROD-2542's model registry and replaces
+  // PROD-2346's container cache write; preflight cannot write files, but can record a plan here.
+  savedTargets: Map<SavedTargetKind, Map<number, SavedTarget>>;
 
   // Held-back template registry - source template names whose mapped target template is gone and
   // was not recreated (no --overwrite). Used by page pusher to skip pages that depend on them.
@@ -208,8 +209,8 @@ export const state: State = {
   // Failed content registry - tracks content items that failed during sync
   failedContentRegistry: new Map(),
 
-  // Effective target models - models saved (or, in preflight, planned) during this run
-  effectiveTargetModels: new Map(),
+  // Saved targets - target entities saved (or, for models in preflight, planned) during this run
+  savedTargets: new Map(),
 
   // Held-back template registry - templates whose mapped target is gone and was not recreated
   heldBackTemplateRegistry: new Map(),
@@ -519,8 +520,8 @@ export function resetState() {
   state.reverseSync = false;
   state.mappingPair = undefined;
 
-  // Run-scoped model registry (PROD-2542)
-  state.effectiveTargetModels = new Map();
+  // Run-scoped saved target entities
+  state.savedTargets = new Map();
 }
 
 /**
@@ -818,27 +819,66 @@ export function clearFailedContentRegistry(): void {
 }
 
 // ============================================================================
-// Effective target model registry (PROD-2542)
+// Saved target entities
 // ============================================================================
 
 /**
- * Record the model definition content of `sourceReferenceName` will be validated against on the
- * target for the rest of this run.
+ * Entity kinds whose save returns the complete target entity, so the saved copy can stand in for the
+ * pulled one. Content items and pages are deliberately not here: their pushers only hold a partial
+ * target (the payload plus the new ID and version), and their pulled target copy is what conflict
+ * detection compares against (hasTargetChanged, PROD-2628).
  */
-export function registerEffectiveTargetModel(sourceReferenceName: string, model: any): void {
-  if (!sourceReferenceName || !model) return;
-  state.effectiveTargetModels.set(sourceReferenceName.toLowerCase(), model);
+export type SavedTargetKind = "model" | "container" | "template" | "gallery" | "asset";
+
+export interface SavedTarget {
+  entity: any;
+  sourceReferenceName?: string;
 }
 
-/** Look up a model registered this run by its source referenceName (case-insensitive). */
-export function getEffectiveTargetModel(sourceReferenceName: string): any | undefined {
+/**
+ * Record the target entity saved this run for the source entity `sourceID`. A later save of the same
+ * source entity replaces it.
+ */
+export function recordSavedTarget(
+  kind: SavedTargetKind,
+  sourceID: number,
+  entity: any,
+  sourceReferenceName?: string
+): void {
+  if (sourceID == null || !entity) return;
+  let saved = state.savedTargets.get(kind);
+  if (!saved) {
+    saved = new Map();
+    state.savedTargets.set(kind, saved);
+  }
+  saved.set(sourceID, { entity, sourceReferenceName });
+}
+
+/** The target entity saved this run for the source entity `sourceID`, if any. */
+export function getSavedTarget(kind: SavedTargetKind, sourceID: number): any | undefined {
+  if (sourceID == null) return undefined;
+  return state.savedTargets.get(kind)?.get(sourceID)?.entity;
+}
+
+/**
+ * The target entity saved this run for the source entity with this referenceName (case-insensitive),
+ * if any. For callers that know a source entity only by name, e.g. content validation, which has the
+ * item's definitionName and, in preflight, a model that has no mapping yet.
+ */
+export function getSavedTargetBySourceReferenceName(
+  kind: SavedTargetKind,
+  sourceReferenceName: string
+): any | undefined {
   if (!sourceReferenceName) return undefined;
-  return state.effectiveTargetModels.get(sourceReferenceName.toLowerCase());
+  const name = sourceReferenceName.toLowerCase();
+  const saved = state.savedTargets.get(kind);
+  if (!saved) return undefined;
+  return Array.from(saved.values()).find((s) => s.sourceReferenceName?.toLowerCase() === name)?.entity;
 }
 
-/** Clear the effective target model registry (called at start of each sync). */
-export function clearEffectiveTargetModels(): void {
-  state.effectiveTargetModels.clear();
+/** Clear the saved target entities (called at start of each sync). */
+export function clearSavedTargets(): void {
+  state.savedTargets.clear();
 }
 
 /**

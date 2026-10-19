@@ -1,11 +1,12 @@
-import { getEffectiveTargetModel } from "core/state";
+import { getSavedTargetBySourceReferenceName } from "core/state";
 import { ModelMapper } from "lib/mappers/model-mapper";
 
 /**
  * PROD-2542: resolve the model a content item will be validated against on the target, by its
  * source definitionName. Lookup order:
- *   1. the run-scoped registry (a model saved — or, in preflight, planned — earlier in this run;
- *      the target models/<id>.json cache is NOT rewritten after saveModel, so it would be stale),
+ *   1. the model saved — or, in preflight, planned — earlier in this run (recordSavedTarget); the
+ *      target models/<id>.json cache holds the model as pulled and is stale once it is saved. Looked
+ *      up by name because a model planned in preflight has no mapping yet,
  *   2. the target model cache via the model mapping,
  *   3. the source model via the model mapping,
  *   4. none — the caller skips validation.
@@ -35,7 +36,7 @@ export function createEffectiveTargetModelResolver(
     const key = definitionName.toLowerCase();
     if (cache.has(key)) return cache.get(key);
 
-    let model: any | null = getEffectiveTargetModel(definitionName) || null;
+    let model: any | null = getSavedTargetBySourceReferenceName("model", definitionName) || null;
     if (!model) {
       try {
         const mapper = getModelMapper();
