@@ -148,10 +148,10 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,Blog
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="BlogPost,BlogCategory"
 
 # Sync one page structure and its child pages, and nothing else
-agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery"
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/products/widgets"
 
 # Sync one container, leaving the other containers on the same model alone
-agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks"
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="HomeLinks"
 
 # Sync and auto-publish everything that was published in source
 agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish
@@ -263,26 +263,26 @@ pages belonging to a single feature up through your environments, instead of run
 sync and resolving conflicts on every unrelated page that has drifted.
 
 ```bash
-# Sync the /my-lottery page and every page underneath it
-agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery"
+# Sync the /products/widgets page and every page underneath it
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/products/widgets"
 
 # Several page structures at once
-agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery,/promotions"
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/products/widgets,/promotions"
 ```
 
 #### Naming a page
 
 Each selector is matched, case-insensitively, against:
 
-- the page path — `/my-lottery` (a leading slash is optional, a trailing slash is ignored),
-- the page name — `my-lottery`, or
+- the page path — `/products/widgets` (a leading slash is optional, a trailing slash is ignored),
+- the page name — `widgets`, or
 - the page ID — `1042`.
 
 Selectors are matched across every channel in the source instance.
 
 > **Git Bash on Windows:** the shell rewrites a leading-slash argument into a Windows path, so
-> `--pages=/my-lottery` arrives as `C:/Program Files/Git/my-lottery`. Drop the leading slash
-> (`--pages="my-lottery"`), double it (`--pages="//my-lottery"`), or set `MSYS_NO_PATHCONV=1`.
+> `--pages=/products/widgets` arrives as `C:/Program Files/Git/products/widgets`. Drop the leading slash
+> (`--pages="products/widgets"`), double it (`--pages="//products/widgets"`), or set `MSYS_NO_PATHCONV=1`.
 > PowerShell and cmd are unaffected. The CLI detects this and says so rather than syncing the
 > wrong thing.
 
@@ -323,9 +323,9 @@ the scope is what you expected:
 en-us
   website
     · /products (parent — left unchanged)
-      → /products/my-lottery (pageID 10)
-        + /products/my-lottery/rules (pageID 11)
-        + /products/my-lottery/winners (pageID 12)
+      → /products/widgets (pageID 10)
+        + /products/widgets/specs (pageID 11)
+        + /products/widgets/reviews (pageID 12)
 ```
 
 `→` is a page you named, `+` a child page that comes with it, and `·` a parent shown only for
@@ -333,7 +333,7 @@ context. Combine with `--preflight` to see the creates, updates and conflicts th
 would produce without writing anything.
 
 ```bash
-agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery" --preflight
+agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/products/widgets" --preflight
 ```
 
 #### Notes and limits
@@ -352,24 +352,24 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --pages="/my-lottery" -
 
 Use it when several containers share a content model. Reusing one model across containers is
 the right thing to do — but it means `--models-with-deps` acts on the model and sweeps in
-*every* container built on it. If "AON Home Links" and "Mega Millions Home Links" are both
-built on a Home Links model, syncing the model promotes both. `--containers` promotes the one
+*every* container built on it. If "Home Links" and "Footer Links" are both
+built on a Links model, syncing the model promotes both. `--containers` promotes the one
 you name.
 
 ```bash
 # Sync just this container and what its content depends on
-agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks"
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="HomeLinks"
 
 # Several containers at once
-agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks,AONPromotions"
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="HomeLinks,Promotions"
 ```
 
 #### Naming a container
 
 Each selector is matched, case-insensitively, against:
 
-- the container reference name — `AONHomeLinks`,
-- the container title as it reads in the CMS — `AON Home Links`, or
+- the container reference name — `HomeLinks`,
+- the container title as it reads in the CMS — `Home Links`, or
 - the container ID — `312`.
 
 #### What gets synced
@@ -392,16 +392,16 @@ Every `--containers` run prints the resolved scope before the first write:
 ```
 📦 CONTAINER SCOPE — only these containers and their dependencies will be synced
 
-  → AON Home Links (AONHomeLinks) · model: HomeLinks
+  → Home Links (HomeLinks) · model: Links
 
   Also synced, because in-scope content links to items in them:
-  + Games (Games) · model: Game
+  + Products (Products) · model: Product
 
   Content items in scope — en-us: 12
-  Models in scope (2): Game, HomeLinks
+  Models in scope (2): Links, Product
 
   Other containers on these models — left unchanged on the target:
-  · Mega Millions Home Links (MegaMillionsHomeLinks) · model: HomeLinks
+  · Footer Links (FooterLinks) · model: Links
 
   No pages, templates or URL redirections are touched by a container sync.
 ```
@@ -414,7 +414,7 @@ Combine with `--preflight` to see the creates, updates and conflicts that scope 
 without writing anything:
 
 ```bash
-agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="AONHomeLinks" --preflight
+agility sync --sourceGuid="abc123" --targetGuid="def456" --containers="HomeLinks" --preflight
 ```
 
 #### Notes and limits
