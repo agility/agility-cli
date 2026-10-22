@@ -6,6 +6,7 @@ import {
   clearFailedContentRegistry,
   clearHeldBackTemplateRegistry,
   clearSavedTargets,
+  clearDeferredModelDisables,
   clearOtherLocaleStagingRegistry,
   getOtherLocaleStaging,
   getPageCmsLink,
@@ -110,6 +111,8 @@ export class Push {
     clearHeldBackTemplateRegistry();
     // Entities saved by a previous run must not stand in for this run's pulled targets
     clearSavedTargets();
+    // PROD-2914: models a previous run meant to disable after its pages
+    clearDeferredModelDisables();
     clearOtherLocaleStagingRegistry();
     // PROD-3164: pages the page phase held back, which page order mustn't move
     resetHeldPages();
