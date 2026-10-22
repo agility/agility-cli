@@ -353,6 +353,142 @@ describe("pushModelAvailability", () => {
     }
   );
 
+  it("leaves stale (deleted) source targets out of the save", async () => {
+    writeRules(SOURCE, [
+      sourceRule({
+        allowedIn: {
+          sitemaps: [...sourceAllowedIn.sitemaps, { sitemapID: 2, stale: true }],
+          pageModels: [...sourceAllowedIn.pageModels, { pageModelID: 4, stale: true }],
+          zones: [...sourceAllowedIn.zones, { zoneID: 15, stale: true }],
+        },
+      }),
+    ]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(result).toMatchObject({ status: "success", successful: 1, failed: 0 });
+    expect(result.warningDetails).toEqual([]);
+    expect(save.mock.calls[0][1].allowedIn).toEqual({
+      sitemaps: [{ referenceName: "website", name: "Website" }],
+      pageModels: [{ name: "Landing Page" }],
+      zones: [{ pageModelName: "Landing Page", referenceName: "HeroZone", name: "Hero Zone" }],
+    });
+  });
+
+  it.each([
+    ["sitemap", { sitemaps: [{ sitemapID: 2, stale: true }], pageModels: sourceAllowedIn.pageModels, zones: [] }],
+    [
+      "page model and zone",
+      {
+        sitemaps: sourceAllowedIn.sitemaps,
+        pageModels: [{ pageModelID: 4, stale: true }],
+        zones: [{ zoneID: 15, stale: true }],
+      },
+    ],
+  ])(
+    "skips a model with a warning when every %s in its rule is stale (sending it empty would widen it)",
+    async (part, allowedIn) => {
+      writeRules(SOURCE, [sourceRule({ allowedIn })]);
+      writeRules(TARGET, [{ modelID: 120, addableBy: null, allowedIn: sourceAllowedIn }]);
+      mapModel(12, 120);
+      const save = mockApi();
+
+      const result = await pushModelAvailability([sourceModel]);
+
+      expect(save).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ status: "success", successful: 0, skipped: 1, failed: 0 });
+      expect(result.warningDetails).toHaveLength(1);
+      expect(result.warningDetails[0]).toMatchObject({ name: "HeroBanner", type: "model" });
+      expect(result.warningDetails[0].error).toContain(`every ${part} it's limited to`);
+      expect(result.warningDetails[0].error).toMatch(/would allow the component everywhere/);
+    }
+  );
+
+  it("still syncs the layout rule when only some page models and zones are stale", async () => {
+    // A stale page model next to a live zone: the zone keeps the rule restricted.
+    writeRules(SOURCE, [
+      sourceRule({
+        allowedIn: { sitemaps: [], pageModels: [{ pageModelID: 4, stale: true }], zones: sourceAllowedIn.zones },
+      }),
+    ]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(result).toMatchObject({ successful: 1, skipped: 0 });
+    expect(save.mock.calls[0][1].allowedIn).toEqual({
+      sitemaps: [],
+      pageModels: [],
+      zones: [{ pageModelName: "Landing Page", referenceName: "HeroZone", name: "Hero Zone" }],
+    });
+  });
+
+  it("ignores the target's stale entries when comparing, so a re-sync writes nothing", async () => {
+    writeRules(SOURCE, [sourceRule()]);
+    writeRules(TARGET, [
+      {
+        modelID: 120,
+        addableBy: null,
+        allowedIn: {
+          sitemaps: [
+            { sitemapID: 7, referenceName: "website" },
+            { sitemapID: 8, stale: true },
+          ],
+          pageModels: [
+            { pageModelID: 30, name: "Landing Page" },
+            { pageModelID: 31, stale: true },
+          ],
+          zones: [
+            { zoneID: 140, pageModelName: "Landing Page", referenceName: "HeroZone" },
+            { zoneID: 141, stale: true },
+          ],
+        },
+      },
+    ]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ successful: 0, skipped: 1, failed: 0 });
+  });
+
+  it("replaces a target sitemap list that holds only stale entries, which allows the component nowhere", async () => {
+    // The source has no sitemap rule (anywhere); the target's only sitemap was deleted (nowhere).
+    writeRules(SOURCE, [
+      sourceRule({ allowedIn: { sitemaps: [], pageModels: sourceAllowedIn.pageModels, zones: [] } }),
+    ]);
+    writeRules(TARGET, [
+      {
+        modelID: 120,
+        addableBy: null,
+        allowedIn: {
+          sitemaps: [{ sitemapID: 8, stale: true }],
+          pageModels: [{ pageModelID: 30, name: "Landing Page" }],
+          zones: [],
+        },
+      },
+    ]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.successful).toBe(1);
+    expect(save.mock.calls[0][1].allowedIn).toEqual({
+      sitemaps: [],
+      pageModels: [{ name: "Landing Page" }],
+      zones: [],
+    });
+  });
+
   it("records the planned saves in preflight and writes nothing", async () => {
     writeRules(SOURCE, [sourceRule(), sourceRule({ modelID: 13, modelReferenceName: "NewModel" })]);
     writeRules(TARGET, []);
