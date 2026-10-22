@@ -991,16 +991,41 @@ describe("pushModels — isVisible ownership (PROD-2914)", () => {
   const JUN = new Date(2025, 5, 1).toISOString();
   const fields = (label = "Title") => [{ name: "Title", label, type: "Text", itemOrder: 0, settings: {} }];
 
-  it("copies the source's isVisible when it creates a model", async () => {
+  it("creates a disabled source model enabled, and defers disabling it until after the pages", async () => {
     const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 777 }));
     jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
     const { pushModels } = await import("../model-pusher");
 
-    await pushModels([makeModel({ referenceName: "hidden-component", isVisible: false })], []);
+    const source = makeModel({ id: 42, referenceName: "hidden-component", isVisible: false });
+    await pushModels([source], []);
 
-    // The stub carries it; the field update that follows leaves it out (null = keep on the API).
-    expect(saveModel.mock.calls[0][0].isVisible).toBe(false);
+    // Neither the stub nor the field update carries it (left out, the API defaults a new model to
+    // enabled), so this run's page saves can place it. The availability phase disables it later.
+    expect("isVisible" in saveModel.mock.calls[0][0]).toBe(false);
     expect("isVisible" in saveModel.mock.calls[1][0]).toBe(false);
+    expect(stateModule.getDeferredModelDisables()).toEqual([42]);
+  });
+
+  it("defers nothing for a created model that's enabled on the source", async () => {
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 779 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    await pushModels([makeModel({ id: 43, referenceName: "shown-component", isVisible: true })], []);
+
+    expect(stateModule.getDeferredModelDisables()).toEqual([]);
+  });
+
+  it("in preflight, records the deferred disable of a model it would create, and writes nothing", async () => {
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    setState({ preflight: true });
+    const { pushModels } = await import("../model-pusher");
+
+    await pushModels([makeModel({ id: 44, referenceName: "planned-hidden", isVisible: false })], []);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(stateModule.getDeferredModelDisables()).toEqual([44]);
   });
 
   it("never sends isVisible when it updates an existing model, so the target keeps its own", async () => {

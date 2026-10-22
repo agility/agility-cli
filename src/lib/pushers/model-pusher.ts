@@ -1,5 +1,11 @@
 import * as mgmtApi from "@agility/management-sdk";
-import { getApiClient, state, getLoggerForGuid, recordSavedTarget } from "../../core/state";
+import {
+  getApiClient,
+  state,
+  getLoggerForGuid,
+  recordSavedTarget,
+  registerDeferredModelDisable,
+} from "../../core/state";
 import { PusherResult, FailureDetail } from "../../types/sourceData";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
@@ -409,6 +415,8 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
     for (const model of shouldCreateStub) {
       preflightReport.record({ phase: "Models", action: "create", name: model.referenceName });
       recordSavedTarget("model", model.id, model, model.referenceName);
+      // PROD-2914: a real run would create it enabled and disable it after the pages.
+      if (model.isVisible === false) registerDeferredModelDisable(model.id);
     }
     for (const model of shouldUpdateFields) {
       preflightReport.record({ phase: "Models", action: "update", name: model.referenceName });
@@ -524,17 +532,21 @@ const createNewModel = async (
 ): Promise<{ result: "created" | "failed"; error?: string }> => {
   try {
     // process the model without fields
-    // PROD-2914: a new model takes the source's `isVisible` (a component disabled on the source
-    // arrives disabled), carried by the spread. The field update that follows leaves it out.
-    const createPayload = {
+    const createPayload: mgmtApi.Model = {
       ...model,
       id: 0,
       fields: [], // no fields for a stub
     };
+    // PROD-2914: a new model takes the source's `isVisible`, but not yet. On a new target every
+    // placement on a page counts as new, so a model created disabled would get this run's pages
+    // that use it rejected. It's created enabled (left out, the API defaults a new model to
+    // enabled), and the component availability phase disables it after the pages.
+    delete createPayload.isVisible;
 
     const newModel = await apiClient.modelMethods.saveModel(createPayload, targetGuid);
     logger.model.created(model, "created", targetGuid);
     referenceMapper.addMapping(model, newModel);
+    if (model.isVisible === false) registerDeferredModelDisable(model.id);
     return { result: "created" };
   } catch (error: any) {
     // PROD-2211: saveModel can reject even though the API created the model server-side. Before
@@ -545,6 +557,7 @@ const createNewModel = async (
     if (recovered) {
       logger.model.created(model, "created", targetGuid);
       referenceMapper.addMapping(model, recovered);
+      if (model.isVisible === false) registerDeferredModelDisable(model.id);
       return { result: "created" };
     }
     logger.model.error(model, error, targetGuid);
@@ -567,7 +580,7 @@ async function updateExistingModel(
   try {
     // PROD-2914: `isVisible` (whether a component is disabled) belongs to the target instance, so an
     // update never sends it: left out, the API keeps the target's value. A model created this run
-    // already got the source's value in its stub.
+    // gets the source's value after the pages (see createNewModel).
     const updatePayload: mgmtApi.Model = {
       ...sourceModel,
       id: targetID,

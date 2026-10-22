@@ -189,8 +189,9 @@ describe("pushModelAvailability", () => {
     });
   });
 
-  it("also clears when the source model has no rules file at all", async () => {
-    writeRules(SOURCE, []);
+  it("also clears when the source model has no rules file, once the source has listed any rule", async () => {
+    // Another model's rules prove the source stores them, so no file for model 12 means "no rules".
+    writeRules(SOURCE, [sourceRule({ modelID: 13, modelReferenceName: "Other" })]);
     writeRules(TARGET, [{ modelID: 120, addableBy: null, allowedIn: sourceAllowedIn }]);
     mapModel(12, 120);
     const save = mockApi();
@@ -198,6 +199,19 @@ describe("pushModelAvailability", () => {
     await pushModelAvailability([sourceModel]);
 
     expect(save.mock.calls[0][1].allowedIn).toEqual({ sitemaps: [], pageModels: [], zones: [] });
+  });
+
+  it("never clears from a source that has no rules at all (it may not have been migrated yet)", async () => {
+    // An unmigrated database answers with an empty list, exactly like one with no rules.
+    writeRules(SOURCE, []);
+    writeRules(TARGET, [{ modelID: 120, addableBy: null, allowedIn: sourceAllowedIn }]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: "success", successful: 0, skipped: 0, failed: 0 });
   });
 
   it("never clears when the target's rules are unknown", async () => {
@@ -210,17 +224,21 @@ describe("pushModelAvailability", () => {
 
     expect(save).not.toHaveBeenCalled();
     expect(result).toMatchObject({ successful: 0, skipped: 0, failed: 0 });
+    expect(result.warningDetails).toEqual([]);
   });
 
-  it("still pushes the source's rules when the target's are unknown", async () => {
+  it("pushes nothing and warns once when the source has rules but the target's couldn't be read", async () => {
     writeRules(SOURCE, [sourceRule()]);
     writeRules(TARGET, null);
     mapModel(12, 120);
     const save = mockApi();
 
-    await pushModelAvailability([sourceModel]);
+    const result = await pushModelAvailability([sourceModel]);
 
-    expect(save).toHaveBeenCalledTimes(1);
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: "success", failed: 0 });
+    expect(result.warningDetails).toHaveLength(1);
+    expect(result.warningDetails[0].error).toMatch(/couldn't be read/);
   });
 
   it("does nothing when the source's rules weren't pulled (an instance without the feature)", async () => {
@@ -284,6 +302,39 @@ describe("pushModelAvailability", () => {
     expect(result.failureDetails[0].error).toContain('Unknown zone "Landing Page" / "HeroZone".');
   });
 
+  it("counts a 404 with the API's message (a stale model mapping) as that model's failure, and carries on", async () => {
+    writeRules(SOURCE, [sourceRule(), sourceRule({ modelID: 13, modelReferenceName: "Other" })]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    mapModel(13, 130, "Other");
+    const notFound = Object.assign(httpError(404, "Unable to save availability for model id: 120."), {
+      responseData: { message: "The model with ID 120 could not be located." },
+    });
+    const save = mockApi(jest.fn().mockRejectedValueOnce(notFound).mockResolvedValueOnce({}));
+
+    const result = await pushModelAvailability([sourceModel, { id: 13, referenceName: "Other" } as any]);
+
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ status: "error", successful: 1, failed: 1 });
+    expect(result.failureDetails[0]).toMatchObject({ name: "HeroBanner" });
+    expect(result.warningDetails).toEqual([]);
+  });
+
+  it("reports a 403 once, not once per model, and stops", async () => {
+    writeRules(SOURCE, [sourceRule(), sourceRule({ modelID: 13, modelReferenceName: "Other" })]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    mapModel(13, 130, "Other");
+    const save = mockApi(jest.fn().mockRejectedValue(httpError(403, "Forbidden")));
+
+    const result = await pushModelAvailability([sourceModel, { id: 13, referenceName: "Other" } as any]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "error", failed: 1 });
+    expect(result.failureDetails).toHaveLength(1);
+    expect(result.failureDetails[0].error).toMatch(/needs the Manage or Design permission/);
+  });
+
   it.each([404, 405, 409])(
     "stops with one warning when the target answers %i (feature not available)",
     async (status) => {
@@ -317,6 +368,100 @@ describe("pushModelAvailability", () => {
     expect(entries).toEqual([
       expect.objectContaining({ phase: "Component availability", action: "update", name: "HeroBanner" }),
       expect.objectContaining({ phase: "Component availability", action: "create", name: "NewModel" }),
+    ]);
+  });
+});
+
+// ─── disabling models created this run ────────────────────────────────────────
+
+describe("pushModelAvailability — models created this run that are disabled on the source", () => {
+  const targetModel = { id: 120, referenceName: "HeroBanner", lastModifiedDate: "2026-01-01", fields: [] };
+
+  function mockModelApi(overrides: { get?: jest.Mock; saveModel?: jest.Mock } = {}) {
+    const get = overrides.get ?? jest.fn().mockResolvedValue({ ...targetModel, isVisible: true });
+    const saveModel =
+      overrides.saveModel ??
+      jest.fn().mockImplementation(async (model: any) => ({ ...model, lastModifiedDate: "2026-05-05" }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue({
+      modelMethods: { getContentModel: get, saveModel, saveModelAvailability: jest.fn() },
+    } as any);
+    return { get, saveModel };
+  }
+
+  it("disables them after the pages, and records the save in the model mapping", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    stateModule.registerDeferredModelDisable(12);
+    const { get, saveModel } = mockModelApi();
+
+    const result = await pushModelAvailability([{ ...sourceModel, lastModifiedDate: "2026-01-01" }]);
+
+    expect(get).toHaveBeenCalledWith(120, TARGET);
+    expect(saveModel).toHaveBeenCalledTimes(1);
+    expect(saveModel.mock.calls[0][0]).toMatchObject({ id: 120, isVisible: false });
+    expect(result).toMatchObject({ status: "success", successful: 1, failed: 0 });
+    // Otherwise the next sync reads the model as changed on the target.
+    const mapping = new ModelMapper(SOURCE, TARGET).getModelMappingByID(12, "source");
+    expect(mapping?.targetLastModifiedDate).toBe("2026-05-05");
+  });
+
+  it("leaves models that weren't created this run alone", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    const { saveModel } = mockModelApi();
+
+    await pushModelAvailability([{ ...sourceModel, isVisible: false }]);
+
+    expect(saveModel).not.toHaveBeenCalled();
+  });
+
+  it("warns once and leaves them enabled when the target's API doesn't return isVisible", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    mapModel(13, 130, "Other");
+    stateModule.registerDeferredModelDisable(12);
+    stateModule.registerDeferredModelDisable(13);
+    const { get, saveModel } = mockModelApi({ get: jest.fn().mockResolvedValue({ ...targetModel }) });
+
+    const result = await pushModelAvailability([sourceModel, { id: 13, referenceName: "Other" } as any]);
+
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: "success", failed: 0 });
+    expect(result.warningDetails).toHaveLength(1);
+    expect(result.warningDetails[0].error).toMatch(/can't disable models yet/);
+  });
+
+  it("reports a failed disable as that model's failure", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    stateModule.registerDeferredModelDisable(12);
+    mockModelApi({ saveModel: jest.fn().mockRejectedValue(new Error("boom")) });
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(result).toMatchObject({ status: "error", successful: 0, failed: 1 });
+    expect(result.failureDetails[0].error).toMatch(/Failed to disable model "HeroBanner".*boom/);
+  });
+
+  it("records the planned disable in preflight and writes nothing", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    setState({ preflight: true });
+    stateModule.registerDeferredModelDisable(12);
+    const { get, saveModel } = mockModelApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(get).not.toHaveBeenCalled();
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.successful).toBe(1);
+    expect(preflightReport.getEntries()).toEqual([
+      expect.objectContaining({ phase: "Component availability", action: "update", name: "HeroBanner" }),
     ]);
   });
 });

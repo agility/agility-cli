@@ -103,6 +103,28 @@ describe("downloadModelAvailability", () => {
     expect(fs.existsSync(folder)).toBe(false);
   });
 
+  it("treats a single model instead of a list (an older API's model/{referenceName} route) as no feature", async () => {
+    seedStaleFile(12);
+    mockApi(jest.fn().mockResolvedValue({ id: 5, referenceName: "availability", fields: [] }));
+
+    await expect(downloadModelAvailability(GUID)).resolves.toBeUndefined();
+
+    expect(fs.existsSync(folder)).toBe(false);
+    expect(getModelAvailabilityFromFileSystem(new fileOperations(GUID))).toBeNull();
+  });
+
+  it("removes a half-written folder and rethrows when writing the rules fails", async () => {
+    seedStaleFile(99);
+    mockApi(jest.fn().mockResolvedValue([rule(12)]));
+    jest.spyOn(fileOperations.prototype, "exportFiles").mockImplementation(() => {
+      throw new Error("disk full");
+    });
+
+    await expect(downloadModelAvailability(GUID)).rejects.toThrow("disk full");
+
+    expect(fs.existsSync(folder)).toBe(false);
+  });
+
   it("removes stale rules and rethrows any other error", async () => {
     seedStaleFile(12);
     mockApi(jest.fn().mockRejectedValue(httpError(500)));

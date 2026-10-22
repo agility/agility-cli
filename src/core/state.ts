@@ -122,6 +122,11 @@ export interface State {
   // was not recreated (no --overwrite). Used by page pusher to skip pages that depend on them.
   heldBackTemplateRegistry: Map<string, string>;
 
+  // Deferred model disables (PROD-2914) - source IDs of models created this run whose source is
+  // disabled (`isVisible: false`). They're created enabled and disabled after the pages, so the
+  // run's own page saves can place them (on a new target every placement counts as new).
+  deferredModelDisables: Set<number>;
+
   // Other-locale staging registry (PROD-2782) - pages that a save in one locale put in staging in
   // another locale, keyed by that other locale, then by target page ID. Auto-publish republishes
   // them; without auto-publish they are reported as warnings.
@@ -214,6 +219,9 @@ export const state: State = {
 
   // Held-back template registry - templates whose mapped target is gone and was not recreated
   heldBackTemplateRegistry: new Map(),
+
+  // Deferred model disables - models created this run, to disable after the pages (PROD-2914)
+  deferredModelDisables: new Set(),
 
   // Other-locale staging registry - pages a save in one locale put in staging in another (PROD-2782)
   otherLocaleStagingRegistry: new Map(),
@@ -522,6 +530,7 @@ export function resetState() {
 
   // Run-scoped saved target entities
   state.savedTargets = new Map();
+  state.deferredModelDisables = new Set();
 }
 
 /**
@@ -879,6 +888,27 @@ export function getSavedTargetBySourceReferenceName(
 /** Clear the saved target entities (called at start of each sync). */
 export function clearSavedTargets(): void {
   state.savedTargets.clear();
+}
+
+/**
+ * PROD-2914: register a model created this run whose source is disabled (`isVisible: false`). The
+ * model pusher creates it enabled, and the component availability phase disables it after the
+ * pages, so the run's own page saves aren't rejected for placing a disabled component.
+ * @param sourceModelID - The source model ID
+ */
+export function registerDeferredModelDisable(sourceModelID: number): void {
+  if (sourceModelID == null) return;
+  state.deferredModelDisables.add(sourceModelID);
+}
+
+/** Source IDs of the models registered by registerDeferredModelDisable this run. */
+export function getDeferredModelDisables(): number[] {
+  return Array.from(state.deferredModelDisables);
+}
+
+/** Clear the deferred model disables (called at start of each sync). */
+export function clearDeferredModelDisables(): void {
+  state.deferredModelDisables.clear();
 }
 
 /**

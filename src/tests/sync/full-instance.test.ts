@@ -3,8 +3,9 @@
  *
  * `full-sync.test.ts` covers models and containers in depth. This suite covers *breadth*:
  * every entity type the orchestrator pushes — models, galleries, assets, containers, URL
- * redirections, templates, component availability rules, content and pages — created on a fresh sync and then proven inert
- * on a re-sync with no source change.
+ * redirections, templates, content and pages — created on a fresh sync and then proven inert
+ * on a re-sync with no source change. (The ninth phase, component availability, runs here with
+ * nothing to do; `component-availability.test.ts` covers it.)
  *
  * Assertions pin **positive** counts, never just the absence of writes. A phase reporting
  * `successful`/`failed`/`skipped` all zero has not "done nothing safely" — it has matched no
@@ -13,7 +14,14 @@
  */
 import { SyncHarness } from "./helpers/run-sync";
 import { installNetworkStubs, InstalledNetworkStubs } from "./helpers/network-stubs";
-import { ALL_ELEMENTS, ALL_OPERATIONS, FIXTURE_LOCALE, fullInstanceFixture, MODEL_POST } from "./helpers/full-instance-fixture";
+import {
+  ALL_ELEMENTS,
+  ALL_OPERATIONS,
+  FIXTURE_LOCALE,
+  IDLE_OPERATIONS,
+  fullInstanceFixture,
+  MODEL_POST,
+} from "./helpers/full-instance-fixture";
 
 jest.mock("lib/pushers/batch-polling", () => ({
   pollBatchUntilComplete: jest.fn(),
@@ -73,7 +81,7 @@ describe("full instance — all nine phases", () => {
       run.phases.forEach((phase) => {
         expect({ op: phase.operation, ok: phase.successful, failed: phase.failed }).toEqual({
           op: phase.operation,
-          ok: 1,
+          ok: IDLE_OPERATIONS.includes(phase.operation) ? 0 : 1,
           failed: 0,
         });
       });
@@ -93,33 +101,6 @@ describe("full instance — all nine phases", () => {
       expect(target.templates.size).toBe(1);
       expect(target.content.size).toBe(1);
       expect(target.pages.size).toBe(1);
-      expect(target.availability.size).toBe(1);
-    });
-
-    it("sends the placement rules remapped onto the target, and never the who rules (PROD-2914)", async () => {
-      harness = makeHarness();
-
-      await harness.run();
-      const [save] = harness.fake.callsTo("modelMethods.saveModelAvailability");
-      const targetModelID = harness.readMappings("models")![0].targetID;
-      const targetTemplate = Array.from(harness.fake.instance(harness.targetGuid).templates.values())[0];
-      const targetZoneID = targetTemplate.contentSectionDefinitions[0].pageItemTemplateID;
-
-      expect(save.payload.modelID).toBe(targetModelID);
-      expect(save.payload.addableBy).toBeNull();
-      expect(save.payload.allowedIn).toEqual({
-        sitemaps: [{ referenceName: "website", name: "Website" }],
-        pageModels: [],
-        zones: [
-          {
-            zoneID: targetZoneID,
-            pageModelID: targetTemplate.pageTemplateID,
-            pageModelName: "Standard",
-            referenceName: "Main",
-            name: "Main",
-          },
-        ],
-      });
     });
 
     it("writes a mapping for every entity type", async () => {
@@ -170,7 +151,7 @@ describe("full instance — all nine phases", () => {
         expect({ op: phase.operation, ok: phase.successful, skip: phase.skipped, failed: phase.failed }).toEqual({
           op: phase.operation,
           ok: 0,
-          skip: 1,
+          skip: IDLE_OPERATIONS.includes(phase.operation) ? 0 : 1,
           failed: 0,
         });
       });
@@ -249,7 +230,7 @@ describe("full instance — all nine phases", () => {
           expect({ op: phase.operation, ok: phase.successful, skip: phase.skipped }).toEqual({
             op: phase.operation,
             ok: 0,
-            skip: 1,
+            skip: IDLE_OPERATIONS.includes(phase.operation) ? 0 : 1,
           });
         });
     });
