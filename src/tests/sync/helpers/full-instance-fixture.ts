@@ -118,22 +118,6 @@ export const SITEMAP_WEBSITE = [
   },
 ];
 
-/**
- * PROD-2914: placement rules for the Post model. (Real rules sit on component models; the CLI
- * doesn't distinguish model kinds, and a second model would change every model count here.) The
- * who rules are there to prove they never travel.
- */
-export const AVAILABILITY_POST = {
-  modelID: 10,
-  modelReferenceName: "Post",
-  addableBy: { permissions: ["Administrator"], users: [], teams: [] },
-  allowedIn: {
-    sitemaps: [{ sitemapID: 1, referenceName: "website", name: "Website" }],
-    pageModels: [],
-    zones: [{ zoneID: 71, pageModelID: 700, pageModelName: "Standard", referenceName: "Main", name: "Main" }],
-  },
-};
-
 export const REDIRECTIONS = {
   items: [{ id: 1, originUrl: "/old", destinationUrl: "/new", statusCode: 301 }],
   lastAccessDate: "2025-01-01T00:00:00.000",
@@ -151,7 +135,6 @@ export function fullInstanceFixture(): SyncFixture {
       "galleries/300.json": { ...GALLERY_HERO },
       "assets/json/1.json": { assetMedias: [{ ...ASSET_HERO }] },
       "templates/700.json": { ...TEMPLATE_STANDARD },
-      "model-availability/10.json": { ...AVAILABILITY_POST },
       [`${FIXTURE_LOCALE}/item/500.json`]: { ...CONTENT_HELLO },
       [`${FIXTURE_LOCALE}/page/800.json`]: { ...PAGE_HOME },
       [`${FIXTURE_LOCALE}/nestedsitemap/website.json`]: SITEMAP_WEBSITE,
@@ -169,7 +152,14 @@ export const ALL_OPERATIONS = [
   "pushContainers",
   "pushUrlRedirections",
   "pushTemplates",
-  "pushModelAvailability",
   "pushContent",
   "pushPages",
+  "pushModelAvailability",
 ] as const;
+
+/**
+ * Phases this fixture gives nothing to do. Component availability rules only sit on component
+ * models, and this fixture's one model is a content model; `component-availability.test.ts`
+ * covers that phase with its own fixture. The phase still runs, so it's in ALL_OPERATIONS.
+ */
+export const IDLE_OPERATIONS: readonly string[] = ["pushModelAvailability"];
