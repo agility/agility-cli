@@ -333,7 +333,25 @@ describe("Pushers.instanceOrchestrator — models-first ordering (PROD-2202)", (
       "pushTemplates",
       "pushContent",
       "pushPages",
+      // PROD-2914: component availability runs after the pages of every locale, so this run's
+      // pages aren't checked against rules (or a disabled model) that are older on the source.
+      "pushModelAvailability",
     ]);
+  });
+
+  it("runs component availability once, after the pages of every locale (PROD-2914)", async () => {
+    setState({ sourceGuid: "src-u", targetGuid: "tgt-u", locales: "en-us,fr-ca" });
+    await stubDataLoader();
+    await stubAllHandlers();
+
+    const order: string[] = [];
+    const pushers = new Pushers({ onOperationStart: (name) => order.push(name) });
+
+    await pushers.instanceOrchestrator();
+
+    expect(order.filter((name) => name === "pushPages")).toHaveLength(2);
+    expect(order.filter((name) => name === "pushModelAvailability")).toHaveLength(1);
+    expect(order[order.length - 1]).toBe("pushModelAvailability");
   });
 
   it("a model-validation failure aborts the sync before galleries or assets are pushed", async () => {

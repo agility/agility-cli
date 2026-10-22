@@ -256,6 +256,37 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="Pro
 
 ---
 
+### Component Availability Rules
+
+A component model can carry rules about **who** can add it to a page, **where** it can be
+placed (sitemaps, page models and zones), and whether it's **disabled**. The CLI moves them
+like this:
+
+- **Pull** saves each model's rules to `model-availability/{modelID}.json`. An instance that
+  doesn't support the rules yet is pulled without them.
+- **Sync** sends the **where** rules with the models, as the last step, after the pages of
+  every locale. The target checks each page's new placements against its rules, and on a new
+  target every placement is new, so pages that are valid on the source are synced before the
+  rules arrive. The rules are matched on the target by name: sitemaps by reference name, page
+  models by name, and zones by page model name plus zone reference name (and by ID when the
+  sync has already mapped that page model or zone).
+- A source model with no where rules clears the target's, but only when the source has at least
+  one rule on some model. An instance that hasn't been upgraded for the rules yet reads as "no
+  rules", so a source with none at all never clears anything.
+- If the target's rules can't be read, the where rules aren't synced, and the sync says so.
+- A sitemap, page model or zone that was deleted on the source after a rule was saved is left
+  out. If that would leave a rule's sitemaps, or its page models and zones, empty, the model's
+  where rules aren't synced and the sync warns: sending the rule empty would allow the component
+  everywhere, when on the source it's allowed nowhere.
+- **Who** rules and **disabled** belong to each instance and are never overwritten. A model the
+  sync creates is disabled at the end of the sync if it's disabled on the source.
+- A page the target rejects because of a rule is reported with the reason, for example
+  `Rejected by a component availability rule: The "Hero" component isn't allowed in the "Main"
+  zone of the "Landing Page" page model.` Once the rules are on the target, a later sync that
+  adds a placement the rules don't allow is rejected this way.
+
+---
+
 ### Selective Page Sync
 
 `--pages` narrows a sync to one or more page structures. Use it when you want to promote the
@@ -576,6 +607,7 @@ agility-files/
 │   │   ├── json/         # Asset metadata
 │   ├── galleries/        # Gallery definitions
 │   ├── models/           # Content models
+│   ├── model-availability/ # Component availability rules, one file per model that has any
 │   ├── containers/       # Content containers
 │   ├── templates/        # Page templates
 │   ├── sitemap/          # Flat sitemap

@@ -198,7 +198,13 @@ export class Pushers {
     // URL redirections depend on nothing, so they run BEFORE templates: the template pusher
     // deliberately throws on mapping inconsistencies (rename protection), which aborts the rest
     // of the guid-level loop — redirections must not be collateral damage of that stop.
-    // ORDER: Models → Galleries → Assets → Containers → URL Redirections → Content → Templates → Pages
+    // PROD-2914: component availability (placement rules, and disabling models this run created)
+    // runs LAST, after the pages of every locale. The API checks each page's new placements
+    // against the rules, and on a new target every placement is new, so rules in place before the
+    // pages would reject pages that are valid on the source. Running after templates is also what
+    // the rules need: they name page models and zones.
+    // ORDER: Models → Galleries → Assets → Containers → URL Redirections → Content → Templates →
+    // Pages → Model availability
     const pusherConfig = [
       PUSH_OPERATIONS.models,
       PUSH_OPERATIONS.galleries,
@@ -208,7 +214,10 @@ export class Pushers {
       PUSH_OPERATIONS.content,
       PUSH_OPERATIONS.templates,
       PUSH_OPERATIONS.pages,
+      PUSH_OPERATIONS.modelAvailability,
     ];
+    // Guid-level phases that must wait for the locale-level ones (see above).
+    const afterLocalePhases = [PUSH_OPERATIONS.modelAvailability];
 
     // Prepare filtering options from state
     let filterOptions: ModelFilterOptions = {};
@@ -302,6 +311,7 @@ export class Pushers {
 
       for (const config of pusherConfig) {
         if (config === PUSH_OPERATIONS.pages || config === PUSH_OPERATIONS.content) continue;
+        if (afterLocalePhases.includes(config)) continue;
         // Execute guid level op
         const result = await this.executePushOperation({
           config,
@@ -382,6 +392,37 @@ export class Pushers {
             const existing = publishablePageIdsByLocale.get(locale) || [];
             publishablePageIdsByLocale.set(locale, [...existing, ...localePageIds]);
             publishablePageIds.push(...localePageIds);
+          }
+        }
+      }
+
+      // Guid-level phases that run after every locale's content and pages (PROD-2914).
+      if (afterLocalePhases.length > 0) {
+        const sourceData = await sourceDataLoader.loadGuidEntities(
+          locales[0],
+          Object.keys(filterOptions).length > 0 ? filterOptions : undefined
+        );
+        const targetData = await targetDataLoader.loadGuidEntities(locales[0]);
+
+        for (const config of afterLocalePhases) {
+          const result = await this.executePushOperation({
+            config,
+            sourceData,
+            targetData,
+            locale: locales[0],
+            publishableContentIds,
+            publishablePageIds,
+            elements,
+          });
+          totalSuccess += result.success;
+          totalFailures += result.failures;
+          totalSkipped += result.skipped;
+          phases.push(result.phase);
+          if (result.failureDetails) {
+            failureDetails.push(...result.failureDetails);
+          }
+          if (result.warningDetails) {
+            warningDetails.push(...result.warningDetails);
           }
         }
       }

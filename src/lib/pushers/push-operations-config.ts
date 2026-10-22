@@ -91,6 +91,18 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     dataKey: "pages",
     dependencies: ["Templates", "Models", "Containers", "Content", "Galleries", "Assets"], // Pages require Templates, Models, and Containers
   },
+  // PROD-2914: component availability (where a component can go, and disabling models this run
+  // created). Runs last, after the pages of every locale; see orchestrate-pushers.ts for why.
+  modelAvailability: {
+    name: "pushModelAvailability",
+    description: "Push component availability (placement rules, disabled models)",
+    handler: async (sourceData) => {
+      const { pushModelAvailability } = await import("./model-availability-pusher");
+      return await pushModelAvailability(sourceData["models"]);
+    },
+    elements: ["Models"],
+    dataKey: "models",
+  },
   urlRedirections: {
     name: "pushUrlRedirections",
     description: "Push URL redirections",

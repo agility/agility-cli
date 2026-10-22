@@ -66,6 +66,8 @@ interface InstanceStore {
   content: Map<string, any>;
   pages: Map<string, any>;
   urlRedirections: Map<number, any>;
+  /** PROD-2914: component availability rules, keyed by model ID. Only models that have any. */
+  availability: Map<number, any>;
   sitemap: any[];
   locales: string[];
 }
@@ -80,9 +82,15 @@ function emptyStore(locales: string[]): InstanceStore {
     content: new Map(),
     pages: new Map(),
     urlRedirections: new Map(),
+    availability: new Map(),
     sitemap: [],
     locales,
   };
+}
+
+/** An error shaped like the SDK's Exception for an API error response (`{ "message": … }` body). */
+function httpError(statusCode: number, message: string): Error {
+  return Object.assign(new Error(`HTTP ${statusCode}: ${message}`), { statusCode, responseData: { message } });
 }
 
 /** One recorded API call, in order. The ordered log is what the golden-file tier diffs. */
@@ -199,6 +207,13 @@ export class FakeInstance {
       writeJsonFile(path.join(base, locale, "page", `${page.pageID}.json`), page);
     });
 
+    // PROD-2914: the folder is written even when empty. A pull only creates it when the instance
+    // answered, and an existing folder is how the push knows "no rules" from "unknown".
+    const availabilityDir = path.join(base, "model-availability");
+    fs.rmSync(availabilityDir, { recursive: true, force: true });
+    fs.mkdirSync(availabilityDir, { recursive: true });
+    writeEach(availabilityDir, Array.from(store.availability.values()), (a) => String(a.modelID));
+
     // Redirections live under the LOCALE, not the guid root. The set is instance-wide, so the
     // same file is written for every locale the instance reports — which is what a pull does.
     if (store.urlRedirections.size > 0) {
@@ -224,7 +239,9 @@ export class FakeInstance {
       // Model creation is two-pass: a shell with `fields: []` to get an ID, then the same
       // model again with its fields. Both arrive here; the second must update, not duplicate.
       const id = model?.id && model.id > 0 ? model.id : this.allocate("model");
-      const saved = { ...model, id, lastModifiedDate: nextTimestamp() };
+      // PROD-2914: `isVisible` left out (or null) keeps the stored value, and a new model is enabled.
+      const isVisible = model?.isVisible ?? store.models.get(id)?.isVisible ?? true;
+      const saved = { ...model, id, isVisible, lastModifiedDate: nextTimestamp() };
       store.models.set(id, saved);
       return saved;
     },
@@ -239,6 +256,36 @@ export class FakeInstance {
     getPageModules: async (includeDefaults: boolean, guid: string) => {
       this.record("modelMethods.getPageModules", guid, { includeDefaults });
       return [];
+    },
+    getAllModelAvailability: async (guid: string) => {
+      this.record("modelMethods.getAllModelAvailability", guid);
+      return Array.from(this.instance(guid).availability.values());
+    },
+    // The API's per-group semantics: null/absent keeps the stored group, an object whose lists
+    // are all empty clears it, any other object replaces it. Targets are stored as sent; the
+    // real API resolves names to IDs, which no test here depends on. Like the API, it only takes
+    // rules for a component model (contentDefinitionTypeID 2) that exists.
+    saveModelAvailability: async (modelID: number, availability: any, guid: string) => {
+      this.record("modelMethods.saveModelAvailability", guid, { modelID, ...availability });
+      const store = this.instance(guid);
+      const model = store.models.get(modelID);
+      if (!model) throw httpError(404, `The model with ID ${modelID} could not be located.`);
+      if (model.contentDefinitionTypeID !== 2)
+        throw httpError(400, "Availability can only be set on component models.");
+      const stored = store.availability.get(modelID) ?? { modelID, addableBy: null, allowedIn: null };
+      const merge = (current: any, incoming: any) => {
+        if (incoming === undefined || incoming === null) return current;
+        const empty = Object.values(incoming).every((list: any) => !Array.isArray(list) || list.length === 0);
+        return empty ? null : incoming;
+      };
+      const saved = {
+        ...stored,
+        addableBy: merge(stored.addableBy, availability?.addableBy),
+        allowedIn: merge(stored.allowedIn, availability?.allowedIn),
+      };
+      if (saved.addableBy === null && saved.allowedIn === null) store.availability.delete(modelID);
+      else store.availability.set(modelID, saved);
+      return saved;
     },
   };
 
@@ -273,6 +320,9 @@ export class FakeInstance {
 
   /** Same idea as `lastContentSaveIds`, for pages — they batch one page at a time. */
   private lastPageSaveIds: number[] = [];
+
+  /** Zone (pageItemTemplate) IDs handed out by savePageTemplate. */
+  private nextZoneId = 1001;
 
   contentMethods = {
     saveContentItems: async (items: any[], guid: string, locale: string) => {
@@ -377,13 +427,21 @@ export class FakeInstance {
       const store = this.instance(guid);
       const incoming = template?.pageTemplateID;
       const id = incoming && incoming > 0 ? incoming : this.allocate("template");
-      const saved = { ...template, pageTemplateID: id };
+      // Zones get IDs as the real API gives them (PROD-2914 tests remap rules onto them).
+      const zones = (template?.contentSectionDefinitions ?? []).map((zone: any) => ({
+        ...zone,
+        pageItemTemplateID: zone?.pageItemTemplateID > 0 ? zone.pageItemTemplateID : this.nextZoneId++,
+      }));
+      const saved = { ...template, pageTemplateID: id, contentSectionDefinitions: zones };
       store.templates.set(id, saved);
       return saved;
     },
     savePage: async (page: any, guid: string, locale: string) => {
       this.record("pageMethods.savePage", guid, page, locale);
       const incoming = page?.pageID;
+      // PROD-2914: the API's component availability pre-check, before anything is stored.
+      const rejection = this.availabilityRejection(guid, locale, page);
+      if (rejection) throw httpError(400, rejection);
       const id = incoming && incoming > 0 ? incoming : this.allocate("page");
       this.instance(guid).pages.set(`${locale}:${id}`, { ...page, pageID: id });
       this.lastPageSaveIds = [id];
@@ -400,6 +458,48 @@ export class FakeInstance {
       return ids;
     },
   };
+
+  /**
+   * PROD-2914: the Management API's component availability pre-check on a page save, reduced to
+   * what these tests need. Only a NEW placement (a zone + content pair the stored page doesn't
+   * have) is checked, so existing placements are grandfathered, as on the API. It rejects a
+   * disabled component, and one outside its page model and zone rules. (Sitemap rules aren't
+   * modelled.) Returns the API's reason text, or null when the save is allowed.
+   */
+  private availabilityRejection(guid: string, locale: string, page: any): string | null {
+    const store = this.instance(guid);
+    const lower = (value: any) => String(value ?? "").toLowerCase();
+    const placements = (p: any) =>
+      Object.entries(p?.zones ?? {}).flatMap(([zone, modules]) =>
+        (Array.isArray(modules) ? modules : []).map((m: any) => ({ zone, contentID: m?.item?.contentid }))
+      );
+    const stored = page?.pageID > 0 ? store.pages.get(`${locale}:${page.pageID}`) : undefined;
+    const existing = new Set(placements(stored).map((p) => `${lower(p.zone)}:${p.contentID}`));
+
+    for (const { zone, contentID } of placements(page)) {
+      if (existing.has(`${lower(zone)}:${contentID}`)) continue;
+      const item = store.content.get(`${locale}:${contentID}`);
+      const model = Array.from(store.models.values()).find(
+        (m: any) => lower(m.referenceName) === lower(item?.properties?.definitionName)
+      );
+      if (!model) continue;
+      const title = model.displayName || model.referenceName;
+      if (model.isVisible === false) return `The "${title}" component is disabled on this instance.`;
+      const allowedIn = store.availability.get(model.id)?.allowedIn;
+      const pageModels = allowedIn?.pageModels ?? [];
+      const zones = allowedIn?.zones ?? [];
+      if (pageModels.length === 0 && zones.length === 0) continue;
+      const layoutOK =
+        pageModels.some((pm: any) => lower(pm.name) === lower(page.templateName)) ||
+        zones.some(
+          (z: any) => lower(z.pageModelName) === lower(page.templateName) && lower(z.referenceName) === lower(zone)
+        );
+      if (!layoutOK) {
+        return `The "${title}" component isn't allowed in the "${zone}" zone of the "${page.templateName}" page model.`;
+      }
+    }
+    return null;
+  }
 
   instanceMethods = {
     getLocales: async (guid: string) => {
