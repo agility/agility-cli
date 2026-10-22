@@ -274,6 +274,10 @@ like this:
   one rule on some model. An instance that hasn't been upgraded for the rules yet reads as "no
   rules", so a source with none at all never clears anything.
 - If the target's rules can't be read, the where rules aren't synced, and the sync says so.
+- A sitemap, page model or zone that was deleted on the source after a rule was saved is left
+  out. If that would leave a rule's sitemaps, or its page models and zones, empty, the model's
+  where rules aren't synced and the sync warns: sending the rule empty would allow the component
+  everywhere, when on the source it's allowed nowhere.
 - **Who** rules and **disabled** belong to each instance and are never overwritten. A model the
   sync creates is disabled at the end of the sync if it's disabled on the source.
 - A page the target rejects because of a rule is reported with the reason, for example

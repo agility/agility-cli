@@ -29,6 +29,12 @@ import { preflightReport } from "../preflight/preflight-report";
  * there is one (and by name otherwise), sitemaps by `referenceName`. Source IDs are never sent,
  * because the API resolves an ID before a name and a source ID can belong to a different object on
  * the target.
+ *
+ * Stale targets (a sitemap, page model or zone deleted on the source after the rule was saved) come
+ * back from the API as `{ id, stale: true }` and are left out: they have no name to match by, and the
+ * API drops them on save anyway. A list made up only of stale targets still restricts the component
+ * (to nowhere), and sending it without them would widen the rule to "anywhere", so such a model is
+ * skipped with a warning instead.
  */
 
 const EMPTY_ALLOWED_IN: mgmtApi.ModelAvailabilityAllowedIn = { sitemaps: [], pageModels: [], zones: [] };
@@ -46,18 +52,54 @@ function isEmptyAllowedIn(allowedIn: mgmtApi.ModelAvailabilityAllowedIn | null |
   );
 }
 
+function isStale(entry: { stale?: boolean | null } | null | undefined): boolean {
+  return entry?.stale === true;
+}
+
+/** The entries that still exist: stale ones (deleted after the rule was saved) are left out. */
+function live<T extends { stale?: boolean | null }>(list: T[] | null | undefined): T[] {
+  return (list || []).filter((entry) => entry && !isStale(entry));
+}
+
+/** True when the list names targets, but every one of them is stale. */
+function onlyStale(list: { stale?: boolean | null }[]): boolean {
+  return list.length > 0 && list.every(isStale);
+}
+
+/**
+ * The parts of an `allowedIn` group made up only of stale targets: the sitemap list, and the page
+ * model + zone set (one layout rule, so it counts as stale only when all of both are).
+ */
+export function staleOnlyRules(allowedIn: mgmtApi.ModelAvailabilityAllowedIn | null | undefined): string[] {
+  if (!allowedIn) return [];
+  const parts: string[] = [];
+  if (onlyStale(allowedIn.sitemaps || [])) parts.push("sitemap");
+  if (onlyStale([...(allowedIn.pageModels || []), ...(allowedIn.zones || [])])) parts.push("page model and zone");
+  return parts;
+}
+
 /** Name keys of an `allowedIn` group, for comparing a source group with what the target holds. */
 function allowedInKey(allowedIn: mgmtApi.ModelAvailabilityAllowedIn | null | undefined): string {
   const group = allowedIn || EMPTY_ALLOWED_IN;
-  const sitemaps = (group.sitemaps || []).map((s) => lower(s.referenceName)).sort();
-  const pageModels = (group.pageModels || []).map((p) => lower(p.name)).sort();
-  const zones = (group.zones || []).map((z) => `${lower(z.pageModelName)}/${lower(z.referenceName || z.name)}`).sort();
-  return JSON.stringify({ sitemaps, pageModels, zones });
+  const sitemaps = live(group.sitemaps)
+    .map((s) => lower(s.referenceName))
+    .sort();
+  const pageModels = live(group.pageModels)
+    .map((p) => lower(p.name))
+    .sort();
+  const zones = live(group.zones)
+    .map((z) => `${lower(z.pageModelName)}/${lower(z.referenceName || z.name)}`)
+    .sort();
+  // Stale entries are left out, but a list of nothing but stale entries still restricts the
+  // component (to nowhere), so it mustn't read the same as no rule at all.
+  const staleOnly = staleOnlyRules(group);
+  return JSON.stringify({ sitemaps, pageModels, zones, staleOnly });
 }
 
 /**
  * Rewrite a source `allowedIn` group for the target instance. Only the portable names, and target
- * IDs from the sync's own mappings, are sent.
+ * IDs from the sync's own mappings, are sent. Stale entries are left out (see `staleOnlyRules` for
+ * the groups where that would widen the rule).
  */
 export function remapAllowedIn(
   allowedIn: mgmtApi.ModelAvailabilityAllowedIn,
@@ -68,18 +110,18 @@ export function remapAllowedIn(
     sourcePageModelID ? templateMapper.getTemplateMappingByPageTemplateID(sourcePageModelID, "source") : null;
 
   return {
-    sitemaps: (allowedIn.sitemaps || []).map((sitemap) => ({
+    sitemaps: live(allowedIn.sitemaps).map((sitemap) => ({
       referenceName: sitemap.referenceName ?? null,
       name: sitemap.name ?? null,
     })),
-    pageModels: (allowedIn.pageModels || []).map((pageModel) => {
+    pageModels: live(allowedIn.pageModels).map((pageModel) => {
       const mapping = targetPageModel(pageModel.pageModelID);
       return {
         ...(mapping ? { pageModelID: mapping.targetPageTemplateID } : {}),
         name: mapping?.targetPageTemplateName || pageModel.name || null,
       };
     }),
-    zones: (allowedIn.zones || []).map((zone) => {
+    zones: live(allowedIn.zones).map((zone) => {
       const pageModelMapping = targetPageModel(zone.pageModelID);
       const zoneMapping = zone.zoneID ? sectionMapper.getSectionMappingByID(zone.zoneID, "source") : null;
       return {
@@ -248,6 +290,19 @@ async function pushPlacementRules(sourceModels: mgmtApi.Model[], modelMapper: Mo
   for (const sourceModel of sourceModels || []) {
     if (!sourceModel?.id) continue;
     const sourceAllowedIn = sourceByModelID.get(sourceModel.id)?.allowedIn ?? null;
+
+    // A rule whose sitemaps (or page models and zones) were all deleted on the source allows the
+    // component nowhere. Without them the rule would allow it everywhere, so leave the target alone.
+    const staleOnly = staleOnlyRules(sourceAllowedIn);
+    if (staleOnly.length > 0) {
+      const which = staleOnly.map((part) => `every ${part} it's limited to`).join(" and ");
+      const message = `Component availability for "${sourceModel.referenceName}" wasn't synced: on the source, ${which} has been deleted. Sending the rule without them would allow the component everywhere, so fix the rule on the source first.`;
+      console.log(ansiColors.yellow(`⚠️ ${message}`));
+      logger?.warning(message);
+      counts.warningDetails.push({ name: sourceModel.referenceName, error: message, type: "model", guid: sourceGuid });
+      counts.skipped++;
+      continue;
+    }
 
     const mapping = modelMapper.getModelMappingByID(sourceModel.id, "source");
     if (!mapping?.targetID) {

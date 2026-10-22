@@ -15,10 +15,39 @@ describe("componentAvailabilityReason", () => {
     expect(componentAvailabilityReason(sdkError(400, reason))).toBe(reason);
   });
 
+  it('accepts "(unknown)" for a name the server couldn\'t resolve', () => {
+    const reason = 'The "Hero" component isn\'t allowed in the "(unknown)" zone of the "(unknown)" page model.';
+    expect(componentAvailabilityReason(sdkError(400, reason))).toBe(reason);
+  });
+
+  it("returns every reason when a page breaks more than one rule", () => {
+    const reasons =
+      'The "Hero" component is disabled on this instance. The "Banner" component isn\'t allowed on the "Website" sitemap.';
+    expect(componentAvailabilityReason(sdkError(400, reasons))).toBe(reasons);
+  });
+
+  it.each([
+    // Fallback texts an earlier server build sent: the four sentences above are the only reasons.
+    "The \"Hero\" component isn't allowed on this page's sitemap.",
+    'The "Hero" component isn\'t allowed in this zone.',
+    'The "Hero" component can\'t be added here.',
+    // A reason sentence cut short, or with anything else around it.
+    'The "Hero" component isn\'t allowed in the "Main" zone',
+    'Page rejected: The "Hero" component is disabled on this instance.',
+    'The "Hero" component is disabled on this instance. Try again later.',
+  ])("ignores a text that isn't exactly the reason sentences: %s", (text) => {
+    expect(componentAvailabilityReason(sdkError(400, text))).toBeNull();
+  });
+
   it("reads the reason from a JSON error body", () => {
     const reason = 'The "Hero" component is disabled on this instance.';
     expect(componentAvailabilityReason(sdkError(400, { message: reason }))).toBe(reason);
     expect(componentAvailabilityReason(sdkError(400, { Message: reason }))).toBe(reason);
+    expect(
+      componentAvailabilityReason(
+        sdkError(400, { statusCode: 400, exceptionMessage: reason, additionalParameters: null })
+      )
+    ).toBe(reason);
   });
 
   it("reads a raw axios error", () => {
