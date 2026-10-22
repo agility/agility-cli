@@ -198,7 +198,11 @@ export class Pushers {
     // URL redirections depend on nothing, so they run BEFORE templates: the template pusher
     // deliberately throws on mapping inconsistencies (rename protection), which aborts the rest
     // of the guid-level loop — redirections must not be collateral damage of that stop.
-    // ORDER: Models → Galleries → Assets → Containers → URL Redirections → Content → Templates → Pages
+    // PROD-2914: component availability rules name page models and zones, which only exist on the
+    // target once templates are pushed, so they run right after templates (still guid-level, so
+    // before the per-locale content and page phases).
+    // ORDER: Models → Galleries → Assets → Containers → URL Redirections → Content → Templates →
+    // Model availability → Pages
     const pusherConfig = [
       PUSH_OPERATIONS.models,
       PUSH_OPERATIONS.galleries,
@@ -207,6 +211,7 @@ export class Pushers {
       PUSH_OPERATIONS.urlRedirections,
       PUSH_OPERATIONS.content,
       PUSH_OPERATIONS.templates,
+      PUSH_OPERATIONS.modelAvailability,
       PUSH_OPERATIONS.pages,
     ];
 

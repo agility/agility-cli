@@ -524,6 +524,8 @@ const createNewModel = async (
 ): Promise<{ result: "created" | "failed"; error?: string }> => {
   try {
     // process the model without fields
+    // PROD-2914: a new model takes the source's `isVisible` (a component disabled on the source
+    // arrives disabled), carried by the spread. The field update that follows leaves it out.
     const createPayload = {
       ...model,
       id: 0,
@@ -563,10 +565,14 @@ async function updateExistingModel(
   logger: Logs
 ): Promise<"updated" | "failed"> {
   try {
-    const updatePayload = {
+    // PROD-2914: `isVisible` (whether a component is disabled) belongs to the target instance, so an
+    // update never sends it: left out, the API keeps the target's value. A model created this run
+    // already got the source's value in its stub.
+    const updatePayload: mgmtApi.Model = {
       ...sourceModel,
       id: targetID,
     };
+    delete updatePayload.isVisible;
 
     const updatedModel = await apiClient.modelMethods.saveModel(updatePayload, targetGuid);
     logger.model.updated(sourceModel, "updated", targetGuid);

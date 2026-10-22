@@ -454,6 +454,33 @@ describe("processPage — failure paths", () => {
     expect(result.error).toContain("network error");
   });
 
+  it("reports the reason when a component availability rule rejects the page (PROD-2914)", async () => {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
+    }));
+
+    const pageMapper = makePageMapper({
+      hasSourceChanged: jest.fn().mockReturnValue(true),
+    });
+
+    const reason = 'The "Hero" component isn\'t allowed in the "Main" zone of the "Landing Page" page model.';
+    const apiClient = makeApiClient();
+    apiClient.pageMethods.savePage = jest
+      .fn()
+      .mockRejectedValue(
+        Object.assign(new Error(`Unable to create page. (HTTP 400): ${reason}`), {
+          statusCode: 400,
+          responseData: reason,
+        })
+      );
+
+    const result = await processPage(makeProps({ apiClient, pageMapper }));
+    expect(result.status).toBe("failure");
+    expect(result.error).toBe(`Rejected by a component availability rule: ${reason}`);
+  });
+
   it("returns failure with unexpected response format", async () => {
     const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({

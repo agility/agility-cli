@@ -66,6 +66,8 @@ interface InstanceStore {
   content: Map<string, any>;
   pages: Map<string, any>;
   urlRedirections: Map<number, any>;
+  /** PROD-2914: component availability rules, keyed by model ID. Only models that have any. */
+  availability: Map<number, any>;
   sitemap: any[];
   locales: string[];
 }
@@ -80,6 +82,7 @@ function emptyStore(locales: string[]): InstanceStore {
     content: new Map(),
     pages: new Map(),
     urlRedirections: new Map(),
+    availability: new Map(),
     sitemap: [],
     locales,
   };
@@ -199,6 +202,13 @@ export class FakeInstance {
       writeJsonFile(path.join(base, locale, "page", `${page.pageID}.json`), page);
     });
 
+    // PROD-2914: the folder is written even when empty. A pull only creates it when the instance
+    // answered, and an existing folder is how the push knows "no rules" from "unknown".
+    const availabilityDir = path.join(base, "model-availability");
+    fs.rmSync(availabilityDir, { recursive: true, force: true });
+    fs.mkdirSync(availabilityDir, { recursive: true });
+    writeEach(availabilityDir, Array.from(store.availability.values()), (a) => String(a.modelID));
+
     // Redirections live under the LOCALE, not the guid root. The set is instance-wide, so the
     // same file is written for every locale the instance reports — which is what a pull does.
     if (store.urlRedirections.size > 0) {
@@ -239,6 +249,31 @@ export class FakeInstance {
     getPageModules: async (includeDefaults: boolean, guid: string) => {
       this.record("modelMethods.getPageModules", guid, { includeDefaults });
       return [];
+    },
+    getAllModelAvailability: async (guid: string) => {
+      this.record("modelMethods.getAllModelAvailability", guid);
+      return Array.from(this.instance(guid).availability.values());
+    },
+    // The API's per-group semantics: null/absent keeps the stored group, an object whose lists
+    // are all empty clears it, any other object replaces it. Targets are stored as sent; the
+    // real API resolves names to IDs, which no test here depends on.
+    saveModelAvailability: async (modelID: number, availability: any, guid: string) => {
+      this.record("modelMethods.saveModelAvailability", guid, { modelID, ...availability });
+      const store = this.instance(guid);
+      const stored = store.availability.get(modelID) ?? { modelID, addableBy: null, allowedIn: null };
+      const merge = (current: any, incoming: any) => {
+        if (incoming === undefined || incoming === null) return current;
+        const empty = Object.values(incoming).every((list: any) => !Array.isArray(list) || list.length === 0);
+        return empty ? null : incoming;
+      };
+      const saved = {
+        ...stored,
+        addableBy: merge(stored.addableBy, availability?.addableBy),
+        allowedIn: merge(stored.allowedIn, availability?.allowedIn),
+      };
+      if (saved.addableBy === null && saved.allowedIn === null) store.availability.delete(modelID);
+      else store.availability.set(modelID, saved);
+      return saved;
     },
   };
 

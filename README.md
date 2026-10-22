@@ -256,6 +256,26 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="Pro
 
 ---
 
+### Component Availability Rules
+
+A component model can carry rules about **who** can add it to a page, **where** it can be
+placed (sitemaps, page models and zones), and whether it's **disabled**. The CLI moves them
+like this:
+
+- **Pull** saves each model's rules to `model-availability/{modelID}.json`. An instance that
+  doesn't support the rules yet is pulled without them.
+- **Sync** sends the **where** rules with the models, after templates, so the page models and
+  zones they name exist on the target. They're matched on the target by name: sitemaps by
+  reference name, page models by name, and zones by page model name plus zone reference name.
+  A source model with no where rules clears the target's.
+- **Who** rules and **disabled** belong to each instance and are never overwritten. A model the
+  sync creates starts disabled if it's disabled on the source.
+- A page the target rejects because of a rule is reported with the reason, for example
+  `Rejected by a component availability rule: The "Hero" component isn't allowed in the "Main"
+  zone of the "Landing Page" page model.`
+
+---
+
 ### Selective Page Sync
 
 `--pages` narrows a sync to one or more page structures. Use it when you want to promote the
@@ -576,6 +596,7 @@ agility-files/
 │   │   ├── json/         # Asset metadata
 │   ├── galleries/        # Gallery definitions
 │   ├── models/           # Content models
+│   ├── model-availability/ # Component availability rules, one file per model that has any
 │   ├── containers/       # Content containers
 │   ├── templates/        # Page templates
 │   ├── sitemap/          # Flat sitemap

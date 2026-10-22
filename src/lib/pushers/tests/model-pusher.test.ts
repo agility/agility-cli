@@ -983,3 +983,72 @@ describe("pushModels — effective target model registry (PROD-2542)", () => {
     expect(stateModule.getSavedTargetBySourceReferenceName("model", "Planned")).toBe(source);
   });
 });
+
+// ─── PROD-2914: isVisible (a disabled component) belongs to the target ───────
+
+describe("pushModels — isVisible ownership (PROD-2914)", () => {
+  const JAN = new Date(2025, 0, 1).toISOString();
+  const JUN = new Date(2025, 5, 1).toISOString();
+  const fields = (label = "Title") => [{ name: "Title", label, type: "Text", itemOrder: 0, settings: {} }];
+
+  it("copies the source's isVisible when it creates a model", async () => {
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 777 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    await pushModels([makeModel({ referenceName: "hidden-component", isVisible: false })], []);
+
+    // The stub carries it; the field update that follows leaves it out (null = keep on the API).
+    expect(saveModel.mock.calls[0][0].isVisible).toBe(false);
+    expect("isVisible" in saveModel.mock.calls[1][0]).toBe(false);
+  });
+
+  it("never sends isVisible when it updates an existing model, so the target keeps its own", async () => {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    new ModelMapper(state.sourceGuid, state.targetGuid).addMapping(
+      { id: 1, referenceName: "Hero", lastModifiedDate: JAN } as any,
+      { id: 10, referenceName: "Hero", lastModifiedDate: JAN } as any
+    );
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 10, referenceName: "Hero", lastModifiedDate: JUN }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    const source = makeModel({ id: 1, referenceName: "Hero", lastModifiedDate: JUN, fields: fields("Headline"), isVisible: true });
+    const target = makeModel({ id: 10, referenceName: "Hero", lastModifiedDate: JAN, fields: fields(), isVisible: false });
+    const result = await pushModels([source], [target]);
+
+    expect(result.successful).toBe(1);
+    expect(saveModel).toHaveBeenCalledTimes(1);
+    expect(saveModel.mock.calls[0][0].id).toBe(10);
+    expect("isVisible" in saveModel.mock.calls[0][0]).toBe(false);
+  });
+
+  it("doesn't treat an isVisible difference alone as a change to push", async () => {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    new ModelMapper(state.sourceGuid, state.targetGuid).addMapping(
+      { id: 1, referenceName: "Hero", lastModifiedDate: JAN } as any,
+      { id: 10, referenceName: "Hero", lastModifiedDate: JAN } as any
+    );
+    const saveModel = jest.fn();
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    const source = makeModel({ id: 1, referenceName: "Hero", displayName: "Hero", lastModifiedDate: JUN, fields: fields(), isVisible: true });
+    const target = makeModel({ id: 10, referenceName: "Hero", displayName: "Hero", lastModifiedDate: JAN, fields: fields(), isVisible: false });
+    const result = await pushModels([source], [target]);
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+  });
+
+  it("works unchanged with models pulled from an API that doesn't return isVisible", async () => {
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 778 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    const result = await pushModels([makeModel({ referenceName: "older-api-model" })], []);
+
+    expect(result.successful).toBe(1);
+    expect("isVisible" in saveModel.mock.calls[0][0]).toBe(false);
+  });
+});

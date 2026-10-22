@@ -91,6 +91,18 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     dataKey: "pages",
     dependencies: ["Templates", "Models", "Containers", "Content", "Galleries", "Assets"], // Pages require Templates, Models, and Containers
   },
+  // PROD-2914: component availability rules (where a component can go). Runs after templates,
+  // since its rules name page models and zones; see orchestrate-pushers.ts for the order.
+  modelAvailability: {
+    name: "pushModelAvailability",
+    description: "Push component availability rules",
+    handler: async (sourceData) => {
+      const { pushModelAvailability } = await import("./model-availability-pusher");
+      return await pushModelAvailability(sourceData["models"]);
+    },
+    elements: ["Models"],
+    dataKey: "models",
+  },
   urlRedirections: {
     name: "pushUrlRedirections",
     description: "Push URL redirections",

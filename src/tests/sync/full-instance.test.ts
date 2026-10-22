@@ -1,9 +1,9 @@
 /**
- * All eight push phases, driven end to end, twice.
+ * All nine push phases, driven end to end, twice.
  *
  * `full-sync.test.ts` covers models and containers in depth. This suite covers *breadth*:
  * every entity type the orchestrator pushes — models, galleries, assets, containers, URL
- * redirections, templates, content and pages — created on a fresh sync and then proven inert
+ * redirections, templates, component availability rules, content and pages — created on a fresh sync and then proven inert
  * on a re-sync with no source change.
  *
  * Assertions pin **positive** counts, never just the absence of writes. A phase reporting
@@ -30,7 +30,7 @@ jest.mock("lib/pushers/url-redirection-api", () => ({
   saveUrlRedirections: jest.fn(),
 }));
 
-describe("full instance — all eight phases", () => {
+describe("full instance — all nine phases", () => {
   let harness: SyncHarness;
   let net: InstalledNetworkStubs;
 
@@ -54,7 +54,7 @@ describe("full instance — all eight phases", () => {
   // ─── A. Fresh sync ─────────────────────────────────────────────────────────
 
   describe("A. fresh sync into an empty target", () => {
-    it("runs every one of the eight phases", async () => {
+    it("runs every one of the nine phases", async () => {
       harness = makeHarness();
 
       const run = await harness.run();
@@ -93,6 +93,33 @@ describe("full instance — all eight phases", () => {
       expect(target.templates.size).toBe(1);
       expect(target.content.size).toBe(1);
       expect(target.pages.size).toBe(1);
+      expect(target.availability.size).toBe(1);
+    });
+
+    it("sends the placement rules remapped onto the target, and never the who rules (PROD-2914)", async () => {
+      harness = makeHarness();
+
+      await harness.run();
+      const [save] = harness.fake.callsTo("modelMethods.saveModelAvailability");
+      const targetModelID = harness.readMappings("models")![0].targetID;
+      const targetTemplate = Array.from(harness.fake.instance(harness.targetGuid).templates.values())[0];
+      const targetZoneID = targetTemplate.contentSectionDefinitions[0].pageItemTemplateID;
+
+      expect(save.payload.modelID).toBe(targetModelID);
+      expect(save.payload.addableBy).toBeNull();
+      expect(save.payload.allowedIn).toEqual({
+        sitemaps: [{ referenceName: "website", name: "Website" }],
+        pageModels: [],
+        zones: [
+          {
+            zoneID: targetZoneID,
+            pageModelID: targetTemplate.pageTemplateID,
+            pageModelName: "Standard",
+            referenceName: "Main",
+            name: "Main",
+          },
+        ],
+      });
     });
 
     it("writes a mapping for every entity type", async () => {

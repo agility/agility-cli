@@ -7,6 +7,7 @@ import { SectionMapper } from "lib/mappers/section-mapper";
 import { translateZoneNames } from "./translate-zone-names";
 import { findPageInOtherLocale, OtherLocaleMapping } from "./find-page-in-other-locale";
 import { refreshOtherLocaleVersions } from "./refresh-other-locale-versions";
+import { describePageSaveError } from "./component-availability-error";
 import { Logs } from "core/logs";
 import {
   state,
@@ -594,14 +595,17 @@ export async function processPage({
       return { status: "failure", error: errorMsg };
     }
   } catch (error: any) {
+    // PROD-2914: a page the API rejected because of a component availability rule reports the
+    // rule's reason, not the SDK's wrapped HTTP error.
+    const errorMsg = describePageSaveError(error);
     logger.page.error(
       page,
-      `✗ Page "${page.name}" failed in locale:${locale} - ${error.message}`,
+      `✗ Page "${page.name}" failed in locale:${locale} - ${errorMsg}`,
       locale,
       channel,
       targetGuid
     );
-    return { status: "failure", error: error.message };
+    return { status: "failure", error: errorMsg };
   }
 }
 
