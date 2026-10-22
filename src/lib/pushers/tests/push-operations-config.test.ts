@@ -25,20 +25,28 @@ describe("PUSH_OPERATIONS registry", () => {
     expect(keys).toContain("templates");
     expect(keys).toContain("pages");
     expect(keys).toContain("urlRedirections");
+    expect(keys).toContain("modelAvailability");
   });
 
-  it.each(["galleries", "assets", "models", "containers", "content", "templates", "pages", "urlRedirections"])(
-    "%s operation has required fields",
-    (key) => {
-      const op = PUSH_OPERATIONS[key];
-      expect(op.name).toBeTruthy();
-      expect(op.description).toBeTruthy();
-      expect(typeof op.handler).toBe("function");
-      expect(Array.isArray(op.elements)).toBe(true);
-      expect(op.elements.length).toBeGreaterThan(0);
-      expect(typeof op.dataKey).toBe("string");
-    }
-  );
+  it.each([
+    "galleries",
+    "assets",
+    "models",
+    "containers",
+    "content",
+    "templates",
+    "pages",
+    "urlRedirections",
+    "modelAvailability",
+  ])("%s operation has required fields", (key) => {
+    const op = PUSH_OPERATIONS[key];
+    expect(op.name).toBeTruthy();
+    expect(op.description).toBeTruthy();
+    expect(typeof op.handler).toBe("function");
+    expect(Array.isArray(op.elements)).toBe(true);
+    expect(op.elements.length).toBeGreaterThan(0);
+    expect(typeof op.dataKey).toBe("string");
+  });
 
   it("galleries operation targets Galleries element", () => {
     expect(PUSH_OPERATIONS.galleries.elements).toContain("Galleries");
@@ -75,6 +83,11 @@ describe("PUSH_OPERATIONS registry", () => {
     expect(PUSH_OPERATIONS.pages.dataKey).toBe("pages");
   });
 
+  it("modelAvailability operation runs with the Models element (PROD-2914)", () => {
+    expect(PUSH_OPERATIONS.modelAvailability.elements).toEqual(["Models"]);
+    expect(PUSH_OPERATIONS.modelAvailability.dataKey).toBe("models");
+  });
+
   it("urlRedirections operation targets UrlRedirections element", () => {
     expect(PUSH_OPERATIONS.urlRedirections.elements).toContain("UrlRedirections");
     expect(PUSH_OPERATIONS.urlRedirections.dataKey).toBe("urlRedirections");
@@ -84,9 +97,10 @@ describe("PUSH_OPERATIONS registry", () => {
 // ─── PushOperationsRegistry.getAllOperations ──────────────────────────────────
 
 describe("PushOperationsRegistry.getAllOperations", () => {
-  it("returns 8 operations total", () => {
+  it("returns 9 operations total", () => {
     const ops = PushOperationsRegistry.getAllOperations();
-    expect(ops).toHaveLength(8);
+    // PROD-2914 added modelAvailability.
+    expect(ops).toHaveLength(9);
   });
 
   it("each operation has a handler function", () => {

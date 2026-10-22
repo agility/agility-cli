@@ -331,6 +331,8 @@ describe("Pushers.instanceOrchestrator — models-first ordering (PROD-2202)", (
       "pushAssets",
       "pushContainers",
       "pushTemplates",
+      // PROD-2914: availability rules name page models and zones, so they follow templates.
+      "pushModelAvailability",
       "pushContent",
       "pushPages",
     ]);
