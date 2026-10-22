@@ -87,7 +87,8 @@ describe("DownloadOperationsRegistry.getOperationsForElements", () => {
     setState({ elements: "Models" });
     const ops = DownloadOperationsRegistry.getOperationsForElements(true);
     const names = ops.map((o: OperationConfig) => o.name);
-    expect(names).toEqual(["downloadAllModels"]);
+    // PROD-2914: availability rules travel with the models.
+    expect(names).toEqual(["downloadAllModels", "downloadModelAvailability"]);
     expect(names).not.toContain("downloadAllAssets");
     expect(names).not.toContain("downloadAllGalleries");
   });
@@ -96,7 +97,8 @@ describe("DownloadOperationsRegistry.getOperationsForElements", () => {
     setState({ models: "FooterLinks" }); // elements stays at the full default
     const ops = DownloadOperationsRegistry.getOperationsForElements(true);
     const names = ops.map((o: OperationConfig) => o.name);
-    expect(names).toEqual(["downloadAllModels"]);
+    // PROD-2914: availability rules travel with the models.
+    expect(names).toEqual(["downloadAllModels", "downloadModelAvailability"]);
     expect(names).not.toContain("downloadAllAssets");
   });
 
