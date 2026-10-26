@@ -228,4 +228,24 @@ describe("checkPages — page fields", () => {
     });
     expect(findings).toEqual([]);
   });
+
+  // PROD-2729: geo and the GEO seo keys are part of a page, so a sync that didn't copy them shows.
+  it("compares geo and the GEO seo keys", () => {
+    const geo = { schemaType: "AboutPage", structuredData: { "@type": "AboutPage" } };
+    const seo = { metaDescription: "d", title: "T", robots: { index: false, follow: true } };
+    expect(
+      run({ sourceZones: {}, targetZones: {}, sourcePage: { seo, geo }, targetPage: { seo, geo } }).findings
+    ).toEqual([]);
+
+    const { findings } = run({
+      sourceZones: {},
+      targetZones: {},
+      sourcePage: { seo, geo },
+      targetPage: { seo: { metaDescription: "d" } },
+    });
+    expect(findings.map((f) => [f.category, f.path])).toEqual([
+      ["pageFieldMismatch", "seo"],
+      ["pageFieldMismatch", "geo"],
+    ]);
+  });
 });

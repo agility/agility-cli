@@ -20,6 +20,13 @@ import { fileOperations } from "core/fileOperations";
 import { collectUnresolvedContentReferences } from "./util/has-unresolved-content-references";
 import { Logs } from "core/logs";
 import { state, getFailedContent } from "core/state";
+import { FailureDetail } from "types/sourceData";
+import {
+  GEO_NOT_COPIED_CODE,
+  geoNotCopiedMessage,
+  getItemGeoValidationErrors,
+  withoutGeoFields,
+} from "../page-pusher/geo-fields";
 
 /**
  * PROD-2542: one source item and the payload built from it. Prepared items travel as pairs so the
@@ -122,6 +129,7 @@ export class ContentBatchProcessor {
     let totalSkippedCount = 0;
     const allSuccessfulItems: BatchSuccessItem[] = [];
     const allFailedItems: BatchFailedItem[] = [];
+    const allWarnings: FailureDetail[] = [];
     const startTime = Date.now();
 
     for (let i = 0; i < contentBatches.length; i++) {
@@ -171,16 +179,37 @@ export class ContentBatchProcessor {
           continue;
         }
         // Both lists derive from the same paired array, so index i of one is index i of the other.
-        const contentPayloads = prepared.map((p) => p.payload);
+        let contentPayloads = prepared.map((p) => p.payload);
         const includedItems = prepared.map((p) => p.source);
 
         // Execute bulk upload using saveContentItems API with returnBatchID flag
-        const batchIDResult = await this.config.apiClient.contentMethods.saveContentItems(
-          contentPayloads,
-          this.config.targetGuid,
-          this.config.locale,
-          true // returnBatchID flag
-        );
+        const saveBatch = (payloads: any[]) =>
+          this.config.apiClient.contentMethods.saveContentItems(
+            payloads,
+            this.config.targetGuid,
+            this.config.locale,
+            true // returnBatchID flag
+          );
+
+        let batchIDResult: any;
+        try {
+          batchIDResult = await saveBatch(contentPayloads);
+        } catch (saveError: any) {
+          // PROD-2729: the Management API validates every item's GEO data before queueing and
+          // rejects the WHOLE request with one 400 naming "items[i].geo.…". One bad JSON-LD block
+          // must not fail a batch of up to 100 items, so save again with the offending GEO
+          // properties left out of the named items (deleted, never nulled: the target keeps its
+          // own values) and report each as a non-blocking warning.
+          const retry = this.withoutRejectedGeo(saveError, prepared);
+          if (!retry) throw saveError;
+          contentPayloads = retry.payloads;
+          prepared.forEach((p, idx) => (p.payload = contentPayloads[idx]));
+          batchIDResult = await saveBatch(contentPayloads);
+          allWarnings.push(...retry.warnings);
+          retry.warnings.forEach((w) =>
+            console.warn(ansiColors.yellow(`⚠️ ${w.name} (content ${w.contentID}): ${w.error}`))
+          );
+        }
 
         // Extract batch ID from array response
         const batchID = Array.isArray(batchIDResult) ? batchIDResult[0] : batchIDResult;
@@ -322,7 +351,41 @@ export class ContentBatchProcessor {
       successfulItems: allSuccessfulItems,
       failedItems: allFailedItems,
       publishableIds: publishableItems.map((item) => item.newContentId),
+      warnings: allWarnings.length > 0 ? allWarnings : undefined,
     };
+  }
+
+  /**
+   * PROD-2729: if `error` is the Management API's 400 rejecting GEO data in a batch save, the
+   * payloads to send again (offending GEO properties deleted from the items it names) and one
+   * `geoNotCopied` warning per item that changed. Undefined when the error isn't a GEO 400, or when
+   * no payload carries the named properties (a retry would fail the same way).
+   */
+  private withoutRejectedGeo(
+    error: any,
+    prepared: PreparedContentPayload[]
+  ): { payloads: any[]; warnings: FailureDetail[] } | undefined {
+    const byIndex = getItemGeoValidationErrors(error, prepared.length);
+    if (!byIndex) return undefined;
+
+    const warnings: FailureDetail[] = [];
+    const payloads = prepared.map((p, idx) => {
+      const validation = byIndex.get(idx);
+      if (!validation) return p.payload;
+      const stripped = withoutGeoFields(p.payload, validation.strip);
+      if (JSON.stringify(stripped) === JSON.stringify(p.payload)) return p.payload;
+      warnings.push({
+        name: p.source?.properties?.referenceName || `Content ${p.source?.contentID}`,
+        error: geoNotCopiedMessage(validation),
+        type: "content",
+        contentID: p.source?.contentID,
+        guid: this.config.sourceGuid,
+        locale: this.config.locale,
+        code: GEO_NOT_COPIED_CODE,
+      });
+      return stripped;
+    });
+    return warnings.length > 0 ? { payloads, warnings } : undefined;
   }
 
   /**
@@ -564,6 +627,10 @@ export class ContentBatchProcessor {
           const defaultScripts = { top: null, bottom: null };
 
           // STEP 8: Create payload using EXACT original logic
+          // PROD-2729: the spread carries the item's `geo` (dynamic page list items) and any GEO
+          // `seo` keys (title, canonicalUrl, robots, ogImage) through as pulled. `defaultSeo` only
+          // fills the five older keys when `seo` is null, and nothing here may set `geo` (or a GEO
+          // key) to null: on save an omitted property keeps the target's value, null clears it.
           const payload = {
             ...contentItem, // Start with original content item
             contentID: existingContentID,

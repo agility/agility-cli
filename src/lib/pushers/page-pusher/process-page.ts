@@ -17,6 +17,7 @@ import {
 } from "core/state";
 import { FailureDetail, PageModuleExtended } from "types/sourceData";
 import { preflightReport } from "../../preflight/preflight-report";
+import { GEO_NOT_COPIED_CODE, geoNotCopiedMessage, getGeoValidationError, withoutGeoFields } from "./geo-fields";
 
 interface Props {
   channel: string;
@@ -397,7 +398,10 @@ export async function processPage({
     const pageJSON = JSON.stringify(page, null, 2);
     const pageCopy = JSON.parse(pageJSON) as mgmtApi.PageItem; // Create a copy to avoid modifying original
 
-    const payload: any = {
+    // PROD-2729: the spread carries `geo` and the GEO `seo` keys (title, canonicalUrl, robots,
+    // ogImage) through untouched. Nothing here may default them to null: on save, an omitted
+    // property keeps the target's value but null clears it.
+    let payload: any = {
       ...pageCopy,
       // If local target file is missing but mapping exists, use the known target container ID
       // to force an UPDATE instead of INSERT (prevents duplicate name server errors)
@@ -440,17 +444,46 @@ export async function processPage({
     const otherLocale = mappingToOtherLocale ? mappingToOtherLocale.OtherLanguageCode : null;
 
     // Save the page with returnBatchID flag for consistent batch processing
-    const savePageResponse = await apiClient.pageMethods.savePage(
-      payload,
-      targetGuid,
-      locale,
-      parentIDArg,
-      placeBeforeIDArg,
-      true,
-      pageIDInOtherLocale,
-      otherLocale,
-      true
-    );
+    const savePage = (body: any) =>
+      apiClient.pageMethods.savePage(
+        body,
+        targetGuid,
+        locale,
+        parentIDArg,
+        placeBeforeIDArg,
+        true,
+        pageIDInOtherLocale,
+        otherLocale,
+        true
+      );
+
+    // PROD-2729: a non-blocking notice when the page's GEO data couldn't be copied.
+    const geoWarnings: FailureDetail[] = [];
+    let savePageResponse: any;
+    try {
+      savePageResponse = await savePage(payload);
+    } catch (saveError: any) {
+      // The Management API rejects invalid GEO input (e.g. malformed structuredData) with a 400.
+      // Keep its validation strict and save the page again without the offending GEO properties,
+      // so the target keeps its own values and one bad JSON-LD block never fails the sync.
+      const geoValidation = getGeoValidationError(saveError);
+      if (!geoValidation) throw saveError;
+
+      const message = geoNotCopiedMessage(geoValidation);
+      payload = withoutGeoFields(payload, geoValidation.strip);
+      savePageResponse = await savePage(payload);
+
+      geoWarnings.push({
+        name: page.name || `Page ${page.pageID}`,
+        error: message,
+        type: "page",
+        pageID: page.pageID,
+        guid: sourceGuid,
+        locale,
+        code: GEO_NOT_COPIED_CODE,
+      });
+      logger.page.skipped(page, message, locale, channel, targetGuid);
+    }
 
     // Process the response - with returnBatchID=true, we should always get a batch ID
     if (Array.isArray(savePageResponse) && savePageResponse.length > 0) {
@@ -558,7 +591,9 @@ export async function processPage({
           logger.page.created(page, "created", locale, channel, targetGuid);
         }
         // PROD-2316: surface any dropped-module notices alongside the success.
-        return { status: "success", warnings: droppedModules.length > 0 ? droppedModules : undefined };
+        // PROD-2729: and any GEO data left out of the save.
+        const pageWarnings = [...droppedModules, ...geoWarnings];
+        return { status: "success", warnings: pageWarnings.length > 0 ? pageWarnings : undefined };
       } else {
         let errorMsg: string;
         if (batchFailedItems.length > 0 && batchFailedItems[0].error) {
@@ -580,7 +615,8 @@ export async function processPage({
           channel,
           targetGuid
         );
-        return { status: "failure", error: errorMsg, warnings: droppedModules.length > 0 ? droppedModules : undefined };
+        const pageWarnings = [...droppedModules, ...geoWarnings];
+        return { status: "failure", error: errorMsg, warnings: pageWarnings.length > 0 ? pageWarnings : undefined };
       }
     } else {
       const errorMsg = "Unexpected response format";

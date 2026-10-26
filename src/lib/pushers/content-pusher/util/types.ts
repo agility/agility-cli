@@ -1,5 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import { ContentItemMapper } from "lib/mappers/content-item-mapper";
+import { FailureDetail } from "types/sourceData";
 
 /**
  * Configuration for content batch processing
@@ -27,6 +28,7 @@ export interface BatchProcessingResult {
   successfulItems: BatchSuccessItem[];
   failedItems: BatchFailedItem[];
   publishableIds: number[]; // Target content IDs for workflow operations
+  warnings?: FailureDetail[]; // Non-blocking notices, e.g. an item's GEO data left out (PROD-2729)
 }
 
 /**

@@ -18,7 +18,7 @@
  * a sourceDefect and left out of the expectation.
  *
  * Page fields compared: title, menuText, name, pageType, template (through the template mapping),
- * redirectUrl, visible, seo, scripts, securePage. A different workflow state is a warning
+ * redirectUrl, visible, seo, geo (PROD-2729), scripts, securePage. A different workflow state is a warning
  * (publishStateDifference), as for content.
  */
 import { Finding, FindingCollector } from "./verify-report";
@@ -38,6 +38,7 @@ export const COMPARED_PAGE_FIELDS = [
   "redirectUrl",
   "visible",
   "seo",
+  "geo",
   "scripts",
   "securePage",
 ] as const;
