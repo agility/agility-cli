@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as Https from "https";
 import * as path from "path";
+import * as zlib from "zlib";
 const os = require("os");
 import { state } from "./state";
 os.tmpDir = os.tmpdir;
@@ -331,13 +332,37 @@ export class fileOperations {
       Https.get(url, (response) => {
         const code = response.statusCode ?? 0;
 
-        if (code >= 400) {
-          return reject(new Error(response.statusMessage));
-        }
-
-        if (code > 300 && code < 400 && !!response.headers.location) {
+        if (code >= 300 && code < 400 && !!response.headers.location) {
+          response.resume();
           return resolve(this.downloadFile(response.headers.location, targetFile));
         }
+
+        // Only a 2xx body is the file. Anything else (including an error page
+        // served with a 3xx/1xx status) must not be saved as the asset.
+        if (code < 200 || code >= 300) {
+          response.resume();
+          return reject(new Error(`HTTP ${code} ${response.statusMessage ?? ""}`.trim()));
+        }
+
+        // https.get never decompresses. The CDN serves small text assets
+        // (.html/.css/.js/...) gzip-encoded, and saving those bytes as-is means
+        // the Management API gzips them again on upload (PROD-2987).
+        let body: NodeJS.ReadableStream = response;
+        const encoding = String(response.headers["content-encoding"] ?? "")
+          .trim()
+          .toLowerCase();
+        if (encoding === "gzip" || encoding === "x-gzip") {
+          body = response.pipe(zlib.createGunzip());
+        } else if (encoding === "deflate") {
+          body = response.pipe(zlib.createInflate());
+        } else if (encoding === "br") {
+          body = response.pipe(zlib.createBrotliDecompress());
+        }
+
+        const fail = (err: Error) => {
+          fileWriter.destroy();
+          fs.rm(targetFile, { force: true }, () => reject(err));
+        };
 
         const fileWriter = fs
           .createWriteStream(targetFile)
@@ -346,11 +371,11 @@ export class fileOperations {
             // (e.g. focal point) that the CDN/blob returns as headers.
             resolve({ headers: response.headers });
           })
-          .on("error", (err) => {
-            reject(err);
-          });
+          .on("error", fail);
 
-        response.pipe(fileWriter);
+        if (body !== response) body.on("error", fail);
+        response.on("error", fail);
+        body.pipe(fileWriter);
       }).on("error", (error) => {
         console.error(`Error downloading from ${url}:`, error);
         reject(error);

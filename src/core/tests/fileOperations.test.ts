@@ -372,14 +372,7 @@ describe("saveMappingFile — preflight guard", () => {
     const originalData = [{ sourceID: 50, targetID: 500 }];
     ops.saveMappingFile(originalData, "content", "pf4-s-guid", "pf4-t-guid", "en-us");
 
-    const expectedFile = path.join(
-      tmpDir,
-      "mappings",
-      "pf4-s-guid-pf4-t-guid",
-      "en-us",
-      "content",
-      "mappings.json"
-    );
+    const expectedFile = path.join(tmpDir, "mappings", "pf4-s-guid-pf4-t-guid", "en-us", "content", "mappings.json");
     expect(fs.existsSync(expectedFile)).toBe(true);
 
     // Now enable preflight and attempt to overwrite with different data
@@ -391,5 +384,92 @@ describe("saveMappingFile — preflight guard", () => {
     // File should still contain the original data
     const written = JSON.parse(fs.readFileSync(expectedFile, "utf8"));
     expect(written).toEqual(originalData);
+  });
+});
+
+// ─── downloadFile (PROD-2987) ─────────────────────────────────────────────────
+
+describe("downloadFile", () => {
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const https = require("https");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const zlib = require("zlib");
+  // eslint-disable-next-line @typescript-eslint/no-require-imports
+  const { PassThrough, EventEmitter } = require("stream");
+
+  type FakeResponse = { statusCode: number; statusMessage?: string; headers: Record<string, string>; body: Buffer };
+
+  // Serves each queued response in turn, the way https.get hands an IncomingMessage to its callback.
+  function stubHttps(...responses: FakeResponse[]) {
+    const urls: string[] = [];
+    jest.spyOn(https, "get").mockImplementation((url: any, cb: any) => {
+      urls.push(url);
+      const r = responses.shift()!;
+      const res = new PassThrough();
+      Object.assign(res, { statusCode: r.statusCode, statusMessage: r.statusMessage, headers: r.headers });
+      setImmediate(() => {
+        cb(res);
+        res.end(r.body);
+      });
+      return new EventEmitter();
+    });
+    return urls;
+  }
+
+  const html = "<!doctype html><html><body>hello</body></html>";
+
+  it("decompresses a gzip-encoded response so the file holds the original bytes", async () => {
+    stubHttps({
+      statusCode: 200,
+      headers: { "content-type": "text/html", "content-encoding": "gzip" },
+      body: zlib.gzipSync(Buffer.from(html)),
+    });
+    const target = path.join(tmpDir, "dl", "page.html");
+
+    const result = await new fileOperations("g").downloadFile("https://cdn.example/page.html", target);
+
+    expect(fs.readFileSync(target, "utf8")).toBe(html);
+    expect(result.headers["content-type"]).toBe("text/html");
+  });
+
+  it("saves an unencoded response unchanged", async () => {
+    const bytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0xff]);
+    stubHttps({ statusCode: 200, headers: { "content-type": "image/png" }, body: bytes });
+    const target = path.join(tmpDir, "dl", "img.png");
+
+    await new fileOperations("g").downloadFile("https://cdn.example/img.png", target);
+
+    expect(fs.readFileSync(target)).toEqual(bytes);
+  });
+
+  it("follows a redirect and writes the final body", async () => {
+    const urls = stubHttps(
+      { statusCode: 302, headers: { location: "https://blob.example/page.html" }, body: Buffer.alloc(0) },
+      { statusCode: 200, headers: { "content-encoding": "gzip" }, body: zlib.gzipSync(Buffer.from(html)) }
+    );
+    const target = path.join(tmpDir, "dl", "redirected.html");
+
+    await new fileOperations("g").downloadFile("https://cdn.example/page.html", target);
+
+    expect(urls).toEqual(["https://cdn.example/page.html", "https://blob.example/page.html"]);
+    expect(fs.readFileSync(target, "utf8")).toBe(html);
+  });
+
+  it.each([500, 404, 304])("rejects a %i response and does not write the error body", async (statusCode) => {
+    stubHttps({ statusCode, statusMessage: "Nope", headers: {}, body: Buffer.from("Server Error: stack trace...") });
+    const target = path.join(tmpDir, "dl", `error-${statusCode}.html`);
+
+    await expect(new fileOperations("g").downloadFile("https://cdn.example/x.html", target)).rejects.toThrow(
+      `HTTP ${statusCode}`
+    );
+    expect(fs.existsSync(target)).toBe(false);
+  });
+
+  it("rejects and removes the partial file when the gzip body is corrupt", async () => {
+    stubHttps({ statusCode: 200, headers: { "content-encoding": "gzip" }, body: Buffer.from("not gzip at all") });
+    const target = path.join(tmpDir, "dl", "corrupt.html");
+
+    await expect(new fileOperations("g").downloadFile("https://cdn.example/corrupt.html", target)).rejects.toThrow();
+    expect(fs.existsSync(target)).toBe(false);
   });
 });
