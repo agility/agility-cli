@@ -4,10 +4,27 @@ on:
   push:
     tags:
       - "v*"
+  # Promote an already-published version to a dist-tag from the Actions tab
+  # ("Run workflow"), instead of running `npm dist-tag add` locally.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Published version to promote (e.g. 1.2.2)"
+        required: true
+        type: string
+      dist_tag:
+        description: "Dist-tag to point at that version"
+        required: true
+        type: choice
+        options:
+          - latest
+          - beta
+        default: latest
 
 jobs:
   publish:
     name: Build and publish to npm
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -40,7 +57,55 @@ jobs:
       - name: Build
         run: npm run build
 
-      # Always publish under the beta dist-tag. Promote to latest manually:
-      #   npm dist-tag add @agility/cli@<version> latest
+      # Always publish under the beta dist-tag. Promote to latest with the
+      # "Run workflow" button on this workflow (the promote job below).
       - name: Publish
         run: npm publish --access public --tag beta
+
+  promote:
+    name: Promote ${{ inputs.version }} to ${{ inputs.dist_tag }}
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      # Uses the trusted publisher's OIDC credentials; needs "Allow npm dist-tag"
+      # enabled on the package's trusted publishing configuration on npmjs.com.
+      id-token: write
+    env:
+      VERSION: ${{ inputs.version }}
+      DIST_TAG: ${{ inputs.dist_tag }}
+
+    steps:
+      - name: Check inputs
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Run this from main (was $GITHUB_REF)."
+            exit 1
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "'$VERSION' is not a version number."
+            exit 1
+          fi
+          if [ "$DIST_TAG" = "latest" ] && [[ "$VERSION" == *-* ]]; then
+            echo "$VERSION is a prerelease; release it as a plain version before promoting to latest."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      # OIDC dist-tag support is recent; use the newest npm 11 rather than the one bundled with Node.
+      - name: Update npm
+        run: npm install -g npm@11
+
+      - name: Check the version is published
+        run: npm view "@agility/cli@$VERSION" version | grep -qx "$VERSION" || { echo "@agility/cli@$VERSION is not on npm."; exit 1; }
+
+      - name: Promote
+        run: npm dist-tag add "@agility/cli@$VERSION" "$DIST_TAG"
+
+      - name: Show dist-tags
+        run: npm view @agility/cli dist-tags
