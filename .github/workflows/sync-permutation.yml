@@ -1,0 +1,201 @@
+name: Sync permutation test
+
+# The live end-to-end sync test (epic PROD-3015, pipeline PROD-3016): lease throwaway dev
+# instances, sync between them with the CLI under test, verify, and always delete them.
+#
+# This is the "live" kind of integration test that integration-tests.yml warns about. It is safe
+# to run here because:
+#   - Credentials come only from the `cli-dev-live` GitHub Environment, by OIDC. Pull requests
+#     from forks get no OIDC token and no Environment, and the `if:` below skips them anyway.
+#   - The identity can only lease and delete its own throwaway test instances.
+#   - Every lease is labelled with this run and has a short TTL. The `release` job deletes them
+#     whatever happens to the rest of the run, and the leasing service deletes anything a
+#     dead runner leaves behind once the TTL runs out.
+#
+# Tiers (the same jobs; the tier sets TTLs and timeouts, and later slices add scenarios to it):
+#   quick    every pull request
+#   beta     every v* tag (the version npm-publish.yml just published under `beta`). Its result
+#            gates promotion to `latest` (npm-publish.yml, promote job)
+#   nightly  every night against whatever is deployed to dev, plus a sweep for left-behind leases
+
+on:
+  pull_request:
+  push:
+    tags:
+      - "v*"
+  schedule:
+    - cron: "0 7 * * *" # 07:00 UTC, 03:00 Eastern
+  workflow_dispatch:
+    inputs:
+      tier:
+        description: "Tier"
+        type: choice
+        options: [quick, beta, nightly]
+        default: quick
+      cli_version:
+        description: "Test this published @agility/cli version instead of building this branch"
+        required: false
+        default: ""
+
+concurrency:
+  group: sync-permutation-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  TIER: ${{ inputs.tier || (github.event_name == 'schedule' && 'nightly') || (github.ref_type == 'tag' && 'beta') || 'quick' }}
+  # Published version under test: the dispatch input, or the tag's version on a tag push.
+  CLI_VERSION: ${{ inputs.cli_version || (github.ref_type == 'tag' && github.ref_name) || '' }}
+  # Every lease of this run (and of this attempt, so a re-run gets fresh instances) starts with this.
+  LEASE_PREFIX: cli-perm-${{ github.run_id }}-${{ github.run_attempt }}-
+  GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+jobs:
+  lease:
+    name: Lease dev instances
+    # Same-repo PRs only: forks and Dependabot get no credentials.
+    if: >-
+      github.event_name != 'pull_request' ||
+      (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
+    runs-on: ubuntu-latest
+    environment: cli-dev-live
+    timeout-minutes: 20
+    # Endpoints, IDs and names are cli-dev-live Environment *secrets*, not variables: this repo's
+    # Actions logs are public, and GitHub prints variables and step inputs there but masks secrets.
+    env:
+      LEASE_API_URL: ${{ secrets.LEASE_API_URL }}
+      LEASE_API_SCOPE: ${{ secrets.LEASE_API_SCOPE }}
+    outputs:
+      source_guid: ${{ steps.lease.outputs.source_guid }}
+      target_guid: ${{ steps.lease.outputs.target_guid }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ci
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Lease API token
+        run: |
+          TOKEN=$(az account get-access-token --scope "$LEASE_API_SCOPE" --tenant "${{ secrets.AZURE_TENANT_ID }}" --query accessToken -o tsv)
+          echo "::add-mask::$TOKEN"
+          echo "LEASE_API_TOKEN=$TOKEN" >> "$GITHUB_ENV"
+
+      # Layer 4 of teardown: anything an earlier run left behind (its release job failed or never ran).
+      - name: Sweep left-behind leases
+        if: env.TIER == 'nightly'
+        run: node ci/leases.mjs sweep cli-perm- --older-than-hours 6
+
+      # TTL = the run's budget plus a margin, so the reaper is the backstop if every other layer fails.
+      - name: Lease source and target
+        id: lease
+        run: |
+          case "$TIER" in quick) TTL=60 ;; beta) TTL=120 ;; *) TTL=240 ;; esac
+          node ci/leases.mjs create "$LEASE_PREFIX" source:blog target:blank --ttl "$TTL" --timeout 900
+
+  test:
+    name: Sync and verify
+    needs: lease
+    runs-on: ubuntu-latest
+    environment: cli-dev-live
+    timeout-minutes: 50
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      # The CLI under test: this checkout, built; or a published version from npm.
+      - name: Build this branch
+        if: env.CLI_VERSION == ''
+        run: |
+          npm ci
+          npm run build
+          echo "CLI=node $GITHUB_WORKSPACE/dist/index.js" >> "$GITHUB_ENV"
+
+      - name: Install @agility/cli@${{ env.CLI_VERSION }} from npm
+        if: env.CLI_VERSION != ''
+        run: |
+          V="${CLI_VERSION#v}"
+          # A tag push starts this workflow and npm-publish.yml together; wait for the publish.
+          for i in $(seq 1 40); do
+            npm view "@agility/cli@$V" version >/dev/null 2>&1 && break
+            echo "waiting for @agility/cli@$V on npm ($i/40)"; sleep 15
+          done
+          npm install --prefix "$RUNNER_TEMP/cli" "@agility/cli@$V"
+          echo "CLI=node $RUNNER_TEMP/cli/node_modules/@agility/cli/dist/index.js" >> "$GITHUB_ENV"
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      # One token that can read and write every test instance.
+      - name: Test account token
+        run: |
+          PAT=$(az keyvault secret show --vault-name "${{ secrets.TOKEN_VAULT }}" --name "${{ secrets.TOKEN_SECRET }}" --query value -o tsv)
+          echo "::add-mask::$PAT"
+          echo "AGILITY_TOKEN=$PAT" >> "$GITHUB_ENV"
+
+      - name: Run the permutation test
+        env:
+          SOURCE_GUID: ${{ needs.lease.outputs.source_guid }}
+          TARGET_GUID: ${{ needs.lease.outputs.target_guid }}
+          OUT_DIR: ${{ runner.temp }}/permutation-out
+        run: node ci/permutation/run.mjs
+
+      # Only the JSON results: anyone can download a public repo's artifacts, so the CLI's raw
+      # logs, pulls and mapping files stay on the runner. Re-run locally to debug from those.
+      - name: Keep results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sync-permutation-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/permutation-out/*.json
+          retention-days: 30
+          if-no-files-found: ignore
+
+  # Layer 2 of teardown. Runs after success, failure and cancellation alike, and deletes every
+  # lease of this attempt by label, including any the lease job created before it failed.
+  release:
+    name: Release leases
+    needs: [lease, test]
+    if: >-
+      always() && (
+        github.event_name != 'pull_request' ||
+        (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
+      )
+    runs-on: ubuntu-latest
+    environment: cli-dev-live
+    timeout-minutes: 10
+    # Endpoints, IDs and names are cli-dev-live Environment *secrets*, not variables: this repo's
+    # Actions logs are public, and GitHub prints variables and step inputs there but masks secrets.
+    env:
+      LEASE_API_URL: ${{ secrets.LEASE_API_URL }}
+      LEASE_API_SCOPE: ${{ secrets.LEASE_API_SCOPE }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          sparse-checkout: ci
+
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          allow-no-subscriptions: true
+
+      - name: Release every lease of this run
+        run: |
+          TOKEN=$(az account get-access-token --scope "$LEASE_API_SCOPE" --tenant "${{ secrets.AZURE_TENANT_ID }}" --query accessToken -o tsv)
+          echo "::add-mask::$TOKEN"
+          LEASE_API_TOKEN="$TOKEN" node ci/leases.mjs release "$LEASE_PREFIX" --reason "run ${{ github.run_id }} finished: ${{ needs.test.result }}"
