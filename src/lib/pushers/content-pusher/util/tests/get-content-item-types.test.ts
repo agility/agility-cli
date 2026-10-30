@@ -375,3 +375,109 @@ describe("getContentItemTypes — recursive references", () => {
     expect(() => getContentItemTypes([itemA, itemB], makeValidOpts())).not.toThrow();
   });
 });
+
+// ─── dependency levels (PROD-3025) ───────────────────────────────────────────
+
+describe("getContentItemTypes — linked dependency levels (PROD-3025)", () => {
+  const idsByLevel = (levels: any[][]) => levels.map((level) => level.map((i) => i.contentID));
+
+  it("splits a three-deep chain so the leaf is pushed before the item that references it", () => {
+    // FeaturedPost → Post → Category: Post and Category are both linked, but Category must go first
+    const category = makeItem("categories", "Category");
+    const post = makeItem("posts", "Post", { category: { contentid: category.contentID } });
+    const featured = makeItem("featuredposts", "FeaturedPost", { post: { contentid: post.contentID } });
+
+    const result = getContentItemTypes([featured, post, category], makeValidOpts());
+
+    expect(result.normalContentItems).toEqual([featured]);
+    expect(idsByLevel(result.linkedContentLevels)).toEqual([[category.contentID], [post.contentID]]);
+  });
+
+  it("gives every item of a 50-deep chain its own level, leaves first", () => {
+    const chain: any[] = [makeItem("item-0", "Model")];
+    for (let i = 1; i < 50; i++) {
+      chain.push(makeItem(`item-${i}`, "Model", { next: { contentid: chain[i - 1].contentID } }));
+    }
+
+    const result = getContentItemTypes([...chain].reverse(), makeValidOpts());
+
+    // The last item is unreferenced (normal); the other 49 form 49 levels in chain order
+    expect(result.normalContentItems).toEqual([chain[49]]);
+    expect(idsByLevel(result.linkedContentLevels)).toEqual(chain.slice(0, 49).map((i) => [i.contentID]));
+  });
+
+  it("places an item one level above its deepest dependency when depths differ", () => {
+    const leaf = makeItem("leaf", "Model");
+    const mid = makeItem("mid", "Model", { leaf: { contentid: leaf.contentID } });
+    // uneven depends on mid (level 1) and directly on leaf (level 0) → level 2
+    const uneven = makeItem("uneven", "Model", {
+      mid: { contentid: mid.contentID },
+      leaf: { contentid: leaf.contentID },
+    });
+    const top = makeItem("top", "Model", { uneven: { contentid: uneven.contentID } });
+
+    const result = getContentItemTypes([top, uneven, mid, leaf], makeValidOpts());
+
+    expect(idsByLevel(result.linkedContentLevels)).toEqual([[leaf.contentID], [mid.contentID], [uneven.contentID]]);
+  });
+
+  it("puts both sides of a diamond on the same level, above their shared dependency", () => {
+    const shared = makeItem("shared", "Model");
+    const left = makeItem("left", "Model", { shared: { contentid: shared.contentID } });
+    const right = makeItem("right", "Model", { shared: { contentid: shared.contentID } });
+    const top = makeItem("top", "Model", { picks: { sortids: `${left.contentID},${right.contentID}` } });
+
+    const result = getContentItemTypes([top, left, right, shared], makeValidOpts());
+
+    expect(result.linkedContentLevels).toHaveLength(2);
+    expect(idsByLevel(result.linkedContentLevels)[0]).toEqual([shared.contentID]);
+    expect(idsByLevel(result.linkedContentLevels)[1].sort()).toEqual([left.contentID, right.contentID].sort());
+  });
+
+  it("orders whole-list references the same way", () => {
+    const tag = makeItem("tags", "Tag");
+    const post = makeItem("posts", "Post", { tags: { referencename: "tags", fulllist: true } });
+    const page = makeItem("listing", "Listing", { posts: { referencename: "posts", fulllist: true } });
+
+    const result = getContentItemTypes([page, post, tag], makeValidOpts());
+
+    expect(idsByLevel(result.linkedContentLevels)).toEqual([[tag.contentID], [post.contentID]]);
+  });
+
+  it("keeps a cycle on one level, after what it depends on, and the item above it on the next", () => {
+    const leaf = makeItem("leaf", "Model");
+    const a = makeItem("a", "Model", { b: { contentid: 0 }, leaf: { contentid: leaf.contentID } });
+    const b = makeItem("b", "Model", { a: { contentid: a.contentID } });
+    a.fields.b.contentid = b.contentID;
+    const top = makeItem("top", "Model", { a: { contentid: a.contentID } });
+
+    const result = getContentItemTypes([top, a, b, leaf], makeValidOpts());
+
+    expect(result.linkedContentLevels).toHaveLength(2);
+    expect(idsByLevel(result.linkedContentLevels)[0]).toEqual([leaf.contentID]);
+    expect(idsByLevel(result.linkedContentLevels)[1].sort()).toEqual([a.contentID, b.contentID].sort());
+  });
+
+  it("ignores a self-reference when placing an item", () => {
+    const child = makeItem("child", "Model");
+    const self = makeItem("self", "Model", { child: { contentid: child.contentID } });
+    self.fields.me = { contentid: self.contentID };
+    const parent = makeItem("parent", "Model", { self: { contentid: self.contentID } });
+
+    const result = getContentItemTypes([parent, self, child], makeValidOpts());
+
+    expect(idsByLevel(result.linkedContentLevels)).toEqual([[child.contentID], [self.contentID]]);
+  });
+
+  it("covers exactly the linked items", () => {
+    const category = makeItem("categories", "Category");
+    const post = makeItem("posts", "Post", { category: { contentid: category.contentID } });
+    const outside = makeItem("outside", "Model", { missing: { contentid: 9999 } });
+    const featured = makeItem("featuredposts", "FeaturedPost", { post: { contentid: post.contentID } });
+
+    const result = getContentItemTypes([featured, post, category, outside], makeValidOpts());
+
+    const flattened = result.linkedContentLevels.flat().map((i) => i.contentID).sort();
+    expect(flattened).toEqual(result.linkedContentItems.map((i) => i.contentID).sort());
+  });
+});

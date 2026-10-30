@@ -19,10 +19,10 @@
     dotenv "^8.2.0"
     proper-lockfile "^4.1.2"
 
-"@agility/management-sdk@^0.1.38":
-  version "0.1.38"
-  resolved "https://registry.npmjs.org/@agility/management-sdk/-/management-sdk-0.1.38.tgz"
-  integrity sha512-g6/hNgCjf+uzcJbkPaxeWqwaAid50tMnRW0KYQ4J/fGuJqtcZG0et0X3m76Ev3yUqnkpIO/+C5zMIQMghN3/oQ==
+"@agility/management-sdk@^0.2.0-beta.3":
+  version "0.2.0-beta.3"
+  resolved "https://registry.npmjs.org/@agility/management-sdk/-/management-sdk-0.2.0-beta.3.tgz"
+  integrity sha512-jBe7eJxOS7HdhfEnuCBBWwPZIGuA4qR+ekwU+wKmMk8HgMVc33BhuQUSajvwSjaZFkrVhTozjYiHNQjz2Y4GVg==
   dependencies:
     axios "^0.27.2"
 
@@ -3251,7 +3251,7 @@ rx-lite@*, rx-lite@^4.0.8:
   resolved "https://registry.npmjs.org/rx-lite/-/rx-lite-4.0.8.tgz"
   integrity sha512-Cun9QucwK6MIrp3mry/Y7hqD1oFqTYLQ4pGxaHTjIdaFDWRGGLikqp6u8LcWJnzpoALg9hap+JGk8sFIUuEGNA==
 
-rxjs@^7.5.5, rxjs@^7.8.2:
+rxjs@^7.8.2:
   version "7.8.2"
   resolved "https://registry.npmjs.org/rxjs/-/rxjs-7.8.2.tgz"
   integrity sha512-dhKf903U/PQZY6boNNtAGdWbG85WAbjT/1xYoZIC7FAY0yWapOBQVsVrDl58W86//e1VpMNBtRV4MaXfdMySFA==

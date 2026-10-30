@@ -40,6 +40,20 @@ agility pull [options]
 | `--elements` | string | `Models,Galleries,Assets,Containers,Content,Templates,Pages,Sitemaps,UrlRedirections` | Comma-separated list of elements to process                                             |
 | `--models`   | string | _(empty)_                                                            | Comma-separated list of model reference names to sync (only syncs the specified models) |
 
+#### Syncing deletes
+
+`--syncDeletes` adds a final phase to a sync. For every mapping whose source entity is gone from the source pull it decides:
+
+| Outcome | When |
+| --- | --- |
+| **deleted** | The source entity is deleted and the target is unchanged since the last sync (or `--overwrite` is set). The mapping is removed. |
+| **conflict** (kept) | The target was edited since the last sync. Re-run with `--overwrite` to delete it anyway. |
+| **blocked** (kept) | Something that stays on the target still uses it — e.g. a target-only child page, a page or item that links to the content item, items in the container, a container or item built on the model, content that embeds the asset. |
+| **mapping removed** | The target is already gone, or another live source entity maps to the same target. |
+| **kept** | The source item is unpublished rather than deleted, or the delete could not be confirmed. |
+
+Run it with `--preflight` first: the report lists every planned delete under `Delete …` phases. Deleted pages and content items go to the instance's normal delete flow (the batch is labelled "Deleted by agility-cli --syncDeletes").
+
 **Authentication & Environment Options:**
 
 | Option    | Type    | Default | Description                                                                                                                              |
@@ -105,6 +119,8 @@ agility sync [options]
 | Option          | Type    | Default      | Description                                                                                                                                                                                                                                           |
 | --------------- | ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--overwrite`   | boolean | `false`      | Conflict-scoped override. By default, when a target item has its own changes that conflict with the source, the CLI skips it to avoid data loss. With `--overwrite`, those conflicting target items are overwritten with the source version. Non-conflicting updates are applied either way. Also covers a mapped target item that no longer exists (deleted or unpublished on the target): by default that is reported as a conflict and skipped, with `--overwrite` the item is recreated and the mapping repointed. |
+| `--syncDeletes` | boolean | `false`      | After syncing, delete from the target the entities that were deleted in the source since the last sync (URL redirections, pages, content, containers, templates, models, assets, galleries — dependents first). Only entities the CLI previously synced (that have a mapping) are considered; nothing created directly on the target is touched. A target entity edited since the last sync is reported as a conflict and kept unless `--overwrite` is also set. An entity that something kept on the target still uses (a child page, a page or item that links to the content, a container's items, ...) is kept and reported. Content and page deletes are confirmed against the source first, so an item that was only unpublished is never deleted. Cannot be combined with `--pages`, `--containers`, `--models` or `--models-with-deps`; use `--elements` to limit the types. Works with `--preflight`. Not read from `.env`. See [Syncing deletes](#syncing-deletes). |
+| `--allowMassDeletes` | boolean | `false` | With `--syncDeletes`: allow a run to delete more than half (and more than 10) of the mapped entities of one type. Without it such a run deletes nothing and fails, because a stale or partial local cache looks the same as a mass delete. |
 | `--autoPublish` | string  | _(disabled)_ | Automatically publish synced items that were published in the source instance. Values: `content`, `pages`, `both`. If flag is provided without a value, defaults to `both`. Items that are only in staging (not published) in the source are skipped. |
 | `--fullPull`    | boolean | `false`      | Full content re-pull. Discards the stored content sync token for every locale, re-pulls all content items and pages, and removes local content/page files that no longer exist on the instance. Use when a local cache is suspected stale. Models, containers, templates, galleries and assets reconcile against the instance on every pull regardless. |
 | `--preflight`   | boolean | `false`      | Dry-run preview. Runs the full source-pull, target-pull, dependency analysis and change detection, then reports the creates/updates/skips/conflicts a real sync would produce — **without writing anything** to the target instance or mapping files. Exits non-zero when conflicts are detected, so CI can gate a real sync on a clean preflight. |
@@ -141,6 +157,10 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --overwrite
 # Preview what a sync would do without writing anything (exits non-zero if conflicts are found)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --preflight
 
+# Also delete from the target what was deleted in the source since the last sync (preview first)
+agility sync --sourceGuid="abc123" --targetGuid="def456" --syncDeletes --preflight
+agility sync --sourceGuid="abc123" --targetGuid="def456" --syncDeletes
+
 # Sync only specified models (models only, no dependencies)
 agility sync --sourceGuid="abc123" --targetGuid="def456" --models="BlogPost,BlogCategory"
 
@@ -166,6 +186,15 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish=pages
 ---
 
 ## Advanced Topics
+
+### List Order
+
+A sync puts each synced content list on the target in the source's item order. It runs after content (and `--syncDeletes`), and only changes a list whose order differs from the source's, including when a reorder was the only change in the source.
+
+- The new order applies to the target's staging and live list at once. No item gets a new version, so nothing needs publishing for the order to show.
+- Items that exist only on the target keep their relative order after the synced ones.
+- A scoped run (`--pages`, `--containers`, `--models`) only orders the lists its content is in, but sends every synced item of those lists, so their order stays whole.
+- `--preflight` lists the lists it would reorder under a `List order` phase, and `--jsonSummary` reports them as the `listOrder` phase.
 
 ### Auto-Publish
 

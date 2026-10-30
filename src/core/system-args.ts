@@ -154,6 +154,22 @@ export const systemArgs = {
     default: false,
   },
 
+  // Sync deletes. Deliberately not primed from .env: a destructive mode is opted into per run.
+  syncDeletes: {
+    describe:
+      "(sync/push only) After syncing, delete from the target the entities that were deleted in the source since the last sync. Only entities the CLI previously synced (that have a mapping) are considered — nothing created directly on the target is touched. A target entity that was changed since the last sync is a conflict and is kept unless --overwrite is also set; one that something else on the target still uses is kept and reported. Content and page deletes are confirmed against the source first (an unpublished item is not deleted). Default: false.",
+    type: "boolean" as const,
+    alias: ["sync-deletes", "syncdeletes", "SyncDeletes", "SYNC_DELETES", "SYNCDELETES"],
+    default: false,
+  },
+  allowMassDeletes: {
+    describe:
+      "(with --syncDeletes) Allow a sync to delete more than half of the mapped entities of a kind. Without it such a run refuses to delete anything, since a stale or partial local cache looks the same as a mass delete. Default: false.",
+    type: "boolean" as const,
+    alias: ["allow-mass-deletes", "allowmassdeletes", "AllowMassDeletes", "ALLOW_MASS_DELETES"],
+    default: false,
+  },
+
   // Auto-publish after sync
   autoPublish: {
     describe:
@@ -267,6 +283,8 @@ export interface SystemArgs {
   preflight?: boolean; // Preflight mode - report planned sync actions without writing to target/mappings
   verbose?: boolean;
   overwrite?: boolean;
+  syncDeletes?: boolean;
+  allowMassDeletes?: boolean;
   elements?: string;
   guid?: string;
   sourceGuid?: string;

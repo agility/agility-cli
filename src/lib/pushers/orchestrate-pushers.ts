@@ -226,6 +226,17 @@ export class Pushers {
       (state.models && state.models.trim().length > 0) ||
       (state.modelsWithDeps && state.modelsWithDeps.trim().length > 0);
 
+    // --syncDeletes decides "deleted in the source" from what is absent in the source. A scoped run
+    // narrows the source to part of the instance, so everything outside the scope would look
+    // deleted. Refuse the combination before anything is written.
+    if (state.syncDeletes && (pageSelectors.length > 0 || containerSelectors.length > 0 || hasModelFilter)) {
+      throw new Error(
+        "Sync deletes validation failed. --syncDeletes cannot be combined with --pages, --containers, --models " +
+          "or --models-with-deps — a scoped run cannot tell a deleted entity from one outside the scope. " +
+          "Run the deletes as a separate, unscoped sync (use --elements to limit the entity types)."
+      );
+    }
+
     if (pageSelectors.length > 0 && containerSelectors.length > 0) {
       throw new Error(
         "Page validation failed. --pages cannot be combined with --containers — each defines a " +
@@ -335,6 +346,10 @@ export class Pushers {
       console.error(ansiColors.yellow(`Warning during guid-level operations: ${error?.message || error}`));
     }
 
+    // List order (PROD-2992) only touches a scoped run's lists, so keep the content each locale pushed.
+    const isScoped = Object.keys(filterOptions).length > 0;
+    const scopedContent = new Map<string, any[]>();
+
     // Do the locale level ops
     try {
       for (const config of pusherConfig) {
@@ -346,6 +361,7 @@ export class Pushers {
             Object.keys(filterOptions).length > 0 ? filterOptions : undefined
           );
           const targetData = await targetDataLoader.loadGuidEntities(locale);
+          if (config === PUSH_OPERATIONS.content && isScoped) scopedContent.set(locale, sourceData.content || []);
 
           // Track IDs for this specific locale
           const localeContentIds: number[] = [];
@@ -384,6 +400,59 @@ export class Pushers {
             publishablePageIds.push(...localePageIds);
           }
         }
+      }
+
+      // PROD-3042: a page save can bump the modified date of its components' containers. Advance the
+      // mappings of containers that were in sync before this run, so the next run doesn't see them
+      // as changed on the target.
+      if (phases.some((p) => p.operation === "pushPages" && p.successful > 0)) {
+        const { refreshContainerDatesAfterPageSaves } = await import("../mappers/refresh-container-dates");
+        await refreshContainerDatesAfterPageSaves(sourceGuid, targetGuid, locales[0]);
+      }
+
+      // --syncDeletes runs last: every push has repointed what it could, so the targets that are
+      // still only reachable from a deleted source can go, dependents first.
+      if (state.syncDeletes) {
+        const { runSyncDeletes } = await import("../deleters/sync-deletes");
+        const deletes = await runSyncDeletes({ sourceGuid, targetGuid, locales, elements });
+        totalSuccess += deletes.successful;
+        totalFailures += deletes.failed;
+        totalSkipped += deletes.skipped;
+        failureDetails.push(...(deletes.failureDetails || []));
+        warningDetails.push(...(deletes.warningDetails || []));
+        phases.push({
+          operation: "syncDeletes",
+          description: "Delete entities deleted in the source",
+          successful: deletes.successful,
+          failed: deletes.failed,
+          skipped: deletes.skipped,
+          status: deletes.status === "error" ? "error" : "success",
+        });
+      }
+
+      // List order runs after content and deletes, and before auto-publish (which copies each
+      // item's order into its new published version). A list is changed only when its order
+      // differs from the source's.
+      if (elements.includes("Content")) {
+        const { runSyncListOrder } = await import("../list-order/sync-list-order");
+        const order = await runSyncListOrder(
+          { sourceGuid, targetGuid, locales },
+          isScoped ? scopedContent : undefined,
+          publishableContentIdsByLocale
+        );
+        totalSuccess += order.successful;
+        totalFailures += order.failed;
+        totalSkipped += order.skipped;
+        failureDetails.push(...(order.failureDetails || []));
+        warningDetails.push(...(order.warningDetails || []));
+        phases.push({
+          operation: "listOrder",
+          description: "Put synced content lists in the source's item order",
+          successful: order.successful,
+          failed: order.failed,
+          skipped: order.skipped,
+          status: order.status === "error" ? "error" : "success",
+        });
       }
 
       return {
