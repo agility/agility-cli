@@ -14,6 +14,10 @@ import { collectContentIDReferences } from "./collect-content-id-references";
  *   reference (fullList=true) or a single-item reference (contentid/sortids). Linked
  *   items are pushed FIRST so their source→target contentID mapping exists before the
  *   referencing item's fields are remapped (PROD-2341).
+ * Linked levels: the linked items split into dependency levels, leaves first (PROD-3025).
+ *   Level 0 references no other linked item; level n references something at level n-1.
+ *   Each level is pushed as its own batch, so every mapping a level needs already exists.
+ *   Items in a reference cycle share one level (their references to each other can't resolve).
  * Skipped items: Items without valid container/model mappings
  */
 export function getContentItemTypes(
@@ -27,6 +31,7 @@ export function getContentItemTypes(
 ): {
   normalContentItems: ContentItem[];
   linkedContentItems: ContentItem[];
+  linkedContentLevels: ContentItem[][];
   skippedItems: ContentItem[];
 } {
   const { containerMapper, modelMapper } = opts;
@@ -71,7 +76,9 @@ export function getContentItemTypes(
   // Build final result arrays
   const { normalContentItems, linkedContentItems } = buildResultArrays(normalSet, linkedSet, allItemsById);
 
-  return { normalContentItems, linkedContentItems, skippedItems: skipped };
+  const linkedContentLevels = buildLinkedLevels(linkedSet, itemsByReferenceName, allItemsById, modelMapper);
+
+  return { normalContentItems, linkedContentItems, linkedContentLevels, skippedItems: skipped };
 }
 
 /**
@@ -192,6 +199,100 @@ function markReferencedItems(
       }
     }
   }
+}
+
+/**
+ * Splits the linked items into dependency levels, leaves first (PROD-3025).
+ *
+ * Only references between linked items count: a reference to anything else is either already
+ * mapped or can't be resolved by ordering. Self-references are ignored. Cycles are collapsed
+ * with Tarjan's strongly-connected-components algorithm, so the levels come from a DAG and work
+ * at any depth. Tarjan emits a component only after every component it reaches, so each one's
+ * level is known from its dependencies' levels as it is emitted. Iterative, so a long chain
+ * can't overflow the call stack.
+ */
+function buildLinkedLevels(
+  linkedSet: Set<number>,
+  itemsByReferenceName: Map<string, ContentItem[]>,
+  allItemsById: Map<number, ContentItem>,
+  modelMapper: ModelMapper
+): ContentItem[][] {
+  const linkedIds = Array.from(linkedSet);
+  const depsById = new Map<number, number[]>();
+  for (const id of linkedIds) {
+    const deps = collectReferencedContentIDs(allItemsById.get(id)!, itemsByReferenceName, allItemsById, modelMapper);
+    depsById.set(id, Array.from(new Set(deps)).filter((dep) => dep !== id && linkedSet.has(dep)));
+  }
+
+  const indexOf = new Map<number, number>();
+  const lowLink = new Map<number, number>();
+  const onStack = new Set<number>();
+  const componentStack: number[] = [];
+  const levelOf = new Map<number, number>();
+  let nextIndex = 0;
+
+  const visit = (id: number) => {
+    indexOf.set(id, nextIndex);
+    lowLink.set(id, nextIndex);
+    nextIndex++;
+    componentStack.push(id);
+    onStack.add(id);
+  };
+
+  for (const root of linkedIds) {
+    if (indexOf.has(root)) continue;
+    visit(root);
+    const work: Array<{ id: number; next: number }> = [{ id: root, next: 0 }];
+
+    while (work.length > 0) {
+      const frame = work[work.length - 1];
+      const deps = depsById.get(frame.id)!;
+
+      if (frame.next < deps.length) {
+        const dep = deps[frame.next++];
+        if (!indexOf.has(dep)) {
+          visit(dep);
+          work.push({ id: dep, next: 0 });
+        } else if (onStack.has(dep)) {
+          lowLink.set(frame.id, Math.min(lowLink.get(frame.id)!, indexOf.get(dep)!));
+        }
+        continue;
+      }
+
+      work.pop();
+      if (work.length > 0) {
+        const parent = work[work.length - 1];
+        lowLink.set(parent.id, Math.min(lowLink.get(parent.id)!, lowLink.get(frame.id)!));
+      }
+      if (lowLink.get(frame.id) !== indexOf.get(frame.id)) continue;
+
+      // frame.id roots a component: pop its members, then place it one level above its deepest dependency
+      const members: number[] = [];
+      let member: number;
+      do {
+        member = componentStack.pop()!;
+        onStack.delete(member);
+        members.push(member);
+      } while (member !== frame.id);
+
+      const memberSet = new Set(members);
+      let level = 0;
+      for (const id of members) {
+        for (const dep of depsById.get(id)!) {
+          if (!memberSet.has(dep)) level = Math.max(level, levelOf.get(dep)! + 1);
+        }
+      }
+      for (const id of members) levelOf.set(id, level);
+    }
+  }
+
+  // Group in linkedSet order so the output is deterministic
+  const levels: ContentItem[][] = [];
+  for (const id of linkedIds) {
+    const level = levelOf.get(id)!;
+    (levels[level] ||= []).push(allItemsById.get(id)!);
+  }
+  return levels.filter(Boolean);
 }
 
 /**
