@@ -55,3 +55,11 @@ export interface UrlRedirectionSaveResult {
   updated: UrlRedirectionItemResult[];
   skipped: UrlRedirectionItemResult[];
 }
+
+/** Response of DELETE /api/v1/instance/{guid}/url-redirections?ids=... */
+export interface UrlRedirectionDeleteResult {
+  /** IDs of the redirections that were deleted. */
+  deleted: number[];
+  /** IDs that did not match an active redirection. */
+  notFound: number[];
+}
