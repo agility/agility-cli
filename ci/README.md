@@ -29,15 +29,39 @@ gh run rerun <run-id>                                                    # re-ru
 
 ## What it checks
 
-Today (the first slice):
+A run first syncs source **A** to target **B**, then runs rounds of changes in alternating
+directions:
 
-- **First sync:** `sync` exits 0 and its `--jsonSummary` reports no failed items.
-- **verify:** `agility verify` reports that the target matches the source (exit 0).
-- **Nothing left to sync:** an immediate `sync --preflight` plans no creates, updates or conflicts.
+- **Odd rounds** edit A and `sync` A → B.
+- **Even rounds** edit B and `reverse-sync` B → A.
+- **Every round** also edits the other instance (drift) and one item on both sides (a conflict).
 
-Each check is a row in the run's job summary. The JSON results are kept as an artifact for 30 days.
-Later slices add generated sources, rounds of changes on both sides, more target types, and
-reverse, round-trip and chained syncs.
+The changes, in `ci/permutation/changes.mjs`, are discovered from whatever each instance holds:
+
+| Area       | Changes                                                                                            |
+| ---------- | -------------------------------------------------------------------------------------------------- |
+| Content    | edit, add, add a linked item together with an item that links to it, delete, publish and unpublish |
+| Ordering   | swap two items in a list; reverse the components in a page zone                                    |
+| Pages      | edit title and menu text, add a page, delete it later                                              |
+| Components | remove one from a zone                                                                             |
+| Models     | add a field, change a label, rename a field                                                        |
+
+The `quick` tier runs a fixed set covering every area in two rounds. `beta` (4 rounds) and `nightly`
+(6 rounds) pick changes at random from a seed printed in the summary. Replay one with
+`gh workflow run sync-permutation.yml -f tier=nightly -f seed=<seed>`.
+
+After every sync it checks:
+
+- **sync:** exit 0 and no failed items in `--jsonSummary`;
+- **verify:** `agility verify` finds no differences;
+- **noop:** a `--preflight` in the same direction plans no creates, updates or conflicts;
+- **conflict:** the item edited on both sides ends at the synced side's value, or the sync reported a
+  conflict;
+- **drift:** an edit made only on the receiving side is overwritten, or reported, never silently kept;
+- **apply:** the change itself could be made.
+
+Nothing stops a run early: every round runs, and each check is a row in the job summary. The JSON
+results are kept as an artifact for 30 days.
 
 ## Promotion to `latest`
 
