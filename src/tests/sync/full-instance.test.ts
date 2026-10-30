@@ -15,6 +15,10 @@ import { SyncHarness } from "./helpers/run-sync";
 import { installNetworkStubs, InstalledNetworkStubs } from "./helpers/network-stubs";
 import { ALL_ELEMENTS, ALL_OPERATIONS, FIXTURE_LOCALE, fullInstanceFixture, MODEL_POST } from "./helpers/full-instance-fixture";
 
+// The post-push list order phase (PROD-2992) runs after the eight push phases; it's asserted on its own.
+const LIST_ORDER = "listOrder";
+const pushPhases = <T extends { operation: string }>(phases: T[]) => phases.filter((p) => p.operation !== LIST_ORDER);
+
 jest.mock("lib/pushers/batch-polling", () => ({
   pollBatchUntilComplete: jest.fn(),
   extractContentBatchResults: jest.fn(),
@@ -61,8 +65,19 @@ describe("full instance — all eight phases", () => {
 
       // A phase missing from the run entirely is the failure mode where an --elements typo,
       // or an unreachable loop, removes a whole entity type without anything going red.
-      expect(run.phases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS]);
-      expect(run.ranPhases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS]);
+      expect(run.phases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS, LIST_ORDER]);
+      expect(run.ranPhases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS, LIST_ORDER]);
+    });
+
+    it("runs list order after the push phases without failing", async () => {
+      harness = makeHarness();
+
+      const run = await harness.run();
+      const listOrder = run.phases.find((p) => p.operation === LIST_ORDER)!;
+
+      // One new item in a one-item list: the phase asks for the source order and nothing moves.
+      expect(listOrder.failed).toBe(0);
+      expect(harness.fake.callsTo("contentMethods.setContentListItemOrder")).toHaveLength(1);
     });
 
     it("creates exactly one entity in each phase and fails none", async () => {
@@ -70,7 +85,7 @@ describe("full instance — all eight phases", () => {
 
       const run = await harness.run();
 
-      run.phases.forEach((phase) => {
+      pushPhases(run.phases).forEach((phase) => {
         expect({ op: phase.operation, ok: phase.successful, failed: phase.failed }).toEqual({
           op: phase.operation,
           ok: 1,
@@ -139,7 +154,7 @@ describe("full instance — all eight phases", () => {
 
       const run2 = await harness.resync();
 
-      run2.phases.forEach((phase) => {
+      pushPhases(run2.phases).forEach((phase) => {
         expect({ op: phase.operation, ok: phase.successful, skip: phase.skipped, failed: phase.failed }).toEqual({
           op: phase.operation,
           ok: 0,
@@ -155,8 +170,19 @@ describe("full instance — all eight phases", () => {
 
       await harness.resync();
 
-      const writes = harness.fake.calls.filter((c) => /save|axios\.post/i.test(c.method));
+      const writes = harness.fake.calls.filter((c) => /save|axios\.post|setContentListItemOrder/i.test(c.method));
       expect(writes.map((c) => c.method)).toEqual([]);
+    });
+
+    it("leaves list order alone: the target is already in the source's order", async () => {
+      harness = makeHarness();
+      await harness.run();
+
+      const run2 = await harness.resync();
+
+      // resync() starts a fresh call log, so this is run 2's calls only.
+      expect(harness.fake.callsTo("contentMethods.setContentListItemOrder")).toHaveLength(0);
+      expect(run2.phases.find((p) => p.operation === LIST_ORDER)).toMatchObject({ successful: 0, failed: 0, skipped: 0 });
     });
 
     it("leaves the mapping tree identical to run 1", async () => {
@@ -216,7 +242,7 @@ describe("full instance — all eight phases", () => {
       const models = run2.phases.find((p) => p.operation === "pushModels")!;
       expect(models.successful).toBe(1);
 
-      run2.phases
+      pushPhases(run2.phases)
         .filter((p) => p.operation !== "pushModels")
         .forEach((phase) => {
           expect({ op: phase.operation, ok: phase.successful, skip: phase.skipped }).toEqual({

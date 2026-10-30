@@ -285,6 +285,28 @@ export class FakeInstance {
   private lastPageSaveIds: number[] = [];
 
   contentMethods = {
+    /** Like the API: listed items first, the rest after in their order, renumbered 0..n-1 (skipUnknownIds semantics). */
+    setContentListItemOrder: async (referenceName: string, guid: string, locale: string, contentIDs: number[], skipUnknownIds = false) => {
+      this.record("contentMethods.setContentListItemOrder", guid, { referenceName, contentIDs, skipUnknownIds }, locale);
+      const items = Array.from(this.instance(guid).content.entries())
+        .filter(([key, item]) => key.startsWith(`${locale}:`) && `${item?.properties?.referenceName}`.toLowerCase() === referenceName.toLowerCase())
+        .map(([, item]) => item)
+        .sort((a, b) => (a.properties?.itemOrder ?? Infinity) - (b.properties?.itemOrder ?? Infinity) || a.contentID - b.contentID);
+      const inList = new Set(items.map((i) => i.contentID));
+      const skipped = contentIDs.filter((id) => !inList.has(id));
+      if (skipped.length > 0 && !skipUnknownIds) throw new Error(`Content IDs not in ${referenceName}: ${skipped.join(", ")}`);
+      const listed = contentIDs.filter((id) => inList.has(id));
+      const order = [...listed, ...items.map((i) => i.contentID).filter((id) => !listed.includes(id))];
+      const updated: number[] = [];
+      order.forEach((id, index) => {
+        const item = items.find((i) => i.contentID === id)!;
+        if (item.properties?.itemOrder !== index) {
+          item.properties = { ...item.properties, itemOrder: index };
+          updated.push(id);
+        }
+      });
+      return { contentIDs: order, itemsUpdated: updated.length, updatedContentIDs: updated, skippedContentIDs: skipped };
+    },
     deleteContent: async (id: number, guid: string, locale: string) => {
       this.record("contentMethods.deleteContent", guid, { id }, locale);
       this.instance(guid).content.delete(`${locale}:${id}`);

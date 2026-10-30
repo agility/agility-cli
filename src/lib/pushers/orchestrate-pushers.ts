@@ -346,6 +346,10 @@ export class Pushers {
       console.error(ansiColors.yellow(`Warning during guid-level operations: ${error?.message || error}`));
     }
 
+    // List order (PROD-2992) only touches a scoped run's lists, so keep the content each locale pushed.
+    const isScoped = Object.keys(filterOptions).length > 0;
+    const scopedContent = new Map<string, any[]>();
+
     // Do the locale level ops
     try {
       for (const config of pusherConfig) {
@@ -357,6 +361,7 @@ export class Pushers {
             Object.keys(filterOptions).length > 0 ? filterOptions : undefined
           );
           const targetData = await targetDataLoader.loadGuidEntities(locale);
+          if (config === PUSH_OPERATIONS.content && isScoped) scopedContent.set(locale, sourceData.content || []);
 
           // Track IDs for this specific locale
           const localeContentIds: number[] = [];
@@ -414,6 +419,27 @@ export class Pushers {
           failed: deletes.failed,
           skipped: deletes.skipped,
           status: deletes.status === "error" ? "error" : "success",
+        });
+      }
+
+      // List order runs after content and deletes, and before auto-publish (which copies each
+      // item's order into its new published version). A list is changed only when its order
+      // differs from the source's.
+      if (elements.includes("Content")) {
+        const { runSyncListOrder } = await import("../list-order/sync-list-order");
+        const order = await runSyncListOrder({ sourceGuid, targetGuid, locales }, isScoped ? scopedContent : undefined);
+        totalSuccess += order.successful;
+        totalFailures += order.failed;
+        totalSkipped += order.skipped;
+        failureDetails.push(...(order.failureDetails || []));
+        warningDetails.push(...(order.warningDetails || []));
+        phases.push({
+          operation: "listOrder",
+          description: "Put synced content lists in the source's item order",
+          successful: order.successful,
+          failed: order.failed,
+          skipped: order.skipped,
+          status: order.status === "error" ? "error" : "success",
         });
       }
 

@@ -187,6 +187,15 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --autoPublish=pages
 
 ## Advanced Topics
 
+### List Order
+
+A sync puts each synced content list on the target in the source's item order. It runs after content (and `--syncDeletes`), and only changes a list whose order differs from the source's, including when a reorder was the only change in the source.
+
+- The new order applies to the target's staging and live list at once. No item gets a new version, so nothing needs publishing for the order to show.
+- Items that exist only on the target keep their relative order after the synced ones.
+- A scoped run (`--pages`, `--containers`, `--models`) only orders the lists its content is in, but sends every synced item of those lists, so their order stays whole.
+- `--preflight` lists the lists it would reorder under a `List order` phase, and `--jsonSummary` reports them as the `listOrder` phase.
+
 ### Auto-Publish
 
 The `--autoPublish` flag lets you automatically publish synced content and/or pages in the target instance immediately after a sync completes. Only items that are **published in the source instance** will be published in the target — staging-only items are skipped.
