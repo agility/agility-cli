@@ -10,6 +10,7 @@ import { ContentItem, Model } from "@agility/management-sdk";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { getApiClient } from "core/state";
 import { reportForeignCdnReferences } from "./util/report-foreign-cdn-references";
+import { BatchProcessingResult } from "./util/types";
 
 /**
  * Push content to the target instance
@@ -33,8 +34,9 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
     return { status: "success" as const, successful: 0, failed: 0, skipped: 0, publishableIds: [], failureDetails: [] };
   }
 
-  // Deterministically classify content items based on list references (fulllist=true)
-  const { normalContentItems, linkedContentItems, skippedItems } = getContentItemTypes(contentItems, {
+  // Deterministically classify content items by references: linked (referenced, split into
+  // dependency levels), normal (unreferenced) and skipped (missing mappings)
+  const { normalContentItems, linkedContentItems, linkedContentLevels, skippedItems } = getContentItemTypes(contentItems, {
     containerMapper,
     modelMapper,
     referenceMapper,
@@ -99,6 +101,30 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
     }
   };
 
+  // Fold one processBatches result into the totals; register each failure so the next pass's
+  // parents and the page pusher can say why their reference is unresolved.
+  const recordBatchResult = (result: BatchProcessingResult): void => {
+    totalSuccessful += result.successCount;
+    totalFailed += result.failureCount;
+    totalSkipped += result.skippedCount;
+    allPublishableIds.push(...result.publishableIds);
+    for (const item of result.failedItems || []) {
+      const name = item.originalContent?.properties?.referenceName || "Unknown";
+      const contentID = item.originalContent?.contentID;
+      allFailureDetails.push({
+        name,
+        error: item.error,
+        type: "content",
+        contentID,
+        guid: sourceGuidStr,
+        locale,
+      });
+      if (contentID) {
+        registerFailedContent(contentID, name, item.error, locale);
+      }
+    }
+  };
+
   try {
     // Import getApiClient for both batch configurations
 
@@ -107,7 +133,8 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
       totalSkipped += skippedItems.length;
     }
 
-    // Process linked content items second (with dependencies)
+    // Process linked content items first, one dependency level at a time (leaves first), so
+    // the mappings each level references were written by an earlier level (PROD-3025).
     if (linkedContentItems.length > 0) {
       const linkedBatchConfig = {
         apiClient: getApiClient(),
@@ -139,37 +166,13 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
         totalSuccessful += filteredLinkedContentItems.itemsToProcess.length;
         totalSkipped += filteredLinkedContentItems.skippedCount;
       } else {
-      const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
-      const linkedResult = await linkedBatchProcessor.processBatches(
-        filteredLinkedContentItems.itemsToProcess.reverse(),
-        logger,
-        "Linked Content"
-      );
-
-      totalSuccessful += linkedResult.successCount;
-      totalFailed += linkedResult.failureCount;
-      totalSkipped += filteredLinkedContentItems.skippedCount;
-      totalSkipped += linkedResult.skippedCount;
-      allPublishableIds.push(...linkedResult.publishableIds);
-      // Collect failure details for error summary and register in failed content registry
-      if (linkedResult.failedItems && linkedResult.failedItems.length > 0) {
-        linkedResult.failedItems.forEach((item) => {
-          const name = item.originalContent?.properties?.referenceName || "Unknown";
-          const contentID = item.originalContent?.contentID;
-          allFailureDetails.push({
-            name,
-            error: item.error,
-            type: "content",
-            contentID,
-            guid: sourceGuidStr,
-            locale,
-          });
-          // Register in global registry so page pusher can provide better error messages
-          if (contentID) {
-            registerFailedContent(contentID, name, item.error, locale);
-          }
-        });
-      }
+        totalSkipped += filteredLinkedContentItems.skippedCount;
+        const levels = splitIntoLevels(filteredLinkedContentItems.itemsToProcess, linkedContentLevels);
+        const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
+        for (let i = 0; i < levels.length; i++) {
+          const label = levels.length > 1 ? `Linked Content (level ${i + 1}/${levels.length})` : "Linked Content";
+          recordBatchResult(await linkedBatchProcessor.processBatches(levels[i], logger, label));
+        }
       }
     }
 
@@ -202,37 +205,15 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
         totalSuccessful += filteredNormalContentItems.itemsToProcess.length;
         totalSkipped += filteredNormalContentItems.skippedCount;
       } else {
-      const normalBatchProcessor = new ContentBatchProcessor(normalBatchConfig);
-      const normalResult = await normalBatchProcessor.processBatches(
-        filteredNormalContentItems.itemsToProcess as ContentItem[],
-        logger,
-        "Normal Content"
-      );
+        const normalBatchProcessor = new ContentBatchProcessor(normalBatchConfig);
+        const normalResult = await normalBatchProcessor.processBatches(
+          filteredNormalContentItems.itemsToProcess as ContentItem[],
+          logger,
+          "Normal Content"
+        );
 
-      totalSuccessful += normalResult.successCount;
-      totalFailed += normalResult.failureCount;
-      totalSkipped += filteredNormalContentItems.skippedCount;
-      totalSkipped += normalResult.skippedCount;
-      allPublishableIds.push(...normalResult.publishableIds);
-      // Collect failure details for error summary and register in failed content registry
-      if (normalResult.failedItems && normalResult.failedItems.length > 0) {
-        normalResult.failedItems.forEach((item) => {
-          const name = item.originalContent?.properties?.referenceName || "Unknown";
-          const contentID = item.originalContent?.contentID;
-          allFailureDetails.push({
-            name,
-            error: item.error,
-            type: "content",
-            contentID,
-            guid: sourceGuidStr,
-            locale,
-          });
-          // Register in global registry so page pusher can provide better error messages
-          if (contentID) {
-            registerFailedContent(contentID, name, item.error, locale);
-          }
-        });
-      }
+        totalSkipped += filteredNormalContentItems.skippedCount;
+        recordBatchResult(normalResult);
       }
     }
 
@@ -256,4 +237,23 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
       failureDetails: [...allFailureDetails, { name: "Batch processing", error: batchError.message }],
     };
   }
+}
+
+/**
+ * Groups the items left after filtering by their dependency level (PROD-3025), dropping levels
+ * the filter emptied. An item missing from every level goes last, after everything it could need.
+ */
+export function splitIntoLevels(items: ContentItem[], levels: ContentItem[][]): ContentItem[][] {
+  const levelById = new Map<number, number>();
+  levels.forEach((level, i) => level.forEach((item) => levelById.set(item.contentID, i)));
+
+  const grouped: ContentItem[][] = levels.map(() => []);
+  const unplaced: ContentItem[] = [];
+  for (const item of items) {
+    const level = levelById.get(item.contentID);
+    if (level === undefined) unplaced.push(item);
+    else grouped[level].push(item);
+  }
+  grouped.push(unplaced);
+  return grouped.filter((level) => level.length > 0);
 }

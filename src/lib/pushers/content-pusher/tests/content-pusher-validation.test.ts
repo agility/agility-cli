@@ -99,20 +99,14 @@ describe("pushContent — client-side validation failures (PROD-2542)", () => {
     const normalGood = item(2);
     mockTypes.mockReturnValue({
       linkedContentItems: [linkedBad],
+      linkedContentLevels: [[linkedBad]],
       normalContentItems: [normalBad, normalGood],
       skippedItems: [],
     });
     mockFilter
       .mockResolvedValueOnce(filterResult([], [invalid(linkedBad)]))
       .mockResolvedValueOnce(filterResult([normalGood], [invalid(normalBad)]));
-    mockProcessBatches.mockResolvedValueOnce({
-      successCount: 0,
-      failureCount: 0,
-      skippedCount: 0,
-      successfulItems: [],
-      failedItems: [],
-      publishableIds: [],
-    });
+    // The linked tier is empty after filtering, so only the normal pass reaches the batch processor.
     mockProcessBatches.mockResolvedValueOnce({
       successCount: 1,
       failureCount: 0,
@@ -157,7 +151,7 @@ describe("pushContent — client-side validation failures (PROD-2542)", () => {
   it("registers a failure (locale-scoped) before the next pass runs", async () => {
     const linkedBad = item(10, "linked-bad");
     const parent = item(20, "parent");
-    mockTypes.mockReturnValue({ linkedContentItems: [linkedBad], normalContentItems: [parent], skippedItems: [] });
+    mockTypes.mockReturnValue({ linkedContentItems: [linkedBad], linkedContentLevels: [[linkedBad]], normalContentItems: [parent], skippedItems: [] });
     let seenDuringNormalPass: any;
     mockFilter.mockResolvedValueOnce(filterResult([], [invalid(linkedBad)])).mockImplementationOnce(async () => {
       seenDuringNormalPass = getFailedContent(10, "en-us");
@@ -180,7 +174,7 @@ describe("pushContent — client-side validation failures (PROD-2542)", () => {
     setState({ preflight: true });
     const bad = item(12942);
     const good = item(2);
-    mockTypes.mockReturnValue({ linkedContentItems: [], normalContentItems: [bad, good], skippedItems: [] });
+    mockTypes.mockReturnValue({ linkedContentItems: [], linkedContentLevels: [], normalContentItems: [bad, good], skippedItems: [] });
     mockFilter.mockResolvedValueOnce(filterResult([good], [invalid(bad)]));
 
     const result = await pushContent([bad, good], [], "en-us");
