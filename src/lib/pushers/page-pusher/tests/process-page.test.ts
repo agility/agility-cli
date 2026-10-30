@@ -353,6 +353,33 @@ describe("processPage — successful batch save", () => {
     expect(result.status).toBe("success");
   });
 
+  describe("title (PROD-3043)", () => {
+    function savedTitle(page: any): Promise<any> {
+      const { TemplateMapper } = require("lib/mappers/template-mapper");
+      TemplateMapper.mockImplementation(() => ({
+        getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+        getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
+      }));
+      mockPoll.mockResolvedValue({ failedItems: [], successItems: [makePage({ pageID: 200 })] });
+      mockExtract.mockReturnValue({ successfulItems: [{ newId: 200, newItem: { processedItemVersionID: 5 } }], failedItems: [] });
+      const props = makeProps({ page, pageMapper: makePageMapper({ hasSourceChanged: jest.fn().mockReturnValue(true) }) });
+      return processPage(props).then(() => props.apiClient.pageMethods.savePage.mock.calls[0][0].title);
+    }
+
+    it("sends a dynamic page's empty title as empty, not its name", async () => {
+      await expect(savedTitle(makePage({ pageType: "dynamic", name: "posts-dynamic", title: null, menuText: "Posts" }))).resolves.toBe("");
+    });
+
+    it("sends a dynamic page's own title when it has one", async () => {
+      await expect(savedTitle(makePage({ pageType: "dynamic", name: "posts-dynamic", title: "Posts" }))).resolves.toBe("Posts");
+    });
+
+    it("still falls back to the menu text or name for a static page without a title", async () => {
+      await expect(savedTitle(makePage({ title: null, menuText: "Menu" }))).resolves.toBe("Menu");
+      await expect(savedTitle(makePage({ title: "", menuText: null, name: "about" }))).resolves.toBe("about");
+    });
+  });
+
   it("calls pageMapper.addMapping after a successful save", async () => {
     const { TemplateMapper } = require("lib/mappers/template-mapper");
     TemplateMapper.mockImplementation(() => ({

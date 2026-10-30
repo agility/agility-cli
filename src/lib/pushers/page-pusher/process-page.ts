@@ -392,7 +392,9 @@ export async function processPage({
 
     // CRITICAL FIX: Ensure every page has a valid title field
     // Folder pages often don't have titles, but API requires them
-    const pageTitle = page.title || page.menuText || page.name || "Untitled Page";
+    // PROD-3043: except a dynamic page. Its title comes from dynamic.titleFormula, the API accepts
+    // it empty, and a source page without one must stay without one rather than take its name.
+    const pageTitle = page.pageType === "dynamic" ? (page.title ?? "") : page.title || page.menuText || page.name || "Untitled Page";
 
     const pageJSON = JSON.stringify(page, null, 2);
     const pageCopy = JSON.parse(pageJSON) as mgmtApi.PageItem; // Create a copy to avoid modifying original
