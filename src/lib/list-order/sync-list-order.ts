@@ -9,8 +9,9 @@
  *
  * Planning is pure (planListOrders) and works from the local pulls plus the mapping files, so
  * preflight can report what would change. Only lists whose expected order differs from the target's
- * pulled order are sent; a list that gained an item this run always differs, since the new item is
- * not in the pull.
+ * pulled order are sent, and lists that gained an item this run (it isn't in the pull yet). A mapped
+ * item missing from the pull that this run didn't save is a stale mapping, not a new item: it doesn't
+ * make the list differ, or every run would send that list again.
  */
 
 import ansiColors from "ansi-colors";
@@ -83,6 +84,8 @@ function groupByList(items: ListItem[]): Map<string, ListItem[]> {
  * @param contentMap    source content ID -> target content ID, from the locale's item mappings
  * @param containerMap  source list reference name (lower case) -> target reference name, from the container mappings
  * @param scope         when set, only these source lists (lower case) are considered, e.g. a scoped run's
+ * @param savedThisRun  target content IDs this run saved; a mapped item missing from the target pull
+ *   only counts as new when it's one of these
  */
 export function planListOrders(
   locale: string,
@@ -90,7 +93,8 @@ export function planListOrders(
   targetItems: ListItem[],
   contentMap: Map<number, number>,
   containerMap: Map<string, string>,
-  scope?: Set<string>
+  scope?: Set<string>,
+  savedThisRun: Set<number> = new Set()
 ): ListOrderPlan[] {
   const sourceLists = groupByList(sourceItems);
   const targetLists = groupByList(targetItems);
@@ -116,9 +120,9 @@ export function planListOrders(
     const listed = new Set(contentIDs);
     const expected = [...contentIDs.filter((id) => currentIDs.includes(id)), ...currentIDs.filter((id) => !listed.has(id))];
 
-    const missing = contentIDs.some((id) => !currentIDs.includes(id)); // e.g. created this run
+    const added = contentIDs.some((id) => !currentIDs.includes(id) && savedThisRun.has(id));
     const differs = expected.some((id, i) => id !== currentIDs[i]);
-    if (!missing && !differs && hasDefinedOrder(current)) continue;
+    if (!added && !differs && hasDefinedOrder(current)) continue;
 
     plans.push({ locale, sourceReferenceName: items[0].properties!.referenceName!, targetReferenceName, contentIDs });
   }
@@ -156,10 +160,12 @@ export function containerMapFrom(records: any[], targetLists: string[] = []): Ma
  *
  * @param scopedContent per locale, the source content a scoped run (--pages/--containers/--models)
  *   pushed; only their lists are ordered. Omit for a full run.
+ * @param savedContentIDs per locale, the target content IDs this run saved.
  */
 export async function runSyncListOrder(
   opts: ListOrderOptions,
-  scopedContent?: Map<string, ListItem[]>
+  scopedContent?: Map<string, ListItem[]>,
+  savedContentIDs?: Map<string, number[]>
 ): Promise<PusherResult> {
   const logger = getLoggerForGuid(opts.sourceGuid);
   const result: PusherResult = { successful: 0, failed: 0, skipped: 0, status: "success", failureDetails: [], warningDetails: [] };
@@ -187,7 +193,8 @@ export async function runSyncListOrder(
         target.content || [],
         contentMapFrom(Array.isArray(itemRecords) ? itemRecords : []),
         containerMapFrom(Array.isArray(containerRecords) ? containerRecords : [], targetLists as string[]),
-        scope
+        scope,
+        new Set(savedContentIDs?.get(locale) || [])
       )
     );
   }

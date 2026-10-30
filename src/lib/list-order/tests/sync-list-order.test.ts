@@ -44,9 +44,22 @@ describe("planListOrders", () => {
   });
 
   it("includes a list that gained an item this run (not in the target pull yet)", () => {
-    const plans = planListOrders(LOCALE, [item(1, 0), item(2, 1)], [item(102, 0)], contentMap(1, 2), containerMap);
+    const plans = planListOrders(LOCALE, [item(1, 0), item(2, 1)], [item(102, 0)], contentMap(1, 2), containerMap, undefined, new Set([101]));
 
     expect(plans[0].contentIDs).toEqual([101, 102]);
+  });
+
+  it("ignores a stale mapping: a mapped item this run didn't save and the target doesn't have", () => {
+    // 101 is mapped but gone from the target; 102 and 103 are already in order.
+    const plans = planListOrders(LOCALE, [item(1, 0), item(2, 1), item(3, 2)], [item(102, 0), item(103, 1)], contentMap(1, 2, 3), containerMap);
+
+    expect(plans).toEqual([]);
+  });
+
+  it("still reorders around a stale mapping when the rest is out of order", () => {
+    const plans = planListOrders(LOCALE, [item(1, 0), item(2, 1), item(3, 2)], [item(103, 0), item(102, 1)], contentMap(1, 2, 3), containerMap);
+
+    expect(plans[0].contentIDs).toEqual([101, 102, 103]);
   });
 
   it("counts target-only items: in order when they already sit after the synced ones", () => {
@@ -73,7 +86,9 @@ describe("planListOrders", () => {
       [item(3, null), item(2, 0), item(1, null)],
       [],
       contentMap(1, 2, 3),
-      containerMap
+      containerMap,
+      undefined,
+      new Set([101, 102, 103])
     );
 
     expect(plans[0].contentIDs).toEqual([102, 101, 103]);
@@ -92,7 +107,7 @@ describe("planListOrders", () => {
   });
 
   it("keeps the first position when two source items map to one target item", () => {
-    const plans = planListOrders(LOCALE, [item(1, 0), item(2, 1), item(3, 2)], [], new Map([[1, 101], [2, 103], [3, 103]]), containerMap);
+    const plans = planListOrders(LOCALE, [item(1, 0), item(2, 1), item(3, 2)], [], new Map([[1, 101], [2, 103], [3, 103]]), containerMap, undefined, new Set([101, 103]));
 
     expect(plans[0].contentIDs).toEqual([101, 103]);
   });

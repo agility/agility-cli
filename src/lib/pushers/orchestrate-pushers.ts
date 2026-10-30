@@ -427,7 +427,11 @@ export class Pushers {
       // differs from the source's.
       if (elements.includes("Content")) {
         const { runSyncListOrder } = await import("../list-order/sync-list-order");
-        const order = await runSyncListOrder({ sourceGuid, targetGuid, locales }, isScoped ? scopedContent : undefined);
+        const order = await runSyncListOrder(
+          { sourceGuid, targetGuid, locales },
+          isScoped ? scopedContent : undefined,
+          publishableContentIdsByLocale
+        );
         totalSuccess += order.successful;
         totalFailures += order.failed;
         totalSkipped += order.skipped;
