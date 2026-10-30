@@ -64,6 +64,8 @@ export interface RunSyncOptions {
   fixture: SyncFixture;
   /** Pre-seed the fake's target instance, for entities that exist server-side already. */
   seedTarget?: (fake: FakeInstance, targetGuid: string) => void;
+  /** Extra CLI state for every run (e.g. { syncDeletes: true }). Can be changed between runs. */
+  stateOverrides?: Record<string, any>;
 }
 
 export interface SyncRun {
@@ -84,6 +86,8 @@ export class SyncHarness {
   private readonly elements: string;
   private readonly overwrite: boolean;
   private readonly preflight: boolean;
+  /** Extra CLI state applied on every run; reassign between runs to change flags for run 2. */
+  stateOverrides: Record<string, any>;
 
   constructor(opts: RunSyncOptions) {
     this.sourceGuid = opts.sourceGuid ?? "src-1";
@@ -92,6 +96,7 @@ export class SyncHarness {
     this.elements = opts.elements ?? "Models,Containers,Content";
     this.overwrite = opts.overwrite ?? false;
     this.preflight = opts.preflight ?? false;
+    this.stateOverrides = opts.stateOverrides ?? {};
 
     this.rootPath = fs.mkdtempSync(path.join(os.tmpdir(), "agility-sync-harness-"));
     this.fake = new FakeInstance({ locales: this.locales });
@@ -130,6 +135,7 @@ export class SyncHarness {
       elements: this.elements,
       overwrite: this.overwrite,
       preflight: this.preflight,
+      ...this.stateOverrides,
     });
     state.cachedApiClient = this.fake.asApiClient();
     state.availableLocales = [...this.locales];
