@@ -124,6 +124,37 @@ describe("--syncDeletes through the orchestrator", () => {
     expect(run2.phases.find((p) => p.operation === "syncDeletes")).toMatchObject({ successful: 2, failed: 0 });
   });
 
+  it("deletes on reverse-sync too: what was deleted on the target goes from the source", async () => {
+    harness = new SyncHarness({ elements: "Models,Containers", fixture: fixture() });
+    await harness.run();
+    // A reverse run pushes into the original source, so give the fake the source's entities.
+    [POST_MODEL, AUTHOR_MODEL, NEWS_MODEL].forEach((m) => harness.fake.seedModel(harness.sourceGuid, { ...m }));
+    [POSTS_CONTAINER, AUTHORS_CONTAINER].forEach((c) => harness.fake.seedContainer(harness.sourceGuid, { ...c }));
+
+    // Delete Author and its container on the target, then pull the target (the reverse run's source).
+    const target = harness.fake.instance(harness.targetGuid);
+    const authorTarget = harness.readMappings("models")!.find((m) => m.sourceID === 11)!.targetID;
+    const authorsContainerTarget = harness.readMappings("containers")!.find((m) => m.sourceContentViewID === 201)!.targetContentViewID;
+    target.containers.delete(authorsContainerTarget);
+    target.models.delete(authorTarget);
+    fs.rmSync(path.join(harness.rootPath, harness.targetGuid), { recursive: true, force: true });
+    harness.fake.projectToDisk(harness.rootPath, harness.targetGuid);
+    harness.fake.resetCalls();
+
+    harness.reverse = true;
+    harness.stateOverrides = { syncDeletes: true };
+    const run2 = await harness.run();
+
+    const source = harness.fake.instance(harness.sourceGuid);
+    expect(source.models.has(11)).toBe(false);
+    expect(source.containers.has(201)).toBe(false);
+    expect(Array.from(source.models.keys()).sort()).toEqual([10, 12]);
+    expect(run2.phases.find((p) => p.operation === "syncDeletes")).toMatchObject({ successful: 2, failed: 0 });
+    // The mapping files keep the forward orientation (source = A) and lose the pair.
+    expect(harness.readMappings("models")!.map((m) => m.sourceID).sort()).toEqual([10, 12]);
+    expect(harness.readMappings("containers")!.map((m) => m.sourceContentViewID)).toEqual([200]);
+  });
+
   it("leaves source deletes alone without the flag", async () => {
     harness = new SyncHarness({ elements: "Models,Containers", fixture: fixture() });
     await harness.run();
