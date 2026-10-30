@@ -36,6 +36,10 @@ on:
         description: "Test this published @agility/cli version instead of building this branch"
         required: false
         default: ""
+      seed:
+        description: "Replay a run's random choices (printed in its summary); blank = new seed"
+        required: false
+        default: ""
 
 concurrency:
   group: sync-permutation-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
@@ -97,7 +101,7 @@ jobs:
       - name: Lease source and target
         id: lease
         run: |
-          case "$TIER" in quick) TTL=60 ;; beta) TTL=120 ;; *) TTL=240 ;; esac
+          case "$TIER" in quick) TTL=90 ;; beta) TTL=150 ;; *) TTL=240 ;; esac
           node ci/leases.mjs create "$LEASE_PREFIX" source:blog target:blank --ttl "$TTL" --timeout 900
 
   test:
@@ -105,7 +109,7 @@ jobs:
     needs: lease
     runs-on: ubuntu-latest
     environment: cli-dev-live
-    timeout-minutes: 50
+    timeout-minutes: ${{ (github.event_name == 'schedule' || inputs.tier == 'nightly') && 180 || 120 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -115,10 +119,13 @@ jobs:
           cache: "npm"
 
       # The CLI under test: this checkout, built; or a published version from npm.
+      # Always installed: the change engine (ci/permutation/changes.mjs) uses the Management SDK.
+      - name: Install dependencies
+        run: npm ci
+
       - name: Build this branch
         if: env.CLI_VERSION == ''
         run: |
-          npm ci
           npm run build
           echo "CLI=node $GITHUB_WORKSPACE/dist/index.js" >> "$GITHUB_ENV"
 
@@ -152,6 +159,7 @@ jobs:
           SOURCE_GUID: ${{ needs.lease.outputs.source_guid }}
           TARGET_GUID: ${{ needs.lease.outputs.target_guid }}
           OUT_DIR: ${{ runner.temp }}/permutation-out
+          SEED: ${{ inputs.seed }}
         run: node ci/permutation/run.mjs
 
       # Only the JSON results: anyone can download a public repo's artifacts, so the CLI's raw
