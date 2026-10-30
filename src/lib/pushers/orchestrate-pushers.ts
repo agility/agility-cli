@@ -402,6 +402,14 @@ export class Pushers {
         }
       }
 
+      // PROD-3042: a page save can bump the modified date of its components' containers. Advance the
+      // mappings of containers that were in sync before this run, so the next run doesn't see them
+      // as changed on the target.
+      if (phases.some((p) => p.operation === "pushPages" && p.successful > 0)) {
+        const { refreshContainerDatesAfterPageSaves } = await import("../mappers/refresh-container-dates");
+        await refreshContainerDatesAfterPageSaves(sourceGuid, targetGuid, locales[0]);
+      }
+
       // --syncDeletes runs last: every push has repointed what it could, so the targets that are
       // still only reachable from a deleted source can go, dependents first.
       if (state.syncDeletes) {
