@@ -218,6 +218,11 @@ export class FakeInstance {
   // ─── the mgmtApi.ApiClient surface ─────────────────────────────────────────
 
   modelMethods = {
+    deleteModel: async (id: number, guid: string) => {
+      this.record("modelMethods.deleteModel", guid, { id });
+      this.instance(guid).models.delete(id);
+      return "Model deleted successfully.";
+    },
     saveModel: async (model: any, guid: string) => {
       this.record("modelMethods.saveModel", guid, model);
       const store = this.instance(guid);
@@ -243,6 +248,11 @@ export class FakeInstance {
   };
 
   containerMethods = {
+    deleteContainer: async (id: number, guid: string) => {
+      this.record("containerMethods.deleteContainer", guid, { id });
+      this.instance(guid).containers.delete(id);
+      return "Container deleted successfully.";
+    },
     saveContainer: async (container: any, guid: string) => {
       this.record("containerMethods.saveContainer", guid, container);
       const store = this.instance(guid);
@@ -275,6 +285,11 @@ export class FakeInstance {
   private lastPageSaveIds: number[] = [];
 
   contentMethods = {
+    deleteContent: async (id: number, guid: string, locale: string) => {
+      this.record("contentMethods.deleteContent", guid, { id }, locale);
+      this.instance(guid).content.delete(`${locale}:${id}`);
+      return [3000 + this.callsTo("contentMethods.deleteContent").length];
+    },
     saveContentItems: async (items: any[], guid: string, locale: string) => {
       this.record("contentMethods.saveContentItems", guid, items, locale);
       const store = this.instance(guid);
@@ -309,6 +324,11 @@ export class FakeInstance {
   };
 
   assetMethods = {
+    deleteGallery: async (guid: string, id: number) => {
+      this.record("assetMethods.deleteGallery", guid, { id });
+      this.instance(guid).galleries.delete(id);
+      return "Gallery deleted successfully.";
+    },
     getMediaList: async (pageSize: number, recordOffset: number, guid: string) => {
       this.record("assetMethods.getMediaList", guid, { pageSize, recordOffset });
       // One page only: returning the full list on every call would loop forever if the
@@ -350,6 +370,9 @@ export class FakeInstance {
     },
     deleteFile: async (mediaID: number, guid: string) => {
       this.record("assetMethods.deleteFile", guid, { mediaID });
+      const assets = this.instance(guid).assets;
+      const index = assets.findIndex((a: any) => a.mediaID === mediaID);
+      if (index >= 0) assets.splice(index, 1);
       return true;
     },
     deleteFolder: async (originKey: string, guid: string) => {
@@ -359,6 +382,16 @@ export class FakeInstance {
   };
 
   pageMethods = {
+    deletePage: async (id: number, guid: string, locale: string) => {
+      this.record("pageMethods.deletePage", guid, { id }, locale);
+      this.instance(guid).pages.delete(`${locale}:${id}`);
+      return [4000 + this.callsTo("pageMethods.deletePage").length];
+    },
+    deletePageTemplate: async (guid: string, locale: string, id: number) => {
+      this.record("pageMethods.deletePageTemplate", guid, { id }, locale);
+      this.instance(guid).templates.delete(id);
+      return "Template deleted successfully.";
+    },
     getSitemap: async (guid: string, locale: string) => {
       this.record("pageMethods.getSitemap", guid, undefined, locale);
       return this.instance(guid).sitemap;
@@ -398,6 +431,15 @@ export class FakeInstance {
     batchWorkflowPages: async (ids: number[], guid: string, locale: string) => {
       this.record("pageMethods.batchWorkflowPages", guid, { ids }, locale);
       return ids;
+    },
+  };
+
+  urlRedirectionMethods = {
+    deleteUrlRedirections: async (guid: string, ids: number[]) => {
+      this.record("urlRedirectionMethods.deleteUrlRedirections", guid, { ids });
+      const store = this.instance(guid).urlRedirections;
+      const deleted = ids.filter((id) => store.delete(id));
+      return { deleted, notFound: ids.filter((id) => !deleted.includes(id)) };
     },
   };
 

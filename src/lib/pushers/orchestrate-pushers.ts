@@ -226,6 +226,17 @@ export class Pushers {
       (state.models && state.models.trim().length > 0) ||
       (state.modelsWithDeps && state.modelsWithDeps.trim().length > 0);
 
+    // --syncDeletes decides "deleted in the source" from what is absent in the source. A scoped run
+    // narrows the source to part of the instance, so everything outside the scope would look
+    // deleted. Refuse the combination before anything is written.
+    if (state.syncDeletes && (pageSelectors.length > 0 || containerSelectors.length > 0 || hasModelFilter)) {
+      throw new Error(
+        "Sync deletes validation failed. --syncDeletes cannot be combined with --pages, --containers, --models " +
+          "or --models-with-deps — a scoped run cannot tell a deleted entity from one outside the scope. " +
+          "Run the deletes as a separate, unscoped sync (use --elements to limit the entity types)."
+      );
+    }
+
     if (pageSelectors.length > 0 && containerSelectors.length > 0) {
       throw new Error(
         "Page validation failed. --pages cannot be combined with --containers — each defines a " +
@@ -384,6 +395,26 @@ export class Pushers {
             publishablePageIds.push(...localePageIds);
           }
         }
+      }
+
+      // --syncDeletes runs last: every push has repointed what it could, so the targets that are
+      // still only reachable from a deleted source can go, dependents first.
+      if (state.syncDeletes) {
+        const { runSyncDeletes } = await import("../deleters/sync-deletes");
+        const deletes = await runSyncDeletes({ sourceGuid, targetGuid, locales, elements });
+        totalSuccess += deletes.successful;
+        totalFailures += deletes.failed;
+        totalSkipped += deletes.skipped;
+        failureDetails.push(...(deletes.failureDetails || []));
+        warningDetails.push(...(deletes.warningDetails || []));
+        phases.push({
+          operation: "syncDeletes",
+          description: "Delete entities deleted in the source",
+          successful: deletes.successful,
+          failed: deletes.failed,
+          skipped: deletes.skipped,
+          status: deletes.status === "error" ? "error" : "success",
+        });
       }
 
       return {
