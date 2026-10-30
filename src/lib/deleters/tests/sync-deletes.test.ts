@@ -2,15 +2,9 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-jest.mock("../../pushers/url-redirection-api", () => ({
-  MAX_URL_REDIRECTION_BATCH_SIZE: 250,
-  deleteUrlRedirections: jest.fn(async (_guid: string, ids: number[]) => ({ deleted: ids, notFound: [] })),
-}));
-
 import { state, resetState, setState } from "../../../core/state";
 import { preflightReport } from "../../preflight/preflight-report";
 import { runSyncDeletes } from "../sync-deletes";
-import { deleteUrlRedirections } from "../../pushers/url-redirection-api";
 
 const SRC = "src-1";
 const TGT = "tgt-1";
@@ -139,6 +133,12 @@ function buildFixture(): Fixture {
         return "ok";
       }),
     },
+    urlRedirectionMethods: {
+      deleteUrlRedirections: jest.fn(async (_guid: string, ids: number[]) => {
+        ids.forEach((id) => deleted.push(`urlRedirection:${id}`));
+        return { deleted: ids, notFound: [] };
+      }),
+    },
     batchMethods: { getBatch: jest.fn(async () => ({ batchState: 3, items: [] })) },
     containerMethods: {
       deleteContainer: jest.fn(async (id: number) => {
@@ -193,7 +193,6 @@ function actions(result: Awaited<ReturnType<typeof run>>) {
 let logSpy: jest.SpyInstance;
 beforeEach(() => {
   logSpy = jest.spyOn(console, "log").mockImplementation(() => undefined);
-  (deleteUrlRedirections as jest.Mock).mockClear();
 });
 afterEach(() => logSpy.mockRestore());
 
@@ -234,7 +233,7 @@ describe("runSyncDeletes", () => {
     expect(fixture.deleted.indexOf("page:112")).toBeLessThan(fixture.deleted.indexOf("page:111"));
     expect(fixture.deleted).not.toContain("content:104");
     expect(fixture.deleted).not.toContain("template:141");
-    expect(deleteUrlRedirections).toHaveBeenCalledWith(TGT, [171]);
+    expect(fixture.api.urlRedirectionMethods.deleteUrlRedirections).toHaveBeenCalledWith(TGT, [171]);
 
     expect(readMapping(fixture, `${LOCALE}/item`).map((r) => r.targetContentID)).toEqual([101, 103, 104, 105]);
     expect(readMapping(fixture, `${LOCALE}/page`).map((r) => r.targetPageID)).toEqual([110, 113]);
@@ -261,7 +260,7 @@ describe("runSyncDeletes", () => {
     await run();
 
     expect(fixture.deleted).toEqual([]);
-    expect(deleteUrlRedirections).not.toHaveBeenCalled();
+    expect(fixture.api.urlRedirectionMethods.deleteUrlRedirections).not.toHaveBeenCalled();
     expect(readMapping(fixture, `${LOCALE}/item`)).toEqual(before);
     const totals = preflightReport.getTotals();
     expect(totals.delete).toBe(8);

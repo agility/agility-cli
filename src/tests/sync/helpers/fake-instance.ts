@@ -434,6 +434,15 @@ export class FakeInstance {
     },
   };
 
+  urlRedirectionMethods = {
+    deleteUrlRedirections: async (guid: string, ids: number[]) => {
+      this.record("urlRedirectionMethods.deleteUrlRedirections", guid, { ids });
+      const store = this.instance(guid).urlRedirections;
+      const deleted = ids.filter((id) => store.delete(id));
+      return { deleted, notFound: ids.filter((id) => !deleted.includes(id)) };
+    },
+  };
+
   instanceMethods = {
     getLocales: async (guid: string) => {
       this.record("instanceMethods.getLocales", guid);

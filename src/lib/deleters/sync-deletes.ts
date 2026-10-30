@@ -27,7 +27,7 @@ import { state, getApiClient, getLoggerForGuid } from "../../core/state";
 import { fileOperations } from "../../core/fileOperations";
 import { GuidDataLoader, GuidEntities } from "../pushers/guid-data-loader";
 import { preflightReport } from "../preflight/preflight-report";
-import { deleteUrlRedirections, MAX_URL_REDIRECTION_BATCH_SIZE } from "../pushers/url-redirection-api";
+import { MAX_URL_REDIRECTIONS_PER_REQUEST } from "@agility/management-sdk";
 import { FailureDetail, FailureDetailType, PusherResult } from "../../types/sourceData";
 import {
   CandidateFacts,
@@ -821,11 +821,15 @@ async function executeGroup(candidates: DeleteCandidate[], opts: SyncDeletesOpti
   const kind = toDelete[0].kind;
 
   if (kind === "urlRedirection") {
-    for (let i = 0; i < toDelete.length; i += MAX_URL_REDIRECTION_BATCH_SIZE) {
-      const chunk = toDelete.slice(i, i + MAX_URL_REDIRECTION_BATCH_SIZE);
+    const api = getApiClient();
+    for (let i = 0; i < toDelete.length; i += MAX_URL_REDIRECTIONS_PER_REQUEST) {
+      const chunk = toDelete.slice(i, i + MAX_URL_REDIRECTIONS_PER_REQUEST);
       try {
         // notFound means it is already gone, which is the outcome we wanted.
-        await deleteUrlRedirections(state.targetGuid, chunk.map((c) => c.targetID));
+        await api.urlRedirectionMethods.deleteUrlRedirections(
+          state.targetGuid,
+          chunk.map((c) => c.targetID)
+        );
       } catch (error: any) {
         chunk.forEach((c) => failures.set(c, errorMessage(error)));
       }

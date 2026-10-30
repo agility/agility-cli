@@ -13,6 +13,13 @@ jest.mock("lib/pushers/batch-polling", () => ({
   extractPageBatchResults: jest.fn(),
 }));
 
+// Redirection saves build their own URL and call global fetch; the harness wires this to the fake.
+// Deletes go through the SDK client (urlRedirectionMethods), which the fake implements directly.
+jest.mock("lib/pushers/url-redirection-api", () => ({
+  MAX_URL_REDIRECTION_BATCH_SIZE: 250,
+  saveUrlRedirections: jest.fn(),
+}));
+
 const POST_MODEL = {
   id: 10,
   displayName: "Post",
@@ -162,6 +169,37 @@ describe("--syncDeletes through the orchestrator", () => {
 
     expect(harness.fake.callsTo("modelMethods.deleteModel")).toEqual([]);
     expect(harness.readAllMappings()).toEqual(before);
+  });
+
+  it("deletes URL redirections through the SDK's urlRedirectionMethods", async () => {
+    const redirect = (id: number, origin: string) => ({ id, originUrl: origin, destinationUrl: "/new", statusCode: 301 });
+    harness = new SyncHarness({
+      elements: "UrlRedirections",
+      fixture: {
+        source: {
+          "en-us/urlredirections/urlredirections.json": {
+            items: [redirect(1, "/keep"), redirect(2, "/gone")],
+            lastAccessDate: "2025-01-01T00:00:00.000",
+          },
+        },
+      },
+    });
+    await harness.run();
+    const goneTarget = harness.readMappings("urlredirections")!.find((m) => m.sourceUrlRedirectionID === 2)!.targetUrlRedirectionID;
+
+    fs.writeFileSync(
+      path.join(harness.rootPath, harness.sourceGuid, "en-us", "urlredirections", "urlredirections.json"),
+      JSON.stringify({ items: [redirect(1, "/keep")], lastAccessDate: "2025-01-02T00:00:00.000" })
+    );
+    harness.stateOverrides = { syncDeletes: true };
+    await harness.resync();
+
+    expect(harness.fake.callsTo("urlRedirectionMethods.deleteUrlRedirections")).toEqual([
+      expect.objectContaining({ guid: harness.targetGuid, payload: { ids: [goneTarget] } }),
+    ]);
+    expect(harness.fake.instance(harness.targetGuid).urlRedirections.has(goneTarget)).toBe(false);
+    expect(harness.readMappings("urlredirections")!.map((m) => m.sourceUrlRedirectionID)).toEqual([1]);
+    expect(net.fetchCalls).toEqual([]);
   });
 
   it("refuses --syncDeletes on a scoped run before writing anything", async () => {
