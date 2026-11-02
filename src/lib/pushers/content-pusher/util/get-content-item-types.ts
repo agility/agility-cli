@@ -18,6 +18,10 @@ import { collectContentIDReferences } from "./collect-content-id-references";
  *   Level 0 references no other linked item; level n references something at level n-1.
  *   Each level is pushed as its own batch, so every mapping a level needs already exists.
  *   Items in a reference cycle share one level (their references to each other can't resolve).
+ * Linked cycle references: for each linked item in a reference cycle (or that references itself),
+ *   its by-ID references into that cycle (PROD-3076). The pusher creates the item with those
+ *   references blanked, then fills them in once every member has a target ID. Whole-list
+ *   references resolve by container name, so they never block and are not included.
  * Skipped items: Items without valid container/model mappings
  */
 export function getContentItemTypes(
@@ -32,6 +36,7 @@ export function getContentItemTypes(
   normalContentItems: ContentItem[];
   linkedContentItems: ContentItem[];
   linkedContentLevels: ContentItem[][];
+  linkedCycleReferences: Map<number, number[]>;
   skippedItems: ContentItem[];
 } {
   const { containerMapper, modelMapper } = opts;
@@ -76,9 +81,14 @@ export function getContentItemTypes(
   // Build final result arrays
   const { normalContentItems, linkedContentItems } = buildResultArrays(normalSet, linkedSet, allItemsById);
 
-  const linkedContentLevels = buildLinkedLevels(linkedSet, itemsByReferenceName, allItemsById, modelMapper);
+  const { levels: linkedContentLevels, cycleReferences: linkedCycleReferences } = buildLinkedLevels(
+    linkedSet,
+    itemsByReferenceName,
+    allItemsById,
+    modelMapper
+  );
 
-  return { normalContentItems, linkedContentItems, linkedContentLevels, skippedItems: skipped };
+  return { normalContentItems, linkedContentItems, linkedContentLevels, linkedCycleReferences, skippedItems: skipped };
 }
 
 /**
@@ -134,15 +144,22 @@ function collectReferencedContentIDs(
     }
   }
 
-  // Single-item references → the specific referenced item, if it is in this push set
-  const sourceModel = getSourceModel(item, modelMapper);
-  for (const contentID of collectContentIDReferences(item.fields || {}, sourceModel)) {
-    if (allItemsById.has(contentID)) {
-      ids.push(contentID);
-    }
-  }
-
+  ids.push(...collectIdReferences(item, allItemsById, modelMapper));
   return ids;
+}
+
+/**
+ * The single-item (by contentID) references of an item that point at another item in this push
+ * set. Unlike a whole-list reference, each needs the referenced item's target ID before the item
+ * can be saved.
+ */
+function collectIdReferences(
+  item: ContentItem,
+  allItemsById: Map<number, ContentItem>,
+  modelMapper: ModelMapper
+): number[] {
+  const sourceModel = getSourceModel(item, modelMapper);
+  return collectContentIDReferences(item.fields || {}, sourceModel).filter((contentID) => allItemsById.has(contentID));
 }
 
 /**
@@ -209,15 +226,16 @@ function markReferencedItems(
  * with Tarjan's strongly-connected-components algorithm, so the levels come from a DAG and work
  * at any depth. Tarjan emits a component only after every component it reaches, so each one's
  * level is known from its dependencies' levels as it is emitted. Iterative, so a long chain
- * can't overflow the call stack.
+ * can't overflow the call stack. Also returns each cycle member's by-ID references into its cycle.
  */
 function buildLinkedLevels(
   linkedSet: Set<number>,
   itemsByReferenceName: Map<string, ContentItem[]>,
   allItemsById: Map<number, ContentItem>,
   modelMapper: ModelMapper
-): ContentItem[][] {
+): { levels: ContentItem[][]; cycleReferences: Map<number, number[]> } {
   const linkedIds = Array.from(linkedSet);
+  const cycleReferences = new Map<number, number[]>();
   const depsById = new Map<number, number[]>();
   for (const id of linkedIds) {
     const deps = collectReferencedContentIDs(allItemsById.get(id)!, itemsByReferenceName, allItemsById, modelMapper);
@@ -283,6 +301,15 @@ function buildLinkedLevels(
         }
       }
       for (const id of members) levelOf.set(id, level);
+
+      // PROD-3076: by-ID references inside the component (a self-reference counts) can't be
+      // resolved by ordering - the pusher fills them in with a second pass.
+      for (const id of members) {
+        const intoCycle = collectIdReferences(allItemsById.get(id)!, allItemsById, modelMapper).filter((dep) =>
+          memberSet.has(dep)
+        );
+        if (intoCycle.length > 0) cycleReferences.set(id, Array.from(new Set(intoCycle)));
+      }
     }
   }
 
@@ -292,7 +319,7 @@ function buildLinkedLevels(
     const level = levelOf.get(id)!;
     (levels[level] ||= []).push(allItemsById.get(id)!);
   }
-  return levels.filter(Boolean);
+  return { levels: levels.filter(Boolean), cycleReferences };
 }
 
 /**

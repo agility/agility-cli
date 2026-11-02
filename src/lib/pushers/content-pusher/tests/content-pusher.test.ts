@@ -125,7 +125,7 @@ describe("pushContent — batch processing error handling", () => {
       getContentItemTypes: jest.fn().mockReturnValue({
         normalContentItems: [makeContentItem(1)],
         linkedContentItems: [],
-        linkedContentLevels: [],
+        linkedContentLevels: [], linkedCycleReferences: new Map(),
         skippedItems: [],
       }),
     }));
