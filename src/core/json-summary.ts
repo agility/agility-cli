@@ -88,6 +88,8 @@ export interface JsonSummaryPreflightPhase {
   phase: string;
   create: number;
   update: number;
+  /** --syncDeletes: target entities a real run would delete. */
+  delete: number;
   skip: number;
   conflict: number;
   /** PROD-2542: would-be writes that fail validation against the target model. */
@@ -95,13 +97,13 @@ export interface JsonSummaryPreflightPhase {
 }
 
 export interface JsonSummaryPreflight {
-  totals: { create: number; update: number; skip: number; conflict: number; invalid: number };
+  totals: { create: number; update: number; delete: number; skip: number; conflict: number; invalid: number };
   hasConflicts: boolean;
   phases: JsonSummaryPreflightPhase[];
   /** Every recorded action, in the order the pushers recorded them. */
   entries: Array<{
     phase: string;
-    action: "create" | "update" | "skip" | "conflict" | "invalid";
+    action: "create" | "update" | "delete" | "skip" | "conflict" | "invalid";
     name: string;
     locale?: string;
     detail?: string;
@@ -123,6 +125,8 @@ export interface JsonSummary {
   options: {
     preflight: boolean;
     overwrite: boolean;
+    /** --syncDeletes. Optional so summaries written before the flag existed still parse. */
+    syncDeletes?: boolean;
     autoPublish: string;
     elements: string[];
     locales: string[];
@@ -235,6 +239,7 @@ export function emitAbortSummary(
     targetGuid?: string;
     preflight?: boolean;
     overwrite?: boolean;
+    syncDeletes?: boolean;
     autoPublish?: string;
     elements?: string;
     locale?: string[];
@@ -253,6 +258,7 @@ export function emitAbortSummary(
       options: {
         preflight: runState.preflight === true,
         overwrite: runState.overwrite === true,
+        syncDeletes: runState.syncDeletes === true,
         autoPublish: runState.autoPublish || "",
         elements: (runState.elements || "").split(",").filter(Boolean),
         locales: Array.isArray(runState.locale) ? runState.locale : [],

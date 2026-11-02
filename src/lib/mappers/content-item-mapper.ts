@@ -159,6 +159,18 @@ export class ContentItemMapper {
     this.saveMapping();
   }
 
+  /**
+   * PROD-3076: make the next sync treat this item's source as changed, so it is pushed again. Used
+   * when an item was created without its references (pass 1 of a reference cycle) and the update
+   * that fills them in failed.
+   */
+  markSourceChanged(sourceContentID: number): void {
+    const mapping = this.getContentItemMappingByContentID(sourceContentID, "source");
+    if (!mapping) return;
+    mapping.sourceVersionID = 0;
+    this.saveMapping();
+  }
+
   updateMapping(
     sourceContentItem: mgmtApi.ContentItem,
     targetContentItem: mgmtApi.ContentItem,

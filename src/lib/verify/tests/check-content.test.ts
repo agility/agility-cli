@@ -73,6 +73,40 @@ describe("checkContent", () => {
     expect(collector.findings).toEqual([]);
   });
 
+  it("treats links to an item deleted on both sides as equal", () => {
+    // Source item 2 and its target copy 102 were deleted (by --syncDeletes, which also drops the
+    // mapping); 1 and 101 still point at them.
+    const collector = run(
+      [item(1, { title: "A", related: { contentid: 2, fulllist: false } })],
+      [item(101, { title: "A", related: "102" })],
+      [[1, 101]]
+    );
+    expect(collector.findings).toEqual([]);
+  });
+
+  it("still fails a link to an unmapped item that exists in the source", () => {
+    const collector = run(
+      [item(1, { title: "A", related: { contentid: 2, fulllist: false } }), item(2, { title: "B" })],
+      [item(101, { title: "A", related: "102" })],
+      [[1, 101]]
+    );
+    expect(collector.findings).toEqual(
+      expect.arrayContaining([expect.objectContaining({ category: "fieldMismatch", path: "related", sourceID: 1 })])
+    );
+  });
+
+  it("keeps a mapped target ID that is missing from the pull (e.g. unpublished)", () => {
+    const collector = run(
+      [item(1, { title: "A", related: { contentid: 2, fulllist: false } })],
+      [item(101, { title: "A", related: "102" })],
+      [
+        [1, 101],
+        [2, 102],
+      ]
+    );
+    expect(collector.findings.filter((f) => f.path === "related")).toEqual([]);
+  });
+
   it("warns, without failing, on a publish-state difference", () => {
     const collector = run(
       [item(1, { title: "A" }, { state: 2 })],

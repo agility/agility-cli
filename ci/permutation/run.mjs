@@ -12,11 +12,13 @@
 //
 // After each sync it checks:
 //   sync        exit 0, no failed items
-//   verify      `agility verify` finds no differences
-//   noop        a preflight in the same direction plans no creates, updates or conflicts
-//   conflict    the both-sides item ends at the synced side's value, or the sync reported a conflict
-//   drift       the other side's own edit was overwritten, or reported; never silently kept
+//   conflict    the both-sides item ends at the synced side's value, or a preflight reported it
+//   drift       the other side's own edit was overwritten, or reported as a conflict on that item
+//   resolve     when the sync kept such edits: the same sync with --overwrite settles them
+//   verify      `agility verify` finds no differences (verify and noop: up to 3 tries, 90s apart)
+//   noop        a preflight in the same direction plans no creates, updates, deletes or conflicts
 //   apply:*     the change itself could be made (an API rejection is a finding too)
+// Syncs and preflights pass --syncDeletes, so a delete on one side reaches the other.
 // Nothing stops the run early: every round runs and every result is recorded.
 //
 // Env: SOURCE_GUID, TARGET_GUID, AGILITY_TOKEN, CLI (command for the CLI under test),
@@ -27,7 +29,7 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { CHANGES, QUICK_ROUNDS, client, conflict, drift, readField, rng } from "./changes.mjs";
-import { checkReferenceCycles, seedReferenceCycles } from "./fixtures.mjs";
+import { checkReferenceCycles, seedReferenceCycles, waitForFetchSync } from "./fixtures.mjs";
 
 const { SOURCE_GUID: A, TARGET_GUID: B, AGILITY_TOKEN, CLI } = process.env;
 const TIER = process.env.TIER || "quick";
@@ -80,68 +82,108 @@ function mapped(fromSourceSide) {
   };
 }
 
-// One sync in a direction, with a plan before it, then verify and the no-op preflight.
-function syncAndCheck(round, direction) {
+// Every sync and preflight also syncs deletes, so a delete on one side reaches the other.
+const SYNC = ["--autoPublish=both", "--syncDeletes"];
+const PLAN = ["--preflight", "--syncDeletes"];
+
+// One sync in a direction, with a plan before it and one after. The plan after shows what the sync
+// left in conflict: the edits it kept on the receiving side. `step` is "sync", or "resolve" for the
+// `--overwrite` sync that settles kept conflicts.
+function syncStep(round, direction, step = "sync", extra = []) {
   const cmd = direction === "A→B" ? "sync" : "reverse-sync";
-  const plan = cli(`r${round}-plan`, [cmd, ...pair, "--preflight"]);
-  const s = cli(`r${round}-sync`, [cmd, ...pair, "--autoPublish=both"]);
+  const before = step === "sync" ? cli(`r${round}-plan`, [cmd, ...pair, ...PLAN]) : null;
+  const s = cli(`r${round}-${step}`, [cmd, ...pair, ...SYNC, ...extra]);
   const failed = s.json?.totals?.failed ?? "?";
   const opErr = s.json?.operationErrors?.[0]?.error;
   record(
     round,
     direction,
-    "sync",
+    step,
     s.exitCode === 0 && failed === 0,
     `exit ${s.exitCode}, ${s.json?.totals?.successful ?? "?"} ok, ${failed} failed${opErr ? `; ${String(opErr).slice(0, 160)}` : ""}`,
     s.seconds
   );
   for (const f of (s.json?.failures ?? []).slice(0, 8)) {
-    record(round, direction, `sync-failure:${f.type ?? "item"}`, false, `${f.name}: ${String(f.error).slice(0, 180)}`);
+    record(
+      round,
+      direction,
+      `${step}-failure:${f.type ?? "item"}`,
+      false,
+      `${f.name}: ${String(f.error).slice(0, 180)}`
+    );
   }
+  const after = step === "sync" ? cli(`r${round}-after`, [cmd, ...pair, ...PLAN]) : null;
+  const entries = [before, after].flatMap((x) => x?.json?.preflight?.entries ?? []);
+  const details = entries.filter((e) => e.action === "conflict").map((e) => e.detail ?? "");
+  return {
+    // Whether a preflight reported a conflict on this content item (its URL is in the detail)
+    reported: (guid, id) =>
+      details.some((d) => new RegExp(`/instance/${guid}/[^/]+/content/listitem-${id}(?!\\d)`).test(d)),
+  };
+}
 
-  const v = cli(`r${round}-verify`, ["verify", ...pair]);
-  const findings = v.json?.findings ?? [];
-  const kinds = [...new Set(findings.map((x) => x.kind ?? x.type ?? x.code).filter(Boolean))].slice(0, 6).join(", ");
-  record(
-    round,
-    direction,
-    "verify",
-    v.exitCode === 0,
+// verify, then the no-op preflight. Both read the instances through the Fetch API, which lags behind
+// the Management API: a save shows up within seconds, but an edit that creates no version (a list
+// reorder, a model field rename) can take a few minutes. So when either finds something, both are
+// tried again, up to three times 90s apart; a real difference survives that.
+async function checkStep(round, direction) {
+  const cmd = direction === "A→B" ? "sync" : "reverse-sync";
+  let v, n, t;
+  let tries = 0;
+  for (;;) {
+    tries++;
+    const suffix = tries === 1 ? "" : `-try${tries}`;
+    v = cli(`r${round}-verify${suffix}`, ["verify", ...pair]);
+    n = cli(`r${round}-noop${suffix}`, [cmd, ...pair, ...PLAN]);
+    t = n.json?.preflight?.totals;
+    const clean = v.exitCode === 0 && n.exitCode === 0 && !!t && !t.create && !t.update && !t.delete && !t.conflict;
+    if (clean || tries === 3) break;
+    await new Promise((res) => setTimeout(res, 90_000));
+  }
+  const later = tries > 1 ? ` (try ${tries} of 3)` : "";
+
+  const findings = (v.json?.findings ?? []).filter((x) => x.severity === "failure");
+  const kinds = [...new Set(findings.map((x) => x.category).filter(Boolean))].slice(0, 6).join(", ");
+  const outcome =
     { 0: "match", 1: `${findings.length || "some"} differences${kinds ? ` (${kinds})` : ""}`, 2: "could not verify" }[
       v.exitCode
-    ] ?? `exit ${v.exitCode}`,
-    v.seconds
-  );
-
-  const n = cli(`r${round}-noop`, [cmd, ...pair, "--preflight"]);
-  const t = n.json?.preflight?.totals;
+    ] ?? `exit ${v.exitCode}`;
+  record(round, direction, "verify", v.exitCode === 0, `${outcome}${later}`, v.seconds);
   record(
     round,
     direction,
     "noop",
-    n.exitCode === 0 && !!t && t.create === 0 && t.update === 0 && t.conflict === 0,
-    t ? `would create ${t.create}, update ${t.update}, conflict ${t.conflict}` : `exit ${n.exitCode}, no plan`,
+    n.exitCode === 0 && !!t && t.create === 0 && t.update === 0 && t.delete === 0 && t.conflict === 0,
+    (t
+      ? `would create ${t.create}, update ${t.update}, delete ${t.delete}, conflict ${t.conflict}`
+      : `exit ${n.exitCode}, no plan`) + later,
     n.seconds
   );
-  return { planConflicts: plan.json?.preflight?.totals?.conflict ?? 0 };
 }
 
 // ── Fixtures, then round 0: first sync ────────────────────────────────────────────────────────
 let cycles = null;
 try {
   cycles = await seedReferenceCycles(api, A, LOCALE);
+  // The first sync pulls from the Fetch API, which lists new items a minute or two after publish
+  const waited = await waitForFetchSync(
+    AGILITY_TOKEN,
+    A,
+    LOCALE,
+    cycles.links.map(([x]) => x)
+  );
   record(
     0,
     "A→B",
     "apply:fixture-cycles",
     true,
-    `A ↔ B and a self-reference (${cycles.links.map(([x]) => `#${x}`).join(", ")})`
+    `A ↔ B and a self-reference (${cycles.links.map(([x]) => `#${x}`).join(", ")}), in the Fetch API after ${waited}s`
   );
 } catch (e) {
   record(0, "A→B", "apply:fixture-cycles", false, String(e?.message ?? e).slice(0, 200));
 }
 
-syncAndCheck(0, "A→B");
+syncStep(0, "A→B");
 
 if (cycles) {
   const problems = await checkReferenceCycles(api, B, LOCALE, cycles, mapped(true));
@@ -153,6 +195,8 @@ if (cycles) {
     problems.length ? problems.join("; ").slice(0, 300) : "each copy points at its partner's target ID"
   );
 }
+
+await checkStep(0, "A→B");
 
 // ── Change rounds ─────────────────────────────────────────────────────────────────────────────
 const names = Object.keys(CHANGES);
@@ -212,7 +256,8 @@ for (let i = 0; i < plan.length; i++) {
     `\n── round ${round} (${direction}): ${applied.map((a) => `${a.area}/${a.change}`).join(", ") || "no changes"}`
   );
 
-  const { planConflicts } = syncAndCheck(round, direction);
+  const { reported } = syncStep(round, direction);
+  let kept = false;
 
   if (both) {
     const after = await readField(api, to, LOCALE, both.dstId, both.field);
@@ -221,13 +266,14 @@ for (let i = 0; i < plan.length; i++) {
       round,
       direction,
       "conflict",
-      synced || planConflicts > 0,
+      synced || reported(to, both.dstId),
       synced
         ? "the synced side's value won"
-        : planConflicts > 0
-          ? `kept, and preflight reported ${planConflicts} conflict(s)`
+        : reported(to, both.dstId)
+          ? "kept, and reported as a conflict"
           : `silently kept the other side's value`
     );
+    kept ||= !synced;
   }
   if (drifted) {
     const id = Number(/#(\d+)/.exec(drifted.detail)?.[1]);
@@ -242,14 +288,20 @@ for (let i = 0; i < plan.length; i++) {
       round,
       direction,
       "drift",
-      same || planConflicts > 0,
+      same || reported(to, id),
       same
         ? "overwritten to match"
-        : planConflicts > 0
+        : reported(to, id)
           ? "kept, and reported as a conflict"
           : "the other side's edit was silently kept; the instances differ"
     );
+    kept ||= !same;
   }
+
+  // The sync rightly kept the receiving side's own edits and reported them. Settle them the way an
+  // editor would, by syncing again with --overwrite, so verify and the no-op check see one state.
+  if (kept) syncStep(round, direction, "resolve", ["--overwrite"]);
+  await checkStep(round, direction);
 }
 
 // ── Results ───────────────────────────────────────────────────────────────────────────────────

@@ -104,6 +104,52 @@ export async function seedReferenceCycles(c, guid, locale) {
   };
 }
 
+// Same rule as the CLI's Auth.determineBaseUrl / determineFetchUrl: the GUID suffix picks the region.
+const REGIONS = [
+  ["us2", "mgmt-usa2", "api-usa2"],
+  ["d", "mgmt-dev", "api-dev"],
+  ["u", "mgmt", "api"],
+  ["c", "mgmt-ca", "api-ca"],
+  ["e", "mgmt-eu", "api-eu"],
+  ["a", "mgmt-aus", "api-aus"],
+];
+function hosts(guid) {
+  const [, mgmt, api] = REGIONS.find(([suffix]) => guid.endsWith(suffix)) ?? ["", "mgmt", "api"];
+  return { mgmt: `https://${mgmt}.aglty.io`, api: `https://${api}.aglty.io` };
+}
+
+// Content published through the Management API reaches the Fetch API's sync feed a minute or two
+// later, and the CLI pulls from that feed. Wait until it lists every given item, or the timeout.
+// Returns the seconds waited; throws on timeout.
+export async function waitForFetchSync(token, guid, locale, ids, { timeoutMs = 10 * 60 * 1000 } = {}) {
+  const { mgmt, api } = hosts(guid);
+  const keyRes = await fetch(`${mgmt}/oauth/GetPreviewKey?guid=${guid}`, {
+    headers: { Authorization: `Bearer ${token}`, "Cache-Control": "no-cache" },
+  });
+  if (!keyRes.ok) throw new Error(`GetPreviewKey: HTTP ${keyRes.status}`);
+  const apiKey = (await keyRes.text()).replace(/^"|"$/g, "");
+
+  const started = Date.now();
+  const missing = new Set(ids);
+  while (Date.now() - started < timeoutMs) {
+    // Read the whole feed from the start, a page at a time, as a full pull does
+    let syncToken = 0;
+    for (let page = 0; page < 100 && missing.size > 0; page++) {
+      const res = await fetch(`${api}/${guid}/preview/${locale}/sync/items?syncToken=${syncToken}&pageSize=500`, {
+        headers: { APIKey: apiKey, "Cache-Control": "no-cache" },
+      });
+      if (!res.ok) throw new Error(`Fetch API sync/items: HTTP ${res.status}`);
+      const body = await res.json();
+      for (const item of body.items ?? []) missing.delete(item.contentID);
+      if (!body.items?.length || !body.syncToken || body.syncToken === syncToken) break;
+      syncToken = body.syncToken;
+    }
+    if (missing.size === 0) return Math.round((Date.now() - started) / 1000);
+    await new Promise((r) => setTimeout(r, 10_000));
+  }
+  throw new Error(`items ${[...missing].join(", ")} not in the Fetch API sync feed after ${timeoutMs / 1000}s`);
+}
+
 // After a sync: each target copy's Next (and NextID) must hold the TARGET ID of its partner.
 export async function checkReferenceCycles(c, guid, locale, fixture, toTarget) {
   const problems = [];

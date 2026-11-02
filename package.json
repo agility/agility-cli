@@ -1,6 +1,6 @@
 {
   "name": "@agility/cli",
-  "version": "1.2.2",
+  "version": "1.3.0-beta.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/agility/agility-cli.git"
@@ -53,7 +53,7 @@
   },
   "dependencies": {
     "@agility/content-sync": "^1.2.0",
-    "@agility/management-sdk": "^0.1.38",
+    "@agility/management-sdk": "^0.2.0-beta.3",
     "ansi-colors": "^4.1.3",
     "axios": "^0.27.2",
     "cli-progress": "^3.11.2",

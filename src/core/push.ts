@@ -490,6 +490,7 @@ export class Push {
         options: {
           preflight: state.preflight === true,
           overwrite: state.overwrite === true,
+          syncDeletes: state.syncDeletes === true,
           autoPublish: state.autoPublish || "",
           elements: (state.elements || "").split(",").filter(Boolean),
           locales: Array.isArray(state.locale) ? state.locale : [],

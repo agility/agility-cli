@@ -181,9 +181,9 @@ describe("buildJsonSummary — shape", () => {
     const summary = buildJsonSummary(
       makeInput({
         preflight: {
-          totals: { create: 2, update: 1, skip: 0, conflict: 1, invalid: 0 },
+          totals: { create: 2, update: 1, delete: 0, skip: 0, conflict: 1, invalid: 0 },
           hasConflicts: true,
-          phases: [{ phase: "Models", create: 2, update: 1, skip: 0, conflict: 1, invalid: 0 }],
+          phases: [{ phase: "Models", create: 2, update: 1, delete: 0, skip: 0, conflict: 1, invalid: 0 }],
           entries: [{ phase: "Models", action: "conflict", name: "LinkCard" }],
         },
       })
@@ -395,9 +395,9 @@ describe("buildJsonSummary — required-field validation failures (PROD-2542)", 
 
   it("carries the preflight invalid count additively", () => {
     const preflight = {
-      totals: { create: 1, update: 0, skip: 0, conflict: 0, invalid: 1 },
+      totals: { create: 1, update: 0, delete: 0, skip: 0, conflict: 0, invalid: 1 },
       hasConflicts: false,
-      phases: [{ phase: "Content", create: 1, update: 0, skip: 0, conflict: 0, invalid: 1 }],
+      phases: [{ phase: "Content", create: 1, update: 0, delete: 0, skip: 0, conflict: 0, invalid: 1 }],
       entries: [
         { phase: "Content", action: "invalid" as const, name: "home_promobanner", locale: "en-us", detail: "x" },
         { phase: "Content", action: "create" as const, name: "ok", locale: "en-us" },

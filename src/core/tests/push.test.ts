@@ -410,7 +410,7 @@ describe("Push.pushInstances — --jsonSummary", () => {
       const parsed = JSON.parse(fs.readFileSync(out, "utf8"));
       expect(parsed.exitCode).toBe(0);
       expect(process.exitCode).toBeUndefined();
-      expect(parsed.preflight.totals).toEqual({ create: 0, update: 0, skip: 0, conflict: 0, invalid: 0 });
+      expect(parsed.preflight.totals).toEqual({ create: 0, update: 0, delete: 0, skip: 0, conflict: 0, invalid: 0 });
       expect(parsed.preflight.hasConflicts).toBe(false);
       expect(parsed.warnings.some((w: any) => w.code === "foreignCdnReference")).toBe(true);
 

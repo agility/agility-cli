@@ -103,13 +103,38 @@ describe("changeDetection — conflict path", () => {
     expect(result.isConflict).toBe(false);
   });
 
-  it("does NOT conflict when only target version increased", () => {
+  it("conflicts when only the target version increased (an edit on the target)", () => {
     setState({ sourceGuid: "src-guid", targetGuid: "tgt-guid" });
     const source = makeContent(1, 5);
     const target = makeContent(100, 10);
     const mapping = makeMapping({ sourceVersionID: 5, targetVersionID: 5 });
     const result = changeDetection(source, target, mapping, "en-us");
+    expect(result.isConflict).toBe(true);
+    expect(result.shouldUpdate).toBe(false);
+    expect(result.shouldSkip).toBe(false);
+    expect(result.reason).toMatch(/target changed since the last sync and the source didn't/);
+    expect(result.reason).toMatch(/--overwrite/);
+  });
+
+  it("replaces a target-only edit with the source under --overwrite", () => {
+    setState({ overwrite: true, sourceGuid: "src-guid", targetGuid: "tgt-guid" });
+    const source = makeContent(1, 5);
+    const target = makeContent(100, 10);
+    const mapping = makeMapping({ sourceVersionID: 5, targetVersionID: 5 });
+    const result = changeDetection(source, target, mapping, "en-us");
     expect(result.isConflict).toBe(false);
+    expect(result.shouldUpdate).toBe(true);
+    expect(result.entity).toBe(target);
+  });
+
+  it("leaves a mapping with no recorded target version alone (older mapping files)", () => {
+    setState({ sourceGuid: "src-guid", targetGuid: "tgt-guid" });
+    const source = makeContent(1, 5);
+    const target = makeContent(100, 10);
+    const mapping = makeMapping({ sourceVersionID: 5, targetVersionID: 0 });
+    const result = changeDetection(source, target, mapping, "en-us");
+    expect(result.isConflict).toBe(false);
+    expect(result.shouldSkip).toBe(true);
   });
 });
 

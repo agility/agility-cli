@@ -281,6 +281,51 @@ describe("pushAssets — asset moved to another folder (PROD-2627)", () => {
   });
 });
 
+// ─── an edit on the target only ───────────────────────────────────────────────
+
+describe("pushAssets — mapped asset changed on the target only", () => {
+  it("is a conflict without --overwrite: the target's version is kept, nothing uploaded", async () => {
+    new AssetMapper(SRC, TGT).addMapping(asset("source", 1, "a/x.png", OLD), asset("target", 2, "a/x.png", OLD));
+    writeLocalFile("a/x.png");
+    mockApi();
+
+    const { pushAssets } = await import("../asset-pusher");
+    const result = await pushAssets([asset("source", 1, "a/x.png", OLD)], [asset("target", 2, "a/x.png", NEW)]);
+
+    expect(axios.post).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(result.successful).toBe(0);
+  });
+
+  it("is reported as a preflight conflict", async () => {
+    // seed before enabling preflight: preflight never persists mapping files
+    new AssetMapper(SRC, TGT).addMapping(asset("source", 1, "a/x.png", OLD), asset("target", 2, "a/x.png", OLD));
+    state.preflight = true;
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    preflightReport.reset();
+    mockApi();
+
+    const { pushAssets } = await import("../asset-pusher");
+    await pushAssets([asset("source", 1, "a/x.png", OLD)], [asset("target", 2, "a/x.png", NEW)]);
+
+    expect(await preflightEntries()).toEqual([expect.objectContaining({ action: "conflict", name: "x.png" })]);
+  });
+
+  it("with --overwrite replaces it with the source", async () => {
+    setState({ overwrite: true });
+    new AssetMapper(SRC, TGT).addMapping(asset("source", 1, "a/x.png", OLD), asset("target", 2, "a/x.png", OLD));
+    writeLocalFile("a/x.png");
+    mockApi();
+    axios.post.mockResolvedValue({ data: [asset("target", 2, "a/x.png", NEW)] });
+
+    const { pushAssets } = await import("../asset-pusher");
+    const result = await pushAssets([asset("source", 1, "a/x.png", OLD)], [asset("target", 2, "a/x.png", NEW)]);
+
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(result.successful).toBe(1);
+  });
+});
+
 // ─── duplicate records from earlier versions ──────────────────────────────────
 
 describe("pushAssets — duplicate records left by earlier versions (PROD-2627)", () => {

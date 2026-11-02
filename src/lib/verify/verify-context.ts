@@ -220,13 +220,21 @@ export function createVerifyContext(input: {
   };
 }
 
+/**
+ * A content reference to an item that no longer exists on its side and has no mapping, e.g. both
+ * halves of a pair `--syncDeletes` removed. The same token on both sides, so two such references
+ * compare equal instead of `unmapped:<source id>` against a bare target ID.
+ */
+const DANGLING_CONTENT_REF = "dangling";
+
 /** Canonicalization context for SOURCE values: every ID is translated to its target. */
 export function sourceCanonicalContext(ctx: VerifyContext): CanonicalContext {
   return {
     side: "source",
     contentRef: (id) => {
       const target = ctx.localeMappings.content.target(id);
-      return target !== undefined ? String(target) : `unmapped:${id}`;
+      if (target !== undefined) return String(target);
+      return ctx.source.contentById.has(id) ? `unmapped:${id}` : DANGLING_CONTENT_REF;
     },
     containerRef: (name) => {
       const key = lower(name);
@@ -252,7 +260,10 @@ export function sourceCanonicalContext(ctx: VerifyContext): CanonicalContext {
 export function targetCanonicalContext(ctx: VerifyContext): CanonicalContext {
   return {
     side: "target",
-    contentRef: (id) => String(id),
+    // Not on the target and no mapping points at it: deleted, like its source counterpart. (A
+    // mapped item missing from the pull, such as an unpublished one, keeps its ID.)
+    contentRef: (id) =>
+      ctx.target.contentById.has(id) || ctx.localeMappings.content.hasTarget(id) ? String(id) : DANGLING_CONTENT_REF,
     containerRef: (name) => lower(name),
     galleryRef: (id) => String(id),
     isEmptyList: (name) => !ctx.target.contentCountByContainer.get(lower(name)),

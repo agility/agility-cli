@@ -164,3 +164,47 @@ describe("pushGalleries — result shape", () => {
     expect(result).toHaveProperty("skipped");
   });
 });
+
+// ─── pushGalleries — change detection ─────────────────────────────────────────
+
+describe("pushGalleries — mapped gallery: what changed decides update, skip or conflict", () => {
+  async function run(sourceChanged: boolean, targetChanged: boolean, overwrite = false) {
+    const { GalleryMapper } = await import("lib/mappers/gallery-mapper");
+    const source = makeGallery({ name: "Mapped Gallery" });
+    const target = makeGallery({ name: "Mapped Gallery", mediaGroupingID: 500 });
+    jest.spyOn(GalleryMapper.prototype, "getGalleryMapping").mockReturnValue({ targetMediaGroupingID: 500 } as any);
+    jest.spyOn(GalleryMapper.prototype, "hasSourceChanged").mockReturnValue(sourceChanged);
+    jest.spyOn(GalleryMapper.prototype, "hasTargetChanged").mockReturnValue(targetChanged);
+    jest.spyOn(GalleryMapper.prototype, "addMapping").mockImplementation(() => {});
+    const saveMock = jest.fn().mockResolvedValue(target);
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveMock));
+    setState({ overwrite });
+
+    const { pushGalleries } = await import("../gallery-pusher");
+    const result = await pushGalleries([source], [target]);
+    return { result, saved: saveMock.mock.calls.length };
+  }
+
+  it("updates when only the source changed", async () => {
+    const { result, saved } = await run(true, false);
+    expect(saved).toBe(1);
+    expect(result.successful).toBe(1);
+  });
+
+  it("skips when neither changed, even with --overwrite", async () => {
+    expect((await run(false, false)).saved).toBe(0);
+    expect((await run(false, false, true)).saved).toBe(0);
+  });
+
+  it("keeps a target-only edit (a conflict) unless --overwrite", async () => {
+    const kept = await run(false, true);
+    expect(kept.saved).toBe(0);
+    expect(kept.result.skipped).toBe(1);
+    expect((await run(false, true, true)).saved).toBe(1);
+  });
+
+  it("keeps an edit on both sides (a conflict) unless --overwrite", async () => {
+    expect((await run(true, true)).saved).toBe(0);
+    expect((await run(true, true, true)).saved).toBe(1);
+  });
+});

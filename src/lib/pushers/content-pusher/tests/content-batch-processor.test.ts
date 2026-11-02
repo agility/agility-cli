@@ -625,6 +625,60 @@ describe("ContentBatchProcessor.prepareContentPayloads — stale container mappi
   });
 });
 
+// ─── PROD-3076: updating an item created earlier in the same run ─────────────
+
+describe("ContentBatchProcessor.prepareContentPayloads — trustSameRunMappings (PROD-3076)", () => {
+  // The content item is mapped (source 1 → target 77) but target 77 is not in the pulled target data,
+  // which is the state pass 2 of a reference cycle sees: pass 1 created it moments ago.
+  function seed(sourceGuid: string, targetGuid: string): ContentItemMapper {
+    writeEntityFile(tmpDir, sourceGuid, "models", 1, { id: 1, referenceName: "TestModel", fields: [] });
+    writeMappingFile(tmpDir, sourceGuid, targetGuid, "models", [
+      { sourceGuid, targetGuid, sourceID: 1, targetID: 1, sourceReferenceName: "TestModel", targetReferenceName: "TestModel",
+        sourceLastModifiedDate: "07/01/2026 12:00PM", targetLastModifiedDate: "07/01/2026 12:00PM" },
+    ]);
+    writeMappingFile(tmpDir, sourceGuid, targetGuid, "containers", [
+      { sourceGuid, targetGuid, sourceContentViewID: 10, targetContentViewID: 999, sourceReferenceName: "ref-1",
+        targetReferenceName: "ref-1", sourceLastModifiedDate: "07/01/2026 12:00PM", targetLastModifiedDate: "07/01/2026 12:00PM" },
+    ]);
+    writeEntityFile(tmpDir, targetGuid, "containers", 999, { contentViewID: 999, referenceName: "ref-1" });
+    const referenceMapper = new ContentItemMapper(sourceGuid, targetGuid, "en-us");
+    referenceMapper.addMapping(
+      { contentID: 1, properties: { versionID: 1 } } as any,
+      { contentID: 77, properties: { versionID: 5 } } as any
+    );
+    return referenceMapper;
+  }
+
+  function item(): any {
+    const it = makeContentItem(1);
+    it.properties.referenceName = "ref-1";
+    it.properties.definitionName = "TestModel";
+    return it;
+  }
+
+  it("updates the mapped target item instead of creating another one", async () => {
+    const referenceMapper = seed("trust-src", "trust-tgt");
+    const processor = new ContentBatchProcessor(
+      makeConfig({ sourceGuid: "trust-src", targetGuid: "trust-tgt", referenceMapper, trustSameRunMappings: true })
+    );
+
+    const result = await (processor as any).prepareContentPayloads([item()], "trust-src", "trust-tgt", makeLogger());
+
+    expect(result.prepared).toHaveLength(1);
+    expect(result.prepared[0].payload.contentID).toBe(77);
+    expect(result.prepared[0].expectedId).toBe(77);
+  });
+
+  it("without the option, treats the missing target as gone (unchanged behavior)", async () => {
+    const referenceMapper = seed("notrust-src", "notrust-tgt");
+    const processor = new ContentBatchProcessor(makeConfig({ sourceGuid: "notrust-src", targetGuid: "notrust-tgt", referenceMapper }));
+
+    const result = await (processor as any).prepareContentPayloads([item()], "notrust-src", "notrust-tgt", makeLogger());
+
+    expect(result.prepared[0].payload.contentID).toBe(-1);
+  });
+});
+
 // ─── PROD-2542: payload/source alignment ──────────────────────────────────────
 //
 // These use the REAL extractContentBatchResults (the module is mocked above for the other tests), so

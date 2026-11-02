@@ -18,7 +18,7 @@ import { state } from "../../core/state";
  * the target model (e.g. a missing required field), so a real run skips it and reports a failure.
  * It is a warning in the plan: not a write, and — unlike "conflict" — it doesn't set the exit code.
  */
-export type PreflightAction = "create" | "update" | "skip" | "conflict" | "invalid";
+export type PreflightAction = "create" | "update" | "delete" | "skip" | "conflict" | "invalid";
 
 export interface PreflightEntry {
   /** Phase / element type, e.g. "Models", "Containers", "Content". */
@@ -37,17 +37,19 @@ export interface PreflightPhaseSummary {
   phase: string;
   create: number;
   update: number;
+  delete: number;
   skip: number;
   conflict: number;
   invalid: number;
   entries: PreflightEntry[];
 }
 
-const ACTION_ORDER: PreflightAction[] = ["create", "update", "skip", "conflict", "invalid"];
+const ACTION_ORDER: PreflightAction[] = ["create", "update", "delete", "skip", "conflict", "invalid"];
 
 const ACTION_COLOR: Record<PreflightAction, (s: string) => string> = {
   create: ansiColors.green,
   update: ansiColors.cyan,
+  delete: ansiColors.magenta,
   skip: ansiColors.gray,
   conflict: ansiColors.red,
   invalid: ansiColors.yellow,
@@ -56,6 +58,7 @@ const ACTION_COLOR: Record<PreflightAction, (s: string) => string> = {
 const ACTION_GLYPH: Record<PreflightAction, string> = {
   create: "+",
   update: "~",
+  delete: "-",
   skip: "·",
   conflict: "✗",
   invalid: "!",
@@ -112,7 +115,7 @@ class PreflightReport {
     for (const entry of this.entries) {
       let summary = byPhase.get(entry.phase);
       if (!summary) {
-        summary = { phase: entry.phase, create: 0, update: 0, skip: 0, conflict: 0, invalid: 0, entries: [] };
+        summary = { phase: entry.phase, create: 0, update: 0, delete: 0, skip: 0, conflict: 0, invalid: 0, entries: [] };
         byPhase.set(entry.phase, summary);
       }
       summary[entry.action]++;
@@ -123,7 +126,7 @@ class PreflightReport {
 
   /** Aggregate totals across all phases. */
   getTotals(): Record<PreflightAction, number> {
-    const totals: Record<PreflightAction, number> = { create: 0, update: 0, skip: 0, conflict: 0, invalid: 0 };
+    const totals: Record<PreflightAction, number> = { create: 0, update: 0, delete: 0, skip: 0, conflict: 0, invalid: 0 };
     for (const entry of this.entries) {
       totals[entry.action]++;
     }
@@ -148,6 +151,7 @@ class PreflightReport {
       phase: string;
       create: number;
       update: number;
+      delete: number;
       skip: number;
       conflict: number;
       invalid: number;
@@ -157,10 +161,11 @@ class PreflightReport {
     return {
       totals: this.getTotals(),
       hasConflicts: this.hasConflicts(),
-      phases: this.getPhaseSummaries().map(({ phase, create, update, skip, conflict, invalid }) => ({
+      phases: this.getPhaseSummaries().map(({ phase, create, update, delete: deletes, skip, conflict, invalid }) => ({
         phase,
         create,
         update,
+        delete: deletes,
         skip,
         conflict,
         invalid,
@@ -189,7 +194,7 @@ class PreflightReport {
 
     const phases = this.getPhaseSummaries();
     if (phases.length === 0) {
-      lines.push(ansiColors.gray("\nNothing to do — no creates, updates, skips, or conflicts detected.\n"));
+      lines.push(ansiColors.gray("\nNothing to do — no creates, updates, deletes, skips, or conflicts detected.\n"));
       lines.push(...this.renderWarnings());
       return lines.join("\n");
     }
@@ -199,6 +204,7 @@ class PreflightReport {
         `\n${ansiColors.bold(phase.phase)}: ` +
         ACTION_COLOR.create(`${phase.create} create, `) +
         ACTION_COLOR.update(`${phase.update} update, `) +
+        (phase.delete > 0 ? ACTION_COLOR.delete(`${phase.delete} delete, `) : "") +
         ACTION_COLOR.skip(`${phase.skip} skip, `) +
         ACTION_COLOR.conflict(`${phase.conflict} conflict`) +
         (phase.invalid > 0 ? ACTION_COLOR.invalid(`, ${phase.invalid} invalid`) : "");
@@ -222,6 +228,7 @@ class PreflightReport {
       ansiColors.bold("TOTAL: ") +
         ACTION_COLOR.create(`${totals.create} create, `) +
         ACTION_COLOR.update(`${totals.update} update, `) +
+        (totals.delete > 0 ? ACTION_COLOR.delete(`${totals.delete} delete, `) : "") +
         ACTION_COLOR.skip(`${totals.skip} skip, `) +
         ACTION_COLOR.conflict(`${totals.conflict} conflict`) +
         (totals.invalid > 0 ? ACTION_COLOR.invalid(`, ${totals.invalid} invalid`) : "")

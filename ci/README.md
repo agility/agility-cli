@@ -10,14 +10,12 @@ they're available.
 
 ## When it runs
 
-| Trigger                                                          | Tier        | CLI under test                                                |
-| ---------------------------------------------------------------- | ----------- | ------------------------------------------------------------- |
-| A pull request from a branch in this repo                        | `quick`     | the PR's build. The result shows as a check on the PR         |
-| A `v*` tag push (each release, published to npm `beta`)          | `beta`      | the published package, installed from npm                     |
-| Nightly at 07:00 UTC                                             | `nightly`   | `main`. Also deletes any instances an earlier run left behind |
-| By hand (Actions tab → _Sync permutation test_ → _Run workflow_) | your choice | the branch you pick, or a published version                   |
+It leases two instances and runs for 10 to 15 minutes, so it runs only for a release, and by hand:
 
-Pull requests from forks and from Dependabot skip it, because they get no credentials.
+| Trigger                                                          | Tier        | CLI under test                                   |
+| ---------------------------------------------------------------- | ----------- | ------------------------------------------------ |
+| A `v*` tag push (a release; `npm-publish.yml` calls it)          | `beta`      | the tag's build. npm gets it only if this passes |
+| By hand (Actions tab → _Sync permutation test_ → _Run workflow_) | your choice | the branch you pick, or a published version      |
 
 From a terminal:
 
@@ -55,14 +53,18 @@ The `quick` tier runs a fixed set covering every area in two rounds. `beta` (4 r
 (6 rounds) pick changes at random from a seed printed in the summary. Replay one with
 `gh workflow run sync-permutation.yml -f tier=nightly -f seed=<seed>`.
 
-After every sync it checks:
+Every sync and preflight passes `--syncDeletes`, so a delete on one side reaches the other. After
+every sync it checks:
 
 - **sync:** exit 0 and no failed items in `--jsonSummary`;
-- **verify:** `agility verify` finds no differences;
-- **noop:** a `--preflight` in the same direction plans no creates, updates or conflicts;
 - **conflict:** the item edited on both sides ends at the synced side's value, or the sync reported a
   conflict;
 - **drift:** an edit made only on the receiving side is overwritten, or reported, never silently kept;
+- **resolve:** when the sync kept such edits, the same sync with `--overwrite` settles them, as an
+  editor would, before the checks below;
+- **verify:** `agility verify` finds no differences. A verify that finds some is tried once more a
+  minute later, because the Fetch API it reads lags behind saves (a model field rename most of all);
+- **noop:** a `--preflight` in the same direction plans no creates, updates, deletes or conflicts;
 - **apply:** the change itself could be made.
 
 Nothing stops a run early: every round runs, and each check is a row in the job summary. The JSON
@@ -70,8 +72,11 @@ results are kept as an artifact for 30 days.
 
 ## Promotion to `latest`
 
-`npm-publish.yml` refuses to promote a version to `latest` unless that version's tag run of this
-test passed. If a tag run failed for a reason unrelated to the CLI, re-run it, then promote again.
+A `v*` tag push runs this test on the tag's build first, and `npm-publish.yml` publishes to npm
+(under `beta`) only if it passed, so every version on npm from then on has passed it. If it failed
+for a reason unrelated to the CLI, re-run the failed jobs of that tag's _Publish to npm_ run: the
+test runs again on fresh instances, then the publish. Promote a published version to `latest` with
+_Publish to npm_ → _Run workflow_.
 
 ## Cleanup
 
@@ -80,7 +85,7 @@ Instances are deleted in three ways, so a run can't leave them behind:
 1. The `release` job runs after every run, including failed and cancelled ones, and deletes every
    instance labelled with that run.
 2. Every instance expires shortly after the run's time budget and is then deleted automatically.
-3. The nightly run deletes any instance from an earlier run that is more than 6 hours old.
+3. Every run first deletes any instance from an earlier run that is more than 6 hours old.
 
 ## Running it locally
 

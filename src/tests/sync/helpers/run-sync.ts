@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 
-import { state, resetState, setState } from "core/state";
+import { state, resetState, setState, enableReverseSync } from "core/state";
 import { Pushers, PushResults } from "lib/pushers/orchestrate-pushers";
 import type { JsonSummaryPhase } from "core/json-summary";
 
@@ -64,6 +64,8 @@ export interface RunSyncOptions {
   fixture: SyncFixture;
   /** Pre-seed the fake's target instance, for entities that exist server-side already. */
   seedTarget?: (fake: FakeInstance, targetGuid: string) => void;
+  /** Extra CLI state for every run (e.g. { syncDeletes: true }). Can be changed between runs. */
+  stateOverrides?: Record<string, any>;
 }
 
 export interface SyncRun {
@@ -84,6 +86,13 @@ export class SyncHarness {
   private readonly elements: string;
   private readonly overwrite: boolean;
   private readonly preflight: boolean;
+  /** Extra CLI state applied on every run; reassign between runs to change flags for run 2. */
+  stateOverrides: Record<string, any>;
+  /**
+   * Run as `reverse-sync`: same pair and mapping files, pushing target -> source. Set it between
+   * runs, after projecting the target to disk (it is the source of a reverse run).
+   */
+  reverse = false;
 
   constructor(opts: RunSyncOptions) {
     this.sourceGuid = opts.sourceGuid ?? "src-1";
@@ -92,6 +101,7 @@ export class SyncHarness {
     this.elements = opts.elements ?? "Models,Containers,Content";
     this.overwrite = opts.overwrite ?? false;
     this.preflight = opts.preflight ?? false;
+    this.stateOverrides = opts.stateOverrides ?? {};
 
     this.rootPath = fs.mkdtempSync(path.join(os.tmpdir(), "agility-sync-harness-"));
     this.fake = new FakeInstance({ locales: this.locales });
@@ -130,7 +140,9 @@ export class SyncHarness {
       elements: this.elements,
       overwrite: this.overwrite,
       preflight: this.preflight,
+      ...this.stateOverrides,
     });
+    if (this.reverse) enableReverseSync();
     state.cachedApiClient = this.fake.asApiClient();
     state.availableLocales = [...this.locales];
     this.wireBatchLayer();
