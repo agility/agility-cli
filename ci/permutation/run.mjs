@@ -27,7 +27,7 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { CHANGES, QUICK_ROUNDS, client, conflict, drift, readField, rng } from "./changes.mjs";
-import { checkReferenceCycles, seedReferenceCycles } from "./fixtures.mjs";
+import { checkReferenceCycles, seedReferenceCycles, waitForFetchSync } from "./fixtures.mjs";
 
 const { SOURCE_GUID: A, TARGET_GUID: B, AGILITY_TOKEN, CLI } = process.env;
 const TIER = process.env.TIER || "quick";
@@ -130,12 +130,19 @@ function syncAndCheck(round, direction) {
 let cycles = null;
 try {
   cycles = await seedReferenceCycles(api, A, LOCALE);
+  // The first sync pulls from the Fetch API, which lists new items a minute or two after publish
+  const waited = await waitForFetchSync(
+    AGILITY_TOKEN,
+    A,
+    LOCALE,
+    cycles.links.map(([x]) => x)
+  );
   record(
     0,
     "A→B",
     "apply:fixture-cycles",
     true,
-    `A ↔ B and a self-reference (${cycles.links.map(([x]) => `#${x}`).join(", ")})`
+    `A ↔ B and a self-reference (${cycles.links.map(([x]) => `#${x}`).join(", ")}), in the Fetch API after ${waited}s`
   );
 } catch (e) {
   record(0, "A→B", "apply:fixture-cycles", false, String(e?.message ?? e).slice(0, 200));
