@@ -150,6 +150,78 @@ export async function waitForFetchSync(token, guid, locale, ids, { timeoutMs = 1
   throw new Error(`items ${[...missing].join(", ")} not in the Fetch API sync feed after ${timeoutMs / 1000}s`);
 }
 
+// Each content item's latest version (contentItemID) in the Management API, by content ID. Taken
+// before and after a round's edits, the difference is what the round changed.
+export async function contentVersions(c, guid, locale) {
+  const lists = (await c.containerMethods.getContainerList(guid)).filter(
+    (x) => x.referenceName && x.contentDefinitionType === 1
+  );
+  const versions = new Map();
+  for (const l of lists) {
+    let rows = [];
+    try {
+      const r = await c.contentMethods.getContentItems(l.referenceName, guid, locale, {
+        take: 250,
+        skip: 0,
+        filter: "",
+        fields: "",
+        sortDirection: "",
+        sortField: "",
+        showDeleted: false,
+      });
+      rows = (r?.items ?? []).flat(Infinity);
+    } catch {
+      continue;
+    }
+    for (const row of rows) {
+      const id = row.contentID ?? row.itemContainerID;
+      if (id > 0 && row.contentItemID > 0) versions.set(id, Math.max(versions.get(id) ?? 0, row.contentItemID));
+    }
+  }
+  return versions;
+}
+
+// Items whose version went up (or that are new) between two contentVersions snapshots.
+export function changedSince(before, after) {
+  return new Map([...after].filter(([id, v]) => v > (before.get(id) ?? 0)));
+}
+
+// The Fetch API sync feed (a log of changes) lags the Management API, and every sync and verify
+// reads it. Wait until it lists each given item at least at the given version, so a sync never acts
+// on an edit it can't see yet. Returns the seconds waited; throws on timeout.
+export async function waitForFetchVersions(token, guid, locale, wanted, { timeoutMs = 5 * 60 * 1000 } = {}) {
+  if (wanted.size === 0) return 0;
+  const { mgmt, api } = hosts(guid);
+  const keyRes = await fetch(`${mgmt}/oauth/GetPreviewKey?guid=${guid}`, {
+    headers: { Authorization: `Bearer ${token}`, "Cache-Control": "no-cache" },
+  });
+  if (!keyRes.ok) throw new Error(`GetPreviewKey: HTTP ${keyRes.status}`);
+  const apiKey = (await keyRes.text()).replace(/^"|"$/g, "");
+
+  const started = Date.now();
+  let behind = [];
+  while (Date.now() - started < timeoutMs) {
+    const have = new Map();
+    let syncToken = 0;
+    for (let page = 0; page < 100; page++) {
+      const res = await fetch(`${api}/${guid}/preview/${locale}/sync/items?syncToken=${syncToken}&pageSize=500`, {
+        headers: { APIKey: apiKey, "Cache-Control": "no-cache" },
+      });
+      if (!res.ok) throw new Error(`Fetch API sync/items: HTTP ${res.status}`);
+      const body = await res.json();
+      for (const item of body.items ?? []) {
+        have.set(item.contentID, Math.max(have.get(item.contentID) ?? 0, item.properties?.versionID ?? 0));
+      }
+      if (!body.items?.length || !body.syncToken || body.syncToken === syncToken) break;
+      syncToken = body.syncToken;
+    }
+    behind = [...wanted].filter(([id, v]) => (have.get(id) ?? 0) < v).map(([id]) => id);
+    if (behind.length === 0) return Math.round((Date.now() - started) / 1000);
+    await new Promise((r) => setTimeout(r, 10_000));
+  }
+  throw new Error(`Fetch API still behind after ${timeoutMs / 1000}s on items ${behind.slice(0, 10).join(", ")}`);
+}
+
 // After a sync: each target copy's Next (and NextID) must hold the TARGET ID of its partner.
 export async function checkReferenceCycles(c, guid, locale, fixture, toTarget) {
   const problems = [];

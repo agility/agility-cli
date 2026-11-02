@@ -29,7 +29,14 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { CHANGES, QUICK_ROUNDS, client, conflict, drift, readField, rng } from "./changes.mjs";
-import { checkReferenceCycles, seedReferenceCycles, waitForFetchSync } from "./fixtures.mjs";
+import {
+  changedSince,
+  checkReferenceCycles,
+  contentVersions,
+  seedReferenceCycles,
+  waitForFetchSync,
+  waitForFetchVersions,
+} from "./fixtures.mjs";
 
 const { SOURCE_GUID: A, TARGET_GUID: B, AGILITY_TOKEN, CLI } = process.env;
 const TIER = process.env.TIER || "quick";
@@ -224,6 +231,10 @@ for (let i = 0; i < plan.length; i++) {
   };
   const toCtx = { c: api, guid: to, locale: LOCALE, round, side: forward ? "target" : "source", r, state: state[to] };
   const applied = [];
+  const versionsBefore = {
+    [from]: await contentVersions(api, from, LOCALE),
+    [to]: await contentVersions(api, to, LOCALE),
+  };
 
   for (const name of plan[i]) {
     try {
@@ -255,6 +266,17 @@ for (let i = 0; i < plan.length; i++) {
   console.log(
     `\n── round ${round} (${direction}): ${applied.map((a) => `${a.area}/${a.change}`).join(", ") || "no changes"}`
   );
+
+  // The sync reads both instances through the Fetch API: wait until it shows this round's edits
+  for (const guid of [from, to]) {
+    try {
+      const changed = changedSince(versionsBefore[guid], await contentVersions(api, guid, LOCALE));
+      const waited = await waitForFetchVersions(AGILITY_TOKEN, guid, LOCALE, changed);
+      if (changed.size) console.log(`  Fetch API showed ${changed.size} edited item(s) on ${guid} after ${waited}s`);
+    } catch (e) {
+      record(round, direction, "apply:fetch-catch-up", false, String(e?.message ?? e).slice(0, 200));
+    }
+  }
 
   const { reported } = syncStep(round, direction);
   let kept = false;
