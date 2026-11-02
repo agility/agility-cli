@@ -600,9 +600,7 @@ describe("ContentBatchProcessor.prepareContentPayloads — stale container mappi
     expect(result.skippedCount).toBe(0);
     expect(result.failedItems).toHaveLength(1);
     expect(result.failedItems[0].error).toEqual(expect.stringContaining("no longer exists on the target"));
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      expect.stringContaining("no longer exists on the target")
-    );
+    expect(consoleErrorSpy).toHaveBeenCalledWith(expect.stringContaining("no longer exists on the target"));
   });
 
   it("ships the payload normally when the target container still exists", async () => {
@@ -633,12 +631,28 @@ describe("ContentBatchProcessor.prepareContentPayloads — trustSameRunMappings 
   function seed(sourceGuid: string, targetGuid: string): ContentItemMapper {
     writeEntityFile(tmpDir, sourceGuid, "models", 1, { id: 1, referenceName: "TestModel", fields: [] });
     writeMappingFile(tmpDir, sourceGuid, targetGuid, "models", [
-      { sourceGuid, targetGuid, sourceID: 1, targetID: 1, sourceReferenceName: "TestModel", targetReferenceName: "TestModel",
-        sourceLastModifiedDate: "07/01/2026 12:00PM", targetLastModifiedDate: "07/01/2026 12:00PM" },
+      {
+        sourceGuid,
+        targetGuid,
+        sourceID: 1,
+        targetID: 1,
+        sourceReferenceName: "TestModel",
+        targetReferenceName: "TestModel",
+        sourceLastModifiedDate: "07/01/2026 12:00PM",
+        targetLastModifiedDate: "07/01/2026 12:00PM",
+      },
     ]);
     writeMappingFile(tmpDir, sourceGuid, targetGuid, "containers", [
-      { sourceGuid, targetGuid, sourceContentViewID: 10, targetContentViewID: 999, sourceReferenceName: "ref-1",
-        targetReferenceName: "ref-1", sourceLastModifiedDate: "07/01/2026 12:00PM", targetLastModifiedDate: "07/01/2026 12:00PM" },
+      {
+        sourceGuid,
+        targetGuid,
+        sourceContentViewID: 10,
+        targetContentViewID: 999,
+        sourceReferenceName: "ref-1",
+        targetReferenceName: "ref-1",
+        sourceLastModifiedDate: "07/01/2026 12:00PM",
+        targetLastModifiedDate: "07/01/2026 12:00PM",
+      },
     ]);
     writeEntityFile(tmpDir, targetGuid, "containers", 999, { contentViewID: 999, referenceName: "ref-1" });
     const referenceMapper = new ContentItemMapper(sourceGuid, targetGuid, "en-us");
@@ -671,11 +685,106 @@ describe("ContentBatchProcessor.prepareContentPayloads — trustSameRunMappings 
 
   it("without the option, treats the missing target as gone (unchanged behavior)", async () => {
     const referenceMapper = seed("notrust-src", "notrust-tgt");
-    const processor = new ContentBatchProcessor(makeConfig({ sourceGuid: "notrust-src", targetGuid: "notrust-tgt", referenceMapper }));
+    const processor = new ContentBatchProcessor(
+      makeConfig({ sourceGuid: "notrust-src", targetGuid: "notrust-tgt", referenceMapper })
+    );
 
-    const result = await (processor as any).prepareContentPayloads([item()], "notrust-src", "notrust-tgt", makeLogger());
+    const result = await (processor as any).prepareContentPayloads(
+      [item()],
+      "notrust-src",
+      "notrust-tgt",
+      makeLogger()
+    );
 
     expect(result.prepared[0].payload.contentID).toBe(-1);
+  });
+});
+
+// ─── links to items deleted from the source ───────────────────────────────────
+
+describe("ContentBatchProcessor.prepareContentPayloads — links to items gone from the source", () => {
+  function seed(sourceGuid: string, targetGuid: string, sourceItemIds: number[]): ContentItemMapper {
+    writeEntityFile(tmpDir, sourceGuid, "models", 1, { id: 1, referenceName: "TestModel", fields: [] });
+    writeMappingFile(tmpDir, sourceGuid, targetGuid, "models", [
+      {
+        sourceGuid,
+        targetGuid,
+        sourceID: 1,
+        targetID: 1,
+        sourceReferenceName: "TestModel",
+        targetReferenceName: "TestModel",
+        sourceLastModifiedDate: "07/01/2026 12:00PM",
+        targetLastModifiedDate: "07/01/2026 12:00PM",
+      },
+    ]);
+    writeMappingFile(tmpDir, sourceGuid, targetGuid, "containers", [
+      {
+        sourceGuid,
+        targetGuid,
+        sourceContentViewID: 10,
+        targetContentViewID: 999,
+        sourceReferenceName: "ref-1",
+        targetReferenceName: "ref-1",
+        sourceLastModifiedDate: "07/01/2026 12:00PM",
+        targetLastModifiedDate: "07/01/2026 12:00PM",
+      },
+    ]);
+    writeEntityFile(tmpDir, targetGuid, "containers", 999, { contentViewID: 999, referenceName: "ref-1" });
+    // the source pull: one file per live item
+    for (const id of sourceItemIds) writeEntityFile(tmpDir, sourceGuid, "en-us/item", id, { contentID: id });
+    return new ContentItemMapper(sourceGuid, targetGuid, "en-us");
+  }
+
+  function linking(to: number): any {
+    const it = makeContentItem(1);
+    it.properties.referenceName = "ref-1";
+    it.properties.definitionName = "TestModel";
+    it.fields = { title: "A", next: { contentid: to, fulllist: false } };
+    return it;
+  }
+
+  const logger = () => ({ ...makeLogger(), warning: jest.fn() });
+
+  it("sends the item with the link blank, and warns, when the linked item is gone from the source", async () => {
+    const referenceMapper = seed("gone-src", "gone-tgt", [1]);
+    const processor = new ContentBatchProcessor(
+      makeConfig({ sourceGuid: "gone-src", targetGuid: "gone-tgt", referenceMapper })
+    );
+    const log = logger();
+
+    const result = await (processor as any).prepareContentPayloads([linking(2)], "gone-src", "gone-tgt", log);
+
+    expect(result.failedItems).toHaveLength(0);
+    expect(result.prepared).toHaveLength(1);
+    expect(JSON.stringify(result.prepared[0].payload.fields.next)).not.toContain("2");
+    expect(log.warning).toHaveBeenCalledWith(
+      expect.stringContaining("no longer exist in the source"),
+      expect.anything()
+    );
+  });
+
+  it("still fails a link to an item that exists in the source but isn't mapped yet", async () => {
+    const referenceMapper = seed("live-src", "live-tgt", [1, 2]);
+    const processor = new ContentBatchProcessor(
+      makeConfig({ sourceGuid: "live-src", targetGuid: "live-tgt", referenceMapper })
+    );
+
+    const result = await (processor as any).prepareContentPayloads([linking(2)], "live-src", "live-tgt", logger());
+
+    expect(result.prepared).toHaveLength(0);
+    expect(result.failedItems[0].error).toMatch(/Unresolved content reference/);
+  });
+
+  it("doesn't treat a link as gone when no source content was pulled", async () => {
+    const referenceMapper = seed("nopull-src", "nopull-tgt", []);
+    const processor = new ContentBatchProcessor(
+      makeConfig({ sourceGuid: "nopull-src", targetGuid: "nopull-tgt", referenceMapper })
+    );
+
+    const result = await (processor as any).prepareContentPayloads([linking(2)], "nopull-src", "nopull-tgt", logger());
+
+    expect(result.prepared).toHaveLength(0);
+    expect(result.failedItems[0].error).toMatch(/Unresolved content reference/);
   });
 });
 
