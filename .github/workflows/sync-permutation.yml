@@ -12,19 +12,28 @@ name: Sync permutation test
 #     whatever happens to the rest of the run, and the leasing service deletes anything a
 #     dead runner leaves behind once the TTL runs out.
 #
-# Tiers (the same jobs; the tier sets TTLs and timeouts, and later slices add scenarios to it):
-#   quick    every pull request
-#   beta     every v* tag (the version npm-publish.yml just published under `beta`). Its result
-#            gates promotion to `latest` (npm-publish.yml, promote job)
-#   nightly  every night against whatever is deployed to dev, plus a sweep for left-behind leases
+# It leases two instances and runs for 10 to 15 minutes, so it runs only for a release and by hand:
+#   release  npm-publish.yml calls it on every v* tag push, on that tag's build (tier `beta`), and
+#            publishes to npm only if it passes
+#   by hand  Actions tab → Sync permutation test → Run workflow, on a branch or a published version
+#
+# Tiers (the same jobs; the tier sets TTLs, timeouts and the number of change rounds):
+#   quick    two fixed rounds
+#   beta     four seeded random rounds (a release)
+#   nightly  six seeded random rounds
 
 on:
-  pull_request:
-  push:
-    tags:
-      - "v*"
-  schedule:
-    - cron: "0 7 * * *" # 07:00 UTC, 03:00 Eastern
+  workflow_call:
+    inputs:
+      tier:
+        type: string
+        default: beta
+      cli_version:
+        type: string
+        default: ""
+      seed:
+        type: string
+        default: ""
   workflow_dispatch:
     inputs:
       tier:
@@ -42,17 +51,17 @@ on:
         default: ""
 
 concurrency:
-  group: sync-permutation-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: sync-permutation-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: false
 
 permissions:
   contents: read
   id-token: write
 
 env:
-  TIER: ${{ inputs.tier || (github.event_name == 'schedule' && 'nightly') || (github.ref_type == 'tag' && 'beta') || 'quick' }}
-  # Published version under test: the dispatch input, or the tag's version on a tag push.
-  CLI_VERSION: ${{ inputs.cli_version || (github.ref_type == 'tag' && github.ref_name) || '' }}
+  TIER: ${{ inputs.tier || 'quick' }}
+  # Blank: build and test this checkout (a release tests its tag's build). Otherwise a published version.
+  CLI_VERSION: ${{ inputs.cli_version || '' }}
   # Every lease of this run (and of this attempt, so a re-run gets fresh instances) starts with this.
   LEASE_PREFIX: cli-perm-${{ github.run_id }}-${{ github.run_attempt }}-
   GITHUB_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
@@ -60,10 +69,6 @@ env:
 jobs:
   lease:
     name: Lease dev instances
-    # Same-repo PRs only: forks and Dependabot get no credentials.
-    if: >-
-      github.event_name != 'pull_request' ||
-      (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
     runs-on: ubuntu-latest
     environment: cli-dev-live
     timeout-minutes: 20
@@ -94,7 +99,6 @@ jobs:
 
       # Layer 4 of teardown: anything an earlier run left behind (its release job failed or never ran).
       - name: Sweep left-behind leases
-        if: env.TIER == 'nightly'
         run: node ci/leases.mjs sweep cli-perm- --older-than-hours 6
 
       # TTL = the run's budget plus a margin, so the reaper is the backstop if every other layer fails.
@@ -109,7 +113,7 @@ jobs:
     needs: lease
     runs-on: ubuntu-latest
     environment: cli-dev-live
-    timeout-minutes: ${{ (github.event_name == 'schedule' || inputs.tier == 'nightly') && 180 || 120 }}
+    timeout-minutes: ${{ inputs.tier == 'nightly' && 180 || 120 }}
     steps:
       - uses: actions/checkout@v4
 
@@ -133,11 +137,6 @@ jobs:
         if: env.CLI_VERSION != ''
         run: |
           V="${CLI_VERSION#v}"
-          # A tag push starts this workflow and npm-publish.yml together; wait for the publish.
-          for i in $(seq 1 40); do
-            npm view "@agility/cli@$V" version >/dev/null 2>&1 && break
-            echo "waiting for @agility/cli@$V on npm ($i/40)"; sleep 15
-          done
           npm install --prefix "$RUNNER_TEMP/cli" "@agility/cli@$V"
           echo "CLI=node $RUNNER_TEMP/cli/node_modules/@agility/cli/dist/index.js" >> "$GITHUB_ENV"
 
@@ -178,11 +177,7 @@ jobs:
   release:
     name: Release leases
     needs: [lease, test]
-    if: >-
-      always() && (
-        github.event_name != 'pull_request' ||
-        (github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]')
-      )
+    if: always()
     runs-on: ubuntu-latest
     environment: cli-dev-live
     timeout-minutes: 10

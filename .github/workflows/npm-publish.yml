@@ -22,9 +22,41 @@ on:
         default: latest
 
 jobs:
+  # A v* tag push: check the tag, run the sync permutation test on the tag's build, and publish
+  # only if it passed. Nothing reaches npm (or gets a dist-tag) untested on dev.
+  check-version:
+    name: Check the tag matches package.json
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify tag matches package.json version
+        run: |
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag ($TAG_VERSION) does not match package.json version ($PKG_VERSION)."
+            exit 1
+          fi
+
+  sync-test:
+    name: Sync permutation test
+    needs: check-version
+    uses: ./.github/workflows/sync-permutation.yml
+    with:
+      tier: beta
+    secrets: inherit
+    permissions:
+      contents: read
+      id-token: write
+
   publish:
     name: Build and publish to npm
-    if: github.event_name == 'push'
+    needs: sync-test
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -35,15 +67,6 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-
-      - name: Verify tag matches package.json version
-        run: |
-          TAG_VERSION="${GITHUB_REF_NAME#v}"
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          if [ "$TAG_VERSION" != "$PKG_VERSION" ]; then
-            echo "Tag ($TAG_VERSION) does not match package.json version ($PKG_VERSION)."
-            exit 1
-          fi
 
       - name: Set up Node.js
         uses: actions/setup-node@v4
@@ -68,8 +91,6 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
-      # Reads the sync permutation runs for the gate below.
-      actions: read
       # Uses the trusted publisher's OIDC credentials; needs "Allow npm dist-tag"
       # enabled on the package's trusted publishing configuration on npmjs.com.
       id-token: write
@@ -106,23 +127,9 @@ jobs:
       - name: Check the version is published
         run: npm view "@agility/cli@$VERSION" version | grep -qx "$VERSION" || { echo "@agility/cli@$VERSION is not on npm."; exit 1; }
 
-      # Nothing reaches `latest` untested on dev: the tag's sync permutation run
-      # (sync-permutation.yml, triggered by the same tag push) must have passed. If it failed
-      # for a reason unrelated to the CLI, re-run it from the Actions tab and promote again.
-      - name: Require a passing sync permutation run
-        if: env.DIST_TAG == 'latest'
-        env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-        run: |
-          SHA=$(gh api "repos/$REPO/commits/v$VERSION" --jq .sha) || { echo "No tag v$VERSION."; exit 1; }
-          PASSED=$(gh api "repos/$REPO/actions/workflows/sync-permutation.yml/runs?event=push&head_sha=$SHA&status=success&per_page=1" --jq .total_count)
-          if [ "$PASSED" = "0" ]; then
-            echo "No passing 'Sync permutation test' run for v$VERSION ($SHA). See the Actions tab."
-            exit 1
-          fi
-          echo "v$VERSION passed the sync permutation test."
-
+      # No separate test check: since the sync permutation test gates the publish, every version
+      # published from now on has passed it. (Versions published before that, 1.2.2 and earlier,
+      # never went through it.)
       - name: Promote
         run: npm dist-tag add "@agility/cli@$VERSION" "$DIST_TAG"
 
