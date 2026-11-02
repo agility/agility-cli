@@ -7,6 +7,9 @@
 //   even      edit B, sync B → A           (`reverse-sync`, same A/B pair and mappings)
 // Every round also edits the other instance (drift) and one item on both sides (a conflict).
 //
+// Before the first sync it adds fixtures the blog template lacks (fixtures.mjs): content that
+// references itself and each other (PROD-3076), checked after round 0 by `cycles`.
+//
 // After each sync it checks:
 //   sync        exit 0, no failed items
 //   verify      `agility verify` finds no differences
@@ -24,6 +27,7 @@ import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { CHANGES, QUICK_ROUNDS, client, conflict, drift, readField, rng } from "./changes.mjs";
+import { checkReferenceCycles, seedReferenceCycles } from "./fixtures.mjs";
 
 const { SOURCE_GUID: A, TARGET_GUID: B, AGILITY_TOKEN, CLI } = process.env;
 const TIER = process.env.TIER || "quick";
@@ -122,8 +126,33 @@ function syncAndCheck(round, direction) {
   return { planConflicts: plan.json?.preflight?.totals?.conflict ?? 0 };
 }
 
-// ── Round 0: first sync ───────────────────────────────────────────────────────────────────────
+// ── Fixtures, then round 0: first sync ────────────────────────────────────────────────────────
+let cycles = null;
+try {
+  cycles = await seedReferenceCycles(api, A, LOCALE);
+  record(
+    0,
+    "A→B",
+    "apply:fixture-cycles",
+    true,
+    `A ↔ B and a self-reference (${cycles.links.map(([x]) => `#${x}`).join(", ")})`
+  );
+} catch (e) {
+  record(0, "A→B", "apply:fixture-cycles", false, String(e?.message ?? e).slice(0, 200));
+}
+
 syncAndCheck(0, "A→B");
+
+if (cycles) {
+  const problems = await checkReferenceCycles(api, B, LOCALE, cycles, mapped(true));
+  record(
+    0,
+    "A→B",
+    "cycles",
+    problems.length === 0,
+    problems.length ? problems.join("; ").slice(0, 300) : "each copy points at its partner's target ID"
+  );
+}
 
 // ── Change rounds ─────────────────────────────────────────────────────────────────────────────
 const names = Object.keys(CHANGES);
