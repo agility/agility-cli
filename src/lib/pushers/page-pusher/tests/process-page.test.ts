@@ -343,24 +343,28 @@ describe("processPage — page title sent to the target (PROD-3025)", () => {
     return apiClient.pageMethods.savePage.mock.calls[0][0].title;
   }
 
-  it("keeps an empty title on a dynamic page instead of filling in its name", async () => {
+  it("keeps an untitled dynamic page untitled instead of filling in its name", async () => {
+    // As pulled through the Fetch API: an empty title comes back as null
     const page = makePage({
       name: "posts-dynamic",
       pageType: "dynamic",
-      title: "",
+      title: null,
       menuText: "",
       dynamic: { referenceName: "Posts", titleFormula: "##Title##", pageNameFormula: "##Slug##" },
     });
     expect(await savedTitle(page)).toBe("");
   });
 
+  it("keeps an empty title empty", async () => {
+    expect(await savedTitle(makePage({ title: "", menuText: "Blog" }))).toBe("");
+  });
+
   it("sends a page's own title unchanged", async () => {
     expect(await savedTitle(makePage({ title: "About Us" }))).toBe("About Us");
   });
 
-  it("falls back to the menu text, then the name, when the title is missing", async () => {
-    expect(await savedTitle(makePage({ title: null, menuText: "Blog" }))).toBe("Blog");
-    expect(await savedTitle(makePage({ title: undefined, menuText: "", name: "blog" }))).toBe("blog");
+  it("does not take the menu text or name for a page with no title", async () => {
+    expect(await savedTitle(makePage({ title: undefined, menuText: "Blog", name: "blog" }))).toBe("");
   });
 });
 

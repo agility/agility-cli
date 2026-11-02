@@ -390,10 +390,11 @@ export async function processPage({
     // Fix zones format - ensure zones is always a defined object (never null/undefined)
     const formattedZones = mappedZones && typeof mappedZones === "object" ? mappedZones : {};
 
-    // Keep the source title as-is, including "": a dynamic page's titles come from its titleFormula,
-    // so it is often saved untitled, and filling in its name made the target differ (PROD-3025).
-    // Fall back only when the title is missing altogether (folders come back with title null).
-    const pageTitle = typeof page.title === "string" ? page.title : page.menuText || page.name || "Untitled Page";
+    // Send the source title as-is. The Fetch API (Content Sync) returns an empty title as null, and
+    // the Management API accepts a missing or empty title (folders ignore it), so null goes as "".
+    // Filling in the menu text or page name made an untitled page - typically a dynamic page, whose
+    // titles come from its titleFormula - differ from the source on every sync (PROD-3025).
+    const pageTitle = page.title ?? "";
 
     const pageJSON = JSON.stringify(page, null, 2);
     const pageCopy = JSON.parse(pageJSON) as mgmtApi.PageItem; // Create a copy to avoid modifying original
