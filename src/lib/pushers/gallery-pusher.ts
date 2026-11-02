@@ -101,15 +101,12 @@ export async function pushGalleries(
         successful++;
       } else if (existingMapping) {
         const targetGallery = targetGalleryById || targetGalleryByName;
-        const isTargetSafe = referenceMapper.hasTargetChanged(targetGallery);
+        const hasTargetChanges = referenceMapper.hasTargetChanged(targetGallery);
         const hasSourceChanges = referenceMapper.hasSourceChanged(sourceGallery);
-        let shouldUpdate = isTargetSafe && hasSourceChanges;
-        let shouldSkip = !isTargetSafe && !hasSourceChanges;
-
-        if (overwrite) {
-          shouldUpdate = true;
-          shouldSkip = false;
-        }
+        // Source changed alone: update. Target changed (alone or with the source): a conflict,
+        // replaced only with --overwrite. Neither: up to date.
+        const shouldUpdate = (hasSourceChanges && !hasTargetChanges) || (overwrite && hasTargetChanges);
+        const shouldSkip = !hasSourceChanges && !hasTargetChanges;
 
         if (shouldUpdate) {
           // Gallery exists but needs updating
@@ -137,9 +134,13 @@ export async function pushGalleries(
           });
           skipped++;
         } else {
-          // Neither update nor skip: target changed while source also changed and
-          // --overwrite was not set. The real sync silently does nothing here; in
-          // preflight we surface it as a conflict so it isn't missed.
+          // Conflict: the target changed since the last sync and --overwrite was not set.
+          logger.gallery.skipped(
+            sourceGallery,
+            "conflict: target changed since the last sync; use --overwrite to replace it",
+            targetGuid
+          );
+          skipped++;
           preflightReport.record({
             phase: "Galleries",
             action: "conflict",
