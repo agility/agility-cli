@@ -390,9 +390,10 @@ export async function processPage({
     // Fix zones format - ensure zones is always a defined object (never null/undefined)
     const formattedZones = mappedZones && typeof mappedZones === "object" ? mappedZones : {};
 
-    // CRITICAL FIX: Ensure every page has a valid title field
-    // Folder pages often don't have titles, but API requires them
-    const pageTitle = page.title || page.menuText || page.name || "Untitled Page";
+    // Keep the source title as-is, including "": a dynamic page's titles come from its titleFormula,
+    // so it is often saved untitled, and filling in its name made the target differ (PROD-3025).
+    // Fall back only when the title is missing altogether (folders come back with title null).
+    const pageTitle = typeof page.title === "string" ? page.title : page.menuText || page.name || "Untitled Page";
 
     const pageJSON = JSON.stringify(page, null, 2);
     const pageCopy = JSON.parse(pageJSON) as mgmtApi.PageItem; // Create a copy to avoid modifying original
