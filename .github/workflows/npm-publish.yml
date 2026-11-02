@@ -4,9 +4,6 @@ on:
   push:
     tags:
       - "v*"
-    # A merge to main whose package.json version isn't on npm yet publishes it (release job below)
-    branches:
-      - main
   # Promote an already-published version to a dist-tag from the Actions tab
   # ("Run workflow"), instead of running `npm dist-tag add` locally.
   workflow_dispatch:
@@ -27,7 +24,7 @@ on:
 jobs:
   publish:
     name: Build and publish to npm
-    if: github.event_name == 'push' && github.ref_type == 'tag'
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -64,71 +61,6 @@ jobs:
       # "Run workflow" button on this workflow (the promote job below).
       - name: Publish
         run: npm publish --access public --tag beta
-
-  # A merge to main that bumps the version publishes it under beta, tags it v<version> and starts
-  # that tag's sync permutation run, so a release is just a version bump in a PR. A tag made with
-  # GITHUB_TOKEN starts no workflows, which is why this job publishes and starts the test itself.
-  # A merge that doesn't change the version finds it already on npm and does nothing.
-  release:
-    name: Publish the version merged to main
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write # create the v<version> tag
-      actions: write # start the tag's sync permutation run
-      id-token: write # npm trusted publishing
-    env:
-      GH_TOKEN: ${{ github.token }}
-      REPO: ${{ github.repository }}
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Is this version new?
-        id: version
-        run: |
-          VERSION=$(node -p "require('./package.json').version")
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          if npm view "@agility/cli@$VERSION" version >/dev/null 2>&1; then
-            echo "@agility/cli@$VERSION is already on npm; nothing to publish."
-            echo "new=false" >> "$GITHUB_OUTPUT"
-          elif gh api "repos/$REPO/git/ref/tags/v$VERSION" >/dev/null 2>&1; then
-            echo "Tag v$VERSION already exists; its tag push publishes it."
-            echo "new=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "Publishing @agility/cli@$VERSION."
-            echo "new=true" >> "$GITHUB_OUTPUT"
-          fi
-
-      - name: Set up Node.js
-        if: steps.version.outputs.new == 'true'
-        uses: actions/setup-node@v4
-        with:
-          node-version: "24"
-          registry-url: "https://registry.npmjs.org"
-
-      - name: Install dependencies
-        if: steps.version.outputs.new == 'true'
-        run: npm ci
-
-      - name: Build
-        if: steps.version.outputs.new == 'true'
-        run: npm run build
-
-      - name: Publish
-        if: steps.version.outputs.new == 'true'
-        run: npm publish --access public --tag beta
-
-      - name: Tag v${{ steps.version.outputs.version }}
-        if: steps.version.outputs.new == 'true'
-        run: gh api "repos/$REPO/git/refs" -f "ref=refs/tags/v${{ steps.version.outputs.version }}" -f "sha=$GITHUB_SHA"
-
-      - name: Start the tag's sync permutation run
-        if: steps.version.outputs.new == 'true'
-        run: |
-          V="${{ steps.version.outputs.version }}"
-          gh workflow run sync-permutation.yml --repo "$REPO" --ref "v$V" -f tier=beta -f cli_version="$V"
 
   promote:
     name: Promote ${{ inputs.version }} to ${{ inputs.dist_tag }}
@@ -174,10 +106,9 @@ jobs:
       - name: Check the version is published
         run: npm view "@agility/cli@$VERSION" version | grep -qx "$VERSION" || { echo "@agility/cli@$VERSION is not on npm."; exit 1; }
 
-      # Nothing reaches `latest` untested on dev: the tag's sync permutation run must have passed.
-      # A tag pushed by hand starts it with the push; a version merged to main gets it from the
-      # release job above, as a dispatch on the tag. If it failed for a reason unrelated to the
-      # CLI, re-run it from the Actions tab and promote again.
+      # Nothing reaches `latest` untested on dev: the tag's sync permutation run
+      # (sync-permutation.yml, triggered by the same tag push) must have passed. If it failed
+      # for a reason unrelated to the CLI, re-run it from the Actions tab and promote again.
       - name: Require a passing sync permutation run
         if: env.DIST_TAG == 'latest'
         env:
@@ -185,8 +116,7 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           SHA=$(gh api "repos/$REPO/commits/v$VERSION" --jq .sha) || { echo "No tag v$VERSION."; exit 1; }
-          PASSED=$(gh api "repos/$REPO/actions/workflows/sync-permutation.yml/runs?head_sha=$SHA&status=success&per_page=100" \
-            --jq '[.workflow_runs[] | select(.event == "push" or .event == "workflow_dispatch")] | length')
+          PASSED=$(gh api "repos/$REPO/actions/workflows/sync-permutation.yml/runs?event=push&head_sha=$SHA&status=success&per_page=1" --jq .total_count)
           if [ "$PASSED" = "0" ]; then
             echo "No passing 'Sync permutation test' run for v$VERSION ($SHA). See the Actions tab."
             exit 1

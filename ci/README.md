@@ -10,12 +10,12 @@ they're available.
 
 ## When it runs
 
-| Trigger                                                                             | Tier        | CLI under test                                                |
-| ----------------------------------------------------------------------------------- | ----------- | ------------------------------------------------------------- |
-| A pull request from a branch in this repo                                           | `quick`     | the PR's build. The result shows as a check on the PR         |
-| Each release: a merge to main that bumps the version (or a `v*` tag pushed by hand) | `beta`      | the published package, installed from npm                     |
-| Nightly at 07:00 UTC                                                                | `nightly`   | `main`. Also deletes any instances an earlier run left behind |
-| By hand (Actions tab → _Sync permutation test_ → _Run workflow_)                    | your choice | the branch you pick, or a published version                   |
+| Trigger                                                          | Tier        | CLI under test                                                |
+| ---------------------------------------------------------------- | ----------- | ------------------------------------------------------------- |
+| A pull request from a branch in this repo                        | `quick`     | the PR's build. The result shows as a check on the PR         |
+| A `v*` tag push (each release, published to npm `beta`)          | `beta`      | the published package, installed from npm                     |
+| Nightly at 07:00 UTC                                             | `nightly`   | `main`. Also deletes any instances an earlier run left behind |
+| By hand (Actions tab → _Sync permutation test_ → _Run workflow_) | your choice | the branch you pick, or a published version                   |
 
 Pull requests from forks and from Dependabot skip it, because they get no credentials.
 
@@ -69,10 +69,6 @@ Nothing stops a run early: every round runs, and each check is a row in the job 
 results are kept as an artifact for 30 days.
 
 ## Promotion to `latest`
-
-Releasing is a version bump in a PR. When it merges, `npm-publish.yml` publishes the new version to
-npm under `beta`, tags the commit `v<version>`, and starts this test on that tag (tier `beta`). A
-merge that doesn't change the version publishes nothing. Pushing a `v*` tag by hand still works.
 
 `npm-publish.yml` refuses to promote a version to `latest` unless that version's tag run of this
 test passed. If a tag run failed for a reason unrelated to the CLI, re-run it, then promote again.
