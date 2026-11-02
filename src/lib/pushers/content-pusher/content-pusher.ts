@@ -11,6 +11,7 @@ import { ContainerMapper } from "lib/mappers/container-mapper";
 import { getApiClient } from "core/state";
 import { reportForeignCdnReferences } from "./util/report-foreign-cdn-references";
 import { BatchProcessingResult } from "./util/types";
+import { stripContentReferences } from "./util/strip-content-references";
 
 /**
  * Push content to the target instance
@@ -36,12 +37,13 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
 
   // Deterministically classify content items by references: linked (referenced, split into
   // dependency levels), normal (unreferenced) and skipped (missing mappings)
-  const { normalContentItems, linkedContentItems, linkedContentLevels, skippedItems } = getContentItemTypes(contentItems, {
-    containerMapper,
-    modelMapper,
-    referenceMapper,
-    logger: logger as any,
-  });
+  const { normalContentItems, linkedContentItems, linkedContentLevels, linkedCycleReferences, skippedItems } =
+    getContentItemTypes(contentItems, {
+      containerMapper,
+      modelMapper,
+      referenceMapper,
+      logger: logger as any,
+    });
 
   // PROD-2773: warn about asset URLs into a CDN container owned by neither instance. Reporting
   // only — runs before change detection (and in --preflight) and never alters an item. Items
@@ -102,12 +104,19 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
   };
 
   // Fold one processBatches result into the totals; register each failure so the next pass's
-  // parents and the page pusher can say why their reference is unresolved.
-  const recordBatchResult = (result: BatchProcessingResult): void => {
-    totalSuccessful += result.successCount;
+  // parents and the page pusher can say why their reference is unresolved. Items in `heldBack`
+  // were saved as a pass-1 stub (PROD-3076): pass 2 counts them, and only pass 2's version is
+  // published, so their successes here are left out.
+  const recordBatchResult = (result: BatchProcessingResult, heldBack: Set<number> = new Set()): void => {
+    const heldBackTargetIds = new Set(
+      (result.successfulItems || [])
+        .filter((item) => heldBack.has(item.originalContent?.contentID))
+        .map((item) => item.newContentId)
+    );
+    totalSuccessful += result.successCount - heldBackTargetIds.size;
     totalFailed += result.failureCount;
     totalSkipped += result.skippedCount;
-    allPublishableIds.push(...result.publishableIds);
+    allPublishableIds.push(...result.publishableIds.filter((id) => !heldBackTargetIds.has(id)));
     for (const item of result.failedItems || []) {
       const name = item.originalContent?.properties?.referenceName || "Unknown";
       const contentID = item.originalContent?.contentID;
@@ -169,9 +178,27 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
         totalSkipped += filteredLinkedContentItems.skippedCount;
         const levels = splitIntoLevels(filteredLinkedContentItems.itemsToProcess, linkedContentLevels);
         const linkedBatchProcessor = new ContentBatchProcessor(linkedBatchConfig);
+        const cycleBatchProcessor = new ContentBatchProcessor({ ...linkedBatchConfig, trustSameRunMappings: true });
         for (let i = 0; i < levels.length; i++) {
           const label = levels.length > 1 ? `Linked Content (level ${i + 1}/${levels.length})` : "Linked Content";
-          recordBatchResult(await linkedBatchProcessor.processBatches(levels[i], logger, label));
+
+          // PROD-3076: items in a reference cycle go out first with their references to not-yet-
+          // created cycle members blanked, then again in full once every member has a target ID.
+          const { toPush, stubbed } = stubCycleReferences(levels[i], linkedCycleReferences, referenceMapper, modelMapper);
+          const result = await linkedBatchProcessor.processBatches(toPush, logger, label);
+          recordBatchResult(result, new Set(stubbed.map((item) => item.contentID)));
+
+          const created = new Set((result.successfulItems || []).map((item) => item.originalContent?.contentID));
+          const toComplete = stubbed.filter((item) => created.has(item.contentID));
+          if (toComplete.length > 0) {
+            const completed = await cycleBatchProcessor.processBatches(toComplete, logger, `${label}: completing reference cycles`);
+            recordBatchResult(completed);
+            // Saved without its references: make the next sync push it again
+            for (const failed of completed.failedItems || []) {
+              const contentID = failed.originalContent?.contentID;
+              if (contentID) referenceMapper.markSourceChanged(contentID);
+            }
+          }
         }
       }
     }
@@ -256,4 +283,44 @@ export function splitIntoLevels(items: ContentItem[], levels: ContentItem[][]): 
   }
   grouped.push(unplaced);
   return grouped.filter((level) => level.length > 0);
+}
+
+/**
+ * PROD-3076: for the items of one level, the copies to push in pass 1. An item in a reference cycle
+ * whose cycle partners (or itself) have no target ID yet goes out with those references blanked,
+ * and is returned in `stubbed` for pass 2. Everything else is pushed as-is. Partners that already
+ * have a mapping (a re-sync) are left alone, so a re-sync never blanks anything.
+ */
+export function stubCycleReferences(
+  items: ContentItem[],
+  cycleReferences: Map<number, number[]>,
+  referenceMapper: ContentItemMapper,
+  modelMapper: ModelMapper
+): { toPush: ContentItem[]; stubbed: ContentItem[] } {
+  const toPush: ContentItem[] = [];
+  const stubbed: ContentItem[] = [];
+
+  for (const item of items) {
+    const unmapped = (cycleReferences.get(item.contentID) || []).filter(
+      (id) => !referenceMapper.getContentItemMappingByContentID(id, "source")
+    );
+    if (unmapped.length === 0) {
+      toPush.push(item);
+      continue;
+    }
+
+    const definitionName = item.properties?.definitionName?.toLowerCase();
+    const modelMapping = definitionName ? modelMapper.getModelMappingByReferenceName(definitionName, "source") : null;
+    const sourceModel = modelMapping ? modelMapper.getMappedEntity(modelMapping, "source") : null;
+    const { fields, stripped } = stripContentReferences(item.fields, new Set(unmapped), sourceModel);
+    if (stripped === 0) {
+      toPush.push(item);
+      continue;
+    }
+
+    toPush.push({ ...item, fields });
+    stubbed.push(item);
+  }
+
+  return { toPush, stubbed };
 }

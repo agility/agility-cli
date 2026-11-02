@@ -15,6 +15,9 @@ export interface ContentBatchConfig {
   defaultAssetUrl?: string; // Default asset URL for content mapping
   targetData?: any; // Target instance data for checking existing content
   onBatchComplete?: (batchResult: BatchProcessingResult, batchNumber: number) => Promise<void>; // Callback after each batch completes
+  // PROD-3076: update the target item a mapping points at even though it isn't in the pulled target
+  // data, because it was created earlier in this run (pass 2 of a reference cycle).
+  trustSameRunMappings?: boolean;
 }
 
 /**

@@ -495,7 +495,13 @@ export class ContentBatchProcessor {
           const isTargetContentItemDeleted = existingMapping && existingTargetContentItem == null;
           let existingContentID = -1;
 
-          if (isTargetContentItemDeleted && state.overwrite) {
+          // PROD-3076: pass 2 of a reference cycle updates an item pass 1 created moments ago; it is
+          // not in the pulled target data yet, so without this it would look deleted and be recreated.
+          const createdThisRun = !!this.config.trustSameRunMappings && !!existingMapping && !existingTargetContentItem;
+
+          if (createdThisRun) {
+            existingContentID = existingMapping.targetContentID;
+          } else if (isTargetContentItemDeleted && state.overwrite) {
             existingContentID = existingMapping ? existingMapping?.targetContentID : -1;
           } else {
             existingContentID = existingTargetContentItem ? existingTargetContentItem.contentID : -1;
@@ -585,7 +591,9 @@ export class ContentBatchProcessor {
             // Only an update of a target item known to exist (or a locale version of one found in
             // another locale) must come back with the same ID.
             expectedId:
-              existingTargetContentItem || (!existingMapping && existingContentID > 0) ? existingContentID : undefined,
+              existingTargetContentItem || createdThisRun || (!existingMapping && existingContentID > 0)
+                ? existingContentID
+                : undefined,
           });
         } catch (error: any) {
           const prepareError = error.message || "payload preparation failed";

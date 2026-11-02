@@ -328,6 +328,46 @@ describe("processPage — folder pages", () => {
   });
 });
 
+// ─── page title in the save payload (PROD-3025) ──────────────────────────────
+
+describe("processPage — page title sent to the target (PROD-3025)", () => {
+  async function savedTitle(page: any): Promise<any> {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
+    }));
+    const apiClient = makeApiClient();
+    await processPage(makeProps({ page, apiClient, pageMapper: makePageMapper() }));
+    expect(apiClient.pageMethods.savePage).toHaveBeenCalled();
+    return apiClient.pageMethods.savePage.mock.calls[0][0].title;
+  }
+
+  it("keeps an untitled dynamic page untitled instead of filling in its name", async () => {
+    // As pulled through the Fetch API: an empty title comes back as null
+    const page = makePage({
+      name: "posts-dynamic",
+      pageType: "dynamic",
+      title: null,
+      menuText: "",
+      dynamic: { referenceName: "Posts", titleFormula: "##Title##", pageNameFormula: "##Slug##" },
+    });
+    expect(await savedTitle(page)).toBe("");
+  });
+
+  it("keeps an empty title empty", async () => {
+    expect(await savedTitle(makePage({ title: "", menuText: "Blog" }))).toBe("");
+  });
+
+  it("sends a page's own title unchanged", async () => {
+    expect(await savedTitle(makePage({ title: "About Us" }))).toBe("About Us");
+  });
+
+  it("does not take the menu text or name for a page with no title", async () => {
+    expect(await savedTitle(makePage({ title: undefined, menuText: "Blog", name: "blog" }))).toBe("");
+  });
+});
+
 // ─── successful save via batch ─────────────────────────────────────────────────
 
 describe("processPage — successful batch save", () => {
@@ -374,9 +414,9 @@ describe("processPage — successful batch save", () => {
       await expect(savedTitle(makePage({ pageType: "dynamic", name: "posts-dynamic", title: "Posts" }))).resolves.toBe("Posts");
     });
 
-    it("still falls back to the menu text or name for a static page without a title", async () => {
-      await expect(savedTitle(makePage({ title: null, menuText: "Menu" }))).resolves.toBe("Menu");
-      await expect(savedTitle(makePage({ title: "", menuText: null, name: "about" }))).resolves.toBe("about");
+    it("keeps a static page without a title untitled too, rather than taking its menu text or name", async () => {
+      await expect(savedTitle(makePage({ title: null, menuText: "Menu" }))).resolves.toBe("");
+      await expect(savedTitle(makePage({ title: "", menuText: null, name: "about" }))).resolves.toBe("");
     });
   });
 

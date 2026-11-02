@@ -481,3 +481,73 @@ describe("getContentItemTypes — linked dependency levels (PROD-3025)", () => {
     expect(flattened).toEqual(result.linkedContentItems.map((i) => i.contentID).sort());
   });
 });
+
+// ─── reference cycles (PROD-3076) ────────────────────────────────────────────
+
+describe("getContentItemTypes — linked cycle references (PROD-3076)", () => {
+  it("reports both sides of a two-item cycle with the reference into it", () => {
+    const a = makeItem("nodes", "Node");
+    const b = makeItem("nodes", "Node", { next: { contentid: a.contentID } });
+    a.fields = { next: { contentid: b.contentID } };
+    const top = makeItem("top", "Model", { node: { contentid: a.contentID } });
+
+    const { linkedCycleReferences } = getContentItemTypes([top, a, b], makeValidOpts());
+
+    expect(linkedCycleReferences.get(a.contentID)).toEqual([b.contentID]);
+    expect(linkedCycleReferences.get(b.contentID)).toEqual([a.contentID]);
+    expect(linkedCycleReferences.has(top.contentID)).toBe(false);
+  });
+
+  it("reports a self-reference", () => {
+    const self = makeItem("nodes", "Node");
+    self.fields = { next: { contentid: self.contentID } };
+
+    const { linkedCycleReferences } = getContentItemTypes([self], makeValidOpts());
+
+    expect(linkedCycleReferences.get(self.contentID)).toEqual([self.contentID]);
+  });
+
+  it("covers a three-item cycle and not the leaf it depends on", () => {
+    const leaf = makeItem("leaf", "Model");
+    const a = makeItem("a", "Model");
+    const b = makeItem("b", "Model");
+    const c = makeItem("c", "Model");
+    a.fields = { next: { contentid: b.contentID }, leaf: { contentid: leaf.contentID } };
+    b.fields = { next: { contentid: c.contentID } };
+    c.fields = { next: { contentid: a.contentID } };
+
+    const { linkedCycleReferences } = getContentItemTypes([a, b, c, leaf], makeValidOpts());
+
+    expect(linkedCycleReferences.get(a.contentID)).toEqual([b.contentID]);
+    expect(linkedCycleReferences.get(b.contentID)).toEqual([c.contentID]);
+    expect(linkedCycleReferences.get(c.contentID)).toEqual([a.contentID]);
+    expect(linkedCycleReferences.has(leaf.contentID)).toBe(false);
+  });
+
+  it("ignores a cycle made only of whole-list references, which never block", () => {
+    const a = makeItem("list-a", "ModelA", { other: { referencename: "list-b", fulllist: true } });
+    const b = makeItem("list-b", "ModelB", { other: { referencename: "list-a", fulllist: true } });
+
+    const { linkedCycleReferences } = getContentItemTypes([a, b], makeValidOpts());
+
+    expect(linkedCycleReferences.size).toBe(0);
+  });
+
+  it("reports only the by-ID side of a cycle closed by a whole-list reference", () => {
+    const b = makeItem("list-b", "ModelB", { back: { referencename: "list-a", fulllist: true } });
+    const a = makeItem("list-a", "ModelA", { pick: { contentid: b.contentID } });
+
+    const { linkedCycleReferences } = getContentItemTypes([a, b], makeValidOpts());
+
+    expect(linkedCycleReferences.get(a.contentID)).toEqual([b.contentID]);
+    expect(linkedCycleReferences.has(b.contentID)).toBe(false);
+  });
+
+  it("reports nothing for a plain chain", () => {
+    const leaf = makeItem("leaf", "Model");
+    const mid = makeItem("mid", "Model", { leaf: { contentid: leaf.contentID } });
+    const top = makeItem("top", "Model", { mid: { contentid: mid.contentID } });
+
+    expect(getContentItemTypes([top, mid, leaf], makeValidOpts()).linkedCycleReferences.size).toBe(0);
+  });
+});
