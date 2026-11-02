@@ -12,11 +12,13 @@
 //
 // After each sync it checks:
 //   sync        exit 0, no failed items
-//   verify      `agility verify` finds no differences
-//   noop        a preflight in the same direction plans no creates, updates or conflicts
 //   conflict    the both-sides item ends at the synced side's value, or the sync reported a conflict
 //   drift       the other side's own edit was overwritten, or reported; never silently kept
+//   resolve     when the sync kept such edits: the same sync with --overwrite settles them
+//   verify      `agility verify` finds no differences (retried once a minute later)
+//   noop        a preflight in the same direction plans no creates, updates, deletes or conflicts
 //   apply:*     the change itself could be made (an API rejection is a finding too)
+// Syncs and preflights pass --syncDeletes, so a delete on one side reaches the other.
 // Nothing stops the run early: every round runs and every result is recorded.
 //
 // Env: SOURCE_GUID, TARGET_GUID, AGILITY_TOKEN, CLI (command for the CLI under test),
@@ -80,50 +82,83 @@ function mapped(fromSourceSide) {
   };
 }
 
-// One sync in a direction, with a plan before it, then verify and the no-op preflight.
-function syncAndCheck(round, direction) {
+// Every sync and preflight also syncs deletes, so a delete on one side reaches the other.
+const SYNC = ["--autoPublish=both", "--syncDeletes"];
+const PLAN = ["--preflight", "--syncDeletes"];
+
+// One sync in a direction, with a plan before it and one after. The plan after shows what the sync
+// left in conflict: the edits it kept on the receiving side. `step` is "sync", or "resolve" for the
+// `--overwrite` sync that settles kept conflicts.
+function syncStep(round, direction, step = "sync", extra = []) {
   const cmd = direction === "A→B" ? "sync" : "reverse-sync";
-  const plan = cli(`r${round}-plan`, [cmd, ...pair, "--preflight"]);
-  const s = cli(`r${round}-sync`, [cmd, ...pair, "--autoPublish=both"]);
+  const before = step === "sync" ? cli(`r${round}-plan`, [cmd, ...pair, ...PLAN]) : null;
+  const s = cli(`r${round}-${step}`, [cmd, ...pair, ...SYNC, ...extra]);
   const failed = s.json?.totals?.failed ?? "?";
   const opErr = s.json?.operationErrors?.[0]?.error;
   record(
     round,
     direction,
-    "sync",
+    step,
     s.exitCode === 0 && failed === 0,
     `exit ${s.exitCode}, ${s.json?.totals?.successful ?? "?"} ok, ${failed} failed${opErr ? `; ${String(opErr).slice(0, 160)}` : ""}`,
     s.seconds
   );
   for (const f of (s.json?.failures ?? []).slice(0, 8)) {
-    record(round, direction, `sync-failure:${f.type ?? "item"}`, false, `${f.name}: ${String(f.error).slice(0, 180)}`);
+    record(
+      round,
+      direction,
+      `${step}-failure:${f.type ?? "item"}`,
+      false,
+      `${f.name}: ${String(f.error).slice(0, 180)}`
+    );
   }
+  const after = step === "sync" ? cli(`r${round}-after`, [cmd, ...pair, ...PLAN]) : null;
+  return {
+    conflicts: Math.max(before?.json?.preflight?.totals?.conflict ?? 0, after?.json?.preflight?.totals?.conflict ?? 0),
+  };
+}
 
-  const v = cli(`r${round}-verify`, ["verify", ...pair]);
+// verify, then the no-op preflight. Content reaches the Fetch API (which verify reads) a little
+// after a save, and an edit that doesn't create a version (a model field rename) takes longer, so a
+// verify that finds differences is tried once more a minute later; a real difference survives that.
+async function checkStep(round, direction) {
+  const cmd = direction === "A→B" ? "sync" : "reverse-sync";
+  let v = cli(`r${round}-verify`, ["verify", ...pair]);
+  let retried = false;
+  if (v.exitCode === 1) {
+    await new Promise((res) => setTimeout(res, 60_000));
+    v = cli(`r${round}-verify-retry`, ["verify", ...pair]);
+    retried = true;
+  }
   const findings = v.json?.findings ?? [];
-  const kinds = [...new Set(findings.map((x) => x.kind ?? x.type ?? x.code).filter(Boolean))].slice(0, 6).join(", ");
+  const kinds = [...new Set(findings.map((x) => x.category ?? x.kind ?? x.type).filter(Boolean))]
+    .slice(0, 6)
+    .join(", ");
+  const outcome =
+    { 0: "match", 1: `${findings.length || "some"} differences${kinds ? ` (${kinds})` : ""}`, 2: "could not verify" }[
+      v.exitCode
+    ] ?? `exit ${v.exitCode}`;
   record(
     round,
     direction,
     "verify",
     v.exitCode === 0,
-    { 0: "match", 1: `${findings.length || "some"} differences${kinds ? ` (${kinds})` : ""}`, 2: "could not verify" }[
-      v.exitCode
-    ] ?? `exit ${v.exitCode}`,
+    `${outcome}${retried ? " (second try, a minute later)" : ""}`,
     v.seconds
   );
 
-  const n = cli(`r${round}-noop`, [cmd, ...pair, "--preflight"]);
+  const n = cli(`r${round}-noop`, [cmd, ...pair, ...PLAN]);
   const t = n.json?.preflight?.totals;
   record(
     round,
     direction,
     "noop",
-    n.exitCode === 0 && !!t && t.create === 0 && t.update === 0 && t.conflict === 0,
-    t ? `would create ${t.create}, update ${t.update}, conflict ${t.conflict}` : `exit ${n.exitCode}, no plan`,
+    n.exitCode === 0 && !!t && t.create === 0 && t.update === 0 && t.delete === 0 && t.conflict === 0,
+    t
+      ? `would create ${t.create}, update ${t.update}, delete ${t.delete}, conflict ${t.conflict}`
+      : `exit ${n.exitCode}, no plan`,
     n.seconds
   );
-  return { planConflicts: plan.json?.preflight?.totals?.conflict ?? 0 };
 }
 
 // ── Fixtures, then round 0: first sync ────────────────────────────────────────────────────────
@@ -148,7 +183,7 @@ try {
   record(0, "A→B", "apply:fixture-cycles", false, String(e?.message ?? e).slice(0, 200));
 }
 
-syncAndCheck(0, "A→B");
+syncStep(0, "A→B");
 
 if (cycles) {
   const problems = await checkReferenceCycles(api, B, LOCALE, cycles, mapped(true));
@@ -160,6 +195,8 @@ if (cycles) {
     problems.length ? problems.join("; ").slice(0, 300) : "each copy points at its partner's target ID"
   );
 }
+
+await checkStep(0, "A→B");
 
 // ── Change rounds ─────────────────────────────────────────────────────────────────────────────
 const names = Object.keys(CHANGES);
@@ -219,7 +256,8 @@ for (let i = 0; i < plan.length; i++) {
     `\n── round ${round} (${direction}): ${applied.map((a) => `${a.area}/${a.change}`).join(", ") || "no changes"}`
   );
 
-  const { planConflicts } = syncAndCheck(round, direction);
+  const { conflicts } = syncStep(round, direction);
+  let kept = false;
 
   if (both) {
     const after = await readField(api, to, LOCALE, both.dstId, both.field);
@@ -228,13 +266,14 @@ for (let i = 0; i < plan.length; i++) {
       round,
       direction,
       "conflict",
-      synced || planConflicts > 0,
+      synced || conflicts > 0,
       synced
         ? "the synced side's value won"
-        : planConflicts > 0
-          ? `kept, and preflight reported ${planConflicts} conflict(s)`
+        : conflicts > 0
+          ? `kept, and preflight reported ${conflicts} conflict(s)`
           : `silently kept the other side's value`
     );
+    kept ||= !synced;
   }
   if (drifted) {
     const id = Number(/#(\d+)/.exec(drifted.detail)?.[1]);
@@ -249,14 +288,20 @@ for (let i = 0; i < plan.length; i++) {
       round,
       direction,
       "drift",
-      same || planConflicts > 0,
+      same || conflicts > 0,
       same
         ? "overwritten to match"
-        : planConflicts > 0
+        : conflicts > 0
           ? "kept, and reported as a conflict"
           : "the other side's edit was silently kept; the instances differ"
     );
+    kept ||= !same;
   }
+
+  // The sync rightly kept the receiving side's own edits and reported them. Settle them the way an
+  // editor would, by syncing again with --overwrite, so verify and the no-op check see one state.
+  if (kept) syncStep(round, direction, "resolve", ["--overwrite"]);
+  await checkStep(round, direction);
 }
 
 // ── Results ───────────────────────────────────────────────────────────────────────────────────
