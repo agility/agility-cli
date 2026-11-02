@@ -343,7 +343,11 @@ export const CHANGES = {
     const full = await ctx.c.modelMethods.getContentModel(m.id, ctx.guid);
     const f = added
       ? full.fields.find((x) => x.name === added.name)
-      : ctx.r.pick(full.fields.filter((x) => x.type === "Text"));
+      : // Not a required field: the server drops existing values on a rename, which would leave every
+        // item missing a required value, and the CLI rightly refuses to sync those
+        ctx.r.pick(
+          full.fields.filter((x) => x.type === "Text" && String(x.settings?.Required).toLowerCase() !== "true")
+        );
     if (!f) return null;
     const old = f.name;
     f.name = `${old}Renamed${tag(ctx).toUpperCase()}`;
