@@ -129,7 +129,9 @@ export async function filterContentItemsForProcessing({
         // pick the headline from the reason rather than hard-coding "changes detected in both".
         const headline = /no longer exists/i.test(reason || "")
           ? "mapped target item no longer exists"
-          : "changes detected in both source and target";
+          : /source didn't/i.test(reason || "")
+            ? "the target changed since the last sync"
+            : "changes detected in both source and target";
         console.warn(
           `⚠️  Conflict detected content ${ansiColors.underline(itemName)} ${ansiColors.bold.grey(headline)}. Please resolve manually.`
         );

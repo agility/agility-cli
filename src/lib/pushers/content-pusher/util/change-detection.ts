@@ -136,6 +136,42 @@ export function changeDetection(
     }
   }
 
+  // TARGET UPDATE ONLY: edited on the target since the last sync, the source unchanged. A conflict,
+  // like a change on both sides (and like pages, models and containers): reported and skipped, or
+  // replaced with the source under --overwrite. It used to fall through to "up to date", so the
+  // target kept a version the source never had and nothing said so. A mapping with no recorded
+  // target version (older mapping files) can't tell, so it is left alone.
+  if (
+    sourceVersion > 0 &&
+    targetVersion > 0 &&
+    mappedTargetVersion > 0 &&
+    sourceVersion <= mappedSourceVersion &&
+    targetVersion > mappedTargetVersion
+  ) {
+    if (overwrite) {
+      return {
+        entity: targetEntity,
+        shouldUpdate: true,
+        shouldCreate: false,
+        shouldSkip: false,
+        isConflict: false,
+        reason: "Overwrite mode enabled: replacing the target's own changes with the source",
+      };
+    }
+    const sourceUrl = `https://app.agilitycms.com/instance/${state.sourceGuid}/${locale}/content/listitem-${sourceEntity.contentID}`;
+    const targetUrl = `https://app.agilitycms.com/instance/${state.targetGuid}/${locale}/content/listitem-${targetEntity.contentID}`;
+    return {
+      entity: targetEntity,
+      shouldUpdate: false,
+      shouldCreate: false,
+      shouldSkip: false,
+      isConflict: true,
+      reason:
+        `The target changed since the last sync and the source didn't. Use --overwrite to replace it with the source.\n` +
+        `   - source: ${sourceUrl} \n   - target: ${targetUrl}`,
+    };
+  }
+
   if (sourceVersion > mappedSourceVersion && targetVersion <= mappedTargetVersion) {
     //SOURCE UPDATE ONLY
     // Source version is newer the mapped source version
