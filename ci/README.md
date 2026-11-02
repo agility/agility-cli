@@ -29,6 +29,11 @@ gh run rerun <run-id>                                                    # re-ru
 
 ## What it checks
 
+Before the first sync, `ci/permutation/fixtures.mjs` adds what the blog template lacks: content
+that references each other (A ↔ B) and itself, through a required linked field with a companion
+field (PROD-3076). After round 0, the **cycles** check confirms each copy on B points at its
+partner's B ID.
+
 A run first syncs source **A** to target **B**, then runs rounds of changes in alternating
 directions:
 
