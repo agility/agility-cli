@@ -59,7 +59,8 @@ every sync it checks:
 - **sync:** exit 0 and no failed items in `--jsonSummary`;
 - **conflict:** the item edited on both sides ends at the synced side's value, or the sync reported a
   conflict;
-- **drift:** an edit made only on the receiving side is overwritten, or reported, never silently kept;
+- **drift:** an edit made only on the receiving side is overwritten, or kept with a "target changed"
+  warning (not a conflict), never silently kept;
 - **resolve:** when the sync kept such edits, the same sync with `--overwrite` settles them, as an
   editor would, before the checks below;
 - **verify:** `agility verify` finds no differences. A verify that finds some is tried once more a

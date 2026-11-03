@@ -341,12 +341,24 @@ export const CHANGES = {
     const m = added ? models.find((x) => x.id === added.model) : ctx.r.pick(models);
     if (!m) return null;
     const full = await ctx.c.modelMethods.getContentModel(m.id, ctx.guid);
+    // Fields another field names in its settings, like a linked field's companion ID field
+    // (LinkeContentDropdownValueField). Renaming one leaves that setting pointing at a field that no
+    // longer exists, so the server drops every value saved to the link afterwards: a broken model,
+    // not a sync defect.
+    const companions = new Set(
+      full.fields.flatMap((x) => Object.values(x.settings ?? {})).map((v) => String(v).toLowerCase())
+    );
     const f = added
       ? full.fields.find((x) => x.name === added.name)
       : // Not a required field: the server drops existing values on a rename, which would leave every
         // item missing a required value, and the CLI rightly refuses to sync those
         ctx.r.pick(
-          full.fields.filter((x) => x.type === "Text" && String(x.settings?.Required).toLowerCase() !== "true")
+          full.fields.filter(
+            (x) =>
+              x.type === "Text" &&
+              String(x.settings?.Required).toLowerCase() !== "true" &&
+              !companions.has(x.name.toLowerCase())
+          )
         );
     if (!f) return null;
     const old = f.name;
@@ -361,12 +373,13 @@ export async function drift(ctx) {
   return CHANGES["content.edit"]({ ...ctx });
 }
 
-// The same item edited on both sides with different values: a conflict.
-export async function conflict(srcCtx, dstCtx, mappingLookup) {
+// The same item edited on both sides with different values: a conflict. `avoidDstId` is the item
+// the round's drift edited, so the two checks grade different items.
+export async function conflict(srcCtx, dstCtx, mappingLookup, avoidDstId = null) {
   const pool = (await listsWithItems(srcCtx.c, srcCtx.guid, srcCtx.locale)).flatMap((x) => x.items);
   for (const it of pool) {
     const dstId = mappingLookup(it.contentID);
-    if (!dstId) continue;
+    if (!dstId || dstId === avoidDstId) continue;
     const s = await srcCtx.c.contentMethods.getContentItem(it.contentID, srcCtx.guid, srcCtx.locale);
     const f = textField(s);
     if (!f) continue;

@@ -13,7 +13,7 @@
 // After each sync it checks:
 //   sync        exit 0, no failed items
 //   conflict    the both-sides item ends at the synced side's value, or a preflight reported it
-//   drift       the other side's own edit was overwritten, or reported as a conflict on that item
+//   drift       the other side's own edit was overwritten, or kept with a "target changed" warning
 //   resolve     when the sync kept such edits: the same sync with --overwrite settles them
 //   verify      `agility verify` finds no differences (verify and noop: up to 3 tries, 90s apart)
 //   noop        a preflight in the same direction plans no creates, updates, deletes or conflicts
@@ -121,11 +121,14 @@ function syncStep(round, direction, step = "sync", extra = []) {
   }
   const after = step === "sync" ? cli(`r${round}-after`, [cmd, ...pair, ...PLAN]) : null;
   const entries = [before, after].flatMap((x) => x?.json?.preflight?.entries ?? []);
-  const details = entries.filter((e) => e.action === "conflict").map((e) => e.detail ?? "");
+  const conflicts = entries.filter((e) => e.action === "conflict").map((e) => e.detail ?? "");
+  const kept = entries.filter((e) => e.action === "skip" && /kept the target's version/.test(e.detail ?? ""));
+  const names = (guid, id) => new RegExp(`/instance/${guid}/[^/]+/content/listitem-${id}(?!\\d)`);
   return {
     // Whether a preflight reported a conflict on this content item (its URL is in the detail)
-    reported: (guid, id) =>
-      details.some((d) => new RegExp(`/instance/${guid}/[^/]+/content/listitem-${id}(?!\\d)`).test(d)),
+    reported: (guid, id) => conflicts.some((d) => names(guid, id).test(d)),
+    // Whether a preflight kept this content item's target-only change, with a warning
+    keptWarned: (guid, id) => kept.some((e) => names(guid, id).test(e.detail)),
   };
 }
 
@@ -256,7 +259,8 @@ for (let i = 0; i < plan.length; i++) {
 
   let both = null;
   try {
-    both = await conflict(fromCtx, toCtx, mapped(forward));
+    const driftedId = drifted ? Number(/#(\d+)/.exec(drifted.detail)?.[1]) || null : null;
+    both = await conflict(fromCtx, toCtx, mapped(forward), driftedId);
     if (both) applied.push({ name: "conflict", ...both });
   } catch (e) {
     record(round, direction, "apply:conflict", false, String(e?.message ?? e).slice(0, 200));
@@ -278,7 +282,7 @@ for (let i = 0; i < plan.length; i++) {
     }
   }
 
-  const { reported } = syncStep(round, direction);
+  const { reported, keptWarned } = syncStep(round, direction);
   let kept = false;
 
   if (both) {
@@ -310,12 +314,14 @@ for (let i = 0; i < plan.length; i++) {
       round,
       direction,
       "drift",
-      same || reported(to, id),
+      same || keptWarned(to, id),
       same
         ? "overwritten to match"
-        : reported(to, id)
-          ? "kept, and reported as a conflict"
-          : "the other side's edit was silently kept; the instances differ"
+        : keptWarned(to, id)
+          ? "kept, with a target-changed warning"
+          : reported(to, id)
+            ? "reported as a conflict, but only the target changed"
+            : "the other side's edit was silently kept; the instances differ"
     );
     kept ||= !same;
   }
