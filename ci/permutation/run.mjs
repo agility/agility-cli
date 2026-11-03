@@ -251,7 +251,12 @@ for (let i = 0; i < plan.length; i++) {
 
   let drifted = null;
   try {
-    drifted = await drift(toCtx);
+    // The receiving side's copies of items this round edited on the sending side
+    const editedThere = applied
+      .filter((a) => a.area === "content" && a.change === "edit")
+      .map((a) => mapped(forward)(Number(/#(\d+)/.exec(a.detail)?.[1])))
+      .filter(Boolean);
+    drifted = await drift(toCtx, new Set(editedThere));
     if (drifted) applied.push({ name: "drift", ...drifted, area: "drift" });
   } catch (e) {
     record(round, direction, "apply:drift", false, String(e?.message ?? e).slice(0, 200));
