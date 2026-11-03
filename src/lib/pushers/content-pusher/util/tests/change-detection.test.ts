@@ -103,17 +103,31 @@ describe("changeDetection — conflict path", () => {
     expect(result.isConflict).toBe(false);
   });
 
-  it("conflicts when only the target version increased (an edit on the target)", () => {
+  it("keeps the target's version, with a warning, when only the target version increased", () => {
     setState({ sourceGuid: "src-guid", targetGuid: "tgt-guid" });
     const source = makeContent(1, 5);
     const target = makeContent(100, 10);
     const mapping = makeMapping({ sourceVersionID: 5, targetVersionID: 5 });
     const result = changeDetection(source, target, mapping, "en-us");
-    expect(result.isConflict).toBe(true);
+    expect(result.isConflict).toBe(false);
     expect(result.shouldUpdate).toBe(false);
-    expect(result.shouldSkip).toBe(false);
+    expect(result.shouldSkip).toBe(true);
+    expect(result.keptTargetChange).toBe(true);
     expect(result.reason).toMatch(/target changed since the last sync and the source didn't/);
-    expect(result.reason).toMatch(/--overwrite/);
+    expect(result.reason).toContain("/instance/tgt-guid/en-us/content/listitem-100");
+  });
+
+  it("is a conflict when the source changes after a kept target change", () => {
+    setState({ sourceGuid: "src-guid", targetGuid: "tgt-guid" });
+    // the kept change didn't refresh the mapping, so a later source edit finds both sides changed
+    const result = changeDetection(
+      makeContent(1, 6),
+      makeContent(100, 10),
+      makeMapping({ sourceVersionID: 5, targetVersionID: 5 }),
+      "en-us"
+    );
+    expect(result.isConflict).toBe(true);
+    expect(result.keptTargetChange).toBeFalsy();
   });
 
   it("replaces a target-only edit with the source under --overwrite", () => {

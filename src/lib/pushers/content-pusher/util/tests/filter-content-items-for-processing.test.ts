@@ -171,6 +171,95 @@ describe("filterContentItemsForProcessing — isConflict", () => {
   });
 });
 
+// ─── target-only change is kept with a warning ────────────────────────────────
+
+describe("filterContentItemsForProcessing — target changed since the last sync", () => {
+  const keptDecision = (content: any) => ({
+    content,
+    shouldCreate: false,
+    shouldUpdate: false,
+    shouldSkip: true,
+    isConflict: false,
+    keptTargetChange: true,
+    reason: "The target changed since the last sync and the source didn't; kept the target's version.",
+  });
+
+  beforeEach(async () => {
+    const { keptTargetChanges } = await import("lib/pushers/kept-target-changes");
+    keptTargetChanges.reset();
+    preflightReport.reset();
+    setState({ preflight: true });
+  });
+
+  it("target-only change without --overwrite is skipped, recorded, and reported as a skip", async () => {
+    const { keptTargetChanges } = await import("lib/pushers/kept-target-changes");
+    const source = makeContentItem(1, "my-item");
+    const target = makeContentItem(77, "my-item");
+    mockFind.mockReturnValue(keptDecision(target));
+
+    const result = await filterContentItemsForProcessing(makeBaseProps([source]));
+
+    expect(result.itemsToSkip).toContain(source);
+    expect(result.itemsToProcess).toHaveLength(0);
+    expect(result.skippedCount).toBe(1);
+    expect(keptTargetChanges.getEntries()).toEqual([
+      expect.objectContaining({
+        type: "content",
+        name: "my-item",
+        locale: "en-us",
+        sourceID: 1,
+        targetID: 77,
+        targetUrl: "https://app.agilitycms.com/instance/tgt-guid/en-us/content/listitem-77",
+      }),
+    ]);
+    expect(preflightReport.getEntries()).toEqual([
+      expect.objectContaining({
+        phase: "Content",
+        action: "skip",
+        name: "my-item",
+        detail: expect.stringMatching(/kept the target's version/),
+      }),
+    ]);
+  });
+
+  it("change on both sides is still a conflict and records nothing", async () => {
+    const { keptTargetChanges } = await import("lib/pushers/kept-target-changes");
+    const source = makeContentItem(1, "my-item");
+    mockFind.mockReturnValue({
+      content: makeContentItem(77, "my-item"),
+      shouldCreate: false,
+      shouldUpdate: false,
+      shouldSkip: false,
+      isConflict: true,
+      reason: "changes in both",
+    });
+
+    const result = await filterContentItemsForProcessing(makeBaseProps([source]));
+
+    expect(result.itemsToSkip).toContain(source);
+    expect(keptTargetChanges.hasEntries()).toBe(false);
+    expect(preflightReport.getEntries()).toEqual([expect.objectContaining({ action: "conflict", name: "my-item" })]);
+  });
+
+  it("target-only change with --overwrite arrives as an update, is processed, and records nothing", async () => {
+    const { keptTargetChanges } = await import("lib/pushers/kept-target-changes");
+    const source = makeContentItem(1, "my-item");
+    mockFind.mockReturnValue({
+      content: makeContentItem(77, "my-item"),
+      shouldCreate: false,
+      shouldUpdate: true,
+      shouldSkip: false,
+      isConflict: false,
+      reason: "Overwrite mode enabled: replacing the target's own changes with the source",
+    });
+
+    const result = await filterContentItemsForProcessing(makeBaseProps([source]));
+
+    expect(result.itemsToProcess).toContain(source);
+    expect(keptTargetChanges.hasEntries()).toBe(false);
+  });
+});
+
 // ─── error handling ───────────────────────────────────────────────────────────
 
 describe("filterContentItemsForProcessing — error handling", () => {

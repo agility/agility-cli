@@ -17,6 +17,7 @@ import {
 } from "core/state";
 import { FailureDetail, PageModuleExtended } from "types/sourceData";
 import { preflightReport } from "../../preflight/preflight-report";
+import { keptTargetChanges } from "../kept-target-changes";
 
 interface Props {
   channel: string;
@@ -131,11 +132,14 @@ export async function processPage({
     const hasSourceChanged = pageMapper.hasSourceChanged(page);
     const hasTargetChanged = pageMapper.hasTargetChanged(existingPage, pageMapping);
 
-    // A conflict exists whenever the target has changed independently — regardless of whether
-    // the source also changed. Even if source is unchanged today, a future source push would
-    // silently overwrite the target's independent changes without this guard.
-    const isConflict = hasTargetChanged !== null;
-    const updateRequired = (hasSourceChanged && !isConflict) || (overwrite && isConflict);
+    // The target changed since the last sync. With the source changed too (or the target page
+    // missing from the pull, so its state can't be checked) it's a conflict. With the source
+    // unchanged, the target's version is kept with a warning (see kept-target-changes.ts); the
+    // mapping isn't refreshed, so a later source change is still caught as a conflict.
+    // --overwrite replaces either with the source.
+    const isKeptTargetChange = hasTargetChanged !== null && hasTargetChanged !== "file_missing" && !hasSourceChanged;
+    const isConflict = hasTargetChanged !== null && !isKeptTargetChange;
+    const updateRequired = (hasSourceChanged && !isConflict) || (overwrite && hasTargetChanged !== null);
     const createRequired = !existingPage;
 
     const pageTypeDisplay =
@@ -145,7 +149,29 @@ export async function processPage({
         folder: "Folder",
       }[page.pageType] || page.pageType;
 
-    if (isConflict && !overwrite) {
+    if (isKeptTargetChange && !overwrite) {
+      const targetPageID = existingPage?.pageID ?? pageMapping?.targetPageID;
+      const change = {
+        type: "page" as const,
+        name: page.name,
+        locale,
+        sourceID: page.pageID,
+        targetID: targetPageID,
+        targetUrl: targetPageID
+          ? `https://app.agilitycms.com/instance/${targetGuid}/${locale}/pages/${targetPageID}`
+          : undefined,
+      };
+      keptTargetChanges.record(change);
+      console.warn(ansiColors.yellow(keptTargetChanges.formatLine(change)));
+      preflightReport.record({
+        phase: "Pages",
+        action: "skip",
+        name: page.name,
+        locale,
+        detail: "target changed since the last sync and the source didn't; kept the target's version",
+      });
+      return { status: "skip" }; // Keep the target's page; don't auto-publish it either
+    } else if (isConflict && !overwrite) {
       // CONFLICT: Target has independent changes.
       // Use mapping's targetPageID as fallback in case existingPage wasn't loaded.
       const targetPageID = existingPage?.pageID ?? pageMapping?.targetPageID;
@@ -155,10 +181,8 @@ export async function processPage({
       let reason: string;
       if (hasTargetChanged === "file_missing") {
         reason = "target page may have been unpublished or deleted — cannot verify its current state";
-      } else if (hasSourceChanged) {
-        reason = "changes detected in both source and target";
       } else {
-        reason = "target has been changed independently";
+        reason = "changes detected in both source and target";
       }
 
       console.warn(

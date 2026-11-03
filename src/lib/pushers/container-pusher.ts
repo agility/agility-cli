@@ -6,6 +6,8 @@ import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
 import { FailureDetail, PusherResult } from "types/sourceData";
 import { preflightReport } from "../preflight/preflight-report";
+import { keptTargetChanges } from "./kept-target-changes";
+import ansiColors from "ansi-colors";
 
 /**
  * Container pusher with enhanced version-based comparison
@@ -172,14 +174,32 @@ export async function pushContainers(
             detail: "up to date",
           });
           skipped++;
+        } else if (hasTargetChanges && !hasSourceChanges && !overwrite) {
+          // Only the target changed: keep its version and warn (see kept-target-changes.ts)
+          const change = {
+            type: "container" as const,
+            name: sourceContainer.referenceName,
+            sourceID: sourceContainer.contentViewID,
+            targetID: targetContainer?.contentViewID,
+          };
+          keptTargetChanges.record(change);
+          console.warn(ansiColors.yellow(keptTargetChanges.formatLine(change)));
+          logger.container.skipped(sourceContainer, "target changed since the last sync, kept", targetGuid);
+          preflightReport.record({
+            phase: "Containers",
+            action: "skip",
+            name: sourceContainer.referenceName,
+            detail: "target changed since the last sync and the source didn't; kept the target's version",
+          });
+          skipped++;
         } else if (hasTargetChanges && !overwrite) {
-          // Container exists and is up to date - skip
+          // Both sides changed since the last sync: a conflict
           logger.container.error(sourceContainer, "Conflict detected, use --overwrite to force changes", targetGuid);
           preflightReport.record({
             phase: "Containers",
             action: "conflict",
             name: sourceContainer.referenceName,
-            detail: "target changed; use --overwrite to force",
+            detail: "source and target both changed; use --overwrite to force",
           });
           skipped++;
         } else if (shouldUpdate && state.preflight) {

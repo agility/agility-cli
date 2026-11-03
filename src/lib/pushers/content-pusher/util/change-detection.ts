@@ -12,6 +12,8 @@ export interface ChangeDetection {
   shouldSkip: boolean;
   isConflict: boolean;
   reason: string;
+  /** Skipped because only the target changed: the caller warns and records it in keptTargetChanges */
+  keptTargetChange?: boolean;
 }
 
 export function changeDetection(
@@ -136,11 +138,12 @@ export function changeDetection(
     }
   }
 
-  // TARGET UPDATE ONLY: edited on the target since the last sync, the source unchanged. A conflict,
-  // like a change on both sides (and like pages, models and containers): reported and skipped, or
-  // replaced with the source under --overwrite. It used to fall through to "up to date", so the
-  // target kept a version the source never had and nothing said so. A mapping with no recorded
-  // target version (older mapping files) can't tell, so it is left alone.
+  // TARGET UPDATE ONLY: edited on the target since the last sync, the source unchanged. Skipped with a
+  // warning (kept in keptTargetChanges), or replaced with the source under --overwrite. Not a
+  // conflict: mappings written by older CLI versions often hold a target version older than the
+  // target's real one, with the same content on both sides, and failing every such item would block
+  // syncs that have nothing to do. If the source changes later, the branch above reports a conflict.
+  // A mapping with no recorded target version (older mapping files) can't tell, so it is left alone.
   if (
     sourceVersion > 0 &&
     targetVersion > 0 &&
@@ -158,17 +161,15 @@ export function changeDetection(
         reason: "Overwrite mode enabled: replacing the target's own changes with the source",
       };
     }
-    const sourceUrl = `https://app.agilitycms.com/instance/${state.sourceGuid}/${locale}/content/listitem-${sourceEntity.contentID}`;
     const targetUrl = `https://app.agilitycms.com/instance/${state.targetGuid}/${locale}/content/listitem-${targetEntity.contentID}`;
     return {
       entity: targetEntity,
       shouldUpdate: false,
       shouldCreate: false,
-      shouldSkip: false,
-      isConflict: true,
-      reason:
-        `The target changed since the last sync and the source didn't. Use --overwrite to replace it with the source.\n` +
-        `   - source: ${sourceUrl} \n   - target: ${targetUrl}`,
+      shouldSkip: true,
+      isConflict: false,
+      keptTargetChange: true,
+      reason: `The target changed since the last sync and the source didn't; kept the target's version. ${targetUrl}`,
     };
   }
 

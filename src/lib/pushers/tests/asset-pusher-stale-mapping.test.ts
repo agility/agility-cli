@@ -284,10 +284,12 @@ describe("pushAssets — asset moved to another folder (PROD-2627)", () => {
 // ─── an edit on the target only ───────────────────────────────────────────────
 
 describe("pushAssets — mapped asset changed on the target only", () => {
-  it("is a conflict without --overwrite: the target's version is kept, nothing uploaded", async () => {
+  it("without --overwrite keeps the target's version, uploads nothing, and records a warning", async () => {
     new AssetMapper(SRC, TGT).addMapping(asset("source", 1, "a/x.png", OLD), asset("target", 2, "a/x.png", OLD));
     writeLocalFile("a/x.png");
     mockApi();
+    const { keptTargetChanges } = await import("../kept-target-changes");
+    keptTargetChanges.reset();
 
     const { pushAssets } = await import("../asset-pusher");
     const result = await pushAssets([asset("source", 1, "a/x.png", OLD)], [asset("target", 2, "a/x.png", NEW)]);
@@ -295,9 +297,12 @@ describe("pushAssets — mapped asset changed on the target only", () => {
     expect(axios.post).not.toHaveBeenCalled();
     expect(result.skipped).toBe(1);
     expect(result.successful).toBe(0);
+    expect(keptTargetChanges.getEntries()).toEqual([
+      expect.objectContaining({ type: "asset", name: "x.png", sourceID: 1, targetID: 2 }),
+    ]);
   });
 
-  it("is reported as a preflight conflict", async () => {
+  it("is a preflight skip, not a conflict", async () => {
     // seed before enabling preflight: preflight never persists mapping files
     new AssetMapper(SRC, TGT).addMapping(asset("source", 1, "a/x.png", OLD), asset("target", 2, "a/x.png", OLD));
     state.preflight = true;
@@ -307,6 +312,21 @@ describe("pushAssets — mapped asset changed on the target only", () => {
 
     const { pushAssets } = await import("../asset-pusher");
     await pushAssets([asset("source", 1, "a/x.png", OLD)], [asset("target", 2, "a/x.png", NEW)]);
+
+    expect(await preflightEntries()).toEqual([
+      expect.objectContaining({ action: "skip", name: "x.png", detail: expect.stringMatching(/kept the target's version/) }),
+    ]);
+  });
+
+  it("is a conflict when the source changed too", async () => {
+    new AssetMapper(SRC, TGT).addMapping(asset("source", 1, "a/x.png", OLD), asset("target", 2, "a/x.png", OLD));
+    state.preflight = true;
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    preflightReport.reset();
+    mockApi();
+
+    const { pushAssets } = await import("../asset-pusher");
+    await pushAssets([asset("source", 1, "a/x.png", NEW)], [asset("target", 2, "a/x.png", NEW)]);
 
     expect(await preflightEntries()).toEqual([expect.objectContaining({ action: "conflict", name: "x.png" })]);
   });

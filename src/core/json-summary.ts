@@ -59,6 +59,13 @@ export interface JsonSummaryDetail {
     field: string;
     kind: "attachment" | "text";
   }>;
+  /**
+   * Additive, on "targetChangeKept" warnings: an entity changed only on the target since the last
+   * sync, which the sync kept. `guid` is the target; `targetUrl` links to it when there is a CMS page.
+   */
+  sourceID?: number;
+  targetID?: number;
+  targetUrl?: string;
 }
 
 /**

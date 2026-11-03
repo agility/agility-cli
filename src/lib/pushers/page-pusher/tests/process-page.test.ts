@@ -304,6 +304,81 @@ describe("processPage — conflict detection", () => {
   });
 });
 
+// ─── target-only change is kept with a warning ────────────────────────────────
+
+describe("processPage — page changed on the target", () => {
+  async function run(opts: { sourceChanged: boolean; targetChanged: string | null; overwrite?: boolean }) {
+    const { TemplateMapper } = require("lib/mappers/template-mapper");
+    TemplateMapper.mockImplementation(() => ({
+      getTemplateMappingByPageTemplateName: jest.fn().mockReturnValue({ ref: "Main" }),
+      getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
+    }));
+    const { keptTargetChanges } = await import("lib/pushers/kept-target-changes");
+    keptTargetChanges.reset();
+    preflightReport.reset();
+    setState({ preflight: true });
+
+    const pageMapper = makePageMapper({
+      getPageMapping: jest.fn().mockReturnValue({ targetPageID: 99, sourcePageID: 1 }),
+      getMappedEntity: jest.fn().mockReturnValue(makePage({ pageID: 99 })),
+      hasSourceChanged: jest.fn().mockReturnValue(opts.sourceChanged),
+      hasTargetChanged: jest.fn().mockReturnValue(opts.targetChanged),
+    });
+    const props = makeProps({ pageMapper, overwrite: !!opts.overwrite, page: makePage({ pageID: 1, name: "About Us" }) });
+    const result = await processPage(props);
+    const entry = preflightReport.getEntries().find((e) => e.name === "About Us");
+    return { result, entry, kept: keptTargetChanges, pageMapper, props };
+  }
+
+  it("target-only change without --overwrite is a skip that records a kept change", async () => {
+    const { result, entry, kept, pageMapper } = await run({ sourceChanged: false, targetChanged: "changed" });
+
+    expect(result.status).toBe("skip");
+    expect(entry).toEqual(
+      expect.objectContaining({
+        action: "skip",
+        locale: "en-us",
+        detail: expect.stringMatching(/kept the target's version/),
+      })
+    );
+    expect(kept.getEntries()).toEqual([
+      expect.objectContaining({
+        type: "page",
+        name: "About Us",
+        locale: "en-us",
+        sourceID: 1,
+        targetID: 99,
+        targetUrl: "https://app.agilitycms.com/instance/tgt/en-us/pages/99",
+      }),
+    ]);
+    expect(pageMapper.addMapping).not.toHaveBeenCalled();
+  });
+
+  it("change on both sides without --overwrite is still a conflict and records nothing", async () => {
+    const { result, entry, kept } = await run({ sourceChanged: true, targetChanged: "changed" });
+
+    expect(result.status).toBe("skip");
+    expect(entry).toEqual(expect.objectContaining({ action: "conflict", detail: "changes detected in both source and target" }));
+    expect(kept.hasEntries()).toBe(false);
+  });
+
+  it("a target page missing from the pull stays a conflict even when the source is unchanged", async () => {
+    const { result, entry, kept } = await run({ sourceChanged: false, targetChanged: "file_missing" });
+
+    expect(result.status).toBe("skip");
+    expect(entry).toEqual(expect.objectContaining({ action: "conflict", detail: expect.stringMatching(/cannot verify/) }));
+    expect(kept.hasEntries()).toBe(false);
+  });
+
+  it("target-only change with --overwrite updates the page and records nothing", async () => {
+    const { result, entry, kept } = await run({ sourceChanged: false, targetChanged: "changed", overwrite: true });
+
+    expect(result.status).toBe("success");
+    expect(entry).toEqual(expect.objectContaining({ action: "update" }));
+    expect(kept.hasEntries()).toBe(false);
+  });
+});
+
 // ─── folder pages (no template required) ──────────────────────────────────────
 
 describe("processPage — folder pages", () => {

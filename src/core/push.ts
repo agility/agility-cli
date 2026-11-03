@@ -22,6 +22,7 @@ import { preflightReport } from "../lib/preflight/preflight-report";
 import { buildJsonSummary, writeJsonSummary, JsonSummaryDetail, JsonSummaryPhase } from "./json-summary";
 import type { FailureDetail } from "../types/sourceData";
 import { foreignCdnReport } from "../lib/content/foreign-cdn-report";
+import { keptTargetChanges } from "../lib/pushers/kept-target-changes";
 import { resetForeignCdnDetectorCache } from "../lib/pushers/content-pusher/util/report-foreign-cdn-references";
 import type { OtherLocaleStagingEntry } from "./state";
 
@@ -112,6 +113,8 @@ export class Push {
     // PROD-2773: foreign CDN references are reported once per URL per run
     foreignCdnReport.reset();
     resetForeignCdnDetectorCache();
+    // Entities whose target-only change the sync kept, reported once per entity per run
+    keptTargetChanges.reset();
 
     // Initialize logger for push operation
     // Determine if this is a sync operation by checking if both source and target GUIDs exist
@@ -364,6 +367,13 @@ export class Push {
         rest.forEach((line) => console.log(ansiColors.yellow(`  ${line}`)));
       }
 
+      // Target-only changes the sync kept instead of overwriting: non-blocking, --overwrite replaces them
+      if (keptTargetChanges.hasEntries()) {
+        const [headline, ...rest] = keptTargetChanges.renderSummaryLines();
+        console.log(ansiColors.yellow(`\n  ${headline}`));
+        rest.forEach((line) => console.log(ansiColors.yellow(`  ${line}`)));
+      }
+
       // PROD-2311: post-publish mapping/version bookkeeping notices are NOT publish
       // failures — show them under a non-blocking header so they don't read as broken.
       if (mappingWarnings.length > 0) {
@@ -398,6 +408,9 @@ export class Push {
         if (foreignCdnReport.hasEntries()) {
           preflightReport.recordWarning(`${foreignCdnReport.headline()} — see the list above`);
         }
+        if (keptTargetChanges.hasEntries()) {
+          preflightReport.recordWarning(`${keptTargetChanges.headline()} — see the list above`);
+        }
         preflightReport.print();
         if (preflightReport.hasConflicts()) {
           process.exitCode = 1;
@@ -413,7 +426,12 @@ export class Push {
         phases: results.flatMap((r) => r.phases ?? []),
         failures: syncFailureDetails,
         // PROD-2773: one additive entry per foreign CDN URL (code "foreignCdnReference")
-        warnings: [...syncWarningDetails, ...foreignCdnReport.toWarningDetails(sourceGuid)],
+        // One entry per entity whose target-only change was kept (code "targetChangeKept")
+        warnings: [
+          ...syncWarningDetails,
+          ...foreignCdnReport.toWarningDetails(sourceGuid),
+          ...keptTargetChanges.toWarningDetails(targetGuid),
+        ],
         operationErrors: syncErrors,
         autoPublishErrors,
         startedAt,

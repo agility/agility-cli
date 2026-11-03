@@ -4,6 +4,8 @@ import { PusherResult, FailureDetail } from "../../types/sourceData";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
 import { preflightReport } from "../preflight/preflight-report";
+import { keptTargetChanges } from "./kept-target-changes";
+import ansiColors from "ansi-colors";
 
 /**
  * Two Agility models can share a `referenceName` while differing in `contentDefinitionTypeID`
@@ -381,7 +383,24 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       continue;
     }
 
-    // if the mapping exists, and the target has changed, we need to skip the model, not safe to update
+    // Only the target changed: keep its version and warn (see kept-target-changes.ts)
+    if (sourceMapping && hasTargetChanged && !hasSourceChanged) {
+      const change = {
+        type: "model" as const,
+        name: sourceModel.referenceName,
+        sourceID: sourceModel.id,
+        targetID: targetModel?.id,
+      };
+      keptTargetChanges.record(change);
+      console.warn(ansiColors.yellow(keptTargetChanges.formatLine(change)));
+      shouldSkip.push({
+        model: sourceModel,
+        reason: "Target model changed since the last sync and the source didn't; kept the target's version.",
+      });
+      continue;
+    }
+
+    // if the mapping exists, and both sides have changed, we need to skip the model, not safe to update
     if (sourceMapping && hasTargetChanged) {
       shouldSkip.push({
         model: sourceModel,

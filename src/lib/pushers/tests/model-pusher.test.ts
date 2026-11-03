@@ -929,6 +929,78 @@ describe("pushModels — alternating-direction ping-pong (PROD-2604)", () => {
   });
 });
 
+// ─── target-only model change is kept with a warning ──────────────────────────
+
+describe("pushModels — mapped model changed on the target", () => {
+  const JAN = new Date(2025, 0, 1).toISOString();
+  const JUN = new Date(2025, 5, 1).toISOString();
+  const SEP = new Date(2025, 8, 1).toISOString();
+
+  function fields(label: string) {
+    return [{ name: "Title", label, type: "Text", itemOrder: 0, settings: { Required: "True" } }];
+  }
+
+  async function run(sourceDate: string, opts: { overwrite?: boolean; preflight?: boolean } = {}) {
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    new ModelMapper(state.sourceGuid, state.targetGuid).addMapping(
+      { id: 1, referenceName: "Article", lastModifiedDate: JAN } as any,
+      { id: 10, referenceName: "Article", lastModifiedDate: JAN } as any
+    );
+    setState({ overwrite: !!opts.overwrite, preflight: !!opts.preflight });
+    const { keptTargetChanges } = await import("../kept-target-changes");
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    keptTargetChanges.reset();
+    preflightReport.reset();
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 10, referenceName: "Article", lastModifiedDate: SEP }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    const { pushModels } = await import("../model-pusher");
+
+    const source = makeModel({ id: 1, referenceName: "Article", displayName: "Article", lastModifiedDate: sourceDate, fields: fields("Headline") });
+    const target = makeModel({ id: 10, referenceName: "Article", displayName: "Article", lastModifiedDate: SEP, fields: fields("Title") });
+    const result = await pushModels([source], [target]);
+    const entry = preflightReport.getEntries().find((e) => e.name === "Article");
+    return { result, saveModel, kept: keptTargetChanges, entry };
+  }
+
+  it("target-only change without --overwrite is a skip that records a kept change", async () => {
+    const { result, saveModel, kept, entry } = await run(JAN, { preflight: true });
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(entry).toEqual(
+      expect.objectContaining({ action: "skip", detail: expect.stringMatching(/kept the target's version/) })
+    );
+    expect(kept.getEntries()).toEqual([
+      expect.objectContaining({ type: "model", name: "Article", sourceID: 1, targetID: 10 }),
+    ]);
+  });
+
+  it("target-only change without --overwrite does not refresh the mapping", async () => {
+    await run(JAN);
+
+    const { ModelMapper } = await import("lib/mappers/model-mapper");
+    const record = new ModelMapper(state.sourceGuid, state.targetGuid).getModelMappingByID(1, "source")!;
+    expect(record.targetLastModifiedDate).toBe(JAN);
+  });
+
+  it("change on both sides without --overwrite is still a conflict and records nothing", async () => {
+    const { saveModel, kept, entry } = await run(JUN, { preflight: true });
+
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(entry?.action).toBe("conflict");
+    expect(kept.hasEntries()).toBe(false);
+  });
+
+  it("target-only change with --overwrite updates the target and records nothing", async () => {
+    const { result, saveModel, kept } = await run(JAN, { overwrite: true });
+
+    expect(saveModel).toHaveBeenCalledTimes(1);
+    expect(saveModel.mock.calls[0][0].id).toBe(10);
+    expect(result.successful).toBe(1);
+    expect(kept.hasEntries()).toBe(false);
+  });
+});
+
 // ─── PROD-2542: effective target model registry ───────────────────────────────
 
 describe("pushModels — effective target model registry (PROD-2542)", () => {
