@@ -251,10 +251,13 @@ for (let i = 0; i < plan.length; i++) {
 
   let drifted = null;
   try {
-    // The receiving side's copies of items this round edited on the sending side
+    // The receiving side's copies of content items this round touched on the sending side: edits,
+    // list swaps (which save both items), publishes and deletes. Page and model changes name page IDs
+    // or none, so only the content and ordering areas count.
     const editedThere = applied
-      .filter((a) => a.area === "content" && a.change === "edit")
-      .map((a) => mapped(forward)(Number(/#(\d+)/.exec(a.detail)?.[1])))
+      .filter((a) => a.area === "content" || a.area === "ordering")
+      .flatMap((a) => [...String(a.detail ?? "").matchAll(/#(\d+)/g)].map((m) => Number(m[1])))
+      .map((id) => mapped(forward)(id))
       .filter(Boolean);
     drifted = await drift(toCtx, new Set(editedThere));
     if (drifted) applied.push({ name: "drift", ...drifted, area: "drift" });
