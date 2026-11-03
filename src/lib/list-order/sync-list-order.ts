@@ -29,7 +29,7 @@ import { fileOperations } from "../../core/fileOperations";
 import { GuidDataLoader } from "../pushers/guid-data-loader";
 import { preflightReport } from "../preflight/preflight-report";
 import { keptTargetChanges } from "../pushers/kept-target-changes";
-import { UNRECORDED_UPDATE_DETAIL } from "../shared/sync-fingerprint";
+import { PENDING_DETAIL, UNRECORDED_UPDATE_DETAIL } from "../shared/sync-fingerprint";
 import { FailureDetail, PusherResult } from "../../types/sourceData";
 
 export interface ListOrderOptions {
@@ -66,13 +66,21 @@ export interface ListOrderRecord {
   sourceContentIDs: number[];
   /** Target content IDs in the order the run left the target list */
   targetContentIDs: number[];
+  /**
+   * The target's order before this run reordered it, kept until a pull shows the new order. The
+   * Fetch API shows an order change a while after it's made, and a pull in that window still shows
+   * the old order: that isn't a reorder. A reverse sync reads it as `sourceReplacedContentIDs`.
+   */
+  targetReplacedContentIDs?: number[];
+  sourceReplacedContentIDs?: number[];
 }
 
 export type ListOrderAction =
   | "reorder" // set the target to the source's order
   | "in-order" // nothing to send
   | "keep" // reordered on the target only: keep it and warn
-  | "conflict"; // reordered on both sides
+  | "conflict" // reordered on both sides
+  | "pending"; // a side still shows the order the last run replaced (the Fetch API hasn't caught up): wait
 
 /** One list's decision, with the orders to record once it's settled. */
 export interface ListOrderDecision extends ListOrderPlan {
@@ -85,6 +93,8 @@ export interface ListOrderDecision extends ListOrderPlan {
   sourceOrder: number[];
   /** Target content IDs in the order this run leaves them (if a reorder is sent, after it) */
   targetOrder: number[];
+  /** For a reorder: the target's order it replaces */
+  replacedOrder?: number[];
 }
 
 const DELETED_STATE = 3;
@@ -197,21 +207,38 @@ export function decideListOrders(
 
     const record = recordFor.get(sourceKey);
     if (!record || !Array.isArray(record.sourceContentIDs) || !Array.isArray(record.targetContentIDs)) {
-      decisions.push({ ...base, action: "reorder", unrecorded: true, targetOrder: reordered });
+      decisions.push({ ...base, action: "reorder", unrecorded: true, targetOrder: reordered, replacedOrder: currentIDs });
       continue;
     }
 
-    const sourceReordered = relativeOrderChanged(record.sourceContentIDs, sourceOrder);
-    const targetReordered = relativeOrderChanged(record.targetContentIDs, currentIDs);
-    const verdict: ListOrderAction = targetReordered ? (sourceReordered ? "conflict" : "keep") : "reorder";
+    // A side still in the order the last run replaced was pulled before the reorder reached the
+    // Fetch API: not a reorder. Syncing from a source in that state would put the old order back.
+    const moved = (recorded: number[], replaced: number[] | undefined, current: number[]) => {
+      if (!relativeOrderChanged(recorded, current)) return "same";
+      if (Array.isArray(replaced) && !relativeOrderChanged(replaced, current)) return "pending";
+      return "moved";
+    };
+    const source = moved(record.sourceContentIDs, record.sourceReplacedContentIDs, sourceOrder);
+    const target = moved(record.targetContentIDs, record.targetReplacedContentIDs, currentIDs);
+    const verdict: ListOrderAction =
+      target === "moved"
+        ? source === "moved"
+          ? "conflict"
+          : "keep"
+        : source === "moved"
+          ? "reorder"
+          : source === "pending" || target === "pending"
+            ? "pending"
+            : "reorder";
 
-    if (verdict === "reorder" || overwrite) {
+    if (verdict === "reorder" || ((verdict === "keep" || verdict === "conflict") && overwrite)) {
       decisions.push({
         ...base,
         action: "reorder",
         unrecorded: false,
         ...(verdict !== "reorder" ? { overwritten: verdict as "keep" | "conflict" } : {}),
         targetOrder: reordered,
+        replacedOrder: currentIDs,
       });
     } else {
       decisions.push({ ...base, action: verdict, unrecorded: false, targetOrder: currentIDs });
@@ -244,8 +271,8 @@ export function planListOrders(
     }));
 }
 
-/** The record to store for a settled list. */
-function toRecord(opts: ListOrderOptions, d: ListOrderDecision, targetOrder: number[]): ListOrderRecord {
+/** The record to store for a settled list; `replaced` is the target order a reorder replaced. */
+function toRecord(opts: ListOrderOptions, d: ListOrderDecision, targetOrder: number[], replaced?: number[]): ListOrderRecord {
   return {
     sourceGuid: opts.sourceGuid,
     targetGuid: opts.targetGuid,
@@ -253,6 +280,7 @@ function toRecord(opts: ListOrderOptions, d: ListOrderDecision, targetOrder: num
     targetReferenceName: d.targetReferenceName,
     sourceContentIDs: d.sourceOrder,
     targetContentIDs: targetOrder,
+    ...(replaced ? { targetReplacedContentIDs: replaced } : {}),
   };
 }
 
@@ -336,11 +364,20 @@ export async function runSyncListOrder(
 
   // Settled lists' orders, written to the locale's `listorder` records at the end (not in preflight).
   const settled = new Map<string, ListOrderRecord[]>();
-  const settle = (d: ListOrderDecision, targetOrder: number[]) => {
+  const settle = (d: ListOrderDecision, targetOrder: number[], replaced?: number[]) => {
     const existing = recordsByLocale.get(d.locale)?.find((r) => lower(r.sourceReferenceName) === lower(d.sourceReferenceName));
-    if (existing && sameOrder(existing.sourceContentIDs, d.sourceOrder) && sameOrder(existing.targetContentIDs, targetOrder)) return;
+    if (
+      existing &&
+      !replaced &&
+      !existing.targetReplacedContentIDs &&
+      !existing.sourceReplacedContentIDs &&
+      sameOrder(existing.sourceContentIDs, d.sourceOrder) &&
+      sameOrder(existing.targetContentIDs, targetOrder)
+    ) {
+      return;
+    }
     if (!settled.has(d.locale)) settled.set(d.locale, []);
-    settled.get(d.locale)!.push(toRecord(opts, d, targetOrder));
+    settled.get(d.locale)!.push(toRecord(opts, d, targetOrder, replaced));
   };
 
   const plans = decisions.filter((d) => d.action === "reorder");
@@ -362,6 +399,10 @@ export async function runSyncListOrder(
         locale: d.locale,
         detail: "reordered on the target since the last sync and the source didn't; kept the target's order",
       });
+      result.skipped++;
+    } else if (d.action === "pending") {
+      logger?.info(`${label(d)}: ${PENDING_DETAIL}`);
+      preflightReport.record({ phase: "List order", action: "skip", name: d.targetReferenceName, locale: d.locale, detail: PENDING_DETAIL });
       result.skipped++;
     } else if (d.action === "conflict") {
       const reason = "reordered on both the source and the target since the last sync; use --overwrite to set the source's order";
@@ -422,7 +463,9 @@ export async function runSyncListOrder(
         result.warningDetails!.push(detail);
         logger?.warning(`${label(plan)}: ${detail.error}`);
       }
-      settle(plan, plan.targetOrder.filter((id) => !skippedIDs.includes(id)));
+      // Until the Fetch API shows the new order, a pull shows the one it replaced: not a reorder.
+      const changed = (response?.itemsUpdated ?? 0) > 0;
+      settle(plan, plan.targetOrder.filter((id) => !skippedIDs.includes(id)), changed ? plan.replacedOrder : undefined);
       if ((response?.itemsUpdated ?? 0) > 0) {
         result.successful++;
         logger?.success(`↕  Reordered ${label(plan)}: ${response.itemsUpdated} item(s) moved (${(response.updatedContentIDs || []).join(", ")})`);
@@ -449,10 +492,12 @@ export async function runSyncListOrder(
   }
 
   const leftAlone = decisions.filter((d) => d.action === "keep" || d.action === "conflict").length;
+  const pending = decisions.filter((d) => d.action === "pending").length;
   console.log(
     ansiColors.gray(`List order: `) +
       ansiColors.green(`${result.successful} reordered, `) +
-      ansiColors.yellow(`${result.skipped - leftAlone} already in order, `) +
+      ansiColors.yellow(`${result.skipped - leftAlone - pending} already in order, `) +
+      (pending > 0 ? ansiColors.gray(`${pending} waiting for the Fetch API, `) : "") +
       (leftAlone > 0 ? ansiColors.yellow(`${leftAlone} target order(s) kept or in conflict, `) : "") +
       (result.failed > 0 ? ansiColors.red : ansiColors.gray)(`${result.failed} failed`) +
       ansiColors.gray(` (${plans.length} list(s) differed from the source)\n`)

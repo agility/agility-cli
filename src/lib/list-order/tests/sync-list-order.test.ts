@@ -396,10 +396,50 @@ describe("runSyncListOrder", () => {
 
     beforeEach(() => keptTargetChanges.reset());
 
-    it("records the orders a reorder left (the first run, with no record)", async () => {
+    it("records the orders a reorder left, and the order it replaced (the first run, with no record)", async () => {
+      await run();
+
+      expect(readRecords()).toEqual([{ ...syncedRecord, targetReplacedContentIDs: [900, 103, 101, 102] }]);
+    });
+
+    it("a pull that still shows the replaced order is waited on, not kept as a target reorder", async () => {
+      // The last run reordered 900, 103, 101, 102 to 101, 102, 103, 900; the Fetch API hasn't shown it yet.
+      writeJson(recordFile, [{ ...syncedRecord, targetReplacedContentIDs: [900, 103, 101, 102] }]);
+
+      const result = await run();
+
+      expect(api.contentMethods.setContentListItemOrder).not.toHaveBeenCalled();
+      expect(keptTargetChanges.hasEntries()).toBe(false);
+      expect(result).toMatchObject({ successful: 0, skipped: 1 });
+      expect(readRecords()).toEqual([{ ...syncedRecord, targetReplacedContentIDs: [900, 103, 101, 102] }]);
+    });
+
+    it("drops the replaced order once a pull shows the new one", async () => {
+      writeJson(recordFile, [{ ...syncedRecord, targetReplacedContentIDs: [900, 103, 101, 102] }]);
+      [[101, 0], [102, 1], [103, 2], [900, 3]].forEach(([id, order]) =>
+        writeJson(`${TGT}/${LOCALE}/item/${id}.json`, { contentID: id, properties: { state: 2, referenceName: "links", itemOrder: order } })
+      );
+
       await run();
 
       expect(readRecords()).toEqual([syncedRecord]);
+    });
+
+    it("a reverse sync doesn't put back an order its source shows before the last reorder reached the Fetch API", async () => {
+      // The last run (this way round) reordered the source side from 3, 1, 2 to 1, 2, 3 ... seen as
+      // a reverse sync's record: the source's replaced order is 3, 1, 2, and the source pull still shows it.
+      [3, 1, 2].forEach((n, i) =>
+        writeJson(`${SRC}/${LOCALE}/item/${n}.json`, { contentID: n, properties: { state: 2, referenceName: "links", itemOrder: i } })
+      );
+      writeJson(recordFile, [{ ...syncedRecord, sourceReplacedContentIDs: [3, 1, 2] }]);
+      [[101, 0], [102, 1], [103, 2], [900, 3]].forEach(([id, order]) =>
+        writeJson(`${TGT}/${LOCALE}/item/${id}.json`, { contentID: id, properties: { state: 2, referenceName: "links", itemOrder: order } })
+      );
+
+      await run();
+
+      expect(api.contentMethods.setContentListItemOrder).not.toHaveBeenCalled();
+      expect(keptTargetChanges.hasEntries()).toBe(false);
     });
 
     it("records a list that's already in order without calling the API", async () => {
@@ -433,7 +473,7 @@ describe("runSyncListOrder", () => {
 
       expect(api.contentMethods.setContentListItemOrder).toHaveBeenCalledWith("links", TGT, LOCALE, [101, 102, 103], true);
       expect(keptTargetChanges.hasEntries()).toBe(false);
-      expect(readRecords()).toEqual([syncedRecord]);
+      expect(readRecords()).toEqual([{ ...syncedRecord, targetReplacedContentIDs: [900, 103, 101, 102] }]);
     });
 
     it("reports a reorder on both sides as a preflight conflict", async () => {

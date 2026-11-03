@@ -7,7 +7,14 @@ import { preflightReport } from "../preflight/preflight-report";
 import { saveUrlRedirections, MAX_URL_REDIRECTION_BATCH_SIZE } from "./url-redirection-api";
 import { FailureDetail, PusherResult } from "../../types/sourceData";
 import { keptTargetChanges } from "./kept-target-changes";
-import { decideSync, fingerprintFields, hashShape, hasFingerprint, UNRECORDED_UPDATE_DETAIL } from "../shared/sync-fingerprint";
+import {
+  decideSync,
+  fingerprintFields,
+  hashShape,
+  hasFingerprint,
+  PENDING_DETAIL,
+  UNRECORDED_UPDATE_DETAIL,
+} from "../shared/sync-fingerprint";
 
 /** A queued create/update: the source item plus the payload the API will receive. */
 interface PendingSave {
@@ -16,6 +23,8 @@ interface PendingSave {
   action: "create" | "update";
   /** Hash of the source's shape; stored for both sides once the save lands (a full replace). */
   hash: string;
+  /** Hash of the target this save replaces (updates only), until a pull shows the replacement */
+  replacedHash?: string;
   /** Preflight detail, e.g. why the source wins */
   detail?: string;
 }
@@ -114,6 +123,7 @@ export async function pushUrlRedirections(
           payload: toSavePayload(source, targetByOrigin.id),
           action: "update",
           hash: sourceHash,
+          replacedHash: targetHash,
           detail: UNRECORDED_UPDATE_DETAIL,
         });
       }
@@ -121,15 +131,31 @@ export async function pushUrlRedirections(
       const targetHash = redirectionHash(targetById);
       const decision = decideSync(sourceHash === targetHash, sourceHash, targetHash, mapping);
       const update = (detail?: string) =>
-        pending.push({ source, payload: toSavePayload(source, targetById.id), action: "update", hash: sourceHash, detail });
+        pending.push({
+          source,
+          payload: toSavePayload(source, targetById.id),
+          action: "update",
+          hash: sourceHash,
+          replacedHash: targetHash,
+          detail,
+        });
 
       if (decision === "skip") {
         // Seed or refresh the hashes: an older mapping gets them here, and two sides edited to
         // the same value agree again.
-        if (!hasFingerprint(mapping) || mapping.sourceHash !== sourceHash || mapping.targetHash !== targetHash) {
+        // A pull that shows the last save also clears the replaced state.
+        if (
+          !hasFingerprint(mapping) ||
+          mapping.sourceHash !== sourceHash ||
+          mapping.targetHash !== targetHash ||
+          mapping.targetReplacedHash ||
+          mapping.sourceReplacedHash
+        ) {
           mapper.addMapping(source.id, targetById.id, source.originUrl, fingerprintFields(sourceHash, targetHash));
         }
         recordSkip(source, "up to date");
+      } else if (decision === "pending") {
+        recordSkip(source, PENDING_DETAIL);
       } else if (decision === "update") {
         update();
       } else if (decision === "update-unrecorded") {
@@ -214,8 +240,9 @@ export async function pushUrlRedirections(
             item.source.id,
             updated.urlRedirectionID ?? item.payload.urlRedirectionID,
             item.source.originUrl,
-            // A full replace: the target now has the source's shape
-            fingerprintFields(item.hash, item.hash)
+            // A full replace: the target now has the source's shape. The Fetch API shows it a
+            // while later; until then a pull shows the replaced redirection, which isn't an edit.
+            fingerprintFields(item.hash, item.hash, item.replacedHash)
           );
           logger.urlRedirection.updated(item.source, "updated", targetGuid);
         }

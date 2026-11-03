@@ -194,7 +194,7 @@ A sync puts each synced content list on the target in the source's item order. I
 - The new order applies to the target's staging and live list at once. No item gets a new version, so nothing needs publishing for the order to show.
 - Items that exist only on the target keep their relative order after the synced ones.
 - A scoped run (`--pages`, `--containers`, `--models`) only orders the lists its content is in, but sends every synced item of those lists, so their order stays whole.
-- Each run records, per list, the source's order and the order it left on the target. A list reordered on the target since then, while the source's order didn't change, keeps the target's order with a warning ("Target changes kept"); reordered on both sides, it's a conflict. `--overwrite` sets the source's order either way. Adding or deleting an item isn't a reorder. The first sync after upgrading has no record, so it sets the source's order, as before, and records it.
+- Each run records, per list, the source's order and the order it left on the target. A list reordered on the target since then, while the source's order didn't change, keeps the target's order with a warning ("Target changes kept"); reordered on both sides, it's a conflict. `--overwrite` sets the source's order either way. Adding or deleting an item isn't a reorder, and neither is a list that still shows the order the last sync replaced (the Fetch API shows an order change a few minutes later; the list is skipped until it does). The first sync after upgrading has no record, so it sets the source's order, as before, and records it.
 - `--preflight` lists the lists it would reorder under a `List order` phase, and `--jsonSummary` reports them as the `listOrder` phase.
 
 ### Auto-Publish

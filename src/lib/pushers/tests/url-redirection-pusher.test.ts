@@ -437,7 +437,59 @@ describe("pushUrlRedirections — sync fingerprints (PROD-3078)", () => {
     expect(mockSaveUrlRedirections).toHaveBeenCalledTimes(1);
     expect(result.successful).toBe(1);
     const h = redirectionHash(source as any);
-    expect(mockAddMapping).toHaveBeenCalledWith(1, 10, "/old", { sourceHash: h, targetHash: h, fingerprintVersion: 1 });
+    expect(mockAddMapping).toHaveBeenCalledWith(1, 10, "/old", {
+      sourceHash: h,
+      targetHash: h,
+      fingerprintVersion: 1,
+      // What it replaced, until a pull shows the update (the Fetch API lags)
+      targetReplacedHash: redirectionHash(syncedTarget as any),
+    });
+  });
+
+  it("a target pull that still shows what the last sync replaced is waited on, not kept", async () => {
+    setState({ preflight: true });
+    const { redirectionHash } = await import("../url-redirection-pusher");
+    const old = { ...syncedTarget, destinationUrl: "/before-the-last-sync" };
+    const { pushUrlRedirections, keptTargetChanges } = await setup({
+      ...(await recorded()),
+      targetReplacedHash: redirectionHash(old as any),
+    });
+
+    await pushUrlRedirections([synced as any], [old as any]);
+
+    expect(mockSaveUrlRedirections).not.toHaveBeenCalled();
+    expect(keptTargetChanges.hasEntries()).toBe(false);
+    expect(preflightReport.getEntries()).toEqual([
+      expect.objectContaining({ action: "skip", detail: expect.stringContaining("isn't in the Fetch API yet") }),
+    ]);
+  });
+
+  it("a source pull that still shows what the last (reverse) sync replaced isn't synced back", async () => {
+    const { redirectionHash } = await import("../url-redirection-pusher");
+    const old = { ...synced, destinationUrl: "/before-the-last-sync" };
+    const { pushUrlRedirections } = await setup({ ...(await recorded()), sourceReplacedHash: redirectionHash(old as any) });
+
+    await pushUrlRedirections([old as any], [syncedTarget as any]);
+
+    expect(mockSaveUrlRedirections).not.toHaveBeenCalled();
+  });
+
+  it("a stale target pull doesn't hide a later source change", async () => {
+    const { redirectionHash } = await import("../url-redirection-pusher");
+    const old = { ...syncedTarget, destinationUrl: "/before-the-last-sync" };
+    const { pushUrlRedirections } = await setup({ ...(await recorded()), targetReplacedHash: redirectionHash(old as any) });
+
+    await pushUrlRedirections([{ ...synced, destinationUrl: "/newer" } as any], [old as any]);
+
+    expect(mockSaveUrlRedirections.mock.calls[0][1][0].destinationUrl).toBe("/newer");
+  });
+
+  it("an in-sync pull clears the replaced hash", async () => {
+    const { pushUrlRedirections } = await setup({ ...(await recorded()), targetReplacedHash: "stale" });
+
+    await pushUrlRedirections([synced as any], [syncedTarget as any]);
+
+    expect(mockAddMapping).toHaveBeenCalledWith(1, 10, "/old", expect.objectContaining({ targetReplacedHash: undefined }));
   });
 
   it("target changed only: keeps the target, warns, and leaves the record alone", async () => {

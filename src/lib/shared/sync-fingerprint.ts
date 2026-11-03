@@ -15,6 +15,9 @@
  *   - only the target changed: keep the target and warn; the record isn't refreshed
  *   - both changed: conflict; the record isn't refreshed
  *   - --overwrite: the source wins in the last two cases
+ *   - a side still shows what the last sync replaced (types pulled from the Fetch API, which shows
+ *     a save a while later): skip until it catches up, so a stale pull is neither an edit nor
+ *     synced back
  */
 
 import { createHash } from "crypto";
@@ -27,6 +30,14 @@ export interface SyncFingerprint {
   sourceHash?: string;
   targetHash?: string;
   fingerprintVersion?: number;
+  /**
+   * The target's hash before the sync replaced it, kept until a pull shows the replacement. Types
+   * pulled from the Fetch API (redirections) show a save a while later, and a pull in that window
+   * still shows what was replaced: that isn't an edit. A reverse sync reads it as
+   * `sourceReplacedHash`, the side it now syncs from.
+   */
+  targetReplacedHash?: string;
+  sourceReplacedHash?: string;
 }
 
 export type SyncDecision =
@@ -34,7 +45,8 @@ export type SyncDecision =
   | "update" // source changed only
   | "update-unrecorded" // the sides differ and the mapping has no hashes yet: source wins
   | "keep" // target changed only: keep it and warn
-  | "conflict"; // both changed
+  | "conflict" // both changed
+  | "pending"; // a side still shows what the last sync replaced (the Fetch API hasn't caught up): wait
 
 /** JSON with object keys sorted, so equal values always serialise the same way. */
 export function stableStringify(value: unknown): string {
@@ -77,19 +89,39 @@ export function decideSync(
 ): SyncDecision {
   if (inSync) return "skip";
   if (!hasFingerprint(record)) return "update-unrecorded";
-  const sourceChanged = sourceHash !== record!.sourceHash;
-  const targetChanged = targetHash !== record!.targetHash;
+  const r = record!;
+  // A side that still shows what the last sync replaced was pulled before the save reached the
+  // Fetch API: not an edit. Syncing from a source in that state would put the old version back.
+  const sourcePending = sourceHash !== r.sourceHash && !!r.sourceReplacedHash && sourceHash === r.sourceReplacedHash;
+  const targetPending = targetHash !== r.targetHash && !!r.targetReplacedHash && targetHash === r.targetReplacedHash;
+  const sourceChanged = sourceHash !== r.sourceHash && !sourcePending;
+  const targetChanged = targetHash !== r.targetHash && !targetPending;
   if (sourceChanged && targetChanged) return "conflict";
   if (targetChanged) return "keep";
-  // Source changed only, or neither did while the sides still differ (only possible if the
-  // normalisation and the "differs" check drift apart): the source wins, as before.
+  if (sourceChanged) return "update";
+  if (sourcePending || targetPending) return "pending";
+  // Neither changed while the sides still differ (only possible if the normalisation and the
+  // "differs" check drift apart): the source wins, as before.
   return "update";
 }
 
-/** The fields to store on a mapping record once the two sides agree. */
-export function fingerprintFields(sourceHash: string, targetHash: string): Required<SyncFingerprint> {
-  return { sourceHash, targetHash, fingerprintVersion: FINGERPRINT_VERSION };
+/**
+ * The fields to store on a mapping record once the two sides agree. `targetReplacedHash` is the
+ * target's hash before this sync replaced it, for types pulled from the Fetch API; leaving it out
+ * clears any earlier one (it is written as undefined, which the mapping file drops).
+ */
+export function fingerprintFields(sourceHash: string, targetHash: string, targetReplacedHash?: string): SyncFingerprint {
+  return {
+    sourceHash,
+    targetHash,
+    fingerprintVersion: FINGERPRINT_VERSION,
+    targetReplacedHash,
+    sourceReplacedHash: undefined,
+  };
 }
+
+/** Preflight/log detail for an entity skipped until the Fetch API shows the last sync's change. */
+export const PENDING_DETAIL = "the last sync's change isn't in the Fetch API yet; skipped until it is";
 
 /** Preflight/log detail for a source-wins update on a mapping with no hashes yet. */
 export const UNRECORDED_UPDATE_DETAIL =

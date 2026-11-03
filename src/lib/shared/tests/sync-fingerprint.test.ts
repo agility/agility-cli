@@ -42,6 +42,16 @@ describe("decideSync", () => {
     expect(decideSync(false, "S2", "T2", recorded)).toBe("conflict");
   });
 
+  it("waits on a side that still shows what the last sync replaced", () => {
+    // The target pull predates the last sync's save
+    expect(decideSync(false, "S", "OLD", { ...recorded, targetReplacedHash: "OLD" })).toBe("pending");
+    // A reverse sync: its source pull predates the save
+    expect(decideSync(false, "OLD", "T", { ...recorded, sourceReplacedHash: "OLD" })).toBe("pending");
+    // A real change on the other side still counts
+    expect(decideSync(false, "S2", "OLD", { ...recorded, targetReplacedHash: "OLD" })).toBe("update");
+    expect(decideSync(false, "OLD", "T2", { ...recorded, sourceReplacedHash: "OLD" })).toBe("keep");
+  });
+
   it("lets the source win when the sides differ but neither hash moved", () => {
     expect(decideSync(false, "S", "T", recorded)).toBe("update");
   });
