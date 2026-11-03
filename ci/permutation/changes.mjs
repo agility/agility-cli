@@ -210,9 +210,9 @@ export const CHANGES = {
   // list in place, with no new versions. The last item moves to the top. (Saving items with
   // swapped itemOrder values doesn't reliably reorder: the server can leave the order as it was.)
   async "content.reorder"(ctx) {
-    // `ctx.avoid`: lists the round already reordered on the other side. The same move on both sides
+    // `ctx.avoidLists`: lists the round already reordered on the other side. The same move on both sides
     // leaves them in the same order again, which is no change to report.
-    const avoid = new Set((ctx.avoid ?? []).map((x) => x.toLowerCase()));
+    const avoid = new Set((ctx.avoidLists ?? []).map((x) => x.toLowerCase()));
     const candidates = (await listsWithItems(ctx.c, ctx.guid, ctx.locale, 2)).filter(
       (x) => x.items.length <= 30 && !avoid.has(x.list.referenceName.toLowerCase())
     );

@@ -274,7 +274,7 @@ for (let i = 0; i < plan.length; i++) {
   let drifted = null;
   try {
     // The receiving side's copies of content items this round touched on the sending side: edits,
-    // list swaps (which save both items), publishes and deletes. Page and model changes name page IDs
+    // list reorders, publishes and deletes. Page and model changes name page IDs
     // or none, so only the content and ordering areas count.
     const editedThere = applied
       .filter((a) => a.area === "content" || a.area === "ordering")
@@ -291,8 +291,8 @@ for (let i = 0; i < plan.length; i++) {
   const structural = [];
   for (const d of STRUCTURAL_DRIFTS) {
     try {
-      const avoid = applied.filter((x) => x.change === "list-reorder" && x.entity).map((x) => x.entity);
-      const did = await CHANGES[d.change]({ ...toCtx, avoid });
+      const avoidLists = applied.filter((x) => x.change === "list-reorder" && x.entity).map((x) => x.entity);
+      const did = await CHANGES[d.change]({ ...toCtx, avoidLists });
       if (did) {
         structural.push({ ...d, ...did });
         applied.push({ name: `drift:${d.kind}`, ...did, area: "drift" });
