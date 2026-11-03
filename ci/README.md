@@ -39,7 +39,8 @@ directions:
 - **Even rounds** edit B and `reverse-sync` B → A.
 - **Every round** also edits the other instance (drift: a content item, a list's order, a page
   template's section name and a URL redirection's destination) and one item on both sides (a
-  conflict). The redirection is one the run adds to A before the first sync; the Management SDK can
+  conflict). Before syncing, the run waits for the Fetch API to show each edit, a list's new order
+  included (it shows up later than a new version). The redirection is one the run adds to A before the first sync; the Management SDK can
   only delete redirections, so the run saves it through the Management API's batch endpoint and
   waits for the Fetch API to list each edit, as the CLI does.
 
@@ -48,7 +49,7 @@ The changes, in `ci/permutation/changes.mjs`, are discovered from whatever each 
 | Area       | Changes                                                                                            |
 | ---------- | -------------------------------------------------------------------------------------------------- |
 | Content    | edit, add, add a linked item together with an item that links to it, delete, publish and unpublish |
-| Ordering   | swap two items in a list; reverse the components in a page zone                                    |
+| Ordering   | swap two items in a list; move a list's last item to the top (drag and drop, no new versions); reverse the components in a page zone |
 | Pages      | edit title and menu text, add a page, delete it later                                              |
 | Components | remove one from a zone                                                                             |
 | Models     | add a field, change a label, rename a field                                                        |

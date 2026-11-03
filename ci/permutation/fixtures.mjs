@@ -222,6 +222,40 @@ export async function waitForFetchVersions(token, guid, locale, wanted, { timeou
   throw new Error(`Fetch API still behind after ${timeoutMs / 1000}s on items ${behind.slice(0, 10).join(", ")}`);
 }
 
+// An order change reaches the Fetch API's sync feed later than the item's new version. Wait until
+// the feed shows each given item at the given itemOrder. Returns the seconds waited; throws on timeout.
+export async function waitForFetchItemOrder(token, guid, locale, items, { timeoutMs = 10 * 60 * 1000 } = {}) {
+  if (!items.length) return 0;
+  const { mgmt, api } = hosts(guid);
+  const keyRes = await fetch(`${mgmt}/oauth/GetPreviewKey?guid=${guid}`, {
+    headers: { Authorization: `Bearer ${token}`, "Cache-Control": "no-cache" },
+  });
+  if (!keyRes.ok) throw new Error(`GetPreviewKey: HTTP ${keyRes.status}`);
+  const apiKey = (await keyRes.text()).replace(/^"|"$/g, "");
+
+  const started = Date.now();
+  let behind = [];
+  while (Date.now() - started < timeoutMs) {
+    // The feed is a log: the last entry for an item is its current state
+    const order = new Map();
+    let syncToken = 0;
+    for (let page = 0; page < 100; page++) {
+      const res = await fetch(`${api}/${guid}/preview/${locale}/sync/items?syncToken=${syncToken}&pageSize=500`, {
+        headers: { APIKey: apiKey, "Cache-Control": "no-cache" },
+      });
+      if (!res.ok) throw new Error(`Fetch API sync/items: HTTP ${res.status}`);
+      const body = await res.json();
+      for (const item of body.items ?? []) order.set(item.contentID, item.properties?.itemOrder);
+      if (!body.items?.length || !body.syncToken || body.syncToken === syncToken) break;
+      syncToken = body.syncToken;
+    }
+    behind = items.filter(([id, o]) => order.get(id) !== o).map(([id]) => id);
+    if (behind.length === 0) return Math.round((Date.now() - started) / 1000);
+    await new Promise((r) => setTimeout(r, 15_000));
+  }
+  throw new Error(`Fetch API still shows the old order after ${timeoutMs / 1000}s for items ${behind.join(", ")}`);
+}
+
 // After a sync: each target copy's Next (and NextID) must hold the TARGET ID of its partner.
 export async function checkReferenceCycles(c, guid, locale, fixture, toTarget) {
   const problems = [];
@@ -323,6 +357,6 @@ export async function editRedirection(token, guid, originUrl, tag) {
     area: "redirections",
     change: "edit",
     detail: `${current.originUrl} → ${destinationUrl} (in the Fetch API after ${waited}s)`,
-    name: current.originUrl,
+    entity: current.originUrl,
   };
 }

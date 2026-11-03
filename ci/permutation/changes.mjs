@@ -217,11 +217,49 @@ export const CHANGES = {
     fb.properties.itemOrder = oa;
     await save(ctx.c, ctx.guid, ctx.locale, fa);
     await save(ctx.c, ctx.guid, ctx.locale, fb);
+    // The order the server kept (it may renumber), for the runner to wait on in the Fetch API: a
+    // sync reads the order from there, and it shows an order change later than the new version.
+    const [ra, rb] = await Promise.all(
+      [a, b].map((x) => ctx.c.contentMethods.getContentItem(x.contentID, ctx.guid, ctx.locale))
+    );
+    const [na, nb] = [ra.properties.itemOrder, rb.properties.itemOrder];
+    if (na === oa && nb === fa.properties.itemOrder) throw new Error(`saving the items left ${l.list.referenceName} in its order`);
     return {
       area: "ordering",
       change: "list-swap",
       detail: `${l.list.referenceName} #${a.contentID} ↔ #${b.contentID}`,
-      name: l.list.referenceName,
+      entity: l.list.referenceName,
+      orders: { guid: ctx.guid, items: [[a.contentID, na], [b.contentID, nb]] },
+    };
+  },
+
+  // A drag-and-drop reorder: the list item-order endpoint renumbers the list in place, with no new
+  // versions. The last item moves to the top.
+  async "content.list-reorder"(ctx) {
+    const candidates = (await listsWithItems(ctx.c, ctx.guid, ctx.locale, 2)).filter((x) => x.items.length <= 30);
+    const l = ctx.r.pick(candidates);
+    if (!l) return null;
+    const readOrder = async () => {
+      const full = await Promise.all(
+        l.items.map((x) => ctx.c.contentMethods.getContentItem(x.contentID, ctx.guid, ctx.locale))
+      );
+      return full
+        .map((x) => [x.contentID, x.properties?.itemOrder ?? Number.MAX_SAFE_INTEGER])
+        .sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+    };
+    const before = (await readOrder()).map(([id]) => id);
+    const wanted = [before[before.length - 1], ...before.slice(0, -1)];
+    await ctx.c.contentMethods.setContentListItemOrder(l.list.referenceName, ctx.guid, ctx.locale, wanted, true);
+    const after = await readOrder();
+    if (after.map(([id]) => id).join() !== wanted.join()) {
+      throw new Error(`${l.list.referenceName} is in order ${after.map(([id]) => id).join(", ")}, not ${wanted.join(", ")}`);
+    }
+    return {
+      area: "ordering",
+      change: "list-reorder",
+      detail: `${l.list.referenceName} #${wanted[0]} moved to the top`,
+      entity: l.list.referenceName,
+      orders: { guid: ctx.guid, items: after },
     };
   },
 
@@ -250,7 +288,7 @@ export const CHANGES = {
       area: "templates",
       change: "section-rename",
       detail: `template ${full.pageTemplateName} section ${s.pageItemTemplateReferenceName}`,
-      name: full.pageTemplateName,
+      entity: full.pageTemplateName,
     };
   },
 
@@ -401,7 +439,7 @@ export async function drift(ctx, avoid = new Set()) {
 // what it recorded at the last sync. `kind` is the --jsonSummary warning type of a kept change, and
 // `phase` the preflight phase a conflict is reported under.
 export const STRUCTURAL_DRIFTS = [
-  { kind: "listOrder", phase: "List order", change: "content.reorder" },
+  { kind: "listOrder", phase: "List order", change: "content.list-reorder" },
   { kind: "template", phase: "Templates", change: "template.section-rename" },
 ];
 

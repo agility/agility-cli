@@ -41,6 +41,7 @@ import {
   seedRedirection,
   seedReferenceCycles,
   waitForFetchSync,
+  waitForFetchItemOrder,
   waitForFetchVersions,
 } from "./fixtures.mjs";
 
@@ -321,7 +322,7 @@ for (let i = 0; i < plan.length; i++) {
     record(round, direction, "apply:conflict", false, String(e?.message ?? e).slice(0, 200));
   }
 
-  rounds.push({ round, direction, changes: applied.map(({ sv, dv, ...rest }) => rest) });
+  rounds.push({ round, direction, changes: applied.map(({ sv, dv, orders, ...rest }) => rest) });
   console.log(
     `\n── round ${round} (${direction}): ${applied.map((a) => `${a.area}/${a.change}`).join(", ") || "no changes"}`
   );
@@ -334,6 +335,15 @@ for (let i = 0; i < plan.length; i++) {
       if (changed.size) console.log(`  Fetch API showed ${changed.size} edited item(s) on ${guid} after ${waited}s`);
     } catch (e) {
       record(round, direction, "apply:fetch-catch-up", false, String(e?.message ?? e).slice(0, 200));
+    }
+  }
+  // A list swap's new order shows in the Fetch API later than the items' new versions
+  for (const a of applied.filter((x) => x.orders)) {
+    try {
+      const waited = await waitForFetchItemOrder(AGILITY_TOKEN, a.orders.guid, LOCALE, a.orders.items);
+      console.log(`  Fetch API showed the new order of ${a.entity ?? a.detail} on ${a.orders.guid} after ${waited}s`);
+    } catch (e) {
+      record(round, direction, "apply:fetch-order", false, String(e?.message ?? e).slice(0, 200));
     }
   }
 
@@ -382,18 +392,18 @@ for (let i = 0; i < plan.length; i++) {
   }
 
   for (const d of structural) {
-    const warned = keptByType(d.kind, d.name);
-    const conflicted = conflictIn(d.phase, d.name);
+    const warned = keptByType(d.kind, d.entity);
+    const conflicted = conflictIn(d.phase, d.entity);
     record(
       round,
       direction,
       `drift:${d.kind}`,
       warned || conflicted,
       warned
-        ? `${d.name}: kept, with a target-changed warning`
+        ? `${d.entity}: kept, with a target-changed warning`
         : conflicted
-          ? `${d.name}: reported as a conflict (the round's own changes touched it too)`
-          : `${d.name}: the other side's edit was overwritten without --overwrite, or not seen`
+          ? `${d.entity}: reported as a conflict (the round's own changes touched it too)`
+          : `${d.entity}: the other side's edit was overwritten without --overwrite, or not seen`
     );
     kept ||= warned || conflicted;
   }
