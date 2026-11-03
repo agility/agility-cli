@@ -206,37 +206,16 @@ export const CHANGES = {
     return { area: "content", change: "delete", detail: `#${id}` };
   },
 
+  // A reorder as the Manager's drag and drop makes it: the list item-order endpoint renumbers the
+  // list in place, with no new versions. The last item moves to the top. (Saving items with
+  // swapped itemOrder values doesn't reliably reorder: the server can leave the order as it was.)
   async "content.reorder"(ctx) {
-    const l = ctx.r.pick(await listsWithItems(ctx.c, ctx.guid, ctx.locale, 2));
-    if (!l) return null;
-    const [a, b] = [l.items[0], l.items[l.items.length - 1]];
-    const fa = await ctx.c.contentMethods.getContentItem(a.contentID, ctx.guid, ctx.locale);
-    const fb = await ctx.c.contentMethods.getContentItem(b.contentID, ctx.guid, ctx.locale);
-    const oa = fa.properties.itemOrder;
-    fa.properties.itemOrder = fb.properties.itemOrder;
-    fb.properties.itemOrder = oa;
-    await save(ctx.c, ctx.guid, ctx.locale, fa);
-    await save(ctx.c, ctx.guid, ctx.locale, fb);
-    // The order the server kept (it may renumber), for the runner to wait on in the Fetch API: a
-    // sync reads the order from there, and it shows an order change later than the new version.
-    const [ra, rb] = await Promise.all(
-      [a, b].map((x) => ctx.c.contentMethods.getContentItem(x.contentID, ctx.guid, ctx.locale))
+    // `ctx.avoid`: lists the round already reordered on the other side. The same move on both sides
+    // leaves them in the same order again, which is no change to report.
+    const avoid = new Set((ctx.avoid ?? []).map((x) => x.toLowerCase()));
+    const candidates = (await listsWithItems(ctx.c, ctx.guid, ctx.locale, 2)).filter(
+      (x) => x.items.length <= 30 && !avoid.has(x.list.referenceName.toLowerCase())
     );
-    const [na, nb] = [ra.properties.itemOrder, rb.properties.itemOrder];
-    if (na === oa && nb === fa.properties.itemOrder) throw new Error(`saving the items left ${l.list.referenceName} in its order`);
-    return {
-      area: "ordering",
-      change: "list-swap",
-      detail: `${l.list.referenceName} #${a.contentID} ↔ #${b.contentID}`,
-      entity: l.list.referenceName,
-      orders: { guid: ctx.guid, items: [[a.contentID, na], [b.contentID, nb]] },
-    };
-  },
-
-  // A drag-and-drop reorder: the list item-order endpoint renumbers the list in place, with no new
-  // versions. The last item moves to the top.
-  async "content.list-reorder"(ctx) {
-    const candidates = (await listsWithItems(ctx.c, ctx.guid, ctx.locale, 2)).filter((x) => x.items.length <= 30);
     const l = ctx.r.pick(candidates);
     if (!l) return null;
     const readOrder = async () => {
@@ -439,7 +418,7 @@ export async function drift(ctx, avoid = new Set()) {
 // what it recorded at the last sync. `kind` is the --jsonSummary warning type of a kept change, and
 // `phase` the preflight phase a conflict is reported under.
 export const STRUCTURAL_DRIFTS = [
-  { kind: "listOrder", phase: "List order", change: "content.list-reorder" },
+  { kind: "listOrder", phase: "List order", change: "content.reorder" },
   { kind: "template", phase: "Templates", change: "template.section-rename" },
 ];
 

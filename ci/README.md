@@ -49,7 +49,7 @@ The changes, in `ci/permutation/changes.mjs`, are discovered from whatever each 
 | Area       | Changes                                                                                            |
 | ---------- | -------------------------------------------------------------------------------------------------- |
 | Content    | edit, add, add a linked item together with an item that links to it, delete, publish and unpublish |
-| Ordering   | swap two items in a list; move a list's last item to the top (drag and drop, no new versions); reverse the components in a page zone |
+| Ordering   | move a list's last item to the top (as drag and drop does, no new versions); reverse the components in a page zone |
 | Pages      | edit title and menu text, add a page, delete it later                                              |
 | Components | remove one from a zone                                                                             |
 | Models     | add a field, change a label, rename a field                                                        |

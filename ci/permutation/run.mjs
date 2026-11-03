@@ -291,7 +291,8 @@ for (let i = 0; i < plan.length; i++) {
   const structural = [];
   for (const d of STRUCTURAL_DRIFTS) {
     try {
-      const did = await CHANGES[d.change](toCtx);
+      const avoid = applied.filter((x) => x.change === "list-reorder" && x.entity).map((x) => x.entity);
+      const did = await CHANGES[d.change]({ ...toCtx, avoid });
       if (did) {
         structural.push({ ...d, ...did });
         applied.push({ name: `drift:${d.kind}`, ...did, area: "drift" });
