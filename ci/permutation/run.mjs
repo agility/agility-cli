@@ -14,7 +14,8 @@
 //   sync        exit 0, no failed items
 //   conflict    the both-sides item ends at the synced side's value, or a preflight reported it
 //   drift       the other side's own edit was overwritten, or kept with a "target changed" warning
-//   drift:listOrder, drift:template   a list reorder or template edit on the other side alone is kept
+//   drift:listOrder, drift:template, drift:urlRedirection
+//               a list reorder, template edit or redirection edit on the other side alone is kept
 //               with a "target changed" warning, or reported as a conflict if the round's own changes
 //               touched it too; never overwritten without --overwrite (PROD-3078)
 //   resolve     when the sync kept such edits: the same sync with --overwrite settles them
@@ -36,6 +37,8 @@ import {
   changedSince,
   checkReferenceCycles,
   contentVersions,
+  editRedirection,
+  seedRedirection,
   seedReferenceCycles,
   waitForFetchSync,
   waitForFetchVersions,
@@ -202,6 +205,15 @@ try {
   record(0, "A→B", "apply:fixture-cycles", false, String(e?.message ?? e).slice(0, 200));
 }
 
+// A redirection for the rounds to edit on the receiving side (PROD-3078)
+let redirection = null;
+try {
+  redirection = await seedRedirection(AGILITY_TOKEN, A, SEED);
+  record(0, "A→B", "apply:fixture-redirection", true, `${redirection.originUrl}, in the Fetch API after ${redirection.waited}s`);
+} catch (e) {
+  record(0, "A→B", "apply:fixture-redirection", false, String(e?.message ?? e).slice(0, 200));
+}
+
 syncStep(0, "A→B");
 
 if (cycles) {
@@ -285,6 +297,18 @@ for (let i = 0; i < plan.length; i++) {
       } else console.log(`  (skipped drift:${d.kind}: nothing it applies to)`);
     } catch (e) {
       record(round, direction, `apply:drift:${d.kind}`, false, String(e?.message ?? e).slice(0, 200));
+    }
+  }
+
+  if (redirection) {
+    try {
+      const did = await editRedirection(AGILITY_TOKEN, to, redirection.originUrl, `r${round}d`);
+      if (did) {
+        structural.push({ kind: "urlRedirection", phase: "URL Redirections", ...did });
+        applied.push({ name: "drift:urlRedirection", ...did, area: "drift" });
+      } else record(round, direction, "apply:drift:urlRedirection", false, `${redirection.originUrl} isn't on ${to}`);
+    } catch (e) {
+      record(round, direction, "apply:drift:urlRedirection", false, String(e?.message ?? e).slice(0, 200));
     }
   }
 

@@ -240,3 +240,89 @@ export async function checkReferenceCycles(c, guid, locale, fixture, toTarget) {
   }
   return problems;
 }
+
+// ── URL redirections (PROD-3078) ──────────────────────────────────────────────────────────────
+// The Management SDK can only delete redirections, so these call the endpoints the CLI uses: the
+// Management API's batch save to write, and the Fetch API's redirection list (what a pull reads).
+
+async function previewKey(token, guid) {
+  const { mgmt } = hosts(guid);
+  const res = await fetch(`${mgmt}/oauth/GetPreviewKey?guid=${guid}`, {
+    headers: { Authorization: `Bearer ${token}`, "Cache-Control": "no-cache" },
+  });
+  if (!res.ok) throw new Error(`GetPreviewKey: HTTP ${res.status}`);
+  return (await res.text()).replace(/^"|"$/g, "");
+}
+
+const sameOrigin = (a, b) => String(a ?? "").trim().toLowerCase() === String(b ?? "").trim().toLowerCase();
+
+// The instance's redirections as the Fetch API lists them.
+export async function listRedirections(token, guid) {
+  const { api } = hosts(guid);
+  const res = await fetch(`${api}/${guid}/preview/urlredirection`, {
+    headers: { APIKey: await previewKey(token, guid), "Cache-Control": "no-cache" },
+  });
+  if (!res.ok) throw new Error(`Fetch API urlredirection: HTTP ${res.status}`);
+  const body = await res.json();
+  return body.urlRedirections ?? body.items ?? [];
+}
+
+// Create (urlRedirectionID 0) or replace one redirection; returns its ID. A refusal is thrown.
+export async function saveRedirection(token, guid, r) {
+  const { mgmt } = hosts(guid);
+  const res = await fetch(`${mgmt}/api/v1/instance/${guid}/url-redirections`, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json", "Cache-Control": "no-cache" },
+    body: JSON.stringify([
+      {
+        urlRedirectionID: r.urlRedirectionID ?? 0,
+        originUrl: r.originUrl,
+        destinationUrl: r.destinationUrl,
+        httpCode: r.statusCode ?? 301,
+        destinationLocale: r.destinationLocale ?? null,
+        originLocales: r.originLocales ?? null,
+        content: r.content ?? null,
+      },
+    ]),
+  });
+  if (!res.ok) throw new Error(`url-redirections save: HTTP ${res.status} ${(await res.text()).slice(0, 200)}`);
+  const out = await res.json();
+  const done = out.created?.[0] ?? out.updated?.[0];
+  if (!done) throw new Error(`url-redirections save skipped it: ${out.skipped?.[0]?.reason ?? JSON.stringify(out)}`);
+  return done.urlRedirectionID ?? r.urlRedirectionID;
+}
+
+// Wait until the Fetch API lists the redirection with this origin in the wanted state.
+export async function waitForRedirection(token, guid, originUrl, test, { timeoutMs = 10 * 60 * 1000 } = {}) {
+  const started = Date.now();
+  while (Date.now() - started < timeoutMs) {
+    const found = (await listRedirections(token, guid)).find((x) => sameOrigin(x.originUrl, originUrl));
+    if (found && test(found)) return Math.round((Date.now() - started) / 1000);
+    await new Promise((r) => setTimeout(r, 10_000));
+  }
+  throw new Error(`redirection ${originUrl} not in the wanted state in the Fetch API after ${timeoutMs / 1000}s`);
+}
+
+// One redirection on the source before the first sync, for later rounds to edit.
+export async function seedRedirection(token, guid, seed) {
+  const originUrl = `~/perm-redirect-${seed}`;
+  const destinationUrl = "~/";
+  await saveRedirection(token, guid, { originUrl, destinationUrl });
+  const waited = await waitForRedirection(token, guid, originUrl, (x) => x.destinationUrl === destinationUrl);
+  return { originUrl, waited };
+}
+
+// Point the redirection somewhere new on one instance, as an editor would; waits for the Fetch API.
+export async function editRedirection(token, guid, originUrl, tag) {
+  const current = (await listRedirections(token, guid)).find((x) => sameOrigin(x.originUrl, originUrl));
+  if (!current) return null;
+  const destinationUrl = `~/perm-${tag}`;
+  await saveRedirection(token, guid, { ...current, urlRedirectionID: current.id, destinationUrl });
+  const waited = await waitForRedirection(token, guid, originUrl, (x) => x.destinationUrl === destinationUrl);
+  return {
+    area: "redirections",
+    change: "edit",
+    detail: `${current.originUrl} → ${destinationUrl} (in the Fetch API after ${waited}s)`,
+    name: current.originUrl,
+  };
+}
