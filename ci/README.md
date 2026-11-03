@@ -37,7 +37,8 @@ directions:
 
 - **Odd rounds** edit A and `sync` A → B.
 - **Even rounds** edit B and `reverse-sync` B → A.
-- **Every round** also edits the other instance (drift) and one item on both sides (a conflict).
+- **Every round** also edits the other instance (drift: a content item, a list's order and a page
+  template's section name) and one item on both sides (a conflict).
 
 The changes, in `ci/permutation/changes.mjs`, are discovered from whatever each instance holds:
 
@@ -48,6 +49,7 @@ The changes, in `ci/permutation/changes.mjs`, are discovered from whatever each 
 | Pages      | edit title and menu text, add a page, delete it later                                              |
 | Components | remove one from a zone                                                                             |
 | Models     | add a field, change a label, rename a field                                                        |
+| Templates  | rename a section's display name                                                                    |
 
 The `quick` tier runs a fixed set covering every area in two rounds. `beta` (4 rounds) and `nightly`
 (6 rounds) pick changes at random from a seed printed in the summary. Replay one with
@@ -61,6 +63,10 @@ every sync it checks:
   conflict;
 - **drift:** an edit made only on the receiving side is overwritten, or kept with a "target changed"
   warning (not a conflict), never silently kept;
+- **drift:listOrder, drift:template:** a list reorder or a template edit made only on the receiving
+  side is kept with a "target changed" warning, or reported as a conflict when the round's own changes
+  touched the same list or template. These have no version, so the sync tells which side changed
+  from what it recorded at the last sync (PROD-3078); overwriting them without `--overwrite` fails;
 - **resolve:** when the sync kept such edits, the same sync with `--overwrite` settles them, as an
   editor would, before the checks below;
 - **verify:** `agility verify` finds no differences. A verify that finds some is tried once more a

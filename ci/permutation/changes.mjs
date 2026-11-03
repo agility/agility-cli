@@ -221,6 +221,7 @@ export const CHANGES = {
       area: "ordering",
       change: "list-swap",
       detail: `${l.list.referenceName} #${a.contentID} ↔ #${b.contentID}`,
+      name: l.list.referenceName,
     };
   },
 
@@ -232,6 +233,25 @@ export const CHANGES = {
     if (published) await ctx.c.contentMethods.unPublishContent(it.contentID, ctx.guid, ctx.locale);
     else await ctx.c.contentMethods.publishContent(it.contentID, ctx.guid, ctx.locale);
     return { area: "content", change: published ? "unpublish" : "publish", detail: `#${it.contentID}` };
+  },
+
+  // A section's display name, not its reference name: a page's zones stay where they are.
+  async "template.section-rename"(ctx) {
+    const all = await ctx.c.pageMethods.getPageTemplates(ctx.guid, ctx.locale, true);
+    const t = ctx.r.pick(all.filter((x) => x.pageTemplateID > 0));
+    if (!t) return null;
+    const full = await ctx.c.pageMethods.getPageTemplate(ctx.guid, ctx.locale, t.pageTemplateID);
+    const s = full?.contentSectionDefinitions?.[0];
+    if (!s) return null;
+    const base = String(s.pageItemTemplateName ?? s.pageItemTemplateReferenceName).replace(/ \(r\d+[st]\)$/, "");
+    s.pageItemTemplateName = `${base} (${tag(ctx)})`;
+    await ctx.c.pageMethods.savePageTemplate(ctx.guid, ctx.locale, full);
+    return {
+      area: "templates",
+      change: "section-rename",
+      detail: `template ${full.pageTemplateName} section ${s.pageItemTemplateReferenceName}`,
+      name: full.pageTemplateName,
+    };
   },
 
   async "page.edit"(ctx) {
@@ -376,6 +396,14 @@ export const CHANGES = {
 export async function drift(ctx, avoid = new Set()) {
   return CHANGES["content.edit"]({ ...ctx, avoid });
 }
+
+// Drift on the types with no version to compare (PROD-3078): the sync tells which side changed from
+// what it recorded at the last sync. `kind` is the --jsonSummary warning type of a kept change, and
+// `phase` the preflight phase a conflict is reported under.
+export const STRUCTURAL_DRIFTS = [
+  { kind: "listOrder", phase: "List order", change: "content.reorder" },
+  { kind: "template", phase: "Templates", change: "template.section-rename" },
+];
 
 // The same item edited on both sides with different values: a conflict. `avoidDstId` is the item
 // the round's drift edited, so the two checks grade different items.
