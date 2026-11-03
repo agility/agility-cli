@@ -39,7 +39,8 @@ export type FailureDetailType =
   | "container"
   | "model"
   | "template"
-  | "urlRedirection";
+  | "urlRedirection"
+  | "listOrder"; // PROD-3078: a list whose target order was kept (warnings only)
 
 /**
  * Individual failure detail with optional link metadata

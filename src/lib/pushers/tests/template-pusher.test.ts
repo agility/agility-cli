@@ -483,7 +483,7 @@ describe("pushTemplates — stale mapping to a deleted target template (PROD-260
     expect(record.targetPageTemplateID).toBe(2);
 
     const { getHeldBackTemplate } = await import("core/state");
-    expect(getHeldBackTemplate("LeftSideBarTemplate")).toMatch(/no longer exists on the target/);
+    expect(getHeldBackTemplate("LeftSideBarTemplate")).toMatch(/is missing on the target and was not recreated/);
   });
 
   it("is reported as a preflight conflict without --overwrite", async () => {
@@ -585,5 +585,256 @@ describe("pushTemplates — saved template is what the mapper returns for the re
       "banner-zone",
       "main-content-zone",
     ]);
+  });
+});
+
+// ─── PROD-3078: which side changed, from the hashes stored at the last sync ──────────
+
+describe("pushTemplates — sync fingerprints (PROD-3078)", () => {
+  let nextID = 5000;
+
+  function section(id: number, referenceName: string, itemOrder: number, overrides: Record<string, any> = {}): any {
+    return {
+      pageItemTemplateID: id,
+      pageItemTemplateReferenceName: referenceName,
+      pageItemTemplateName: referenceName,
+      pageItemTemplateType: 0,
+      itemOrder,
+      ...overrides,
+    };
+  }
+
+  /**
+   * A source/target template pair as the last sync left it: mapped, sections mapped, and (unless
+   * `unrecorded`) the hashes of both sides stored.
+   */
+  async function syncedPair(name: string, { unrecorded = false } = {}) {
+    const ids = { source: nextID++, target: nextID++, sMain: nextID++, sSide: nextID++, tMain: nextID++, tSide: nextID++ };
+    const source = makeTemplate({
+      pageTemplateID: ids.source,
+      pageTemplateName: name,
+      contentSectionDefinitions: [section(ids.sMain, "Main", 1), section(ids.sSide, "Side", 2)],
+    });
+    const target = makeTemplate({
+      pageTemplateID: ids.target,
+      pageTemplateName: name,
+      contentSectionDefinitions: [section(ids.tMain, "Main", 1), section(ids.tSide, "Side", 2)],
+    });
+    const { templateHash } = await import("lib/mappers/template-mapper");
+    const { fingerprintFields } = await import("lib/shared/sync-fingerprint");
+    new TemplateMapper("src-tpl-u", "tgt-tpl-u").addMapping(
+      source,
+      target,
+      unrecorded ? undefined : fingerprintFields(templateHash(source), templateHash(target))
+    );
+    const sections = new SectionMapper("src-tpl-u", "tgt-tpl-u");
+    sections.addMapping(source.contentSectionDefinitions[0], target.contentSectionDefinitions[0]);
+    sections.addMapping(source.contentSectionDefinitions[1], target.contentSectionDefinitions[1]);
+    return { source, target };
+  }
+
+  function edit(template: any, fn: (sections: any[]) => void): any {
+    const copy = JSON.parse(JSON.stringify(template));
+    fn(copy.contentSectionDefinitions);
+    return copy;
+  }
+
+  const record = (sourceID: number) =>
+    new TemplateMapper("src-tpl-u", "tgt-tpl-u").getTemplateMappingByPageTemplateID(sourceID, "source")!;
+
+  async function run(source: any, target: any) {
+    const savePageTemplate = jest.fn().mockImplementation(async (_guid, _locale, payload) => ({
+      ...payload,
+      pageTemplateID: target.pageTemplateID,
+      contentSectionDefinitions: payload.contentSectionDefinitions.map((s: any, i: number) => ({
+        ...s,
+        pageItemTemplateID: s.pageItemTemplateID > 0 ? s.pageItemTemplateID : 9000 + i,
+      })),
+    }));
+    state.cachedApiClient = { pageMethods: { savePageTemplate } } as any;
+    const { keptTargetChanges } = await import("../kept-target-changes");
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    const { clearHeldBackTemplateRegistry } = await import("core/state");
+    keptTargetChanges.reset();
+    preflightReport.reset();
+    clearHeldBackTemplateRegistry();
+    const { pushTemplates } = await import("../template-pusher");
+    const result = await pushTemplates([source], [target], "en-us");
+    return { result, savePageTemplate, keptTargetChanges, preflightReport };
+  }
+
+  it("ignores IDs and section array order", async () => {
+    const { templateHash } = await import("lib/mappers/template-mapper");
+    const { source, target } = await syncedPair("HashShape");
+    const reversed = edit(target, (s) => s.reverse());
+    expect(templateHash(source)).toBe(templateHash(reversed));
+  });
+
+  it("source changed only: updates and records the source's hash for both sides", async () => {
+    const { source, target } = await syncedPair("SourceOnly");
+    const changed = edit(source, (s) => s.push(section(nextID++, "Footer", 3)));
+
+    const { result, savePageTemplate } = await run(changed, target);
+
+    expect(savePageTemplate).toHaveBeenCalledTimes(1);
+    expect(result.successful).toBe(1);
+    const { templateHash } = await import("lib/mappers/template-mapper");
+    expect(record(source.pageTemplateID)).toEqual(
+      expect.objectContaining({ sourceHash: templateHash(changed), targetHash: templateHash(changed) })
+    );
+  });
+
+  it("records the target's hash from what the server saved, so its normalising isn't read as a target edit", async () => {
+    const { source, target } = await syncedPair("ServerNormalises");
+    const changed = edit(source, (s) => (s[0].pageItemTemplateName = "Main (source)"));
+    const { templateHash } = await import("lib/mappers/template-mapper");
+    const { pushTemplates } = await import("../template-pusher");
+    const { keptTargetChanges } = await import("../kept-target-changes");
+    keptTargetChanges.reset();
+    // The server renumbers itemOrder on save, and the next pull shows the same.
+    const savePageTemplate = jest.fn().mockImplementation(async (_guid, _locale, payload) => ({
+      ...payload,
+      pageTemplateID: target.pageTemplateID,
+      contentSectionDefinitions: payload.contentSectionDefinitions.map((s: any) => ({ ...s, itemOrder: s.itemOrder * 10 })),
+    }));
+    state.cachedApiClient = { pageMethods: { savePageTemplate } } as any;
+
+    await pushTemplates([changed], [target], "en-us");
+    const saved = await savePageTemplate.mock.results[0].value;
+    expect(record(source.pageTemplateID).targetHash).toBe(templateHash(saved));
+
+    await pushTemplates([changed], [saved], "en-us");
+
+    expect(keptTargetChanges.hasEntries()).toBe(false);
+  });
+
+  it("target changed only: keeps the target, warns, leaves the record alone, and doesn't hold pages back", async () => {
+    const { source, target } = await syncedPair("TargetOnly");
+    const before = { ...record(source.pageTemplateID) };
+    const changed = edit(target, (s) => s.push(section(nextID++, "TargetExtra", 3)));
+
+    const { result, savePageTemplate, keptTargetChanges } = await run(source, changed);
+
+    expect(savePageTemplate).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(keptTargetChanges.getEntries()).toEqual([
+      expect.objectContaining({ type: "template", name: "TargetOnly", targetID: target.pageTemplateID }),
+    ]);
+    expect(record(source.pageTemplateID)).toEqual(before);
+    // Every source zone still has a section on the kept target template
+    const { getHeldBackTemplate } = await import("core/state");
+    expect(getHeldBackTemplate("TargetOnly")).toBeUndefined();
+  });
+
+  it("target changed only, removing a section the source's pages use: pages are held back", async () => {
+    const { source, target } = await syncedPair("TargetDroppedZone");
+    const changed = edit(target, (s) => s.splice(1, 1));
+
+    await run(source, changed);
+
+    const { getHeldBackTemplate } = await import("core/state");
+    expect(getHeldBackTemplate("TargetDroppedZone")).toMatch(/changed on the target and kept.*no section for zone\(s\) Side/);
+  });
+
+  it("a section renamed on the target still resolves through the section mapping: pages aren't held back", async () => {
+    const { source, target } = await syncedPair("TargetRenamedZone");
+    const changed = edit(target, (s) => (s[1].pageItemTemplateReferenceName = "Sidebar"));
+
+    const { keptTargetChanges } = await run(source, changed);
+
+    expect(keptTargetChanges.hasEntries()).toBe(true);
+    const { getHeldBackTemplate } = await import("core/state");
+    expect(getHeldBackTemplate("TargetRenamedZone")).toBeUndefined();
+  });
+
+  it("target changed only, with --overwrite: the source replaces it", async () => {
+    state.overwrite = true;
+    const { source, target } = await syncedPair("TargetOnlyOverwrite");
+    const changed = edit(target, (s) => s.push(section(nextID++, "TargetExtra", 3)));
+
+    const { savePageTemplate, keptTargetChanges } = await run(source, changed);
+
+    expect(savePageTemplate).toHaveBeenCalledTimes(1);
+    expect(savePageTemplate.mock.calls[0][2].contentSectionDefinitions).toHaveLength(2);
+    expect(keptTargetChanges.hasEntries()).toBe(false);
+  });
+
+  it("both changed: a preflight conflict, nothing saved, record left alone", async () => {
+    const { source, target } = await syncedPair("BothChanged");
+    const before = { ...record(source.pageTemplateID) };
+    state.preflight = true;
+
+    const { savePageTemplate, preflightReport, keptTargetChanges } = await run(
+      edit(source, (s) => (s[0].pageItemTemplateName = "Main (source)")),
+      edit(target, (s) => (s[0].pageItemTemplateName = "Main (target)"))
+    );
+
+    expect(savePageTemplate).not.toHaveBeenCalled();
+    expect(preflightReport.getEntries()).toEqual([
+      expect.objectContaining({ phase: "Templates", action: "conflict", name: "BothChanged" }),
+    ]);
+    expect(keptTargetChanges.hasEntries()).toBe(false);
+    expect(record(source.pageTemplateID)).toEqual(before);
+  });
+
+  it("both changed, with --overwrite: the source wins", async () => {
+    state.overwrite = true;
+    const { source, target } = await syncedPair("BothChangedOverwrite");
+
+    const { savePageTemplate } = await run(
+      edit(source, (s) => (s[0].pageItemTemplateName = "Main (source)")),
+      edit(target, (s) => (s[0].pageItemTemplateName = "Main (target)"))
+    );
+
+    expect(savePageTemplate.mock.calls[0][2].contentSectionDefinitions[0].pageItemTemplateName).toBe("Main (source)");
+  });
+
+  it("both changed to the same structure: skipped, and the hashes refreshed", async () => {
+    const { source, target } = await syncedPair("BothSame");
+    const s2 = edit(source, (s) => (s[0].pageItemTemplateName = "Main (both)"));
+    const t2 = edit(target, (s) => (s[0].pageItemTemplateName = "Main (both)"));
+
+    const { savePageTemplate, result } = await run(s2, t2);
+
+    expect(savePageTemplate).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    const { templateHash } = await import("lib/mappers/template-mapper");
+    expect(record(source.pageTemplateID).sourceHash).toBe(templateHash(s2));
+  });
+
+  describe("mapping from an older CLI, with no hashes", () => {
+    it("in sync: skipped, and the hashes are recorded", async () => {
+      const { source, target } = await syncedPair("UnrecordedInSync", { unrecorded: true });
+      expect(record(source.pageTemplateID).sourceHash).toBeUndefined();
+
+      const { savePageTemplate } = await run(source, target);
+
+      expect(savePageTemplate).not.toHaveBeenCalled();
+      expect(record(source.pageTemplateID)).toEqual(expect.objectContaining({ fingerprintVersion: 1 }));
+    });
+
+    it("different: the source wins, as before, labelled as having no sync record", async () => {
+      const { source, target } = await syncedPair("UnrecordedDiffers", { unrecorded: true });
+      state.preflight = true;
+
+      const { preflightReport, keptTargetChanges } = await run(
+        source,
+        edit(target, (s) => (s[0].pageItemTemplateName = "Main (target)"))
+      );
+
+      expect(keptTargetChanges.hasEntries()).toBe(false);
+      expect(preflightReport.getEntries()).toEqual([
+        expect.objectContaining({ action: "update", detail: expect.stringContaining("no sync record yet") }),
+      ]);
+    });
+
+    it("different, in a real run: the source is saved and the hashes recorded", async () => {
+      const { source, target } = await syncedPair("UnrecordedDiffersRun", { unrecorded: true });
+
+      const { savePageTemplate } = await run(source, edit(target, (s) => (s[0].pageItemTemplateName = "Main (target)")));
+
+      expect(savePageTemplate).toHaveBeenCalledTimes(1);
+      expect(record(source.pageTemplateID)).toEqual(expect.objectContaining({ fingerprintVersion: 1 }));
+    });
   });
 });

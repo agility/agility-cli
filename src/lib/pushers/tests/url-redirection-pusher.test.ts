@@ -122,7 +122,8 @@ describe("pushUrlRedirections — map-on-adopt via originUrl match", () => {
 
     const result = await pushUrlRedirections([source], [target]);
 
-    expect(mockAddMapping).toHaveBeenCalledWith(1, 20, source.originUrl);
+    // Identical: the hashes of both sides are recorded with the adopted mapping.
+    expect(mockAddMapping).toHaveBeenCalledWith(1, 20, source.originUrl, expect.objectContaining({ fingerprintVersion: 1 }));
     expect(result.skipped).toBe(1);
     expect(result.successful).toBe(0);
     expect(mockSaveUrlRedirections).not.toHaveBeenCalled();
@@ -188,18 +189,29 @@ describe("pushUrlRedirections — mapped item, identical target → skip", () =>
 
 // ─── mapped item whose mapped target no longer exists → CREATE ────────────────
 
-describe("pushUrlRedirections — mapped target deleted → create", () => {
-  it("sends a CREATE (urlRedirectionID=0) when the mapping's target no longer exists in targetData", async () => {
+describe("pushUrlRedirections — mapped target deleted on the target", () => {
+  const orphanMapping = { sourceUrlRedirectionID: 6, targetUrlRedirectionID: 99, originUrl: "/orphan" };
+
+  it("is a conflict without --overwrite: nothing is sent", async () => {
+    setState({ preflight: true });
     const { pushUrlRedirections } = await import("../url-redirection-pusher");
-
     const source = makeSourceItem({ id: 6, originUrl: "/orphan", destinationUrl: "/dest", statusCode: 301 });
+    mockGetMapping.mockReturnValue(orphanMapping);
 
-    // Mapping exists but target ID 99 is not in targetData.
-    mockGetMapping.mockReturnValue({
-      sourceUrlRedirectionID: 6,
-      targetUrlRedirectionID: 99,
-      originUrl: "/orphan",
-    });
+    const result = await pushUrlRedirections([source], []);
+
+    expect(mockSaveUrlRedirections).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(preflightReport.getEntries()).toEqual([
+      expect.objectContaining({ action: "conflict", name: "/orphan", detail: expect.stringContaining("no longer exists") }),
+    ]);
+  });
+
+  it("with --overwrite sends a CREATE (urlRedirectionID=0)", async () => {
+    setState({ overwrite: true });
+    const { pushUrlRedirections } = await import("../url-redirection-pusher");
+    const source = makeSourceItem({ id: 6, originUrl: "/orphan", destinationUrl: "/dest", statusCode: 301 });
+    mockGetMapping.mockReturnValue(orphanMapping);
     mockSaveUrlRedirections.mockResolvedValue({ created: [{ index: 0, urlRedirectionID: 100 }], updated: [], skipped: [] });
 
     const result = await pushUrlRedirections([source], []);
@@ -266,8 +278,8 @@ describe("pushUrlRedirections — response handling", () => {
     const result = await pushUrlRedirections([s1, s2, s3], []);
 
     // addMapping called for created (source 10 → target 12) and updated (source 11 → target 5).
-    expect(mockAddMapping).toHaveBeenCalledWith(10, 12, "/a");
-    expect(mockAddMapping).toHaveBeenCalledWith(11, 5, "/b");
+    expect(mockAddMapping).toHaveBeenCalledWith(10, 12, "/a", expect.objectContaining({ fingerprintVersion: 1 }));
+    expect(mockAddMapping).toHaveBeenCalledWith(11, 5, "/b", expect.objectContaining({ fingerprintVersion: 1 }));
 
     expect(result.successful).toBe(2);
     expect(result.skipped).toBe(1);
@@ -377,5 +389,156 @@ describe("pushUrlRedirections — preflight mode", () => {
     await pushUrlRedirections([source], []);
 
     expect(mockSaveUrlRedirections).not.toHaveBeenCalled();
+  });
+});
+
+// ─── PROD-3078: which side changed, from the hashes stored at the last sync ──────────
+
+describe("pushUrlRedirections — sync fingerprints (PROD-3078)", () => {
+  // The state both sides agreed on at the last sync.
+  const synced = { id: 1, originUrl: "/old", destinationUrl: "/new", statusCode: 301 };
+  const syncedTarget = { ...synced, id: 10 };
+
+  async function setup(mapping: Record<string, any> | null) {
+    const mod = await import("../url-redirection-pusher");
+    const { keptTargetChanges } = await import("../kept-target-changes");
+    keptTargetChanges.reset();
+    mockGetMapping.mockReturnValue(mapping);
+    mockSaveUrlRedirections.mockResolvedValue({ created: [], updated: [{ index: 0, urlRedirectionID: 10 }], skipped: [] });
+    return { ...mod, keptTargetChanges };
+  }
+
+  async function recorded() {
+    const { redirectionHash } = await import("../url-redirection-pusher");
+    const h = redirectionHash(synced as any);
+    return {
+      sourceUrlRedirectionID: 1,
+      targetUrlRedirectionID: 10,
+      originUrl: "/old",
+      sourceHash: h,
+      targetHash: redirectionHash(syncedTarget as any),
+      fingerprintVersion: 1,
+    };
+  }
+
+  it("ignores the ID, origin URL case and originLocales order", async () => {
+    const { redirectionHash } = await import("../url-redirection-pusher");
+    expect(redirectionHash({ ...synced, originLocales: ["fr", "en"] } as any)).toBe(
+      redirectionHash({ ...synced, id: 99, originUrl: " /OLD ", originLocales: ["en", "fr"] } as any)
+    );
+  });
+
+  it("source changed only: updates and records the new hash for both sides", async () => {
+    const { pushUrlRedirections, redirectionHash } = await setup(await recorded());
+    const source = { ...synced, destinationUrl: "/newer" };
+
+    const result = await pushUrlRedirections([source as any], [syncedTarget as any]);
+
+    expect(mockSaveUrlRedirections).toHaveBeenCalledTimes(1);
+    expect(result.successful).toBe(1);
+    const h = redirectionHash(source as any);
+    expect(mockAddMapping).toHaveBeenCalledWith(1, 10, "/old", { sourceHash: h, targetHash: h, fingerprintVersion: 1 });
+  });
+
+  it("target changed only: keeps the target, warns, and leaves the record alone", async () => {
+    setState({ preflight: true });
+    const { pushUrlRedirections, keptTargetChanges } = await setup(await recorded());
+    const target = { ...syncedTarget, destinationUrl: "/edited-on-target" };
+
+    const result = await pushUrlRedirections([synced as any], [target as any]);
+
+    expect(mockSaveUrlRedirections).not.toHaveBeenCalled();
+    expect(mockAddMapping).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(keptTargetChanges.getEntries()).toEqual([
+      expect.objectContaining({ type: "urlRedirection", name: "/old", sourceID: 1, targetID: 10 }),
+    ]);
+    expect(preflightReport.getEntries()).toEqual([expect.objectContaining({ action: "skip" })]);
+  });
+
+  it("target changed only, with --overwrite: the source replaces it", async () => {
+    setState({ overwrite: true });
+    const { pushUrlRedirections, keptTargetChanges } = await setup(await recorded());
+    const target = { ...syncedTarget, destinationUrl: "/edited-on-target" };
+
+    await pushUrlRedirections([synced as any], [target as any]);
+
+    expect(mockSaveUrlRedirections).toHaveBeenCalledTimes(1);
+    expect(mockSaveUrlRedirections.mock.calls[0][1][0]).toEqual(expect.objectContaining({ urlRedirectionID: 10, destinationUrl: "/new" }));
+    expect(keptTargetChanges.hasEntries()).toBe(false);
+  });
+
+  it("both changed: a conflict, nothing sent, record left alone", async () => {
+    setState({ preflight: true });
+    const { pushUrlRedirections, keptTargetChanges } = await setup(await recorded());
+
+    const result = await pushUrlRedirections(
+      [{ ...synced, destinationUrl: "/source-edit" } as any],
+      [{ ...syncedTarget, destinationUrl: "/target-edit" } as any]
+    );
+
+    expect(mockSaveUrlRedirections).not.toHaveBeenCalled();
+    expect(mockAddMapping).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(keptTargetChanges.hasEntries()).toBe(false);
+    expect(preflightReport.hasConflicts()).toBe(true);
+  });
+
+  it("both changed, with --overwrite: the source wins", async () => {
+    setState({ overwrite: true });
+    const { pushUrlRedirections } = await setup(await recorded());
+
+    await pushUrlRedirections(
+      [{ ...synced, destinationUrl: "/source-edit" } as any],
+      [{ ...syncedTarget, destinationUrl: "/target-edit" } as any]
+    );
+
+    expect(mockSaveUrlRedirections.mock.calls[0][1][0].destinationUrl).toBe("/source-edit");
+    expect(preflightReport.hasConflicts()).toBe(false);
+  });
+
+  it("both changed to the same value: skipped, and the hashes refreshed", async () => {
+    const { pushUrlRedirections, redirectionHash } = await setup(await recorded());
+    const source = { ...synced, destinationUrl: "/same-edit" };
+
+    const result = await pushUrlRedirections([source as any], [{ ...syncedTarget, destinationUrl: "/same-edit" } as any]);
+
+    expect(mockSaveUrlRedirections).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    const h = redirectionHash(source as any);
+    expect(mockAddMapping).toHaveBeenCalledWith(1, 10, "/old", { sourceHash: h, targetHash: h, fingerprintVersion: 1 });
+  });
+
+  describe("mapping from an older CLI, with no hashes", () => {
+    const unrecorded = { sourceUrlRedirectionID: 1, targetUrlRedirectionID: 10, originUrl: "/old" };
+
+    it("in sync: skipped, and the hashes are recorded", async () => {
+      const { pushUrlRedirections } = await setup(unrecorded);
+
+      await pushUrlRedirections([synced as any], [syncedTarget as any]);
+
+      expect(mockSaveUrlRedirections).not.toHaveBeenCalled();
+      expect(mockAddMapping).toHaveBeenCalledWith(1, 10, "/old", expect.objectContaining({ fingerprintVersion: 1 }));
+    });
+
+    it("different: the source wins, as before, labelled as having no sync record", async () => {
+      setState({ preflight: true });
+      const { pushUrlRedirections, keptTargetChanges } = await setup(unrecorded);
+
+      await pushUrlRedirections([synced as any], [{ ...syncedTarget, destinationUrl: "/edited-on-target" } as any]);
+
+      expect(keptTargetChanges.hasEntries()).toBe(false);
+      expect(preflightReport.getEntries()).toEqual([
+        expect.objectContaining({ action: "update", detail: expect.stringContaining("no sync record yet") }),
+      ]);
+    });
+
+    it("hashes from another fingerprint version count as missing", async () => {
+      const { pushUrlRedirections } = await setup({ ...(await recorded()), fingerprintVersion: 0 });
+
+      await pushUrlRedirections([synced as any], [{ ...syncedTarget, destinationUrl: "/edited-on-target" } as any]);
+
+      expect(mockSaveUrlRedirections).toHaveBeenCalledTimes(1);
+    });
   });
 });

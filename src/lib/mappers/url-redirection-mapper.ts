@@ -1,6 +1,7 @@
 import { fileOperations } from "../../core";
+import { SyncFingerprint } from "../shared/sync-fingerprint";
 
-export interface UrlRedirectionMapping {
+export interface UrlRedirectionMapping extends SyncFingerprint {
   sourceGuid: string;
   targetGuid: string;
   sourceUrlRedirectionID: number;
@@ -13,8 +14,8 @@ export interface UrlRedirectionMapping {
  * Maps source URL redirection IDs to target IDs across syncs.
  *
  * Unlike galleries/models, redirections carry no modifiedOn timestamp in the pulled
- * data, so this mapper only tracks the ID pairing. Change detection is done by the
- * pusher via a direct field comparison of the pulled source and target items.
+ * data. Besides the ID pairing, each record holds a hash of both sides as last synced
+ * (PROD-3078, see sync-fingerprint.ts), which tells the pusher which side changed since.
  */
 export class UrlRedirectionMapper {
   private fileOps: fileOperations;
@@ -39,7 +40,16 @@ export class UrlRedirectionMapper {
     return mapping;
   }
 
-  addMapping(sourceUrlRedirectionID: number, targetUrlRedirectionID: number, originUrl: string) {
+  /**
+   * Add or update the record for a source redirection. `fingerprint` is the hash of both sides
+   * once they agree; leave it out when they don't yet (e.g. a record adopted before its update).
+   */
+  addMapping(
+    sourceUrlRedirectionID: number,
+    targetUrlRedirectionID: number,
+    originUrl: string,
+    fingerprint?: SyncFingerprint
+  ) {
     const existing = this.getMapping(sourceUrlRedirectionID, "source");
 
     if (existing) {
@@ -47,6 +57,7 @@ export class UrlRedirectionMapper {
       existing.targetGuid = this.targetGuid;
       existing.targetUrlRedirectionID = targetUrlRedirectionID;
       existing.originUrl = originUrl;
+      if (fingerprint) Object.assign(existing, fingerprint);
     } else {
       this.mappings.push({
         sourceGuid: this.sourceGuid,
@@ -54,6 +65,7 @@ export class UrlRedirectionMapper {
         sourceUrlRedirectionID,
         targetUrlRedirectionID,
         originUrl,
+        ...(fingerprint ?? {}),
       });
     }
 

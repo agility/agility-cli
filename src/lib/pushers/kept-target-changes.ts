@@ -9,7 +9,16 @@
  * is still a conflict, decided by each pusher. A process-level singleton, like preflightReport.
  */
 
-export type KeptTargetChangeType = "content" | "asset" | "gallery" | "container" | "model" | "page";
+export type KeptTargetChangeType =
+  | "content"
+  | "asset"
+  | "gallery"
+  | "container"
+  | "model"
+  | "page"
+  | "template"
+  | "urlRedirection"
+  | "listOrder";
 
 export interface KeptTargetChange {
   type: KeptTargetChangeType;
@@ -50,6 +59,9 @@ const TYPE_LABELS: Record<KeptTargetChangeType, string> = {
   container: "container",
   model: "model",
   page: "page",
+  template: "page template",
+  urlRedirection: "URL redirection",
+  listOrder: "list order",
 };
 
 const TYPE_PLURALS: Record<KeptTargetChangeType, string> = {
@@ -59,6 +71,9 @@ const TYPE_PLURALS: Record<KeptTargetChangeType, string> = {
   container: "containers",
   model: "models",
   page: "pages",
+  template: "page templates",
+  urlRedirection: "URL redirections",
+  listOrder: "list orders",
 };
 
 class KeptTargetChanges {

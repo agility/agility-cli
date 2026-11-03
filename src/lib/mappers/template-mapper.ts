@@ -2,7 +2,9 @@ import { fileOperations } from "../../core";
 import { getSavedTarget } from "../../core/state";
 import * as mgmtApi from "@agility/management-sdk";
 import { SectionMapper } from "./section-mapper";
-interface TemplateMapping {
+import { hashShape, SyncFingerprint } from "../shared/sync-fingerprint";
+
+interface TemplateMapping extends SyncFingerprint {
   sourceGuid: string;
   targetGuid: string;
   sourcePageTemplateID: number;
@@ -70,7 +72,11 @@ export class TemplateMapper {
     return templateData as mgmtApi.PageModel;
   }
 
-  addMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel) {
+  /**
+   * Add or update the record for a source template. `fingerprint` is the hash of both sides once
+   * they agree (PROD-3078); leave it out to keep whatever the record has.
+   */
+  addMapping(sourceTemplate: mgmtApi.PageModel, targetTemplate: mgmtApi.PageModel, fingerprint?: SyncFingerprint) {
     const targetMapping = this.getTemplateMapping(targetTemplate, "target");
     const sourceMapping = this.getTemplateMapping(sourceTemplate, "source");
 
@@ -81,6 +87,7 @@ export class TemplateMapper {
     }
 
     if (targetMapping) {
+      if (fingerprint) Object.assign(targetMapping, fingerprint);
       this.updateMapping(sourceTemplate, targetTemplate, targetMapping);
     } else if (sourceMapping) {
       // PROD-2603: the source template already has a record but its target is gone (the pusher
@@ -92,6 +99,7 @@ export class TemplateMapper {
       sourceMapping.targetPageTemplateID = targetTemplate.pageTemplateID;
       sourceMapping.sourcePageTemplateName = sourceTemplate.pageTemplateName;
       sourceMapping.targetPageTemplateName = targetTemplate.pageTemplateName;
+      if (fingerprint) Object.assign(sourceMapping, fingerprint);
     } else {
       const newMapping: TemplateMapping = {
         sourceGuid: this.sourceGuid,
@@ -100,6 +108,7 @@ export class TemplateMapper {
         targetPageTemplateID: targetTemplate.pageTemplateID,
         sourcePageTemplateName: sourceTemplate.pageTemplateName,
         targetPageTemplateName: targetTemplate.pageTemplateName,
+        ...(fingerprint ?? {}),
       };
 
       this.mappings.push(newMapping);
@@ -130,6 +139,12 @@ export class TemplateMapper {
 
   saveMapping() {
     this.fileOps.saveMappingFile(this.mappings, this.directory, this.sourceGuid, this.targetGuid);
+  }
+
+  /** Store the hashes of both sides on an existing record, once they agree (PROD-3078). */
+  recordFingerprint(mapping: TemplateMapping, fingerprint: SyncFingerprint) {
+    Object.assign(mapping, fingerprint);
+    this.saveMapping();
   }
 
   // Templates have no lastModifiedDate, so change detection compares the source and target
@@ -189,4 +204,30 @@ export class TemplateMapper {
 
     return false;
   }
+}
+
+/**
+ * The fields hasTemplateChanged compares, without per-instance IDs, with sections in a stable
+ * order. Hashed, it is the fingerprint stored in the mapping to tell which side of a template
+ * changed since the last sync (PROD-3078, see sync-fingerprint.ts).
+ */
+export function normalizeTemplate(template: mgmtApi.PageModel) {
+  const sections = (template.contentSectionDefinitions || [])
+    .filter(Boolean)
+    .map((s) => ({
+      referenceName: s.pageItemTemplateReferenceName ?? null,
+      name: s.pageItemTemplateName ?? null,
+      type: s.pageItemTemplateType ?? null,
+      itemOrder: s.itemOrder ?? null,
+    }))
+    .sort(
+      (a, b) =>
+        (a.itemOrder ?? Number.MAX_SAFE_INTEGER) - (b.itemOrder ?? Number.MAX_SAFE_INTEGER) ||
+        String(a.referenceName ?? "").localeCompare(String(b.referenceName ?? ""))
+    );
+  return { name: template.pageTemplateName ?? null, sections };
+}
+
+export function templateHash(template: mgmtApi.PageModel): string {
+  return hashShape(normalizeTemplate(template));
 }

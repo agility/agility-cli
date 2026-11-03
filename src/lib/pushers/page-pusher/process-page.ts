@@ -86,12 +86,13 @@ export async function processPage({
         });
         return { status: "skip" };
       }
-      // PROD-2603: the template pusher held this page's template back because its mapped target
-      // template is gone and --overwrite was not set. Saving the page would point it at the dead
-      // target template ID, so skip it; it pushes once the template is recreated.
+      // The template pusher held this page's template back, and --overwrite was not set: its mapped
+      // target template is gone (PROD-2603), so saving would point the page at a dead ID; or the
+      // target's template was left as it is (a kept change or a conflict, PROD-3078) without a
+      // section for one of the source's zones. Skip it; the reason says why.
       const heldBackReason = getHeldBackTemplate(page.templateName);
       if (heldBackReason) {
-        const detail = `page template ${page.templateName} is missing on the target and was not recreated (use --overwrite to recreate it)`;
+        const detail = heldBackReason;
         logger.page.skipped(page, `${detail}, skipping`, locale, channel, targetGuid);
         preflightReport.record({ phase: "Pages", action: "skip", name: page.name, locale, detail });
         return { status: "skip" };
