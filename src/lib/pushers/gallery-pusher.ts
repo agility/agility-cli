@@ -4,6 +4,7 @@ import { Logs } from "core/logs";
 import { state, getState, getApiClient, getLoggerForGuid, recordSavedTarget } from "core/state";
 import { GalleryMapper } from "lib/mappers/gallery-mapper";
 import { preflightReport } from "../preflight/preflight-report";
+import { keptTargetChanges } from "./kept-target-changes";
 import { FailureDetail, PusherResult } from "types/sourceData";
 
 /**
@@ -103,10 +104,11 @@ export async function pushGalleries(
         const targetGallery = targetGalleryById || targetGalleryByName;
         const hasTargetChanges = referenceMapper.hasTargetChanged(targetGallery);
         const hasSourceChanges = referenceMapper.hasSourceChanged(sourceGallery);
-        // Source changed alone: update. Target changed (alone or with the source): a conflict,
-        // replaced only with --overwrite. Neither: up to date.
+        // Source changed alone: update. Both changed: a conflict. Target changed alone: kept, with a
+        // warning (see kept-target-changes.ts). --overwrite replaces either with the source.
         const shouldUpdate = (hasSourceChanges && !hasTargetChanges) || (overwrite && hasTargetChanges);
         const shouldSkip = !hasSourceChanges && !hasTargetChanges;
+        const isKeptTargetChange = hasTargetChanges && !hasSourceChanges && !overwrite;
 
         if (shouldUpdate) {
           // Gallery exists but needs updating
@@ -133,11 +135,28 @@ export async function pushGalleries(
             detail: "up to date",
           });
           skipped++;
+        } else if (isKeptTargetChange) {
+          const change = {
+            type: "gallery" as const,
+            name: sourceGallery.name,
+            sourceID: sourceGallery.mediaGroupingID,
+            targetID: existingMapping.targetMediaGroupingID,
+          };
+          keptTargetChanges.record(change);
+          console.warn(ansiColors.yellow(keptTargetChanges.formatLine(change)));
+          logger.gallery.skipped(sourceGallery, "target changed since the last sync, kept", targetGuid);
+          skipped++;
+          preflightReport.record({
+            phase: "Galleries",
+            action: "skip",
+            name: sourceGallery.name,
+            detail: "target changed since the last sync and the source didn't; kept the target's version",
+          });
         } else {
-          // Conflict: the target changed since the last sync and --overwrite was not set.
+          // Conflict: both sides changed since the last sync and --overwrite was not set.
           logger.gallery.skipped(
             sourceGallery,
-            "conflict: target changed since the last sync; use --overwrite to replace it",
+            "conflict: source and target both changed since the last sync; use --overwrite to replace the target",
             targetGuid
           );
           skipped++;
@@ -145,7 +164,7 @@ export async function pushGalleries(
             phase: "Galleries",
             action: "conflict",
             name: sourceGallery.name,
-            detail: "target changed; use --overwrite to force",
+            detail: "source and target both changed; use --overwrite to force",
           });
         }
       }

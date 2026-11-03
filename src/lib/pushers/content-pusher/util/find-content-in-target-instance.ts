@@ -17,6 +17,7 @@ interface FindResult {
   isConflict: boolean;
   decision?: ChangeDetection;
   reason?: string;
+  keptTargetChange?: boolean;
 }
 
 /**
@@ -56,6 +57,7 @@ export function findContentInTargetInstance({ sourceContent, referenceMapper }: 
     shouldSkip: decision.shouldSkip,
     isConflict: decision.isConflict,
     reason: decision.reason,
+    keptTargetChange: decision.keptTargetChange,
     decision: decision,
   };
 }

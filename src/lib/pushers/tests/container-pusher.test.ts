@@ -336,6 +336,86 @@ describe("pushContainers — saved container is what the mapper returns for the 
   });
 });
 
+// ─── pushContainers — changes since the last sync ─────────────────────────────
+
+describe("pushContainers — mapped container changed since the last sync", () => {
+  const T1 = "01/01/2024 10:00AM";
+  const T2 = "06/01/2025 10:00AM";
+
+  // First run creates the container so the mapping records T1 on both sides.
+  async function seed(referenceName: string) {
+    const created = makeContainer({ contentViewID: 700, contentDefinitionID: 1, referenceName, lastModifiedDate: T1 });
+    const saveContainer = jest.fn().mockResolvedValue(created);
+    state.cachedApiClient = { containerMethods: { saveContainer } } as any;
+    const { pushContainers } = await import("../container-pusher");
+    const source = makeContainer({ contentViewID: 800, contentDefinitionID: 1, referenceName, lastModifiedDate: T1 });
+    await pushContainers([source], []);
+    saveContainer.mockClear();
+    return { source, created, saveContainer, pushContainers };
+  }
+
+  async function containerEntries() {
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    return preflightReport.getEntries().filter((e) => e.phase === "Containers");
+  }
+
+  async function freshReports() {
+    const { keptTargetChanges } = await import("../kept-target-changes");
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    keptTargetChanges.reset();
+    preflightReport.reset();
+    return keptTargetChanges;
+  }
+
+  it("target-only change without --overwrite keeps the target, skips, and records a warning", async () => {
+    const { source, created, saveContainer, pushContainers } = await seed("KeptContainer");
+    const kept = await freshReports();
+    state.preflight = true;
+
+    const result = await pushContainers([source], [{ ...created, lastModifiedDate: T2 }]);
+
+    expect(saveContainer).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(result.successful).toBe(0);
+    expect(kept.getEntries()).toEqual([
+      expect.objectContaining({ type: "container", name: "KeptContainer", sourceID: 800, targetID: 700 }),
+    ]);
+    expect(await containerEntries()).toEqual([
+      expect.objectContaining({
+        action: "skip",
+        name: "KeptContainer",
+        detail: expect.stringMatching(/kept the target's version/),
+      }),
+    ]);
+  });
+
+  it("change on both sides without --overwrite is still a conflict and records nothing", async () => {
+    const { source, created, saveContainer, pushContainers } = await seed("BothContainer");
+    const kept = await freshReports();
+    state.preflight = true;
+
+    const result = await pushContainers([{ ...source, lastModifiedDate: T2 }], [{ ...created, lastModifiedDate: T2 }]);
+
+    expect(saveContainer).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+    expect(kept.hasEntries()).toBe(false);
+    expect(await containerEntries()).toEqual([expect.objectContaining({ action: "conflict", name: "BothContainer" })]);
+  });
+
+  it("target-only change with --overwrite updates from the source and records nothing", async () => {
+    const { source, created, saveContainer, pushContainers } = await seed("OverwriteContainer");
+    const kept = await freshReports();
+    state.overwrite = true;
+    saveContainer.mockResolvedValue({ ...created, lastModifiedDate: T2 });
+
+    const result = await pushContainers([source], [{ ...created, lastModifiedDate: T2 }]);
+
+    expect(saveContainer).toHaveBeenCalledTimes(1);
+    expect(result.successful).toBe(1);
+    expect(kept.hasEntries()).toBe(false);
+  });
+});
+
 // ─── pushContainers — result shape ────────────────────────────────────────────
 
 describe("pushContainers — result shape", () => {

@@ -208,3 +208,62 @@ describe("pushGalleries — mapped gallery: what changed decides update, skip or
     expect((await run(true, true, true)).saved).toBe(1);
   });
 });
+
+// ─── pushGalleries — target-only change is kept with a warning ────────────────
+
+describe("pushGalleries — mapped gallery changed on the target", () => {
+  async function run(sourceChanged: boolean, targetChanged: boolean, overwrite = false) {
+    const { GalleryMapper } = await import("lib/mappers/gallery-mapper");
+    const { keptTargetChanges } = await import("../kept-target-changes");
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    keptTargetChanges.reset();
+    preflightReport.reset();
+    const source = makeGallery({ name: "Mapped Gallery", mediaGroupingID: 11 });
+    const target = makeGallery({ name: "Mapped Gallery", mediaGroupingID: 500 });
+    jest.spyOn(GalleryMapper.prototype, "getGalleryMapping").mockReturnValue({ targetMediaGroupingID: 500 } as any);
+    jest.spyOn(GalleryMapper.prototype, "hasSourceChanged").mockReturnValue(sourceChanged);
+    jest.spyOn(GalleryMapper.prototype, "hasTargetChanged").mockReturnValue(targetChanged);
+    jest.spyOn(GalleryMapper.prototype, "addMapping").mockImplementation(() => {});
+    const saveMock = jest.fn().mockResolvedValue(target);
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveMock));
+    setState({ overwrite, preflight: !overwrite });
+
+    const { pushGalleries } = await import("../gallery-pusher");
+    const result = await pushGalleries([source], [target]);
+    const entries = preflightReport.getEntries().filter((e) => e.phase === "Galleries");
+    return { result, saved: saveMock.mock.calls.length, entries, kept: keptTargetChanges };
+  }
+
+  it("target-only change without --overwrite is a skip that records a kept change", async () => {
+    const { result, saved, entries, kept } = await run(false, true);
+
+    expect(saved).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(entries).toEqual([
+      expect.objectContaining({
+        action: "skip",
+        name: "Mapped Gallery",
+        detail: expect.stringMatching(/kept the target's version/),
+      }),
+    ]);
+    expect(kept.getEntries()).toEqual([
+      expect.objectContaining({ type: "gallery", name: "Mapped Gallery", sourceID: 11, targetID: 500 }),
+    ]);
+  });
+
+  it("change on both sides without --overwrite is still a conflict and records nothing", async () => {
+    const { saved, entries, kept } = await run(true, true);
+
+    expect(saved).toBe(0);
+    expect(entries).toEqual([expect.objectContaining({ action: "conflict", name: "Mapped Gallery" })]);
+    expect(kept.hasEntries()).toBe(false);
+  });
+
+  it("target-only change with --overwrite updates and records nothing", async () => {
+    const { result, saved, kept } = await run(false, true, true);
+
+    expect(saved).toBe(1);
+    expect(result.successful).toBe(1);
+    expect(kept.hasEntries()).toBe(false);
+  });
+});

@@ -9,6 +9,7 @@ import { fileOperations } from "../../core/fileOperations";
 import path from "path";
 import { GalleryMapper } from "lib/mappers/gallery-mapper";
 import { preflightReport } from "../preflight/preflight-report";
+import { keptTargetChanges } from "./kept-target-changes";
 import { FailureDetail, PusherResult } from "../../types/sourceData";
 
 /**
@@ -262,9 +263,10 @@ export async function pushAssets(
       const hasTargetChanges = existingMapping !== null && referenceMapper.hasTargetChanged(targetAsset);
       const hasSourceChanges = existingMapping !== null && referenceMapper.hasSourceChanged(media);
 
-      // The target changed since the last sync: a conflict whether or not the source changed too, so
-      // a target-only edit is kept (and reported) unless --overwrite says to replace it.
-      const isConflict = existingMapping !== null && hasTargetChanges;
+      // Both sides changed since the last sync: a conflict. Only the target changed: kept, with a
+      // warning (see kept-target-changes.ts). Either is replaced with the source under --overwrite.
+      const isConflict = existingMapping !== null && hasTargetChanges && hasSourceChanges;
+      const isKeptTargetChange = existingMapping !== null && hasTargetChanges && !hasSourceChanges;
       const isOverwrite = state.overwrite;
       const shouldSkip = existingMapping !== null && !hasTargetChanges && !hasSourceChanges;
       // Update if:
@@ -273,7 +275,8 @@ export async function pushAssets(
       //  AND Either IF
       //       We have no conflict
       //       OR we are in overwrite mode (force update even if conflict)
-      const shouldUpdate = existingMapping !== null && !shouldSkip && (!isConflict || isOverwrite);
+      const shouldUpdate =
+        existingMapping !== null && !shouldSkip && ((!isConflict && !isKeptTargetChange) || isOverwrite);
 
       if (shouldCreate) {
         // Asset needs to be created (doesn't exist in target)
@@ -323,18 +326,35 @@ export async function pushAssets(
         logger.asset.skipped(media, "up to date, skipping", targetGuid);
         preflightReport.record({ phase: "Assets", action: "skip", name: media.fileName, detail: "up to date" });
         skipped++;
+      } else if (isKeptTargetChange) {
+        const change = {
+          type: "asset" as const,
+          name: media.fileName,
+          sourceID: media.mediaID,
+          targetID: targetAsset?.mediaID,
+        };
+        keptTargetChanges.record(change);
+        console.warn(ansiColors.yellow(keptTargetChanges.formatLine(change)));
+        logger.asset.skipped(media, "target changed since the last sync, kept", targetGuid);
+        preflightReport.record({
+          phase: "Assets",
+          action: "skip",
+          name: media.fileName,
+          detail: "target changed since the last sync and the source didn't; kept the target's version",
+        });
+        skipped++;
       } else if (isConflict) {
-        // Conflict: the target changed since the last sync and --overwrite was not set.
+        // Conflict: both sides changed since the last sync and --overwrite was not set.
         logger.asset.skipped(
           media,
-          "conflict: target changed since the last sync; use --overwrite to replace it",
+          "conflict: source and target both changed since the last sync; use --overwrite to replace the target",
           targetGuid
         );
         preflightReport.record({
           phase: "Assets",
           action: "conflict",
           name: media.fileName,
-          detail: "target changed; use --overwrite to force",
+          detail: "source and target both changed; use --overwrite to force",
         });
         skipped++;
       }

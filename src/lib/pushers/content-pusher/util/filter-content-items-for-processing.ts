@@ -5,6 +5,7 @@ import { ApiClient, ContentItem } from "@agility/management-sdk";
 import { Logs } from "core/logs";
 import { state } from "core";
 import { preflightReport } from "../../../preflight/preflight-report";
+import { keptTargetChanges } from "../../kept-target-changes";
 import {
   RequiredFieldIssue,
   formatMissingRequiredFields,
@@ -122,16 +123,14 @@ export async function filterContentItemsForProcessing({
         referenceMapper,
       });
 
-      const { content, shouldUpdate, shouldCreate, shouldSkip, isConflict, reason } = findResult;
+      const { content, shouldUpdate, shouldCreate, shouldSkip, isConflict, reason, keptTargetChange } = findResult;
       if (isConflict) {
         // CONFLICT DETECTED - log warning and skip
         // PROD-2603: a mapped target item that no longer exists is also reported as a conflict, so
         // pick the headline from the reason rather than hard-coding "changes detected in both".
         const headline = /no longer exists/i.test(reason || "")
           ? "mapped target item no longer exists"
-          : /source didn't/i.test(reason || "")
-            ? "the target changed since the last sync"
-            : "changes detected in both source and target";
+          : "changes detected in both source and target";
         console.warn(
           `⚠️  Conflict detected content ${ansiColors.underline(itemName)} ${ansiColors.bold.grey(headline)}. Please resolve manually.`
         );
@@ -154,6 +153,24 @@ export async function filterContentItemsForProcessing({
       } else if (shouldUpdate) {
         // Content exists but needs updating (unless it fails model validation)
         if (queueForWrite(contentItem, itemName, "update")) updateCount++;
+      } else if (shouldSkip && keptTargetChange) {
+        // Only the target changed: keep its version and warn (not a conflict, see change-detection.ts)
+        const change = {
+          type: "content" as const,
+          name: itemName,
+          locale,
+          sourceID: contentItem.contentID,
+          targetID: content?.contentID,
+          targetUrl: content?.contentID
+            ? `https://app.agilitycms.com/instance/${targetGuid}/${locale}/content/listitem-${content.contentID}`
+            : undefined,
+        };
+        keptTargetChanges.record(change);
+        console.warn(ansiColors.yellow(keptTargetChanges.formatLine(change)));
+        logger.content.skipped(contentItem, "target changed since the last sync, kept", locale, targetGuid);
+        itemsToSkip.push(contentItem);
+        skipCount++;
+        preflightReport.record({ phase: "Content", action: "skip", name: itemName, locale, detail: reason });
       } else if (shouldSkip) {
         // Content exists and is up to date - skip
         logger.content.skipped(contentItem, "up to date, skipping", locale, targetGuid);
