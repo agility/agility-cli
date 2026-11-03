@@ -123,7 +123,9 @@ const tag = (ctx) => `r${ctx.round}${ctx.side === "target" ? "t" : "s"}`;
 
 export const CHANGES = {
   async "content.edit"(ctx) {
-    const pool = (await listsWithItems(ctx.c, ctx.guid, ctx.locale)).flatMap((x) => x.items);
+    const pool = (await listsWithItems(ctx.c, ctx.guid, ctx.locale))
+      .flatMap((x) => x.items)
+      .filter((it) => !ctx.avoid?.has(it.contentID));
     let full = null;
     for (const it of [...pool].sort(() => ctx.r.next() - 0.5)) {
       const candidate = await ctx.c.contentMethods.getContentItem(it.contentID, ctx.guid, ctx.locale);
@@ -368,9 +370,11 @@ export const CHANGES = {
   },
 };
 
-// Changes made on the other instance than the one being synced from, in the same round.
-export async function drift(ctx) {
-  return CHANGES["content.edit"]({ ...ctx });
+// Changes made on the other instance than the one being synced from, in the same round. `avoid` is
+// the receiving side's copies of items the round changed on the sending side: an edit to one of those
+// is a change on both sides, which the conflict check covers, not drift.
+export async function drift(ctx, avoid = new Set()) {
+  return CHANGES["content.edit"]({ ...ctx, avoid });
 }
 
 // The same item edited on both sides with different values: a conflict. `avoidDstId` is the item
