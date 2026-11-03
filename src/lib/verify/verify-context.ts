@@ -15,7 +15,7 @@ import { GuidDataLoader, GuidEntities, ModelFilterOptions } from "../pushers/gui
 import { SitemapHierarchy } from "../pushers/page-pusher/sitemap-hierarchy";
 import { SitemapNode } from "../../types/syncAnalysis";
 import { LocaleMappingIndex, MappingIndex } from "./mapping-index";
-import { AssetUrlTranslator, buildAssetUrlTranslator, CanonicalContext } from "./canonicalize";
+import { AssetUrlTranslator, buildAssetUrlTranslator, CanonicalContext, DANGLING_CONTENT_REF } from "./canonicalize";
 
 export const UNPUBLISHED_STATE = 7;
 
@@ -219,13 +219,6 @@ export function createVerifyContext(input: {
     channels: input.channels?.map((c) => c.toLowerCase()),
   };
 }
-
-/**
- * A content reference to an item that no longer exists on its side and has no mapping, e.g. both
- * halves of a pair `--syncDeletes` removed. The same token on both sides, so two such references
- * compare equal instead of `unmapped:<source id>` against a bare target ID.
- */
-const DANGLING_CONTENT_REF = "dangling";
 
 /** Canonicalization context for SOURCE values: every ID is translated to its target. */
 export function sourceCanonicalContext(ctx: VerifyContext): CanonicalContext {

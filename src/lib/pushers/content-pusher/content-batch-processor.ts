@@ -18,6 +18,7 @@ import {
 } from "./util/detect-deleted-linked-list-references";
 import { fileOperations } from "core/fileOperations";
 import { collectUnresolvedContentReferences } from "./util/has-unresolved-content-references";
+import { stripContentReferences } from "./util/strip-content-references";
 import { Logs } from "core/logs";
 import { state, getFailedContent } from "core/state";
 
@@ -49,12 +50,30 @@ export class ContentBatchProcessor {
   // that still exist in the source. Used to tell a *deleted* linked-list reference apart
   // from a merely "missing" one when clarifying create failures.
   private liveSourceContainerRefNames?: Set<string>;
+  private sourceContentFileNames?: Set<string>;
 
   constructor(config: ContentBatchConfig) {
     this.config = {
       ...config,
       batchSize: config.batchSize || 250, // Default batch size
     };
+  }
+
+  /**
+   * Whether a source content item no longer exists: no file for it in the source pull, which a pull
+   * writes for every live item and removes for a deleted one. False when nothing of the source's
+   * content was pulled for this locale, so a missing pull never reads as "deleted".
+   */
+  private isGoneFromSource(contentID: number): boolean {
+    if (this.sourceContentFileNames === undefined) {
+      try {
+        const sourceFileOps = new fileOperations(this.config.sourceGuid, this.config.locale);
+        this.sourceContentFileNames = new Set(sourceFileOps.listFilesInFolder("item", ".json"));
+      } catch {
+        this.sourceContentFileNames = new Set();
+      }
+    }
+    return this.sourceContentFileNames.size > 0 && !this.sourceContentFileNames.has(`${contentID}.json`);
   }
 
   /**
@@ -360,7 +379,7 @@ export class ContentBatchProcessor {
     const containerMapper = new ContainerMapper(sourceGuid, targetGuid);
     const assetMapper = new AssetMapper(sourceGuid, targetGuid);
 
-    for (const contentItem of contentBatch) {
+    for (let contentItem of contentBatch) {
       if (contentItem.properties.definitionName.toLowerCase() === "richtextarea" && contentItem.fields.textblob) {
         //if this is a RichText item, we don't need to do the extra processing - just upload it as is
 
@@ -460,7 +479,7 @@ export class ContentBatchProcessor {
           // NullReferenceException, which reaches the operator as an opaque
           // "Object reference not set to an instance of an object." Skip the item here with a
           // precise, actionable reason instead of shipping a payload that is guaranteed to fail.
-          const unresolvedRefs = collectUnresolvedContentReferences(
+          let unresolvedRefs = collectUnresolvedContentReferences(
             contentItem.fields || {},
             this.config.referenceMapper,
             "",
@@ -468,6 +487,30 @@ export class ContentBatchProcessor {
             // setting, needed to recognize an unresolved reference living only in a companion field.
             sourceModel
           );
+
+          // A link to an item that is gone from the source (deleted; its copy and mapping removed by
+          // --syncDeletes) can never resolve, so the guard below would block this item for good.
+          // The source points at nothing there, so send the item with that link blank, as the source
+          // has it, and say so. A link to an item that exists but isn't mapped yet still fails.
+          const goneIDs = Array.from(new Set(unresolvedRefs.map((r) => r.contentID))).filter((id) =>
+            this.isGoneFromSource(id)
+          );
+          if (goneIDs.length > 0) {
+            const { fields } = stripContentReferences(contentItem.fields || {}, new Set(goneIDs), sourceModel);
+            contentItem = { ...contentItem, fields };
+            logger.warning(
+              `Content item ${contentItem.contentID} (${contentItem.properties?.referenceName}) links to item(s) ` +
+                `${goneIDs.join(", ")}, which no longer exist in the source; those links are sent blank.`,
+              contentItem
+            );
+            unresolvedRefs = collectUnresolvedContentReferences(
+              contentItem.fields || {},
+              this.config.referenceMapper,
+              "",
+              sourceModel
+            );
+          }
+
           if (unresolvedRefs.length > 0) {
             // PROD-2542: when a referenced child failed earlier in this locale (e.g. skipped
             // client-side for a missing required field), say so — that's the actual cause.

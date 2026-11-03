@@ -18,6 +18,14 @@
  *    numbers and numeric strings compare equal, as do booleans and "true"/"false".
  */
 import { getLinkedContentCompanionFields } from "../content/linked-content-companion-fields";
+
+/**
+ * What a context's contentRef returns for a link to an item that no longer exists on its side and
+ * has no mapping (deleted, e.g. by --syncDeletes along with its copy). Such a link points at nothing,
+ * so it is dropped, and compares equal to an empty link or to the same kind of link on the other side.
+ */
+export const DANGLING_CONTENT_REF = "dangling";
+const live = (ref: string) => ref !== DANGLING_CONTENT_REF;
 import { AssetPrefixPair, stripTrailingSlash } from "./mapping-index";
 
 export type Side = "source" | "target";
@@ -294,12 +302,14 @@ function canonicalLinkedRef(lowered: Record<string, any>, ctx: CanonicalContext)
   let ids: string[] = [];
   const sortids = lowered.sortids;
   if (typeof sortids === "string" && sortids.trim()) {
-    ids = parseIdList(sortids).map((id) => ctx.contentRef(id));
+    ids = parseIdList(sortids)
+      .map((id) => ctx.contentRef(id))
+      .filter(live);
   } else if (typeof sortids === "number" && sortids > 0) {
-    ids = [ctx.contentRef(sortids)];
+    ids = [ctx.contentRef(sortids)].filter(live);
   } else {
     const contentid = typeof lowered.contentid === "string" ? parseInt(lowered.contentid, 10) : lowered.contentid;
-    if (typeof contentid === "number" && contentid > 0) ids = [ctx.contentRef(contentid)];
+    if (typeof contentid === "number" && contentid > 0) ids = [ctx.contentRef(contentid)].filter(live);
   }
 
   const fullList = lowered.fulllist === true || String(lowered.fulllist).toLowerCase() === "true";
@@ -341,7 +351,9 @@ export function canonicalValue(value: any, ctx: CanonicalContext, fieldType?: st
   if (typeof value === "string" || typeof value === "number") {
     const text = String(value);
     if (type === "content" && ID_LIST.test(text)) {
-      const ids = parseIdList(text).map((id) => ctx.contentRef(id));
+      const ids = parseIdList(text)
+        .map((id) => ctx.contentRef(id))
+        .filter(live);
       return ids.length > 0 ? { "@ids": ids } : undefined;
     }
     if (type === "photogallery" && /^\d+$/.test(text.trim()) && parseInt(text, 10) > 0) {

@@ -84,6 +84,13 @@ describe("checkContent", () => {
     expect(collector.findings).toEqual([]);
   });
 
+  it("treats a link to an item deleted from the target as equal to an empty link", () => {
+    // The sync sent 1 with its link to the deleted item 2 blanked; 101 on the target still points at
+    // its own deleted partner 102. Both point at nothing.
+    const collector = run([item(1, { title: "A" })], [item(101, { title: "A", related: "102" })], [[1, 101]]);
+    expect(collector.findings).toEqual([]);
+  });
+
   it("still fails a link to an unmapped item that exists in the source", () => {
     const collector = run(
       [item(1, { title: "A", related: { contentid: 2, fulllist: false } }), item(2, { title: "B" })],
