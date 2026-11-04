@@ -14,6 +14,10 @@
 //   sync        exit 0, no failed items
 //   conflict    the both-sides item ends at the synced side's value, or a preflight reported it
 //   drift       the other side's own edit was overwritten, or kept with a "target changed" warning
+//   drift:listOrder, drift:template, drift:urlRedirection
+//               a list reorder, template edit or redirection edit on the other side alone is kept
+//               with a "target changed" warning, or reported as a conflict if the round's own changes
+//               touched it too; never overwritten without --overwrite (PROD-3078)
 //   resolve     when the sync kept such edits: the same sync with --overwrite settles them
 //   verify      `agility verify` finds no differences (verify and noop: up to 3 tries, 90s apart)
 //   noop        a preflight in the same direction plans no creates, updates, deletes or conflicts
@@ -28,13 +32,16 @@
 import { spawnSync } from "node:child_process";
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { CHANGES, QUICK_ROUNDS, client, conflict, drift, readField, rng } from "./changes.mjs";
+import { CHANGES, QUICK_ROUNDS, STRUCTURAL_DRIFTS, client, conflict, drift, readField, rng } from "./changes.mjs";
 import {
   changedSince,
   checkReferenceCycles,
   contentVersions,
+  editRedirection,
+  seedRedirection,
   seedReferenceCycles,
   waitForFetchSync,
+  waitForFetchItemOrder,
   waitForFetchVersions,
 } from "./fixtures.mjs";
 
@@ -124,7 +131,13 @@ function syncStep(round, direction, step = "sync", extra = []) {
   const conflicts = entries.filter((e) => e.action === "conflict").map((e) => e.detail ?? "");
   const kept = entries.filter((e) => e.action === "skip" && /kept the target's version/.test(e.detail ?? ""));
   const names = (guid, id) => new RegExp(`/instance/${guid}/[^/]+/content/listitem-${id}(?!\\d)`);
+  const same = (a, b) => String(a ?? "").toLowerCase() === String(b ?? "").toLowerCase();
   return {
+    // Whether the sync kept a target-only change to this entity (a targetChangeKept warning)
+    keptByType: (type, name) =>
+      (s.json?.warnings ?? []).some((w) => w.code === "targetChangeKept" && w.type === type && same(w.name, name)),
+    // Whether a preflight reported a conflict on this entity in a phase
+    conflictIn: (phase, name) => entries.some((e) => e.action === "conflict" && e.phase === phase && same(e.name, name)),
     // Whether a preflight reported a conflict on this content item (its URL is in the detail)
     reported: (guid, id) => conflicts.some((d) => names(guid, id).test(d)),
     // Whether a preflight kept this content item's target-only change, with a warning
@@ -193,6 +206,15 @@ try {
   record(0, "A→B", "apply:fixture-cycles", false, String(e?.message ?? e).slice(0, 200));
 }
 
+// A redirection for the rounds to edit on the receiving side (PROD-3078)
+let redirection = null;
+try {
+  redirection = await seedRedirection(AGILITY_TOKEN, A, SEED);
+  record(0, "A→B", "apply:fixture-redirection", true, `${redirection.originUrl}, in the Fetch API after ${redirection.waited}s`);
+} catch (e) {
+  record(0, "A→B", "apply:fixture-redirection", false, String(e?.message ?? e).slice(0, 200));
+}
+
 syncStep(0, "A→B");
 
 if (cycles) {
@@ -252,7 +274,7 @@ for (let i = 0; i < plan.length; i++) {
   let drifted = null;
   try {
     // The receiving side's copies of content items this round touched on the sending side: edits,
-    // list swaps (which save both items), publishes and deletes. Page and model changes name page IDs
+    // list reorders, publishes and deletes. Page and model changes name page IDs
     // or none, so only the content and ordering areas count.
     const editedThere = applied
       .filter((a) => a.area === "content" || a.area === "ordering")
@@ -265,6 +287,33 @@ for (let i = 0; i < plan.length; i++) {
     record(round, direction, "apply:drift", false, String(e?.message ?? e).slice(0, 200));
   }
 
+  // A list reorder and a template edit on the receiving side alone (PROD-3078)
+  const structural = [];
+  for (const d of STRUCTURAL_DRIFTS) {
+    try {
+      const avoidLists = applied.filter((x) => x.change === "list-reorder" && x.entity).map((x) => x.entity);
+      const did = await CHANGES[d.change]({ ...toCtx, avoidLists });
+      if (did) {
+        structural.push({ ...d, ...did });
+        applied.push({ name: `drift:${d.kind}`, ...did, area: "drift" });
+      } else console.log(`  (skipped drift:${d.kind}: nothing it applies to)`);
+    } catch (e) {
+      record(round, direction, `apply:drift:${d.kind}`, false, String(e?.message ?? e).slice(0, 200));
+    }
+  }
+
+  if (redirection) {
+    try {
+      const did = await editRedirection(AGILITY_TOKEN, to, redirection.originUrl, `r${round}d`);
+      if (did) {
+        structural.push({ kind: "urlRedirection", phase: "URL Redirections", ...did });
+        applied.push({ name: "drift:urlRedirection", ...did, area: "drift" });
+      } else record(round, direction, "apply:drift:urlRedirection", false, `${redirection.originUrl} isn't on ${to}`);
+    } catch (e) {
+      record(round, direction, "apply:drift:urlRedirection", false, String(e?.message ?? e).slice(0, 200));
+    }
+  }
+
   let both = null;
   try {
     const driftedId = drifted ? Number(/#(\d+)/.exec(drifted.detail)?.[1]) || null : null;
@@ -274,7 +323,7 @@ for (let i = 0; i < plan.length; i++) {
     record(round, direction, "apply:conflict", false, String(e?.message ?? e).slice(0, 200));
   }
 
-  rounds.push({ round, direction, changes: applied.map(({ sv, dv, ...rest }) => rest) });
+  rounds.push({ round, direction, changes: applied.map(({ sv, dv, orders, ...rest }) => rest) });
   console.log(
     `\n── round ${round} (${direction}): ${applied.map((a) => `${a.area}/${a.change}`).join(", ") || "no changes"}`
   );
@@ -289,8 +338,17 @@ for (let i = 0; i < plan.length; i++) {
       record(round, direction, "apply:fetch-catch-up", false, String(e?.message ?? e).slice(0, 200));
     }
   }
+  // A list swap's new order shows in the Fetch API later than the items' new versions
+  for (const a of applied.filter((x) => x.orders)) {
+    try {
+      const waited = await waitForFetchItemOrder(AGILITY_TOKEN, a.orders.guid, LOCALE, a.orders.items);
+      console.log(`  Fetch API showed the new order of ${a.entity ?? a.detail} on ${a.orders.guid} after ${waited}s`);
+    } catch (e) {
+      record(round, direction, "apply:fetch-order", false, String(e?.message ?? e).slice(0, 200));
+    }
+  }
 
-  const { reported, keptWarned } = syncStep(round, direction);
+  const { reported, keptWarned, keptByType, conflictIn } = syncStep(round, direction);
   let kept = false;
 
   if (both) {
@@ -332,6 +390,23 @@ for (let i = 0; i < plan.length; i++) {
             : "the other side's edit was silently kept; the instances differ"
     );
     kept ||= !same;
+  }
+
+  for (const d of structural) {
+    const warned = keptByType(d.kind, d.entity);
+    const conflicted = conflictIn(d.phase, d.entity);
+    record(
+      round,
+      direction,
+      `drift:${d.kind}`,
+      warned || conflicted,
+      warned
+        ? `${d.entity}: kept, with a target-changed warning`
+        : conflicted
+          ? `${d.entity}: reported as a conflict (the round's own changes touched it too)`
+          : `${d.entity}: the other side's edit was overwritten without --overwrite, or not seen`
+    );
+    kept ||= warned || conflicted;
   }
 
   // The sync rightly kept the receiving side's own edits and reported them. Settle them the way an

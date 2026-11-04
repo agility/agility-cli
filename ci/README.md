@@ -37,17 +37,23 @@ directions:
 
 - **Odd rounds** edit A and `sync` A → B.
 - **Even rounds** edit B and `reverse-sync` B → A.
-- **Every round** also edits the other instance (drift) and one item on both sides (a conflict).
+- **Every round** also edits the other instance (drift: a content item, a list's order, a page
+  template's section name and a URL redirection's destination) and one item on both sides (a
+  conflict). Before syncing, the run waits for the Fetch API to show each edit, a list's new order
+  included (it shows up later than a new version). The redirection is one the run adds to A before the first sync; the Management SDK can
+  only delete redirections, so the run saves it through the Management API's batch endpoint and
+  waits for the Fetch API to list each edit, as the CLI does.
 
 The changes, in `ci/permutation/changes.mjs`, are discovered from whatever each instance holds:
 
 | Area       | Changes                                                                                            |
 | ---------- | -------------------------------------------------------------------------------------------------- |
 | Content    | edit, add, add a linked item together with an item that links to it, delete, publish and unpublish |
-| Ordering   | swap two items in a list; reverse the components in a page zone                                    |
+| Ordering   | move a list's last item to the top (as drag and drop does, no new versions); reverse the components in a page zone |
 | Pages      | edit title and menu text, add a page, delete it later                                              |
 | Components | remove one from a zone                                                                             |
 | Models     | add a field, change a label, rename a field                                                        |
+| Templates  | rename a section's display name                                                                    |
 
 The `quick` tier runs a fixed set covering every area in two rounds. `beta` (4 rounds) and `nightly`
 (6 rounds) pick changes at random from a seed printed in the summary. Replay one with
@@ -61,6 +67,11 @@ every sync it checks:
   conflict;
 - **drift:** an edit made only on the receiving side is overwritten, or kept with a "target changed"
   warning (not a conflict), never silently kept;
+- **drift:listOrder, drift:template, drift:urlRedirection:** a list reorder, a template edit or a
+  redirection edit made only on the receiving
+  side is kept with a "target changed" warning, or reported as a conflict when the round's own changes
+  touched the same list or template. These have no version, so the sync tells which side changed
+  from what it recorded at the last sync (PROD-3078); overwriting them without `--overwrite` fails;
 - **resolve:** when the sync kept such edits, the same sync with `--overwrite` settles them, as an
   editor would, before the checks below;
 - **verify:** `agility verify` finds no differences. A verify that finds some is tried once more a

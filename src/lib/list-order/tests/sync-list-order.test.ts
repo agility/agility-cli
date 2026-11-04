@@ -4,7 +4,17 @@ import * as path from "path";
 
 import { state, resetState, setState } from "../../../core/state";
 import { preflightReport } from "../../preflight/preflight-report";
-import { ListItem, containerMapFrom, contentMapFrom, planListOrders, runSyncListOrder } from "../sync-list-order";
+import {
+  ListItem,
+  ListOrderRecord,
+  containerMapFrom,
+  contentMapFrom,
+  decideListOrders,
+  planListOrders,
+  relativeOrderChanged,
+  runSyncListOrder,
+} from "../sync-list-order";
+import { keptTargetChanges } from "../../pushers/kept-target-changes";
 
 const LOCALE = "en-us";
 
@@ -156,6 +166,86 @@ describe("planListOrders", () => {
   });
 });
 
+describe("relativeOrderChanged", () => {
+  it("compares only the items both orders have", () => {
+    expect(relativeOrderChanged([1, 2, 3], [1, 2, 3])).toBe(false);
+    expect(relativeOrderChanged([1, 2, 3], [1, 3, 2])).toBe(true);
+    // An item added anywhere, or one deleted, isn't a reorder
+    expect(relativeOrderChanged([1, 2, 3], [4, 1, 2, 3])).toBe(false);
+    expect(relativeOrderChanged([1, 2, 3], [1, 3])).toBe(false);
+    expect(relativeOrderChanged([1, 2, 3], [3, 9, 1])).toBe(true);
+  });
+});
+
+describe("decideListOrders (PROD-3078: which side reordered)", () => {
+  // The last run left source 1, 2, 3 and target 101, 102, 103.
+  const synced: ListOrderRecord = {
+    sourceReferenceName: "links",
+    targetReferenceName: "links",
+    sourceContentIDs: [1, 2, 3],
+    targetContentIDs: [101, 102, 103],
+  };
+  const inSourceOrder = [item(1, 0), item(2, 1), item(3, 2)];
+  const sourceReordered = [item(3, 0), item(1, 1), item(2, 2)];
+  const inTargetOrder = [item(101, 0), item(102, 1), item(103, 2)];
+  const targetReordered = [item(102, 0), item(101, 1), item(103, 2)];
+
+  const decide = (source: ListItem[], target: ListItem[], records: ListOrderRecord[] = [synced], overwrite = false) =>
+    decideListOrders(LOCALE, source, target, contentMap(1, 2, 3), containerMap, undefined, new Set(), records, overwrite);
+
+  it("in order: nothing to send, with the orders to record", () => {
+    expect(decide(inSourceOrder, inTargetOrder)).toEqual([
+      expect.objectContaining({ action: "in-order", sourceOrder: [1, 2, 3], targetOrder: [101, 102, 103] }),
+    ]);
+  });
+
+  it("reordered on the source only: sets the source's order", () => {
+    expect(decide(sourceReordered, inTargetOrder)).toEqual([
+      expect.objectContaining({ action: "reorder", unrecorded: false, contentIDs: [103, 101, 102], targetOrder: [103, 101, 102] }),
+    ]);
+  });
+
+  it("reordered on the target only: kept", () => {
+    expect(decide(inSourceOrder, targetReordered)).toEqual([expect.objectContaining({ action: "keep", targetOrder: [102, 101, 103] })]);
+  });
+
+  it("reordered on the target only, with --overwrite: sets the source's order", () => {
+    expect(decide(inSourceOrder, targetReordered, [synced], true)).toEqual([
+      expect.objectContaining({ action: "reorder", overwritten: "keep", contentIDs: [101, 102, 103] }),
+    ]);
+  });
+
+  it("reordered on both sides: a conflict, or the source's order with --overwrite", () => {
+    expect(decide(sourceReordered, targetReordered)).toEqual([expect.objectContaining({ action: "conflict" })]);
+    expect(decide(sourceReordered, targetReordered, [synced], true)).toEqual([
+      expect.objectContaining({ action: "reorder", overwritten: "conflict" }),
+    ]);
+  });
+
+  it("reordered on both sides to the same order: in order", () => {
+    expect(decide(sourceReordered, [item(103, 0), item(101, 1), item(102, 2)])).toEqual([
+      expect.objectContaining({ action: "in-order" }),
+    ]);
+  });
+
+  it("an item added on the target, at the top, isn't a target reorder", () => {
+    const target = [item(900, 0), ...inTargetOrder.map((i) => item(i.contentID, i.properties!.itemOrder! + 1))];
+    expect(decide(inSourceOrder, target)).toEqual([expect.objectContaining({ action: "reorder", unrecorded: false })]);
+  });
+
+  it("no record (first run after upgrading): the source's order, as before", () => {
+    expect(decide(inSourceOrder, targetReordered, [])).toEqual([
+      expect.objectContaining({ action: "reorder", unrecorded: true, contentIDs: [101, 102, 103] }),
+    ]);
+  });
+
+  it("matches the record by source list name, case-insensitively", () => {
+    expect(decide(inSourceOrder, targetReordered, [{ ...synced, sourceReferenceName: "LINKS" }])).toEqual([
+      expect.objectContaining({ action: "keep" }),
+    ]);
+  });
+});
+
 describe("mapping helpers", () => {
   it("contentMapFrom lets the last record for a source win and drops incomplete ones", () => {
     const map = contentMapFrom([
@@ -290,5 +380,146 @@ describe("runSyncListOrder", () => {
 
     expect(api.contentMethods.setContentListItemOrder).not.toHaveBeenCalled();
     expect(result.successful).toBe(0);
+  });
+  describe("records (PROD-3078)", () => {
+    const recordFile = path.join(`mappings/${SRC}-${TGT}`, LOCALE, "listorder", "mappings.json");
+    const readRecords = () => JSON.parse(fs.readFileSync(path.join(root, recordFile), "utf8"));
+    // What the default fixtures look like once synced: source 1, 2, 3; target 101, 102, 103, then 900.
+    const syncedRecord = {
+      sourceGuid: SRC,
+      targetGuid: TGT,
+      sourceReferenceName: "links",
+      targetReferenceName: "links",
+      sourceContentIDs: [1, 2, 3],
+      targetContentIDs: [101, 102, 103, 900],
+    };
+
+    beforeEach(() => keptTargetChanges.reset());
+
+    it("records the orders a reorder left, and the order it replaced (the first run, with no record)", async () => {
+      await run();
+
+      expect(readRecords()).toEqual([{ ...syncedRecord, targetReplacedContentIDs: [900, 103, 101, 102] }]);
+    });
+
+    it("a pull that still shows the replaced order is waited on, not kept as a target reorder", async () => {
+      // The last run reordered 900, 103, 101, 102 to 101, 102, 103, 900; the Fetch API hasn't shown it yet.
+      writeJson(recordFile, [{ ...syncedRecord, targetReplacedContentIDs: [900, 103, 101, 102] }]);
+
+      const result = await run();
+
+      expect(api.contentMethods.setContentListItemOrder).not.toHaveBeenCalled();
+      expect(keptTargetChanges.hasEntries()).toBe(false);
+      expect(result).toMatchObject({ successful: 0, skipped: 1 });
+      expect(readRecords()).toEqual([{ ...syncedRecord, targetReplacedContentIDs: [900, 103, 101, 102] }]);
+    });
+
+    it("drops the replaced order once a pull shows the new one", async () => {
+      writeJson(recordFile, [{ ...syncedRecord, targetReplacedContentIDs: [900, 103, 101, 102] }]);
+      [[101, 0], [102, 1], [103, 2], [900, 3]].forEach(([id, order]) =>
+        writeJson(`${TGT}/${LOCALE}/item/${id}.json`, { contentID: id, properties: { state: 2, referenceName: "links", itemOrder: order } })
+      );
+
+      await run();
+
+      expect(readRecords()).toEqual([syncedRecord]);
+    });
+
+    it("a reverse sync doesn't put back an order its source shows before the last reorder reached the Fetch API", async () => {
+      // The last run (this way round) reordered the source side from 3, 1, 2 to 1, 2, 3 ... seen as
+      // a reverse sync's record: the source's replaced order is 3, 1, 2, and the source pull still shows it.
+      [3, 1, 2].forEach((n, i) =>
+        writeJson(`${SRC}/${LOCALE}/item/${n}.json`, { contentID: n, properties: { state: 2, referenceName: "links", itemOrder: i } })
+      );
+      writeJson(recordFile, [{ ...syncedRecord, sourceReplacedContentIDs: [3, 1, 2] }]);
+      [[101, 0], [102, 1], [103, 2], [900, 3]].forEach(([id, order]) =>
+        writeJson(`${TGT}/${LOCALE}/item/${id}.json`, { contentID: id, properties: { state: 2, referenceName: "links", itemOrder: order } })
+      );
+
+      await run();
+
+      expect(api.contentMethods.setContentListItemOrder).not.toHaveBeenCalled();
+      expect(keptTargetChanges.hasEntries()).toBe(false);
+    });
+
+    it("records a list that's already in order without calling the API", async () => {
+      [[101, 0], [102, 1], [103, 2], [900, 3]].forEach(([id, order]) =>
+        writeJson(`${TGT}/${LOCALE}/item/${id}.json`, { contentID: id, properties: { state: 2, referenceName: "links", itemOrder: order } })
+      );
+
+      await run();
+
+      expect(api.contentMethods.setContentListItemOrder).not.toHaveBeenCalled();
+      expect(readRecords()).toEqual([syncedRecord]);
+    });
+
+    it("keeps a target-only reorder with a warning, and leaves the record alone", async () => {
+      // The fixtures' target (900, 103, 101, 102) is a reorder of the recorded 101, 102, 103.
+      writeJson(recordFile, [syncedRecord]);
+
+      const result = await run();
+
+      expect(api.contentMethods.setContentListItemOrder).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ successful: 0, skipped: 1, failed: 0 });
+      expect(keptTargetChanges.getEntries()).toEqual([{ type: "listOrder", name: "links", locale: LOCALE }]);
+      expect(readRecords()).toEqual([syncedRecord]);
+    });
+
+    it("with --overwrite sets the source's order over a target reorder, and records it", async () => {
+      writeJson(recordFile, [{ ...syncedRecord, targetContentIDs: [101, 102, 103] }]);
+      state.overwrite = true;
+
+      await run();
+
+      expect(api.contentMethods.setContentListItemOrder).toHaveBeenCalledWith("links", TGT, LOCALE, [101, 102, 103], true);
+      expect(keptTargetChanges.hasEntries()).toBe(false);
+      expect(readRecords()).toEqual([{ ...syncedRecord, targetReplacedContentIDs: [900, 103, 101, 102] }]);
+    });
+
+    it("reports a reorder on both sides as a preflight conflict", async () => {
+      writeJson(recordFile, [{ ...syncedRecord, sourceContentIDs: [2, 1, 3] }]);
+      state.preflight = true;
+
+      await run();
+
+      expect(api.contentMethods.setContentListItemOrder).not.toHaveBeenCalled();
+      expect(preflightReport.hasConflicts()).toBe(true);
+    });
+
+    it("labels a first-run reorder in preflight as having no sync record", async () => {
+      state.preflight = true;
+
+      await run();
+
+      expect(preflightReport.toJSON().entries).toEqual(
+        expect.arrayContaining([expect.objectContaining({ phase: "List order", detail: expect.stringContaining("no sync record yet") })])
+      );
+    });
+
+    it("reads a reverse sync's records transposed", async () => {
+      // The pair was first synced TGT -> SRC, so its mapping folder is TGT-SRC, written that way round.
+      const pairDir = `mappings/${TGT}-${SRC}`;
+      fs.rmSync(path.join(root, `mappings/${SRC}-${TGT}`), { recursive: true, force: true });
+      writeJson(`${pairDir}/${LOCALE}/item/mappings.json`, [1, 2, 3].map((n) => ({ sourceContentID: 100 + n, targetContentID: n })));
+      writeJson(`${pairDir}/containers/mappings.json`, [{ sourceReferenceName: "links", targetReferenceName: "links" }]);
+      writeJson(`${pairDir}/${LOCALE}/listorder/mappings.json`, [
+        {
+          sourceGuid: TGT,
+          targetGuid: SRC,
+          sourceReferenceName: "links",
+          targetReferenceName: "links",
+          sourceContentIDs: [101, 102, 103, 900],
+          targetContentIDs: [1, 2, 3],
+        },
+      ]);
+      state.reverseSync = true;
+      state.mappingPair = { sourceGuid: TGT, targetGuid: SRC };
+
+      await run();
+
+      // Read this way round: source 1, 2, 3 unchanged; target 900, 103, 101, 102 reordered since 101, 102, 103, 900.
+      expect(keptTargetChanges.getEntries()).toEqual([expect.objectContaining({ type: "listOrder", name: "links" })]);
+      expect(api.contentMethods.setContentListItemOrder).not.toHaveBeenCalled();
+    });
   });
 });

@@ -1,4 +1,4 @@
-import { resetState } from "core/state";
+import { resetState, recordSavedTarget, state } from "core/state";
 import { hasValidMappings } from "../has-valid-mappings";
 
 jest.mock("lib/mappers/container-mapper", () => ({
@@ -126,5 +126,33 @@ describe("hasValidMappings — case insensitivity", () => {
     hasValidMappings(item, containerMapper, modelMapper);
     expect(containerMapper.getContainerMappingByReferenceName).toHaveBeenCalledWith(refName.toLowerCase(), "source");
     expect(modelMapper.getModelMappingByReferenceName).toHaveBeenCalledWith(defName.toLowerCase(), "source");
+  });
+});
+
+// ─── preflight: planned container and model ───────────────────────────────────
+
+describe("hasValidMappings — preflight, a container and model the run would create", () => {
+  const unmapped = () => [makeContainerMapper(null, null), makeModelMapper(null, null)] as const;
+
+  it("counts both as valid once their pushers recorded them as planned", () => {
+    state.preflight = true;
+    recordSavedTarget("model", 10, { id: 10, referenceName: "MyModel" }, "MyModel");
+    recordSavedTarget("container", 1, { contentViewID: 1, referenceName: "my-container" }, "my-container");
+    const [containerMapper, modelMapper] = unmapped();
+    expect(hasValidMappings(makeItem(), containerMapper, modelMapper)).toBe(true);
+  });
+
+  it("is still invalid when only the model is planned", () => {
+    state.preflight = true;
+    recordSavedTarget("model", 10, { id: 10, referenceName: "MyModel" }, "MyModel");
+    const [containerMapper, modelMapper] = unmapped();
+    expect(hasValidMappings(makeItem(), containerMapper, modelMapper)).toBe(false);
+  });
+
+  it("ignores planned entities outside preflight", () => {
+    recordSavedTarget("model", 10, { id: 10, referenceName: "MyModel" }, "MyModel");
+    recordSavedTarget("container", 1, { contentViewID: 1, referenceName: "my-container" }, "my-container");
+    const [containerMapper, modelMapper] = unmapped();
+    expect(hasValidMappings(makeItem(), containerMapper, modelMapper)).toBe(false);
   });
 });

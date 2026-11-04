@@ -6,30 +6,49 @@ import { UrlRedirectionSyncItem, UrlRedirectionSavePayload } from "../../types/u
 import { preflightReport } from "../preflight/preflight-report";
 import { saveUrlRedirections, MAX_URL_REDIRECTION_BATCH_SIZE } from "./url-redirection-api";
 import { FailureDetail, PusherResult } from "../../types/sourceData";
+import { keptTargetChanges } from "./kept-target-changes";
+import {
+  decideSync,
+  fingerprintFields,
+  hashShape,
+  hasFingerprint,
+  PENDING_DETAIL,
+  UNRECORDED_UPDATE_DETAIL,
+} from "../shared/sync-fingerprint";
 
 /** A queued create/update: the source item plus the payload the API will receive. */
 interface PendingSave {
   source: UrlRedirectionSyncItem;
   payload: UrlRedirectionSavePayload;
   action: "create" | "update";
+  /** Hash of the source's shape; stored for both sides once the save lands (a full replace). */
+  hash: string;
+  /** Hash of the target this save replaces (updates only), until a pull shows the replacement */
+  replacedHash?: string;
+  /** Preflight detail, e.g. why the source wins */
+  detail?: string;
 }
 
 const normalizeOrigin = (url: string | null | undefined): string => (url ?? "").trim().toLowerCase();
 
 /**
- * Pulled redirections carry no modifiedOn timestamp, so change detection is a direct
- * field comparison of the pulled source and target items (there is no
- * target-changed/conflict detection like galleries; an update is a full replace).
+ * The fields that make two redirections the same, without the per-instance ID. Pulled redirections
+ * carry no modifiedOn timestamp, so this shape is both the "differs" check and, hashed, the
+ * fingerprint stored in the mapping to tell which side changed (PROD-3078).
  */
-function areEquivalent(a: UrlRedirectionSyncItem, b: UrlRedirectionSyncItem): boolean {
-  return (
-    normalizeOrigin(a.originUrl) === normalizeOrigin(b.originUrl) &&
-    (a.destinationUrl ?? "").trim() === (b.destinationUrl ?? "").trim() &&
-    (a.statusCode ?? 301) === (b.statusCode ?? 301) &&
-    (a.destinationLocale ?? null) === (b.destinationLocale ?? null) &&
-    JSON.stringify(a.originLocales ?? []) === JSON.stringify(b.originLocales ?? []) &&
-    (a.content ?? null) === (b.content ?? null)
-  );
+export function normalizeRedirection(item: UrlRedirectionSyncItem) {
+  return {
+    originUrl: normalizeOrigin(item.originUrl),
+    destinationUrl: (item.destinationUrl ?? "").trim(),
+    statusCode: item.statusCode ?? 301,
+    destinationLocale: item.destinationLocale ?? null,
+    originLocales: [...(item.originLocales ?? [])].sort(),
+    content: item.content ?? null,
+  };
+}
+
+export function redirectionHash(item: UrlRedirectionSyncItem): string {
+  return hashShape(normalizeRedirection(item));
 }
 
 function toSavePayload(item: UrlRedirectionSyncItem, targetUrlRedirectionID: number): UrlRedirectionSavePayload {
@@ -56,7 +75,7 @@ export async function pushUrlRedirections(
   const redirections: UrlRedirectionSyncItem[] = sourceData || [];
   const targetRedirections: UrlRedirectionSyncItem[] = targetData || [];
 
-  const { sourceGuid, targetGuid } = state;
+  const { sourceGuid, targetGuid, overwrite } = state;
 
   const logger = getLoggerForGuid(sourceGuid) || new Logs("push", "urlRedirection", sourceGuid);
 
@@ -73,8 +92,13 @@ export async function pushUrlRedirections(
   let overallStatus: "success" | "error" = "success";
   const failureDetails: FailureDetail[] = [];
 
-  // Phase 1: classify every source redirection as create / update / skip.
+  // Phase 1: classify every source redirection as create / update / skip / kept / conflict.
   const pending: PendingSave[] = [];
+  const recordSkip = (source: UrlRedirectionSyncItem, detail: string, action: "skip" | "conflict" = "skip") => {
+    logger.urlRedirection.skipped(source, detail, targetGuid);
+    preflightReport.record({ phase: "URL Redirections", action, name: source.originUrl, detail });
+    skipped++;
+  };
 
   for (const source of redirections) {
     const mapping = mapper.getMapping(source.id, "source");
@@ -82,46 +106,98 @@ export async function pushUrlRedirections(
       ? targetRedirections.find((t) => t.id === mapping.targetUrlRedirectionID)
       : undefined;
     const targetByOrigin = targetRedirections.find((t) => normalizeOrigin(t.originUrl) === normalizeOrigin(source.originUrl));
+    const sourceHash = redirectionHash(source);
 
     if (!mapping && targetByOrigin) {
       // Exists in target by origin URL but no mapping — adopt the mapping (map-on-adopt,
       // same self-heal behavior as galleries/models), then diff to decide update vs skip.
-      mapper.addMapping(source.id, targetByOrigin.id, source.originUrl);
-      if (areEquivalent(source, targetByOrigin)) {
-        logger.urlRedirection.skipped(source, "already exists in target by origin URL", targetGuid);
-        preflightReport.record({
-          phase: "URL Redirections",
-          action: "skip",
-          name: source.originUrl,
-          detail: "already exists in target by origin URL",
-        });
-        skipped++;
+      // Nothing records which side changed yet, so a difference is settled by the source.
+      const targetHash = redirectionHash(targetByOrigin);
+      if (sourceHash === targetHash) {
+        mapper.addMapping(source.id, targetByOrigin.id, source.originUrl, fingerprintFields(sourceHash, targetHash));
+        recordSkip(source, "already exists in target by origin URL");
       } else {
-        pending.push({ source, payload: toSavePayload(source, targetByOrigin.id), action: "update" });
+        mapper.addMapping(source.id, targetByOrigin.id, source.originUrl);
+        pending.push({
+          source,
+          payload: toSavePayload(source, targetByOrigin.id),
+          action: "update",
+          hash: sourceHash,
+          replacedHash: targetHash,
+          detail: UNRECORDED_UPDATE_DETAIL,
+        });
       }
     } else if (mapping && targetById) {
-      if (areEquivalent(source, targetById)) {
-        logger.urlRedirection.skipped(source, "up to date, skipping", targetGuid);
-        preflightReport.record({
-          phase: "URL Redirections",
-          action: "skip",
-          name: source.originUrl,
-          detail: "up to date",
+      const targetHash = redirectionHash(targetById);
+      const decision = decideSync(sourceHash === targetHash, sourceHash, targetHash, mapping);
+      const update = (detail?: string) =>
+        pending.push({
+          source,
+          payload: toSavePayload(source, targetById.id),
+          action: "update",
+          hash: sourceHash,
+          replacedHash: targetHash,
+          detail,
         });
-        skipped++;
+
+      if (decision === "skip") {
+        // Seed or refresh the hashes: an older mapping gets them here, and two sides edited to
+        // the same value agree again.
+        // A pull that shows the last save also clears the replaced state.
+        if (
+          !hasFingerprint(mapping) ||
+          mapping.sourceHash !== sourceHash ||
+          mapping.targetHash !== targetHash ||
+          mapping.targetReplacedHash ||
+          mapping.sourceReplacedHash
+        ) {
+          mapper.addMapping(source.id, targetById.id, source.originUrl, fingerprintFields(sourceHash, targetHash));
+        }
+        recordSkip(source, "up to date");
+      } else if (decision === "pending") {
+        recordSkip(source, PENDING_DETAIL);
+      } else if (decision === "update") {
+        update();
+      } else if (decision === "update-unrecorded") {
+        update(UNRECORDED_UPDATE_DETAIL);
+      } else if (overwrite) {
+        update(decision === "conflict" ? "conflict overwritten" : "target change overwritten");
+      } else if (decision === "keep") {
+        const change = {
+          type: "urlRedirection" as const,
+          name: source.originUrl,
+          sourceID: source.id,
+          targetID: targetById.id,
+        };
+        keptTargetChanges.record(change);
+        console.warn(ansiColors.yellow(keptTargetChanges.formatLine(change)));
+        recordSkip(source, "target changed since the last sync and the source didn't; kept the target's version");
       } else {
-        pending.push({ source, payload: toSavePayload(source, targetById.id), action: "update" });
+        recordSkip(source, "source and target both changed; use --overwrite to force", "conflict");
       }
+    } else if (mapping && !overwrite) {
+      // The mapped target redirection was deleted on the target. Like a deleted target template
+      // (PROD-2603): a conflict, and --overwrite recreates it.
+      recordSkip(
+        source,
+        `mapped target redirection (ID: ${mapping.targetUrlRedirectionID}) no longer exists on the target; use --overwrite to recreate it`,
+        "conflict"
+      );
     } else {
-      // No mapping and no origin match, or the mapped target redirection was deleted — create.
-      pending.push({ source, payload: toSavePayload(source, 0), action: "create" });
+      // No mapping and no origin match, or (with --overwrite) the mapped target was deleted — create.
+      pending.push({ source, payload: toSavePayload(source, 0), action: "create", hash: sourceHash });
     }
   }
 
   // Preflight (PROD-2203): report what WOULD happen without calling the API.
   if (state.preflight) {
     for (const item of pending) {
-      preflightReport.record({ phase: "URL Redirections", action: item.action, name: item.source.originUrl });
+      preflightReport.record({
+        phase: "URL Redirections",
+        action: item.action,
+        name: item.source.originUrl,
+        ...(item.detail ? { detail: item.detail } : {}),
+      });
       successful++;
     }
     console.log(
@@ -146,7 +222,12 @@ export async function pushUrlRedirections(
       for (const created of result.created) {
         const item = batch[created.index];
         if (item && created.urlRedirectionID) {
-          mapper.addMapping(item.source.id, created.urlRedirectionID, item.source.originUrl);
+          mapper.addMapping(
+            item.source.id,
+            created.urlRedirectionID,
+            item.source.originUrl,
+            fingerprintFields(item.hash, item.hash)
+          );
           logger.urlRedirection.created(item.source, "created", targetGuid);
         }
         successful++;
@@ -158,7 +239,10 @@ export async function pushUrlRedirections(
           mapper.addMapping(
             item.source.id,
             updated.urlRedirectionID ?? item.payload.urlRedirectionID,
-            item.source.originUrl
+            item.source.originUrl,
+            // A full replace: the target now has the source's shape. The Fetch API shows it a
+            // while later; until then a pull shows the replaced redirection, which isn't an edit.
+            fingerprintFields(item.hash, item.hash, item.replacedHash)
           );
           logger.urlRedirection.updated(item.source, "updated", targetGuid);
         }

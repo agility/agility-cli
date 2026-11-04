@@ -206,21 +206,39 @@ export const CHANGES = {
     return { area: "content", change: "delete", detail: `#${id}` };
   },
 
+  // A reorder as the Manager's drag and drop makes it: the list item-order endpoint renumbers the
+  // list in place, with no new versions. The last item moves to the top. (Saving items with
+  // swapped itemOrder values doesn't reliably reorder: the server can leave the order as it was.)
   async "content.reorder"(ctx) {
-    const l = ctx.r.pick(await listsWithItems(ctx.c, ctx.guid, ctx.locale, 2));
+    // `ctx.avoidLists`: lists the round already reordered on the other side. The same move on both sides
+    // leaves them in the same order again, which is no change to report.
+    const avoid = new Set((ctx.avoidLists ?? []).map((x) => x.toLowerCase()));
+    const candidates = (await listsWithItems(ctx.c, ctx.guid, ctx.locale, 2)).filter(
+      (x) => x.items.length <= 30 && !avoid.has(x.list.referenceName.toLowerCase())
+    );
+    const l = ctx.r.pick(candidates);
     if (!l) return null;
-    const [a, b] = [l.items[0], l.items[l.items.length - 1]];
-    const fa = await ctx.c.contentMethods.getContentItem(a.contentID, ctx.guid, ctx.locale);
-    const fb = await ctx.c.contentMethods.getContentItem(b.contentID, ctx.guid, ctx.locale);
-    const oa = fa.properties.itemOrder;
-    fa.properties.itemOrder = fb.properties.itemOrder;
-    fb.properties.itemOrder = oa;
-    await save(ctx.c, ctx.guid, ctx.locale, fa);
-    await save(ctx.c, ctx.guid, ctx.locale, fb);
+    const readOrder = async () => {
+      const full = await Promise.all(
+        l.items.map((x) => ctx.c.contentMethods.getContentItem(x.contentID, ctx.guid, ctx.locale))
+      );
+      return full
+        .map((x) => [x.contentID, x.properties?.itemOrder ?? Number.MAX_SAFE_INTEGER])
+        .sort((a, b) => a[1] - b[1] || a[0] - b[0]);
+    };
+    const before = (await readOrder()).map(([id]) => id);
+    const wanted = [before[before.length - 1], ...before.slice(0, -1)];
+    await ctx.c.contentMethods.setContentListItemOrder(l.list.referenceName, ctx.guid, ctx.locale, wanted, true);
+    const after = await readOrder();
+    if (after.map(([id]) => id).join() !== wanted.join()) {
+      throw new Error(`${l.list.referenceName} is in order ${after.map(([id]) => id).join(", ")}, not ${wanted.join(", ")}`);
+    }
     return {
       area: "ordering",
-      change: "list-swap",
-      detail: `${l.list.referenceName} #${a.contentID} ↔ #${b.contentID}`,
+      change: "list-reorder",
+      detail: `${l.list.referenceName} #${wanted[0]} moved to the top`,
+      entity: l.list.referenceName,
+      orders: { guid: ctx.guid, items: after },
     };
   },
 
@@ -232,6 +250,25 @@ export const CHANGES = {
     if (published) await ctx.c.contentMethods.unPublishContent(it.contentID, ctx.guid, ctx.locale);
     else await ctx.c.contentMethods.publishContent(it.contentID, ctx.guid, ctx.locale);
     return { area: "content", change: published ? "unpublish" : "publish", detail: `#${it.contentID}` };
+  },
+
+  // A section's display name, not its reference name: a page's zones stay where they are.
+  async "template.section-rename"(ctx) {
+    const all = await ctx.c.pageMethods.getPageTemplates(ctx.guid, ctx.locale, true);
+    const t = ctx.r.pick(all.filter((x) => x.pageTemplateID > 0));
+    if (!t) return null;
+    const full = await ctx.c.pageMethods.getPageTemplate(ctx.guid, ctx.locale, t.pageTemplateID);
+    const s = full?.contentSectionDefinitions?.[0];
+    if (!s) return null;
+    const base = String(s.pageItemTemplateName ?? s.pageItemTemplateReferenceName).replace(/ \(r\d+[st]\)$/, "");
+    s.pageItemTemplateName = `${base} (${tag(ctx)})`;
+    await ctx.c.pageMethods.savePageTemplate(ctx.guid, ctx.locale, full);
+    return {
+      area: "templates",
+      change: "section-rename",
+      detail: `template ${full.pageTemplateName} section ${s.pageItemTemplateReferenceName}`,
+      entity: full.pageTemplateName,
+    };
   },
 
   async "page.edit"(ctx) {
@@ -376,6 +413,14 @@ export const CHANGES = {
 export async function drift(ctx, avoid = new Set()) {
   return CHANGES["content.edit"]({ ...ctx, avoid });
 }
+
+// Drift on the types with no version to compare (PROD-3078): the sync tells which side changed from
+// what it recorded at the last sync. `kind` is the --jsonSummary warning type of a kept change, and
+// `phase` the preflight phase a conflict is reported under.
+export const STRUCTURAL_DRIFTS = [
+  { kind: "listOrder", phase: "List order", change: "content.reorder" },
+  { kind: "template", phase: "Templates", change: "template.section-rename" },
+];
 
 // The same item edited on both sides with different values: a conflict. `avoidDstId` is the item
 // the round's drift edited, so the two checks grade different items.

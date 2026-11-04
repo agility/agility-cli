@@ -1,6 +1,6 @@
 import * as mgmtApi from "@agility/management-sdk";
 import { ApiClient } from "@agility/management-sdk";
-import { getLoggerForGuid, state, recordSavedTarget } from "core/state";
+import { getLoggerForGuid, state, recordSavedTarget, getSavedTarget } from "core/state";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
@@ -69,6 +69,10 @@ export async function pushContainers(
         targetModelID = modelMapping.targetID;
       }
     }
+    // Preflight: a model this run would create has no mapping (nothing is written), but the model
+    // pusher recorded it as planned. Its containers would be created with it, so plan them too.
+    const modelPlanned =
+      state.preflight && targetModelID < 1 && !!getSavedTarget("model", sourceContainer.contentDefinitionID);
 
     try {
       // STEP 1: Find existing mapping
@@ -248,7 +252,7 @@ export async function pushContainers(
 
       if (shouldCreate) {
         // Container doesn't exist - create new one
-        if (targetModelID < 1) {
+        if (targetModelID < 1 && !modelPlanned) {
           logger.container.skipped(sourceContainer, "Target model mapping not found", targetGuid);
           preflightReport.record({
             phase: "Containers",
@@ -258,8 +262,10 @@ export async function pushContainers(
           });
           skipped++;
         } else if (state.preflight) {
-          // Preflight: would create, but skip the write.
+          // Preflight: would create, but skip the write. Record it as planned, so the content phase
+          // plans the container's new items too (hasValidMappings).
           preflightReport.record({ phase: "Containers", action: "create", name: sourceContainer.referenceName });
+          recordSavedTarget("container", sourceContainer.contentViewID, sourceContainer, sourceContainer.referenceName);
           successful++;
         } else {
           // Container doesn't exist - create new one

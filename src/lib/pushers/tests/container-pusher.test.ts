@@ -112,6 +112,43 @@ describe("pushContainers — create path: no model mapping", () => {
     expect(result.skipped).toBe(1);
     expect(saveContainer).not.toHaveBeenCalled();
   });
+
+  it("in preflight, plans the container of a model the run would create, and records it as planned", async () => {
+    const saveContainer = jest.fn();
+    state.cachedApiClient = { containerMethods: { saveContainer } } as any;
+    state.preflight = true;
+    const { recordSavedTarget, getSavedTargetBySourceReferenceName } = await import("core/state");
+    // what the model pusher records for a model it would create (keyed by the source model ID)
+    recordSavedTarget("model", 9998, { id: 9998, referenceName: "NewModel" }, "NewModel");
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    preflightReport.reset();
+
+    const { pushContainers } = await import("../container-pusher");
+    const sourceContainer = makeContainer({ contentDefinitionID: 9998, referenceName: "NewModelList" });
+    const result = await pushContainers([sourceContainer], []);
+
+    expect(saveContainer).not.toHaveBeenCalled();
+    expect(result.successful).toBe(1);
+    expect(preflightReport.getEntries()).toEqual([
+      expect.objectContaining({ phase: "Containers", action: "create", name: "NewModelList" }),
+    ]);
+    expect(getSavedTargetBySourceReferenceName("container", "newmodellist")).toBe(sourceContainer);
+  });
+
+  it("in preflight, still skips a container whose model is neither mapped nor planned", async () => {
+    state.cachedApiClient = { containerMethods: { saveContainer: jest.fn() } } as any;
+    state.preflight = true;
+    const { preflightReport } = await import("lib/preflight/preflight-report");
+    preflightReport.reset();
+
+    const { pushContainers } = await import("../container-pusher");
+    const result = await pushContainers([makeContainer({ contentDefinitionID: 9997 })], []);
+
+    expect(result.skipped).toBe(1);
+    expect(preflightReport.getEntries()).toEqual([
+      expect.objectContaining({ action: "skip", detail: "target model mapping not found" }),
+    ]);
+  });
 });
 
 // ─── pushContainers — special case: contentDefinitionID === 1 ─────────────────

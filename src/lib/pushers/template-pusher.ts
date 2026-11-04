@@ -1,11 +1,38 @@
 import * as mgmtApi from "@agility/management-sdk";
 import { state, getLoggerForGuid, registerHeldBackTemplate, recordSavedTarget } from "../../core/state";
-import { TemplateMapper } from "lib/mappers/template-mapper";
+import { TemplateMapper, templateHash } from "lib/mappers/template-mapper";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { ContainerMapper } from "lib/mappers/container-mapper";
 import { SectionMapper } from "lib/mappers/section-mapper";
 import { FailureDetail, PusherResult } from "types/sourceData";
 import { preflightReport } from "../preflight/preflight-report";
+import { keptTargetChanges } from "./kept-target-changes";
+import { decideSync, fingerprintFields, hasFingerprint, UNRECORDED_UPDATE_DETAIL } from "../shared/sync-fingerprint";
+import ansiColors from "ansi-colors";
+
+/**
+ * Source sections with no counterpart on the target template, by the section ID mapping or by
+ * reference name: the zones translateZoneNames could only place by position or fold into the main
+ * zone. Used when the target's template is left as it is (a kept target change or a conflict).
+ */
+function unresolvedSections(
+  sourceTemplate: mgmtApi.PageModel,
+  targetTemplate: mgmtApi.PageModel,
+  sectionMapper: SectionMapper
+): string[] {
+  const targetSections = targetTemplate.contentSectionDefinitions || [];
+  return (sourceTemplate.contentSectionDefinitions || [])
+    .filter((sourceSection) => {
+      if (!sourceSection) return false;
+      const mapping =
+        sourceSection.pageItemTemplateID != null
+          ? sectionMapper.getSectionMappingByID(sourceSection.pageItemTemplateID, "source")
+          : null;
+      if (mapping && targetSections.some((t) => t?.pageItemTemplateID === mapping.targetPageItemTemplateID)) return false;
+      return !targetSections.some((t) => t?.pageItemTemplateReferenceName === sourceSection.pageItemTemplateReferenceName);
+    })
+    .map((s) => s.pageItemTemplateReferenceName);
+}
 
 
 export async function pushTemplates(
@@ -80,19 +107,82 @@ export async function pushTemplates(
         name: sourceTemplate.pageTemplateName,
         detail: reason,
       });
-      registerHeldBackTemplate(sourceTemplate.pageTemplateName, reason);
+      registerHeldBackTemplate(
+        sourceTemplate.pageTemplateName,
+        `page template ${sourceTemplate.pageTemplateName} is missing on the target and was not recreated (use --overwrite to recreate it)`
+      );
       skipped++;
       processedCount++;
       continue;
     }
 
-    // Templates have no lastModifiedDate, so compare the source and target
-    // structure directly: identical -> skip, different -> update (source wins),
-    // mapped but missing on target (only reached with --overwrite) -> fall through and recreate.
+    // Templates have no version or modified date. Whether the two sides differ is a structural
+    // comparison; which side changed since the last sync comes from the hashes stored in the
+    // mapping (PROD-3078, see sync-fingerprint.ts). A mapping with no hashes yet (older CLI) lets
+    // the source win, as before. Mapped but missing on the target (only reached with --overwrite):
+    // fall through and recreate.
     const templateChanged = templateMapper.hasTemplateChanged(sourceTemplate, targetTemplate, sectionMapper);
+    const sourceHash = templateHash(sourceTemplate);
+    const targetHash = targetTemplate ? templateHash(targetTemplate) : null;
+    const decision =
+      existingMapping && targetTemplate ? decideSync(!templateChanged, sourceHash, targetHash!, existingMapping) : null;
+
+    if ((decision === "keep" || decision === "conflict") && !state.overwrite) {
+      // The target's template stays as it is. Pages that use it are still synced against it,
+      // unless one of the source's zones has no section on it to go to: placing those by
+      // position or folding them into the main zone would move components, so hold them back.
+      const missing = unresolvedSections(sourceTemplate, targetTemplate!, sectionMapper);
+      if (missing.length > 0) {
+        registerHeldBackTemplate(
+          sourceTemplate.pageTemplateName,
+          `page template ${sourceTemplate.pageTemplateName} was ${decision === "keep" ? "changed on the target and kept" : "changed on both sides (a conflict)"}, ` +
+            `and has no section for zone(s) ${missing.join(", ")} (use --overwrite to replace it with the source)`
+        );
+      }
+      const heldBack = missing.length > 0 ? `; pages using it are held back (no section for ${missing.join(", ")})` : "";
+
+      if (decision === "keep") {
+        const change = {
+          type: "template" as const,
+          name: sourceTemplate.pageTemplateName,
+          sourceID: sourceTemplate.pageTemplateID,
+          targetID: targetTemplate!.pageTemplateID,
+        };
+        keptTargetChanges.record(change);
+        console.warn(ansiColors.yellow(keptTargetChanges.formatLine(change)));
+        logger.template.skipped(sourceTemplate, `target changed since the last sync, kept${heldBack}`, targetGuid);
+        preflightReport.record({
+          phase: "Templates",
+          action: "skip",
+          name: sourceTemplate.pageTemplateName,
+          detail: `target changed since the last sync and the source didn't; kept the target's version${heldBack}`,
+        });
+      } else {
+        const reason = `source and target both changed since the last sync; use --overwrite to replace the target${heldBack}`;
+        console.warn(`⚠️  Conflict detected Template ${sourceTemplate.pageTemplateName} — ${reason}`);
+        logger.template.skipped(sourceTemplate, `conflict: ${reason}`, targetGuid);
+        preflightReport.record({
+          phase: "Templates",
+          action: "conflict",
+          name: sourceTemplate.pageTemplateName,
+          detail: `source and target both changed; use --overwrite to force${heldBack}`,
+        });
+      }
+      skipped++;
+      processedCount++;
+      continue;
+    }
 
     const shouldUpdate = existingMapping !== null && targetTemplate !== null && templateChanged;
     const shouldSkip = existingMapping !== null && targetTemplate !== null && !templateChanged;
+    const updateDetail =
+      decision === "update-unrecorded"
+        ? UNRECORDED_UPDATE_DETAIL
+        : decision === "keep"
+          ? "target change overwritten"
+          : decision === "conflict"
+            ? "conflict overwritten"
+            : undefined;
 
     if (shouldSkip) {
       // Backfill the section ID mapping for templates that are already in sync but predate
@@ -131,6 +221,16 @@ export async function pushTemplates(
         }
       }
 
+      // Seed or refresh the hashes: an older mapping gets them here, and two sides edited to the
+      // same structure agree again.
+      if (
+        !hasFingerprint(existingMapping) ||
+        existingMapping.sourceHash !== sourceHash ||
+        existingMapping.targetHash !== targetHash
+      ) {
+        templateMapper.recordFingerprint(existingMapping, fingerprintFields(sourceHash, targetHash!));
+      }
+
       logger.template.skipped(sourceTemplate, "Up to date, skipping", targetGuid);
       preflightReport.record({
         phase: "Templates",
@@ -146,6 +246,7 @@ export async function pushTemplates(
         phase: "Templates",
         action: shouldUpdate ? "update" : "create",
         name: sourceTemplate.pageTemplateName,
+        ...(shouldUpdate && updateDetail ? { detail: updateDetail } : {}),
       });
       successful++;
     }
@@ -210,7 +311,10 @@ export async function pushTemplates(
 
       try {
         const savedTemplate = await apiClient.pageMethods.savePageTemplate(targetGuid, locale, payload);
-        templateMapper.addMapping(sourceTemplate, savedTemplate);
+        // The target's hash comes from what the server saved, not from what was sent: if it
+        // normalises a compared field (renumbering itemOrder, say), hashing the payload would make
+        // the next pull look like a target edit and keep it with a false warning on every run.
+        templateMapper.addMapping(sourceTemplate, savedTemplate, fingerprintFields(sourceHash, templateHash(savedTemplate)));
         // The page pusher translates zone names against this template; the pulled copy lacks any zone added here.
         recordSavedTarget("template", sourceTemplate.pageTemplateID, savedTemplate, sourceTemplate.pageTemplateName);
 

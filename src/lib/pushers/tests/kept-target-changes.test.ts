@@ -67,6 +67,9 @@ describe("keptTargetChanges.headline", () => {
     ["container", "1 container"],
     ["model", "1 model"],
     ["page", "1 page"],
+    ["template", "1 page template"],
+    ["urlRedirection", "1 URL redirection"],
+    ["listOrder", "1 list order"],
   ] as const)("uses the singular label for one %s", (type, label) => {
     keptTargetChanges.record({ type, name: "n", sourceID: 1 });
 
