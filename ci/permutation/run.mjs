@@ -25,6 +25,12 @@
 // Syncs and preflights pass --syncDeletes, so a delete on one side reaches the other.
 // Nothing stops the run early: every round runs and every result is recorded.
 //
+// A check is skipped, not failed, when the Fetch API never showed a change it depends on: the
+// environment didn't deliver what the sync reads, so the check can't grade the CLI. That covers a
+// wait for the Fetch API that times out, a later drift:listOrder on a list whose earlier change never
+// showed, and a verify whose only differences are list orders the CLI itself reports as not in the
+// Fetch API yet. A skip never fails the run.
+//
 // Env: SOURCE_GUID, TARGET_GUID, AGILITY_TOKEN, CLI (command for the CLI under test),
 //      TIER (quick|beta|nightly), SEED (default random, printed), LOCALE (default en-us),
 //      OUT_DIR (default ./permutation-out). Exit 0 when every check passes, 1 otherwise.
@@ -81,10 +87,27 @@ function cli(step, args) {
   return { exitCode: p.status ?? -1, json, seconds: Math.round((Date.now() - started) / 1000) };
 }
 
+// `pass` is true, false, or SKIP (the environment, not the CLI; see the header)
+const SKIP = "skip";
+const icon = (pass) => (pass === SKIP ? "⏭️" : pass ? "✅" : "❌");
 function record(round, direction, check, pass, detail, seconds = 0) {
   results.push({ round, direction, check, pass, detail, seconds });
-  console.log(`${pass ? "✅" : "❌"} [r${round} ${direction}] ${check}: ${detail}`);
+  console.log(`${icon(pass)} [r${round} ${direction}] ${check}: ${detail}`);
 }
+
+// A wait for the Fetch API that ran out of time (fixtures.mjs throws these): a skip, not a failure.
+// Any other error is still a failure.
+const FETCH_TIMEOUT = /in the Fetch API after \d+s|Fetch API still (behind|shows the old order)/;
+function recordApplyError(round, direction, check, e) {
+  const message = String(e?.message ?? e).slice(0, 200);
+  const lagged = FETCH_TIMEOUT.test(message);
+  record(round, direction, check, lagged ? SKIP : false, lagged ? `environment: ${message}` : message);
+  return lagged;
+}
+
+// Lists (lowercased reference names) with a change the Fetch API never showed. The CLI rightly treats
+// such a list as pending until it does, so its later list-order checks can't grade the CLI.
+const fetchStale = new Set();
 
 // Content ID on the other instance, from the sync's own mapping file (one file serves both directions).
 function mapped(fromSourceSide) {
@@ -171,7 +194,28 @@ async function checkStep(round, direction) {
     { 0: "match", 1: `${findings.length || "some"} differences${kinds ? ` (${kinds})` : ""}`, 2: "could not verify" }[
       v.exitCode
     ] ?? `exit ${v.exitCode}`;
-  record(round, direction, "verify", v.exitCode === 0, `${outcome}${later}`, v.seconds);
+  // Lists the no-op preflight holds back because the last sync's change isn't in the Fetch API yet.
+  // A verify whose only differences are those lists' order is the environment, not the CLI.
+  const pending = new Set(
+    (n.json?.preflight?.entries ?? [])
+      .filter((e) => e.action === "skip" && /isn't in the Fetch API yet/.test(e.detail ?? ""))
+      .map((e) => String(e.name).toLowerCase())
+  );
+  const onlyPending =
+    v.exitCode === 1 &&
+    findings.length > 0 &&
+    findings.every((x) => x.category === "listOrderMismatch" && pending.has(String(x.name).toLowerCase()));
+  if (onlyPending) for (const x of findings) fetchStale.add(String(x.name).toLowerCase());
+  record(
+    round,
+    direction,
+    "verify",
+    v.exitCode === 0 || (onlyPending ? SKIP : false),
+    onlyPending
+      ? `environment: ${outcome}, all in lists the CLI reports as not in the Fetch API yet${later}`
+      : `${outcome}${later}`,
+    v.seconds
+  );
   record(
     round,
     direction,
@@ -298,7 +342,7 @@ for (let i = 0; i < plan.length; i++) {
         applied.push({ name: `drift:${d.kind}`, ...did, area: "drift" });
       } else console.log(`  (skipped drift:${d.kind}: nothing it applies to)`);
     } catch (e) {
-      record(round, direction, `apply:drift:${d.kind}`, false, String(e?.message ?? e).slice(0, 200));
+      recordApplyError(round, direction, `apply:drift:${d.kind}`, e);
     }
   }
 
@@ -310,7 +354,8 @@ for (let i = 0; i < plan.length; i++) {
         applied.push({ name: "drift:urlRedirection", ...did, area: "drift" });
       } else record(round, direction, "apply:drift:urlRedirection", false, `${redirection.originUrl} isn't on ${to}`);
     } catch (e) {
-      record(round, direction, "apply:drift:urlRedirection", false, String(e?.message ?? e).slice(0, 200));
+      // The edit was saved but never showed: no drift:urlRedirection check this round
+      recordApplyError(round, direction, "apply:drift:urlRedirection", e);
     }
   }
 
@@ -335,7 +380,7 @@ for (let i = 0; i < plan.length; i++) {
       const waited = await waitForFetchVersions(AGILITY_TOKEN, guid, LOCALE, changed);
       if (changed.size) console.log(`  Fetch API showed ${changed.size} edited item(s) on ${guid} after ${waited}s`);
     } catch (e) {
-      record(round, direction, "apply:fetch-catch-up", false, String(e?.message ?? e).slice(0, 200));
+      recordApplyError(round, direction, "apply:fetch-catch-up", e);
     }
   }
   // A list swap's new order shows in the Fetch API later than the items' new versions
@@ -344,7 +389,7 @@ for (let i = 0; i < plan.length; i++) {
       const waited = await waitForFetchItemOrder(AGILITY_TOKEN, a.orders.guid, LOCALE, a.orders.items);
       console.log(`  Fetch API showed the new order of ${a.entity ?? a.detail} on ${a.orders.guid} after ${waited}s`);
     } catch (e) {
-      record(round, direction, "apply:fetch-order", false, String(e?.message ?? e).slice(0, 200));
+      if (recordApplyError(round, direction, "apply:fetch-order", e) && a.entity) fetchStale.add(a.entity.toLowerCase());
     }
   }
 
@@ -395,16 +440,19 @@ for (let i = 0; i < plan.length; i++) {
   for (const d of structural) {
     const warned = keptByType(d.kind, d.entity);
     const conflicted = conflictIn(d.phase, d.entity);
+    const stale = d.kind === "listOrder" && fetchStale.has(String(d.entity).toLowerCase());
     record(
       round,
       direction,
       `drift:${d.kind}`,
-      warned || conflicted,
+      warned || conflicted || (stale ? SKIP : false),
       warned
         ? `${d.entity}: kept, with a target-changed warning`
         : conflicted
           ? `${d.entity}: reported as a conflict (the round's own changes touched it too)`
-          : `${d.entity}: the other side's edit was overwritten without --overwrite, or not seen`
+          : stale
+            ? `${d.entity}: environment: an earlier change to this list never showed in the Fetch API, so the CLI treats it as pending`
+            : `${d.entity}: the other side's edit was overwritten without --overwrite, or not seen`
     );
     kept ||= warned || conflicted;
   }
@@ -425,11 +473,12 @@ writeFileSync(
   JSON.stringify({ cliVersion, tier: TIER, seed: SEED, source: A, target: B, rounds, results }, null, 2)
 );
 
-const failed = results.filter((x) => !x.pass);
+const failed = results.filter((x) => x.pass === false);
+const skipped = results.filter((x) => x.pass === SKIP);
 const md = [
   `### Sync permutation test: CLI ${cliVersion}, tier ${TIER}, seed ${SEED}`,
   "",
-  `A \`${A}\` ↔ B \`${B}\`: ${results.length} checks, **${failed.length} failed**. Replay with \`SEED=${SEED} TIER=${TIER}\`.`,
+  `A \`${A}\` ↔ B \`${B}\`: ${results.length} checks, **${failed.length} failed**${skipped.length ? `, ${skipped.length} skipped (the Fetch API never showed a change)` : ""}. Replay with \`SEED=${SEED} TIER=${TIER}\`.`,
   "",
   "| Round | Direction | Changes |",
   "|---|---|---|",
@@ -439,7 +488,7 @@ const md = [
   "|---|---|---|---|---|---|",
   ...results.map(
     (x) =>
-      `| ${x.round} | ${x.direction} | ${x.check} | ${x.pass ? "✅" : "❌"} | ${String(x.detail).replace(/\|/g, "\\|")} | ${x.seconds}s |`
+      `| ${x.round} | ${x.direction} | ${x.check} | ${icon(x.pass)} |${String(x.detail).replace(/\|/g, "\\|")} | ${x.seconds}s |`
   ),
   "",
 ].join("\n");
