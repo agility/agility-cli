@@ -82,12 +82,20 @@ every sync it checks:
 Nothing stops a run early: every round runs, and each check is a row in the job summary. The JSON
 results are kept as an artifact for 30 days.
 
+A check is **skipped** (⏭️), not failed, when the Fetch API never showed a change it depends on, so it
+can't grade the CLI: a wait for the Fetch API that times out, a later `drift:listOrder` on a list whose
+earlier change never showed, and a `verify` whose only differences are list orders the CLI's own
+preflight reports as "not in the Fetch API yet". Skips are counted in the summary and never fail the
+run. (On dev, a list reorder or redirection edit saved while that instance's push holds its lease can
+be dropped by Repo Push and never reach the Fetch API.)
+
 ## Promotion to `latest`
 
 A `v*` tag push runs this test on the tag's build first, and `npm-publish.yml` publishes to npm
 (under `beta`) only if it passed, so every version on npm from then on has passed it. If it failed
-for a reason unrelated to the CLI, re-run the failed jobs of that tag's _Publish to npm_ run: the
-test runs again on fresh instances, then the publish. Promote a published version to `latest` with
+for a reason unrelated to the CLI, re-run **all jobs** of that tag's _Publish to npm_ run: the test
+runs again on fresh instances, then the publish. (Re-running only the failed jobs reuses the leases
+the first attempt already released, and fails.) Promote a published version to `latest` with
 _Publish to npm_ → _Run workflow_.
 
 ## Cleanup
