@@ -55,6 +55,18 @@ export type PageProcessResult = {
   conflict?: boolean;
 };
 
+/**
+ * PROD-3113: in preflight, the target page each source page would be mapped to under --overwrite.
+ * Preflight writes no mapping rows, so without this a child of such a page would find no target
+ * parent, and be planned as a create instead of being mapped to the target page under it.
+ */
+const plannedTargetPageIDs = new Map<number, number>();
+
+/** Clear the preflight's planned mappings; called at the start of each locale's page push. */
+export function resetPlannedPageMappings(): void {
+  plannedTargetPageIDs.clear();
+}
+
 export async function processPage({
   channel,
   page,
@@ -137,8 +149,11 @@ export async function processPage({
     let targetParentPageID = -1;
     if (parentPageID && parentPageID > 0) {
       const parentMapping = pageMapper.getPageMappingByPageID(parentPageID, "source");
+      const plannedParentID = state.preflight ? plannedTargetPageIDs.get(parentPageID) : undefined;
       if ((parentMapping?.targetPageID || 0) > 0) {
         targetParentPageID = parentMapping.targetPageID;
+      } else if (plannedParentID) {
+        targetParentPageID = plannedParentID;
       } else if (!state.preflight) {
         const error = parentNotOnTargetError(parentPageID);
         logger.page.error(page, `✗ Page "${page.name}" ${error}`, locale, channel, targetGuid);
@@ -791,6 +806,7 @@ async function adoptTargetPage({
       locale,
       detail: `${mappedDetail} and replacing it with the source (--overwrite)`,
     });
+    plannedTargetPageIDs.set(page.pageID, candidate.pageID);
     return { result: { status: "success", adopted: true } };
   }
 

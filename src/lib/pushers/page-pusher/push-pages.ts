@@ -4,6 +4,7 @@ import { FailureDetail, PusherResult } from "../../../types/sourceData";
 import { SitemapHierarchy } from "lib/pushers/page-pusher/sitemap-hierarchy";
 import { PageMapper } from "lib/mappers/page-mapper";
 import { processSitemap, resetProcessedPageIDs } from "./process-sitemap";
+import { resetPlannedPageMappings } from "./process-page";
 import ansiColors from "ansi-colors";
 
 export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string): Promise<PusherResult> {
@@ -27,6 +28,7 @@ export async function pushPages(sourceData: mgmtApi.PageItem[], locale: string):
 
   // Reset processed page IDs tracking for this locale
   resetProcessedPageIDs();
+  resetPlannedPageMappings();
 
   const sitemaps = sitemapHierarchy.loadAllSitemaps(sourceGuid, locale);
   const channels = Object.keys(sitemaps);
