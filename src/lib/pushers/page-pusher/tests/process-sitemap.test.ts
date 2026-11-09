@@ -512,12 +512,12 @@ describe("processSitemap — parent not on the target (PROD-3113)", () => {
     expect(mockProcessPage.mock.calls[1][0].parentPageID).toBe(30);
   });
 
-  it("saves the children of a parent that was adopted", async () => {
-    // A real adoption writes the mapping row; the mapper reports it once processPage returns.
+  it("saves the children of a parent mapped with --overwrite", async () => {
+    // Mapping it writes the row; the mapper reports it once processPage returns.
     const mapper = mapperWith([]);
     mockProcessPage.mockImplementationOnce(async () => {
       mapper.getPageMappingByPageID.mockImplementation((id: number) => (id === 30 ? { targetPageID: 70 } : null));
-      return { status: "skip", adopted: true };
+      return { status: "success" };
     });
     await processSitemap(
       makeProps({
@@ -529,7 +529,22 @@ describe("processSitemap — parent not on the target (PROD-3113)", () => {
     expect(mockProcessPage).toHaveBeenCalledTimes(2);
   });
 
-  it("in preflight, plans the children of a parent it plans to create or adopt", async () => {
+  it("skips the children of a parent in conflict, without failing them", async () => {
+    mockProcessPage.mockResolvedValueOnce({ status: "skip", conflict: true });
+    const result = await processSitemap(
+      makeProps({
+        pageMapper: mapperWith([]),
+        sitemapNodes: [makeNode(30, [makeNode(31)])],
+        sourcePages: [makePage(30), makePage(31)],
+      })
+    );
+    expect(mockProcessPage).toHaveBeenCalledTimes(1);
+    expect(result.skipped).toBe(2);
+    expect(result.failed).toBe(0);
+    expect(result.failureDetails).toHaveLength(0);
+  });
+
+  it("in preflight, plans the children of a parent it plans to create or map", async () => {
     setState({ preflight: true });
     mockProcessPage
       .mockResolvedValueOnce({ status: "success" })

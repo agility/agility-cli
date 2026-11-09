@@ -23,6 +23,7 @@ const pages = [
 describe("findSameNamedTargetPage", () => {
   it("finds a root page, case-insensitively", () => {
     expect(findSameNamedTargetPage(pages, -1, "Events")).toEqual({
+      path: "/events",
       pageID: 70,
       pageName: "events",
       pageType: "Container",
@@ -67,5 +68,12 @@ describe("pageTypesDiffer", () => {
     expect(pageTypesDiffer("dynamic", "Template")).toBe(false);
     expect(pageTypesDiffer("static", null)).toBe(false);
     expect(pageTypesDiffer("static", "Something")).toBe(false);
+  });
+});
+
+describe("findSameNamedTargetPage — path", () => {
+  it("gives the full target path", () => {
+    expect(findSameNamedTargetPage(pages, 70, "signup")?.path).toBe("/events/signup");
+    expect(findSameNamedTargetPage(pages, 75, "leaf")?.path).toBe("/events/deep/leaf");
   });
 });

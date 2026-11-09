@@ -1,11 +1,12 @@
 /**
- * PROD-3113 / PROD-3026: find a target page that a new source page would clash with.
+ * PROD-3113 / PROD-3026: find the target page at a new source page's path.
  *
  * The server refuses a page whose name is already used at the same level ("There is already a page
  * at this level with the same name"). When a source page has no mapping row, the sync used to try
- * to create it anyway and fail. Instead the page pusher looks for that same-named page here, in the
- * management API sitemap of the target, and adopts it (writes the mapping row) the way containers
- * and models are adopted by reference name.
+ * to create it anyway and fail. Instead the page pusher looks for that page here, in the target's
+ * management API sitemap, and reports it as a conflict, or with --overwrite maps it and updates it.
+ * Parents are resolved through their mapping rows first, so a name match at the mapped parent's
+ * level is a match by path.
  */
 
 /** The parts of a management API sitemap node (SitemapItem) this lookup reads. */
@@ -22,6 +23,8 @@ export interface TargetPageCandidate {
   pageName: string;
   /** The management sitemap's type: "Template" (static), "Container" (folder) or "Custom" (link). */
   pageType: string | null;
+  /** Full path on the target, from the page names, e.g. "/company/about-us". */
+  path: string;
 }
 
 // Page file pageType → management sitemap pageType, both lowercased. Dynamic pages and anything
@@ -50,23 +53,25 @@ export function findSameNamedTargetPage(
 
   const visit = (
     nodes: (TargetSitemapNode | null)[] | null | undefined,
-    treeParentID: number
+    treeParentID: number,
+    parentPath: string
   ): TargetPageCandidate | null => {
     for (const node of nodes || []) {
       if (!node || !node.pageID || node.pageID <= 0) continue;
       // Root nodes carry parentPageID -1; fall back to the tree position when it's missing.
       const nodeParentID = node.parentPageID ?? treeParentID;
+      const path = `${parentPath}/${node.pageName ?? ""}`;
       const atLevel = wantRoot ? !(nodeParentID > 0) : nodeParentID === targetParentPageID;
       if (atLevel && node.pageName?.toLowerCase() === wanted) {
-        return { pageID: node.pageID, pageName: node.pageName, pageType: node.pageType ?? null };
+        return { pageID: node.pageID, pageName: node.pageName, pageType: node.pageType ?? null, path };
       }
-      const found = visit(node.childPages, node.pageID);
+      const found = visit(node.childPages, node.pageID, path);
       if (found) return found;
     }
     return null;
   };
 
-  return visit(channelPages, -1);
+  return visit(channelPages, -1, "");
 }
 
 /**
