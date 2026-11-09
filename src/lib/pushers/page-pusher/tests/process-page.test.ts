@@ -2,7 +2,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { resetState, setState, registerFailedContent, clearFailedContentRegistry } from "core/state";
-import { processPage, countModulesReferencingFailedContent } from "../process-page";
+import { processPage, countModulesReferencingFailedContent, resetPlannedPageMappings } from "../process-page";
 import { preflightReport } from "lib/preflight/preflight-report";
 
 // Mock all modules that make real network or disk calls from within processPage
@@ -1121,6 +1121,33 @@ describe("processPage — a target page already at the path, with no mapping (PR
     const entry = preflightReport.getEntries().find((e) => e.name === "events");
     expect(entry?.action).toBe("update");
     expect(entry?.detail).toContain("/events already exists on the target with no mapping");
+  });
+
+  it("in preflight with --overwrite, plans the child of a page it maps as mapped too", async () => {
+    preflightReport.reset();
+    setState({ preflight: true });
+    resetPlannedPageMappings();
+    const pageMapper = mapperWithRows([]);
+    const apiClient = apiWithTarget();
+    await processPage(makeProps({ page: folder(), pageMapper, apiClient, overwrite: true }));
+
+    // The child's parent (30) has no mapping row in preflight, but it is planned to map to 70.
+    const child = makePage({ pageID: 31, name: "signup", pageType: "link", templateName: null });
+    const result = await processPage(
+      makeProps({ page: child, pageMapper, apiClient, overwrite: true, parentPageID: 30 })
+    );
+    expect(result).toEqual({ status: "success", adopted: true });
+    const entry = preflightReport.getEntries().find((e) => e.name === "signup");
+    expect(entry?.action).toBe("update");
+    expect(entry?.detail).toContain(
+      "/events/signup already exists on the target with no mapping (source page 31, target page 71)"
+    );
+
+    // A new page's planned mapping doesn't leak into the next locale's push.
+    resetPlannedPageMappings();
+    preflightReport.reset();
+    await processPage(makeProps({ page: child, pageMapper, apiClient, overwrite: true, parentPageID: 30 }));
+    expect(preflightReport.getEntries().find((e) => e.name === "signup")?.action).toBe("create");
   });
 
   it("in preflight without --overwrite, reports the conflict", async () => {
