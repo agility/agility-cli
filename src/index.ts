@@ -39,13 +39,18 @@ import { WorkflowOperation } from "./lib/workflows";
 
 import { initializeLogger, getLogger, finalizeLogger } from "./core/state";
 import { emitAbortSummary } from "./core/json-summary";
+import { registerManageCommand } from "./manage/command";
 
 let auth: Auth;
 
 // TODO: Do not hardcode this
 yargs.exitProcess(false);
 
-console.log(colors.yellow("Welcome to Agility CLI."));
+// The API commands keep stdout for their result, so `agility manage ... | jq` works.
+const API_COMMANDS = ["manage"];
+if (API_COMMANDS.indexOf(process.argv[2]) === -1) {
+  console.log(colors.yellow("Welcome to Agility CLI."));
+}
 
 // Default command - shows instructions when no command is provided
 yargs.command({
@@ -64,6 +69,9 @@ yargs.command({
     );
     console.log(
       colors.white("  workflowOperation - Perform workflow operations (publish, unpublish, approve, decline)")
+    );
+    console.log(
+      colors.white("  manage            - Call the Management API directly: agility manage <resource> <action>")
     );
     console.log(colors.white("\nFor more information, use: --help"));
     console.log("");
@@ -308,6 +316,9 @@ async function runPushCommand(argv: any, mode: "push" | "sync" | "reverse-sync")
     process.exit(1);
   }
 }
+
+// Management API command - every SDK call as `agility manage <resource> <action>`
+registerManageCommand(yargs);
 
 // Workflow operation command - performs workflow operations on content/pages from existing mappings
 yargs.command({
