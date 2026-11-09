@@ -324,7 +324,11 @@ describe("processPage — page changed on the target", () => {
       hasSourceChanged: jest.fn().mockReturnValue(opts.sourceChanged),
       hasTargetChanged: jest.fn().mockReturnValue(opts.targetChanged),
     });
-    const props = makeProps({ pageMapper, overwrite: !!opts.overwrite, page: makePage({ pageID: 1, name: "About Us" }) });
+    const props = makeProps({
+      pageMapper,
+      overwrite: !!opts.overwrite,
+      page: makePage({ pageID: 1, name: "About Us" }),
+    });
     const result = await processPage(props);
     const entry = preflightReport.getEntries().find((e) => e.name === "About Us");
     return { result, entry, kept: keptTargetChanges, pageMapper, props };
@@ -358,7 +362,9 @@ describe("processPage — page changed on the target", () => {
     const { result, entry, kept } = await run({ sourceChanged: true, targetChanged: "changed" });
 
     expect(result.status).toBe("skip");
-    expect(entry).toEqual(expect.objectContaining({ action: "conflict", detail: "changes detected in both source and target" }));
+    expect(entry).toEqual(
+      expect.objectContaining({ action: "conflict", detail: "changes detected in both source and target" })
+    );
     expect(kept.hasEntries()).toBe(false);
   });
 
@@ -366,7 +372,9 @@ describe("processPage — page changed on the target", () => {
     const { result, entry, kept } = await run({ sourceChanged: false, targetChanged: "file_missing" });
 
     expect(result.status).toBe("skip");
-    expect(entry).toEqual(expect.objectContaining({ action: "conflict", detail: expect.stringMatching(/cannot verify/) }));
+    expect(entry).toEqual(
+      expect.objectContaining({ action: "conflict", detail: expect.stringMatching(/cannot verify/) })
+    );
     expect(kept.hasEntries()).toBe(false);
   });
 
@@ -476,17 +484,27 @@ describe("processPage — successful batch save", () => {
         getMappedEntity: jest.fn().mockReturnValue({ contentSectionDefinitions: [] }),
       }));
       mockPoll.mockResolvedValue({ failedItems: [], successItems: [makePage({ pageID: 200 })] });
-      mockExtract.mockReturnValue({ successfulItems: [{ newId: 200, newItem: { processedItemVersionID: 5 } }], failedItems: [] });
-      const props = makeProps({ page, pageMapper: makePageMapper({ hasSourceChanged: jest.fn().mockReturnValue(true) }) });
+      mockExtract.mockReturnValue({
+        successfulItems: [{ newId: 200, newItem: { processedItemVersionID: 5 } }],
+        failedItems: [],
+      });
+      const props = makeProps({
+        page,
+        pageMapper: makePageMapper({ hasSourceChanged: jest.fn().mockReturnValue(true) }),
+      });
       return processPage(props).then(() => props.apiClient.pageMethods.savePage.mock.calls[0][0].title);
     }
 
     it("sends a dynamic page's empty title as empty, not its name", async () => {
-      await expect(savedTitle(makePage({ pageType: "dynamic", name: "posts-dynamic", title: null, menuText: "Posts" }))).resolves.toBe("");
+      await expect(
+        savedTitle(makePage({ pageType: "dynamic", name: "posts-dynamic", title: null, menuText: "Posts" }))
+      ).resolves.toBe("");
     });
 
     it("sends a dynamic page's own title when it has one", async () => {
-      await expect(savedTitle(makePage({ pageType: "dynamic", name: "posts-dynamic", title: "Posts" }))).resolves.toBe("Posts");
+      await expect(savedTitle(makePage({ pageType: "dynamic", name: "posts-dynamic", title: "Posts" }))).resolves.toBe(
+        "Posts"
+      );
     });
 
     it("keeps a static page without a title untitled too, rather than taking its menu text or name", async () => {
@@ -946,5 +964,152 @@ describe("countModulesReferencingFailedContent (PROD-2542)", () => {
     expect(countModulesReferencingFailedContent(page, "en-us")).toBe(2);
     expect(countModulesReferencingFailedContent(page, "es-us")).toBe(1);
     expect(countModulesReferencingFailedContent(makePage({ zones: undefined }), "en-us")).toBe(0);
+  });
+});
+
+// ─── PROD-3113: unmapped parent, and adopting a same-named target page ──────
+
+describe("processPage — parent not on the target (PROD-3113)", () => {
+  it("fails instead of saving the page at the root", async () => {
+    const props = makeProps({ parentPageID: 30 }); // mapper has no row for 30
+    const result = await processPage(props);
+    expect(result.status).toBe("failure");
+    expect(result.error).toContain("source page 30");
+    expect(props.apiClient.pageMethods.savePage).not.toHaveBeenCalled();
+  });
+
+  it("in preflight, plans the page under a parent preflight plans to create", async () => {
+    preflightReport.reset();
+    setState({ preflight: true });
+    const result = await processPage(makeProps({ parentPageID: 30 }));
+    expect(result.status).toBe("success");
+    expect(preflightReport.getEntries().find((e) => e.name === "Test Page")?.action).toBe("create");
+  });
+});
+
+describe("processPage — adopting a same-named target page (PROD-3113 / PROD-3026)", () => {
+  // Target sitemap: a "events" folder (70) at the root, with "signup" (71) under it.
+  const targetSitemap = [
+    {
+      name: "website",
+      digitalChannelID: 1,
+      pages: [
+        { pageID: 5, parentPageID: -1, pageName: "home", pageType: "Template", childPages: [] },
+        {
+          pageID: 70,
+          parentPageID: -1,
+          pageName: "events",
+          pageType: "Container",
+          childPages: [{ pageID: 71, parentPageID: 70, pageName: "signup", pageType: "Custom", childPages: [] }],
+        },
+      ],
+    },
+  ];
+  const folder = () => makePage({ pageID: 30, name: "events", pageType: "folder", templateName: null });
+  const targetPage = (pageID: number, versionID: number) => ({
+    pageID,
+    name: "x",
+    properties: { state: 2, versionID },
+  });
+
+  function apiWithTarget(target: any = targetPage(70, 7)): any {
+    const api = makeApiClient(targetSitemap);
+    api.pageMethods.getPage = jest.fn().mockResolvedValue(target);
+    return api;
+  }
+
+  // Mapper whose rows are the given [sourceID, targetID] pairs; addMapping adds to them.
+  function mapperWithRows(rows: Array<[number, number]>): any {
+    const find = (id: number, type: string) => {
+      const row = rows.find(([s, t]) => (type === "source" ? s : t) === id);
+      return row ? { sourcePageID: row[0], targetPageID: row[1], sourceVersionID: 0, targetVersionID: 7 } : null;
+    };
+    return makePageMapper({
+      getPageMapping: jest.fn((p: any, type: string) => find(p.pageID, type)),
+      getPageMappingByPageID: jest.fn(find),
+      getMappedEntity: jest.fn((m: any) => (m ? targetPage(m.targetPageID, 7) : null)),
+      addMapping: jest.fn((s: any, t: any) => rows.push([s.pageID, t.pageID])),
+    });
+  }
+
+  it("adopts the root page with the same name, writes the mapping row and keeps the target's version", async () => {
+    const pageMapper = mapperWithRows([]);
+    const apiClient = apiWithTarget();
+    const result = await processPage(makeProps({ page: folder(), pageMapper, apiClient }));
+
+    expect(result).toEqual({ status: "skip", adopted: true });
+    expect(apiClient.pageMethods.getPage).toHaveBeenCalledWith(70, "tgt", "en-us");
+    expect(pageMapper.addMapping).toHaveBeenCalledWith(expect.objectContaining({ pageID: 30 }), targetPage(70, 7));
+    expect(apiClient.pageMethods.savePage).not.toHaveBeenCalled();
+  });
+
+  it("matches the name case-insensitively and only at the page's own level", async () => {
+    // signup exists under 70, not at the root: a root-level signup is created as normal.
+    const rootPage = makePage({ pageID: 31, name: "Signup", pageType: "link", templateName: null });
+    const pageMapper = mapperWithRows([]);
+    const apiClient = apiWithTarget();
+    mockExtract.mockReturnValue({ successfulItems: [{ newId: 200, newItem: {} }], failedItems: [] });
+    await processPage(makeProps({ page: rootPage, pageMapper, apiClient }));
+    expect(apiClient.pageMethods.getPage).not.toHaveBeenCalled();
+    expect(apiClient.pageMethods.savePage).toHaveBeenCalled();
+
+    // Under its mapped parent (30 → 70) it's adopted.
+    const childMapper = mapperWithRows([[30, 70]]);
+    const childApi = apiWithTarget(targetPage(71, 8));
+    const result = await processPage(
+      makeProps({ page: rootPage, pageMapper: childMapper, apiClient: childApi, parentPageID: 30 })
+    );
+    expect(result).toEqual({ status: "skip", adopted: true });
+    expect(childApi.pageMethods.getPage).toHaveBeenCalledWith(71, "tgt", "en-us");
+  });
+
+  it("with --overwrite, adopts the page and updates it from the source, under the same parent", async () => {
+    const pageMapper = mapperWithRows([]);
+    const apiClient = apiWithTarget();
+    mockExtract.mockReturnValue({ successfulItems: [{ newId: 70, newItem: {} }], failedItems: [] });
+    const result = await processPage(makeProps({ page: folder(), pageMapper, apiClient, overwrite: true }));
+
+    expect(result.status).toBe("success");
+    // First row is the dirty adoption row (source version 0) so the update pushes the source.
+    expect(pageMapper.addMapping.mock.calls[0][0].properties.versionID).toBe(0);
+    const [payload, , , parentArg, placeBeforeArg] = apiClient.pageMethods.savePage.mock.calls[0];
+    expect(payload.pageID).toBe(70);
+    expect(parentArg).toBe(-1);
+    expect(placeBeforeArg).toBe(-1);
+  });
+
+  it("refuses a same-named target page that is mapped to another source page", async () => {
+    const pageMapper = mapperWithRows([[42, 70]]);
+    const apiClient = apiWithTarget();
+    const result = await processPage(makeProps({ page: folder(), pageMapper, apiClient }));
+    expect(result.status).toBe("failure");
+    expect(result.error).toContain("mapped to source page 42");
+    expect(pageMapper.addMapping).not.toHaveBeenCalled();
+    expect(apiClient.pageMethods.savePage).not.toHaveBeenCalled();
+  });
+
+  it("refuses a same-named target page of a different type", async () => {
+    const staticPage = makePage({ pageID: 30, name: "events", pageType: "static" });
+    const pageMapper = mapperWithRows([]);
+    const apiClient = apiWithTarget();
+    const result = await processPage(makeProps({ page: staticPage, pageMapper, apiClient }));
+    expect(result.status).toBe("failure");
+    expect(result.error).toContain("a folder named");
+    expect(result.error).toContain("it's a static page");
+    expect(pageMapper.addMapping).not.toHaveBeenCalled();
+  });
+
+  it("in preflight, reports the adoption and writes nothing", async () => {
+    preflightReport.reset();
+    setState({ preflight: true });
+    const pageMapper = mapperWithRows([]);
+    const apiClient = apiWithTarget();
+    const result = await processPage(makeProps({ page: folder(), pageMapper, apiClient }));
+    expect(result).toEqual({ status: "skip", adopted: true });
+    expect(pageMapper.addMapping).not.toHaveBeenCalled();
+    expect(apiClient.pageMethods.getPage).not.toHaveBeenCalled();
+    const entry = preflightReport.getEntries().find((e) => e.name === "events");
+    expect(entry?.action).toBe("skip");
+    expect(entry?.detail).toContain("adopted existing target page 70");
   });
 });

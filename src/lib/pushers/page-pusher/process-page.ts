@@ -18,6 +18,13 @@ import {
 import { FailureDetail, PageModuleExtended } from "types/sourceData";
 import { preflightReport } from "../../preflight/preflight-report";
 import { keptTargetChanges } from "../kept-target-changes";
+import { fileOperations } from "../../../core";
+import {
+  findSameNamedTargetPage,
+  pageTypesDiffer,
+  sitemapTypeLabel,
+  TargetPageCandidate,
+} from "./find-same-named-target-page";
 
 interface Props {
   channel: string;
@@ -40,6 +47,9 @@ export type PageProcessResult = {
   // PROD-2316: non-blocking notices for modules dropped from this page because their content
   // couldn't be resolved on the target. The page itself still pushes.
   warnings?: FailureDetail[];
+  // PROD-3113: the page wasn't created or updated, but an existing same-named target page was
+  // adopted for it (in preflight: would be), so its child pages have somewhere to go.
+  adopted?: boolean;
 };
 
 export async function processPage({
@@ -103,9 +113,66 @@ export async function processPage({
       sourceTemplate = templateMapper.getMappedEntity(templateRef, "source") as mgmtApi.PageModel;
     }
 
+    // Get channel ID from target instance sitemap (not from existing page which may be invalid)
+    const sitemap = await apiClient.pageMethods.getSitemap(targetGuid, locale);
+
+    //TODO: this is NOT using the channel reference name properly since we don't get that from the mgmt api
+    //TODO: we need to add the channel reference name to the mgmt API for a proper lookup here..
+    const websiteChannel = sitemap?.find((channelObj) => channelObj.name?.toLowerCase() === channel.toLowerCase());
+    const targetChannel = websiteChannel || sitemap?.[0];
+    if (websiteChannel) {
+      channelID = websiteChannel.digitalChannelID;
+    } else {
+      channelID = sitemap?.[0]?.digitalChannelID || 1; // Fallback to first channel or default
+    }
+
+    // PROD-3113: the target page this page goes under. A source parent with no mapping row means
+    // the parent was never created or adopted on the target (it failed, or was skipped). Saving
+    // this page anyway would put it at the root - a duplicate when the target already has it
+    // under the right parent. Preflight never writes mappings, so a parent it plans to create
+    // has none yet; that's expected there.
+    let targetParentPageID = -1;
+    if (parentPageID && parentPageID > 0) {
+      const parentMapping = pageMapper.getPageMappingByPageID(parentPageID, "source");
+      if ((parentMapping?.targetPageID || 0) > 0) {
+        targetParentPageID = parentMapping.targetPageID;
+      } else if (!state.preflight) {
+        const error = parentNotOnTargetError(parentPageID);
+        logger.page.error(page, `✗ Page "${page.name}" ${error}`, locale, channel, targetGuid);
+        return { status: "failure", error };
+      }
+    }
+
     //get the existing page from the target instance
-    const pageMapping = pageMapper.getPageMapping(page, "source");
+    let pageMapping = pageMapper.getPageMapping(page, "source");
     existingPage = pageMapper.getMappedEntity(pageMapping, "target");
+
+    // PROD-3113 / PROD-3026: no mapping row, but the target already has a page with this name at
+    // this level (made by hand, or by a sync whose mappings were lost). Creating it would fail on
+    // the server's same-name check, so adopt that page instead and write the mapping row.
+    // Under a parent that preflight plans to create, there is nothing on the target to adopt.
+    const parentExistsOnTarget = !(parentPageID > 0) || targetParentPageID > 0;
+    if (!pageMapping && parentExistsOnTarget) {
+      const candidate = findSameNamedTargetPage(targetChannel?.pages as any, targetParentPageID, page.name);
+      if (candidate) {
+        const adoption = await adoptTargetPage({
+          page,
+          candidate,
+          apiClient,
+          pageMapper,
+          targetGuid,
+          locale,
+          channel,
+          overwrite,
+          logger,
+        });
+        if (adoption.result) return adoption.result;
+        // --overwrite: carry on and update the adopted page from the source
+        existingPage = adoption.targetPage;
+        pageMapping = pageMapper.getPageMapping(page, "source");
+      }
+    }
+
     let mappingToOtherLocale: OtherLocaleMapping | null = null;
 
     if (!existingPage) {
@@ -116,18 +183,6 @@ export async function processPage({
         sourceGuid,
         targetGuid,
       });
-    }
-
-    // Get channel ID from target instance sitemap (not from existing page which may be invalid)
-    const sitemap = await apiClient.pageMethods.getSitemap(targetGuid, locale);
-
-    //TODO: this is NOT using the channel reference name properly since we don't get that from the mgmt api
-    //TODO: we need to add the channel reference name to the mgmt API for a proper lookup here..
-    const websiteChannel = sitemap?.find((channelObj) => channelObj.name.toLowerCase() === channel.toLowerCase());
-    if (websiteChannel) {
-      channelID = websiteChannel.digitalChannelID;
-    } else {
-      channelID = sitemap?.[0]?.digitalChannelID || 1; // Fallback to first channel or default
     }
 
     const hasSourceChanged = pageMapper.hasSourceChanged(page);
@@ -436,21 +491,9 @@ export async function processPage({
       path: page.path || "",
     };
 
-    let parentIDArg = -1;
-
-    if (parentPageID && parentPageID > 0) {
-      const mapping = pageMapper.getPageMappingByPageID(parentPageID, "source");
-
-      if ((mapping?.targetPageID || 0) > 0) {
-        parentIDArg = mapping.targetPageID;
-        payload.parentPageID = mapping.targetPageID;
-      } else {
-        parentIDArg = -1;
-        payload.parentPageID = -1; // No parent
-      }
-    } else {
-      payload.parentPageID = -1; // Ensure no parent
-    }
+    // Resolved above; -1 only for a top-level page (an unmapped parent already returned a failure).
+    const parentIDArg = targetParentPageID;
+    payload.parentPageID = targetParentPageID;
 
     let placeBeforeIDArg = -1;
     // Only set placeBeforeIDArg for NEW pages, not updates
@@ -630,6 +673,129 @@ export async function processPage({
     );
     return { status: "failure", error: error.message };
   }
+}
+
+/** PROD-3113: why a page whose parent isn't on the target is not saved. */
+export function parentNotOnTargetError(sourceParentPageID: number, parentName?: string): string {
+  const parent = parentName
+    ? `"${parentName}" (source page ${sourceParentPageID})`
+    : `source page ${sourceParentPageID}`;
+  return (
+    `wasn't saved: its parent page ${parent} isn't on the target, because it failed or was skipped. ` +
+    `Saving it anyway would put it at the root of the sitemap. Fix the parent page and sync again`
+  );
+}
+
+interface AdoptProps {
+  page: mgmtApi.PageItem;
+  candidate: TargetPageCandidate;
+  apiClient: mgmtApi.ApiClient;
+  pageMapper: PageMapper;
+  targetGuid: string;
+  locale: string;
+  channel: string;
+  overwrite: boolean;
+  logger: Logs;
+}
+
+/**
+ * PROD-3113 / PROD-3026: map an unmapped source page to the target page that already has its name
+ * at the same level. Like containers and models adopted by reference name, the target's page is
+ * kept as it is and a mapping row is written; --overwrite then updates it from the source.
+ *
+ * Returns `result` when processPage should stop here (adopted and kept, preflight, or refused),
+ * or `targetPage` when it should go on and update the adopted page (--overwrite).
+ */
+async function adoptTargetPage({
+  page,
+  candidate,
+  apiClient,
+  pageMapper,
+  targetGuid,
+  locale,
+  channel,
+  overwrite,
+  logger,
+}: AdoptProps): Promise<{ result?: PageProcessResult; targetPage?: mgmtApi.PageItem }> {
+  const targetUrl = `https://app.agilitycms.com/instance/${targetGuid}/${locale}/pages/${candidate.pageID}`;
+  const refuse = (error: string): { result: PageProcessResult } => {
+    logger.page.error(page, `✗ Page "${page.name}" ${error}`, locale, channel, targetGuid);
+    preflightReport.record({ phase: "Pages", action: "conflict", name: page.name, locale, detail: error });
+    return { result: { status: "failure", error } };
+  };
+
+  // The same-named page belongs to a different source page; adopting it would map two source
+  // pages to one target page.
+  const mappedTo = pageMapper.getPageMappingByPageID(candidate.pageID, "target");
+  if (mappedTo) {
+    return refuse(
+      `can't be created: the target already has a page named "${candidate.pageName}" at this level ` +
+        `(page ${candidate.pageID}), and it is mapped to source page ${mappedTo.sourcePageID}. ` +
+        `Rename one of them, or correct the page mappings. ${targetUrl}`
+    );
+  }
+
+  if (pageTypesDiffer(page.pageType, candidate.pageType)) {
+    return refuse(
+      `can't be created: the target already has a ${sitemapTypeLabel(candidate.pageType)} named ` +
+        `"${candidate.pageName}" at this level (page ${candidate.pageID}), but on the source it's a ` +
+        `${page.pageType} page. Rename or remove one of them. ${targetUrl}`
+    );
+  }
+
+  const adoptedDetail = `adopted existing target page ${candidate.pageID} with the same name at this level (mapping row created)`;
+
+  if (state.preflight) {
+    preflightReport.record({
+      phase: "Pages",
+      action: overwrite ? "update" : "skip",
+      name: page.name,
+      locale,
+      detail: overwrite ? `${adoptedDetail}; --overwrite replaces it with the source` : adoptedDetail,
+    });
+    return { result: { status: overwrite ? "success" : "skip", adopted: true } };
+  }
+
+  // The pulled copy holds the version the mapping row records; read it live if it wasn't pulled.
+  let targetPage = new fileOperations(targetGuid, locale).readJsonFile(
+    `page/${candidate.pageID}.json`
+  ) as mgmtApi.PageItem | null;
+  if (!targetPage?.properties) {
+    try {
+      targetPage = await apiClient.pageMethods.getPage(candidate.pageID, targetGuid, locale);
+    } catch {
+      targetPage = null;
+    }
+  }
+  if (!targetPage?.properties) {
+    return refuse(
+      `can't be created: the target already has a page named "${candidate.pageName}" at this level ` +
+        `(page ${candidate.pageID}), and it couldn't be read to adopt it. ${targetUrl}`
+    );
+  }
+
+  if (overwrite) {
+    // sourceVersionID 0 ("never cleanly synced") makes the update below push the source, and the
+    // row is rewritten with the real versions once that save succeeds.
+    pageMapper.addMapping(
+      { ...page, properties: { ...page.properties, versionID: 0 } } as mgmtApi.PageItem,
+      targetPage
+    );
+    console.log(
+      ansiColors.gray(`    ↪ Page "${page.name}": ${adoptedDetail}; updating it from the source (--overwrite)`)
+    );
+    return { targetPage };
+  }
+
+  pageMapper.addMapping(page, targetPage);
+  logger.page.skipped(
+    page,
+    `${adoptedDetail}, kept the target's version. Use --overwrite to replace it with the source`,
+    locale,
+    channel,
+    targetGuid
+  );
+  return { result: { status: "skip", adopted: true } };
 }
 
 /**

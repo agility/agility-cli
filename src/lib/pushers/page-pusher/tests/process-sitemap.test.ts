@@ -14,6 +14,7 @@ import { SitemapNode } from "types/syncAnalysis";
 // Mock processPage — it makes real API calls
 jest.mock("../process-page", () => ({
   processPage: jest.fn(),
+  parentNotOnTargetError: jest.requireActual("../process-page").parentNotOnTargetError,
 }));
 
 import { processPage } from "../process-page";
@@ -362,10 +363,7 @@ describe("processSitemap — --pages scope", () => {
    *     /about/team (5)          out of scope, below an out-of-scope page
    */
   function scopedSitemap(): SitemapNode[] {
-    return [
-      makeNode(3, [makeNode(10, [makeNode(11)]), makeNode(20)]),
-      makeNode(4, [makeNode(5)]),
-    ];
+    return [makeNode(3, [makeNode(10, [makeNode(11)]), makeNode(20)]), makeNode(4, [makeNode(5)])];
   }
 
   const scope = (overrides: Partial<any> = {}) => ({
@@ -452,5 +450,97 @@ describe("processSitemap — --pages scope", () => {
     const pages = [3, 4, 5, 10, 11, 20].map((id) => makePage(id));
     await processSitemap(makeProps({ sitemapNodes: scopedSitemap(), sourcePages: pages }));
     expect(pushedPageIDs()).toEqual([3, 4, 5, 10, 11, 20]);
+  });
+});
+
+// ─── PROD-3113: children of a page that isn't on the target ──────────────────
+
+describe("processSitemap — parent not on the target (PROD-3113)", () => {
+  // Mapping rows exist only for the IDs given.
+  function mapperWith(mappedSourceIDs: number[]): any {
+    const mapper = makePageMapper();
+    mapper.getPageMappingByPageID.mockImplementation((id: number, type: string) =>
+      type === "source" && mappedSourceIDs.includes(id) ? { targetPageID: id + 100 } : null
+    );
+    return mapper;
+  }
+
+  it("reports a failed parent's whole subtree instead of saving it", async () => {
+    mockProcessPage.mockResolvedValueOnce({ status: "failure", error: "There is already a page at this level" });
+    const result = await processSitemap(
+      makeProps({
+        pageMapper: mapperWith([]),
+        sitemapNodes: [makeNode(30, [makeNode(31, [makeNode(32)])])],
+        sourcePages: [makePage(30), makePage(31), makePage(32)],
+      })
+    );
+
+    expect(mockProcessPage).toHaveBeenCalledTimes(1);
+    expect(mockProcessPage.mock.calls[0][0].page.pageID).toBe(30);
+    expect(result.failed).toBe(3);
+    const childFailures = result.failureDetails.filter((f) => f.pageID !== 30);
+    expect(childFailures.map((f) => f.pageID)).toEqual([31, 32]);
+    expect(childFailures[0].error).toContain('parent page "Page 30" (source page 30)');
+    expect(childFailures[0].error).toContain("root of the sitemap");
+  });
+
+  it("reports the children of a parent skipped without a mapping row", async () => {
+    mockProcessPage.mockResolvedValueOnce({ status: "skip" });
+    const result = await processSitemap(
+      makeProps({
+        pageMapper: mapperWith([]),
+        sitemapNodes: [makeNode(30, [makeNode(31)])],
+        sourcePages: [makePage(30), makePage(31)],
+      })
+    );
+    expect(mockProcessPage).toHaveBeenCalledTimes(1);
+    expect(result.skipped).toBe(1);
+    expect(result.failed).toBe(1);
+    expect(result.failureDetails[0].pageID).toBe(31);
+  });
+
+  it("still saves the children of a parent whose update failed but which is mapped", async () => {
+    mockProcessPage.mockResolvedValueOnce({ status: "failure", error: "boom" });
+    await processSitemap(
+      makeProps({
+        pageMapper: mapperWith([30]),
+        sitemapNodes: [makeNode(30, [makeNode(31)])],
+        sourcePages: [makePage(30), makePage(31)],
+      })
+    );
+    expect(mockProcessPage).toHaveBeenCalledTimes(2);
+    expect(mockProcessPage.mock.calls[1][0].parentPageID).toBe(30);
+  });
+
+  it("saves the children of a parent that was adopted", async () => {
+    // A real adoption writes the mapping row; the mapper reports it once processPage returns.
+    const mapper = mapperWith([]);
+    mockProcessPage.mockImplementationOnce(async () => {
+      mapper.getPageMappingByPageID.mockImplementation((id: number) => (id === 30 ? { targetPageID: 70 } : null));
+      return { status: "skip", adopted: true };
+    });
+    await processSitemap(
+      makeProps({
+        pageMapper: mapper,
+        sitemapNodes: [makeNode(30, [makeNode(31)])],
+        sourcePages: [makePage(30), makePage(31)],
+      })
+    );
+    expect(mockProcessPage).toHaveBeenCalledTimes(2);
+  });
+
+  it("in preflight, plans the children of a parent it plans to create or adopt", async () => {
+    setState({ preflight: true });
+    mockProcessPage
+      .mockResolvedValueOnce({ status: "success" })
+      .mockResolvedValueOnce({ status: "skip", adopted: true });
+    await processSitemap(
+      makeProps({
+        pageMapper: mapperWith([]),
+        sitemapNodes: [makeNode(30, [makeNode(31, [makeNode(32)])])],
+        sourcePages: [makePage(30), makePage(31), makePage(32)],
+      })
+    );
+    expect(mockProcessPage).toHaveBeenCalledTimes(3);
   });
 });

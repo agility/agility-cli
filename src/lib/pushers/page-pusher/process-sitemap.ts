@@ -4,7 +4,8 @@ import { state, getApiClient, blockOtherLocaleStaging } from "../../../core/stat
 import { FailureDetail, PusherResult } from "../../../types/sourceData";
 import { SitemapHierarchy } from "./sitemap-hierarchy";
 import { PageMapper } from "../../mappers/page-mapper";
-import { processPage } from "./process-page";
+import { processPage, parentNotOnTargetError } from "./process-page";
+import { preflightReport } from "../../preflight/preflight-report";
 import { SitemapNode } from "types/index";
 import { LocalePageScope } from "types/pageScope";
 import { Logs } from "core/logs";
@@ -98,6 +99,35 @@ export async function processSitemap({
     returnData.warningDetails.push(...childRes.warningDetails);
   };
 
+  // PROD-3113: the descendants of a page that isn't on the target are reported, not saved. Saved
+  // with no target parent they'd land at the root, duplicating pages the target already has.
+  const blockDescendants = (nodes: SitemapNode[], ancestorID: number, ancestorName?: string): void => {
+    const error = parentNotOnTargetError(ancestorID, ancestorName);
+    const visit = (children: SitemapNode[]): void => {
+      for (const child of children || []) {
+        if (!child) continue;
+        const inScope = !pageScope || pageScope.pageIDs.has(child.pageID);
+        if (inScope && !processedPageIDs.has(child.pageID)) {
+          processedPageIDs.add(child.pageID);
+          const sourcePage = sourcePages.find((page) => page.pageID === child.pageID);
+          const name = sourcePage?.name || child.name || `Page ${child.pageID}`;
+          logger.page.error(sourcePage || child, `✗ Page "${name}" ${error}`, locale, channel, targetGuid);
+          preflightReport.record({ phase: "Pages", action: "skip", name, locale, detail: error });
+          returnData.failed++;
+          returnData.failureDetails.push({ name, error, type: "page", pageID: child.pageID, guid: sourceGuid, locale });
+        }
+        visit(child.children || []);
+      }
+    };
+    visit(nodes);
+  };
+
+  // Whether a page's children can be saved under it: it has a mapping row (created, updated,
+  // adopted or already in sync), or, in preflight, which writes no mappings, it would have one.
+  const isOnTarget = (pageID: number, res?: { status: string; adopted?: boolean }): boolean =>
+    !!pageMapper.getPageMappingByPageID(pageID, "source") ||
+    (!!state.preflight && !!res && (res.status === "success" || !!res.adopted));
+
   // Process each page in the reversed sitemap nodes
   for (const node of reversedNodes) {
     // PROD-2546: a --pages scope narrows this walk to the selected pages and everything
@@ -105,7 +135,9 @@ export async function processSitemap({
     // the parentPageID its in-scope children are created under — but is never pushed itself.
     // Any other branch is skipped whole, since nothing under it can be in scope.
     if (pageScope && !pageScope.pageIDs.has(node.pageID)) {
-      if (pageScope.traversePageIDs.has(node.pageID)) {
+      if (pageScope.traversePageIDs.has(node.pageID) && !isOnTarget(node.pageID)) {
+        blockDescendants(node.children || [], node.pageID, node.name);
+      } else if (pageScope.traversePageIDs.has(node.pageID)) {
         mergeChildResults(
           await processSitemap({
             channel,
@@ -216,6 +248,12 @@ export async function processSitemap({
         guid: sourceGuid,
         locale,
       });
+    }
+
+    if (!isOnTarget(sourcePage.pageID, pageRes)) {
+      blockDescendants(node.children || [], sourcePage.pageID, sourcePage.name);
+      previousPageID = node.pageID;
+      continue;
     }
 
     //process the children of this node...
