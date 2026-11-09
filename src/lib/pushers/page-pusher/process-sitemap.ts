@@ -101,8 +101,15 @@ export async function processSitemap({
 
   // PROD-3113: the descendants of a page that isn't on the target are reported, not saved. Saved
   // with no target parent they'd land at the root, duplicating pages the target already has.
-  const blockDescendants = (nodes: SitemapNode[], ancestorID: number, ancestorName?: string): void => {
-    const error = parentNotOnTargetError(ancestorID, ancestorName);
+  // A parent in conflict (on the target at the same path, no mapping, no --overwrite) is a skip,
+  // as is everything under it; any other missing parent is a failure.
+  const blockDescendants = (
+    nodes: SitemapNode[],
+    ancestorID: number,
+    ancestorName?: string,
+    ancestorInConflict = false
+  ): void => {
+    const error = parentNotOnTargetError(ancestorID, ancestorName, ancestorInConflict);
     const visit = (children: SitemapNode[]): void => {
       for (const child of children || []) {
         if (!child) continue;
@@ -111,10 +118,23 @@ export async function processSitemap({
           processedPageIDs.add(child.pageID);
           const sourcePage = sourcePages.find((page) => page.pageID === child.pageID);
           const name = sourcePage?.name || child.name || `Page ${child.pageID}`;
-          logger.page.error(sourcePage || child, `✗ Page "${name}" ${error}`, locale, channel, targetGuid);
-          preflightReport.record({ phase: "Pages", action: "skip", name, locale, detail: error });
-          returnData.failed++;
-          returnData.failureDetails.push({ name, error, type: "page", pageID: child.pageID, guid: sourceGuid, locale });
+          if (ancestorInConflict) {
+            logger.page.skipped(sourcePage || child, error, locale, channel, targetGuid);
+            preflightReport.record({ phase: "Pages", action: "conflict", name, locale, detail: error });
+            returnData.skipped++;
+          } else {
+            logger.page.error(sourcePage || child, `✗ Page "${name}" ${error}`, locale, channel, targetGuid);
+            preflightReport.record({ phase: "Pages", action: "skip", name, locale, detail: error });
+            returnData.failed++;
+            returnData.failureDetails.push({
+              name,
+              error,
+              type: "page",
+              pageID: child.pageID,
+              guid: sourceGuid,
+              locale,
+            });
+          }
         }
         visit(child.children || []);
       }
@@ -123,7 +143,7 @@ export async function processSitemap({
   };
 
   // Whether a page's children can be saved under it: it has a mapping row (created, updated,
-  // adopted or already in sync), or, in preflight, which writes no mappings, it would have one.
+  // mapped with --overwrite, or already in sync), or, in preflight, which writes no mappings, it would have one.
   const isOnTarget = (pageID: number, res?: { status: string; adopted?: boolean }): boolean =>
     !!pageMapper.getPageMappingByPageID(pageID, "source") ||
     (!!state.preflight && !!res && (res.status === "success" || !!res.adopted));
@@ -251,7 +271,7 @@ export async function processSitemap({
     }
 
     if (!isOnTarget(sourcePage.pageID, pageRes)) {
-      blockDescendants(node.children || [], sourcePage.pageID, sourcePage.name);
+      blockDescendants(node.children || [], sourcePage.pageID, sourcePage.name, !!pageRes.conflict);
       previousPageID = node.pageID;
       continue;
     }

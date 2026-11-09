@@ -967,7 +967,7 @@ describe("countModulesReferencingFailedContent (PROD-2542)", () => {
   });
 });
 
-// ─── PROD-3113: unmapped parent, and adopting a same-named target page ──────
+// ─── PROD-3113: unmapped parent, and a target page already at the path ──────
 
 describe("processPage — parent not on the target (PROD-3113)", () => {
   it("fails instead of saving the page at the root", async () => {
@@ -987,7 +987,7 @@ describe("processPage — parent not on the target (PROD-3113)", () => {
   });
 });
 
-describe("processPage — adopting a same-named target page (PROD-3113 / PROD-3026)", () => {
+describe("processPage — a target page already at the path, with no mapping (PROD-3113 / PROD-3026)", () => {
   // Target sitemap: a "events" folder (70) at the root, with "signup" (71) under it.
   const targetSitemap = [
     {
@@ -1032,15 +1032,21 @@ describe("processPage — adopting a same-named target page (PROD-3113 / PROD-30
     });
   }
 
-  it("adopts the root page with the same name, writes the mapping row and keeps the target's version", async () => {
+  it("without --overwrite, reports a conflict with the full path and both IDs, and writes nothing", async () => {
     const pageMapper = mapperWithRows([]);
     const apiClient = apiWithTarget();
-    const result = await processPage(makeProps({ page: folder(), pageMapper, apiClient }));
+    const warn = console.warn as jest.Mock;
+    const logger = makeLogger();
+    const result = await processPage(makeProps({ page: folder(), pageMapper, apiClient, logger }));
 
-    expect(result).toEqual({ status: "skip", adopted: true });
-    expect(apiClient.pageMethods.getPage).toHaveBeenCalledWith(70, "tgt", "en-us");
-    expect(pageMapper.addMapping).toHaveBeenCalledWith(expect.objectContaining({ pageID: 30 }), targetPage(70, 7));
+    expect(result).toEqual({ status: "skip", conflict: true });
+    expect(pageMapper.addMapping).not.toHaveBeenCalled();
+    expect(apiClient.pageMethods.getPage).not.toHaveBeenCalled();
     expect(apiClient.pageMethods.savePage).not.toHaveBeenCalled();
+    const line = warn.mock.calls.map((c) => String(c[0])).find((l) => l.includes("Conflict detected"));
+    expect(line).toContain("/events");
+    expect(line).toContain("source page 30, target page 70");
+    expect(logger.page.skipped.mock.calls[0][1]).toContain("conflict: /events exists on the target with no mapping");
   });
 
   it("matches the name case-insensitively and only at the page's own level", async () => {
@@ -1050,27 +1056,31 @@ describe("processPage — adopting a same-named target page (PROD-3113 / PROD-30
     const apiClient = apiWithTarget();
     mockExtract.mockReturnValue({ successfulItems: [{ newId: 200, newItem: {} }], failedItems: [] });
     await processPage(makeProps({ page: rootPage, pageMapper, apiClient }));
-    expect(apiClient.pageMethods.getPage).not.toHaveBeenCalled();
     expect(apiClient.pageMethods.savePage).toHaveBeenCalled();
 
-    // Under its mapped parent (30 → 70) it's adopted.
+    // Under its mapped parent (30 → 70) it's a conflict at /events/signup.
     const childMapper = mapperWithRows([[30, 70]]);
     const childApi = apiWithTarget(targetPage(71, 8));
+    const logger = makeLogger();
     const result = await processPage(
-      makeProps({ page: rootPage, pageMapper: childMapper, apiClient: childApi, parentPageID: 30 })
+      makeProps({ page: rootPage, pageMapper: childMapper, apiClient: childApi, parentPageID: 30, logger })
     );
-    expect(result).toEqual({ status: "skip", adopted: true });
-    expect(childApi.pageMethods.getPage).toHaveBeenCalledWith(71, "tgt", "en-us");
+    expect(result).toEqual({ status: "skip", conflict: true });
+    expect(childApi.pageMethods.savePage).not.toHaveBeenCalled();
+    expect(logger.page.skipped.mock.calls[0][1]).toContain(
+      "/events/signup exists on the target with no mapping (source page 31, target page 71)"
+    );
   });
 
-  it("with --overwrite, adopts the page and updates it from the source, under the same parent", async () => {
+  it("with --overwrite, maps the page and updates it in place from the source, under the same parent", async () => {
     const pageMapper = mapperWithRows([]);
     const apiClient = apiWithTarget();
     mockExtract.mockReturnValue({ successfulItems: [{ newId: 70, newItem: {} }], failedItems: [] });
     const result = await processPage(makeProps({ page: folder(), pageMapper, apiClient, overwrite: true }));
 
     expect(result.status).toBe("success");
-    // First row is the dirty adoption row (source version 0) so the update pushes the source.
+    expect(apiClient.pageMethods.getPage).toHaveBeenCalledWith(70, "tgt", "en-us");
+    // First row is the dirty mapping row (source version 0) so the update pushes the source.
     expect(pageMapper.addMapping.mock.calls[0][0].properties.versionID).toBe(0);
     const [payload, , , parentArg, placeBeforeArg] = apiClient.pageMethods.savePage.mock.calls[0];
     expect(payload.pageID).toBe(70);
@@ -1094,22 +1104,32 @@ describe("processPage — adopting a same-named target page (PROD-3113 / PROD-30
     const apiClient = apiWithTarget();
     const result = await processPage(makeProps({ page: staticPage, pageMapper, apiClient }));
     expect(result.status).toBe("failure");
-    expect(result.error).toContain("a folder named");
+    expect(result.error).toContain("a folder at /events");
     expect(result.error).toContain("it's a static page");
     expect(pageMapper.addMapping).not.toHaveBeenCalled();
   });
 
-  it("in preflight, reports the adoption and writes nothing", async () => {
+  it("in preflight with --overwrite, plans the update and writes nothing", async () => {
     preflightReport.reset();
     setState({ preflight: true });
     const pageMapper = mapperWithRows([]);
     const apiClient = apiWithTarget();
-    const result = await processPage(makeProps({ page: folder(), pageMapper, apiClient }));
-    expect(result).toEqual({ status: "skip", adopted: true });
+    const result = await processPage(makeProps({ page: folder(), pageMapper, apiClient, overwrite: true }));
+    expect(result).toEqual({ status: "success", adopted: true });
     expect(pageMapper.addMapping).not.toHaveBeenCalled();
     expect(apiClient.pageMethods.getPage).not.toHaveBeenCalled();
     const entry = preflightReport.getEntries().find((e) => e.name === "events");
-    expect(entry?.action).toBe("skip");
-    expect(entry?.detail).toContain("adopted existing target page 70");
+    expect(entry?.action).toBe("update");
+    expect(entry?.detail).toContain("/events already exists on the target with no mapping");
+  });
+
+  it("in preflight without --overwrite, reports the conflict", async () => {
+    preflightReport.reset();
+    setState({ preflight: true });
+    const result = await processPage(
+      makeProps({ page: folder(), pageMapper: mapperWithRows([]), apiClient: apiWithTarget() })
+    );
+    expect(result).toEqual({ status: "skip", conflict: true });
+    expect(preflightReport.getEntries().find((e) => e.name === "events")?.action).toBe("conflict");
   });
 });

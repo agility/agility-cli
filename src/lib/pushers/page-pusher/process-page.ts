@@ -47,9 +47,12 @@ export type PageProcessResult = {
   // PROD-2316: non-blocking notices for modules dropped from this page because their content
   // couldn't be resolved on the target. The page itself still pushes.
   warnings?: FailureDetail[];
-  // PROD-3113: the page wasn't created or updated, but an existing same-named target page was
-  // adopted for it (in preflight: would be), so its child pages have somewhere to go.
+  // PROD-3113: preflight only: the page would be mapped to the target page already at its path
+  // and updated (--overwrite), so its child pages will have somewhere to go.
   adopted?: boolean;
+  // PROD-3113: the target already has a page at this path with no mapping, and --overwrite wasn't
+  // set. Nothing was written; the page's children are skipped with it.
+  conflict?: boolean;
 };
 
 export async function processPage({
@@ -147,10 +150,10 @@ export async function processPage({
     let pageMapping = pageMapper.getPageMapping(page, "source");
     existingPage = pageMapper.getMappedEntity(pageMapping, "target");
 
-    // PROD-3113 / PROD-3026: no mapping row, but the target already has a page with this name at
-    // this level (made by hand, or by a sync whose mappings were lost). Creating it would fail on
-    // the server's same-name check, so adopt that page instead and write the mapping row.
-    // Under a parent that preflight plans to create, there is nothing on the target to adopt.
+    // PROD-3113 / PROD-3026: no mapping row, but the target already has a page at this path (made
+    // by hand, or by a sync whose mappings were lost). Creating it would fail on the server's
+    // same-name check. It's a conflict: reported and left alone, or with --overwrite mapped and
+    // updated in place. Under a parent preflight plans to create, there's nothing on the target.
     const parentExistsOnTarget = !(parentPageID > 0) || targetParentPageID > 0;
     if (!pageMapping && parentExistsOnTarget) {
       const candidate = findSameNamedTargetPage(targetChannel?.pages as any, targetParentPageID, page.name);
@@ -676,10 +679,20 @@ export async function processPage({
 }
 
 /** PROD-3113: why a page whose parent isn't on the target is not saved. */
-export function parentNotOnTargetError(sourceParentPageID: number, parentName?: string): string {
+export function parentNotOnTargetError(
+  sourceParentPageID: number,
+  parentName?: string,
+  parentInConflict = false
+): string {
   const parent = parentName
     ? `"${parentName}" (source page ${sourceParentPageID})`
     : `source page ${sourceParentPageID}`;
+  if (parentInConflict) {
+    return (
+      `wasn't saved: its parent page ${parent} is in conflict with a target page at the same path ` +
+      `that has no mapping. Use --overwrite to map the parent and sync its children`
+    );
+  }
   return (
     `wasn't saved: its parent page ${parent} isn't on the target, because it failed or was skipped. ` +
     `Saving it anyway would put it at the root of the sitemap. Fix the parent page and sync again`
@@ -699,12 +712,15 @@ interface AdoptProps {
 }
 
 /**
- * PROD-3113 / PROD-3026: map an unmapped source page to the target page that already has its name
- * at the same level. Like containers and models adopted by reference name, the target's page is
- * kept as it is and a mapping row is written; --overwrite then updates it from the source.
+ * PROD-3113 / PROD-3026: an unmapped source page whose path already exists on the target. Decided
+ * 2026-11-09, handled like a content conflict:
+ * - without --overwrite: a conflict. Nothing is written (no mapping row, target page untouched);
+ *   the warning gives the full path and both page IDs.
+ * - with --overwrite: write the mapping row and update the target page in place (never delete
+ *   and recreate it: it may have children).
  *
- * Returns `result` when processPage should stop here (adopted and kept, preflight, or refused),
- * or `targetPage` when it should go on and update the adopted page (--overwrite).
+ * Returns `result` when processPage should stop here (conflict, preflight, or refused), or
+ * `targetPage` when it should go on and update the mapped page (--overwrite).
  */
 async function adoptTargetPage({
   page,
@@ -729,7 +745,7 @@ async function adoptTargetPage({
   const mappedTo = pageMapper.getPageMappingByPageID(candidate.pageID, "target");
   if (mappedTo) {
     return refuse(
-      `can't be created: the target already has a page named "${candidate.pageName}" at this level ` +
+      `can't be created: the target already has a page at ${candidate.path} ` +
         `(page ${candidate.pageID}), and it is mapped to source page ${mappedTo.sourcePageID}. ` +
         `Rename one of them, or correct the page mappings. ${targetUrl}`
     );
@@ -737,23 +753,45 @@ async function adoptTargetPage({
 
   if (pageTypesDiffer(page.pageType, candidate.pageType)) {
     return refuse(
-      `can't be created: the target already has a ${sitemapTypeLabel(candidate.pageType)} named ` +
-        `"${candidate.pageName}" at this level (page ${candidate.pageID}), but on the source it's a ` +
+      `can't be created: the target already has a ${sitemapTypeLabel(candidate.pageType)} at ` +
+        `${candidate.path} (page ${candidate.pageID}), but on the source it's a ` +
         `${page.pageType} page. Rename or remove one of them. ${targetUrl}`
     );
   }
 
-  const adoptedDetail = `adopted existing target page ${candidate.pageID} with the same name at this level (mapping row created)`;
+  const ids = `source page ${page.pageID}, target page ${candidate.pageID}`;
+
+  if (!overwrite) {
+    const reason = `exists on the target with no mapping (${ids})`;
+    const sourceUrl = `https://app.agilitycms.com/instance/${state.sourceGuid}/${locale}/pages/${page.pageID}`;
+    console.warn(
+      `⚠️  Conflict detected Page ${ansiColors.underline(candidate.path)} — ${ansiColors.bold.grey(reason)}. ` +
+        `Use --overwrite to map it and update it from the source.`
+    );
+    console.warn(`   - Source: ${sourceUrl}`);
+    console.warn(`   - Target: ${targetUrl}`);
+    logger.page.skipped(page, `conflict: ${candidate.path} ${reason}`, locale, channel, targetGuid);
+    preflightReport.record({
+      phase: "Pages",
+      action: "conflict",
+      name: page.name,
+      locale,
+      detail: `${candidate.path} ${reason}; --overwrite maps it and updates it from the source`,
+    });
+    return { result: { status: "skip", conflict: true } };
+  }
+
+  const mappedDetail = `${candidate.path} already exists on the target with no mapping (${ids}); mapping it`;
 
   if (state.preflight) {
     preflightReport.record({
       phase: "Pages",
-      action: overwrite ? "update" : "skip",
+      action: "update",
       name: page.name,
       locale,
-      detail: overwrite ? `${adoptedDetail}; --overwrite replaces it with the source` : adoptedDetail,
+      detail: `${mappedDetail} and replacing it with the source (--overwrite)`,
     });
-    return { result: { status: overwrite ? "success" : "skip", adopted: true } };
+    return { result: { status: "success", adopted: true } };
   }
 
   // The pulled copy holds the version the mapping row records; read it live if it wasn't pulled.
@@ -769,33 +807,18 @@ async function adoptTargetPage({
   }
   if (!targetPage?.properties) {
     return refuse(
-      `can't be created: the target already has a page named "${candidate.pageName}" at this level ` +
-        `(page ${candidate.pageID}), and it couldn't be read to adopt it. ${targetUrl}`
+      `can't be updated: the target already has a page at ${candidate.path} ` +
+        `(page ${candidate.pageID}), and it couldn't be read to map it. ${targetUrl}`
     );
   }
 
-  if (overwrite) {
-    // sourceVersionID 0 ("never cleanly synced") makes the update below push the source, and the
-    // row is rewritten with the real versions once that save succeeds.
-    pageMapper.addMapping(
-      { ...page, properties: { ...page.properties, versionID: 0 } } as mgmtApi.PageItem,
-      targetPage
-    );
-    console.log(
-      ansiColors.gray(`    ↪ Page "${page.name}": ${adoptedDetail}; updating it from the source (--overwrite)`)
-    );
-    return { targetPage };
-  }
-
-  pageMapper.addMapping(page, targetPage);
-  logger.page.skipped(
-    page,
-    `${adoptedDetail}, kept the target's version. Use --overwrite to replace it with the source`,
-    locale,
-    channel,
-    targetGuid
+  // sourceVersionID 0 ("never cleanly synced") makes the update below push the source, and the
+  // row is rewritten with the real versions once that save succeeds.
+  pageMapper.addMapping({ ...page, properties: { ...page.properties, versionID: 0 } } as mgmtApi.PageItem, targetPage);
+  console.log(
+    ansiColors.gray(`    ↪ Page "${page.name}": ${mappedDetail} and updating it from the source (--overwrite)`)
   );
-  return { result: { status: "skip", adopted: true } };
+  return { targetPage };
 }
 
 /**
