@@ -107,9 +107,15 @@ export async function processSitemap({
     nodes: SitemapNode[],
     ancestorID: number,
     ancestorName?: string,
-    ancestorInConflict = false
+    reason: "missing" | "conflict" | "preflightSkip" = "missing"
   ): void => {
-    const error = parentNotOnTargetError(ancestorID, ancestorName, ancestorInConflict);
+    const ancestorInConflict = reason === "conflict";
+    // In preflight a parent can be skipped only because preflight can't see what the run would
+    // create first (e.g. a page template). Its children are previewed as skips, not failures.
+    const error =
+      reason === "preflightSkip"
+        ? `skipped with its parent page "${ancestorName ?? `Page ${ancestorID}`}" (source page ${ancestorID}), which preflight skipped`
+        : parentNotOnTargetError(ancestorID, ancestorName, ancestorInConflict);
     const visit = (children: SitemapNode[]): void => {
       for (const child of children || []) {
         if (!child) continue;
@@ -118,9 +124,15 @@ export async function processSitemap({
           processedPageIDs.add(child.pageID);
           const sourcePage = sourcePages.find((page) => page.pageID === child.pageID);
           const name = sourcePage?.name || child.name || `Page ${child.pageID}`;
-          if (ancestorInConflict) {
+          if (reason !== "missing") {
             logger.page.skipped(sourcePage || child, error, locale, channel, targetGuid);
-            preflightReport.record({ phase: "Pages", action: "conflict", name, locale, detail: error });
+            preflightReport.record({
+              phase: "Pages",
+              action: ancestorInConflict ? "conflict" : "skip",
+              name,
+              locale,
+              detail: error,
+            });
             returnData.skipped++;
           } else {
             logger.page.error(sourcePage || child, `✗ Page "${name}" ${error}`, locale, channel, targetGuid);
@@ -271,7 +283,12 @@ export async function processSitemap({
     }
 
     if (!isOnTarget(sourcePage.pageID, pageRes)) {
-      blockDescendants(node.children || [], sourcePage.pageID, sourcePage.name, !!pageRes.conflict);
+      blockDescendants(
+        node.children || [],
+        sourcePage.pageID,
+        sourcePage.name,
+        pageRes.conflict ? "conflict" : state.preflight && pageRes.status === "skip" ? "preflightSkip" : "missing"
+      );
       previousPageID = node.pageID;
       continue;
     }
