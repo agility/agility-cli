@@ -4,16 +4,27 @@ on:
   push:
     tags:
       - "v*"
-  # Promote an already-published version to a dist-tag from the Actions tab
-  # ("Run workflow"), instead of running `npm dist-tag add` locally.
+  # From the Actions tab ("Run workflow"):
+  # - promote: point a dist-tag at an already-published version, instead of running
+  #   `npm dist-tag add` locally.
+  # - publish-untested: publish an existing v* tag to the beta dist-tag WITHOUT the sync
+  #   permutation test, for when the dev instances the test leases are down. Admin use only.
   workflow_dispatch:
     inputs:
+      mode:
+        description: "promote, or publish-untested (publish a v* tag to beta, skipping the sync test)"
+        required: true
+        type: choice
+        options:
+          - promote
+          - publish-untested
+        default: promote
       version:
-        description: "Published version to promote (e.g. 1.2.2)"
+        description: "Version (e.g. 1.2.2). promote: an already-published version. publish-untested: the version of an existing v* tag"
         required: true
         type: string
       dist_tag:
-        description: "Dist-tag to point at that version"
+        description: "Dist-tag to point at that version (promote only; publish-untested always uses beta)"
         required: true
         type: choice
         options:
@@ -85,9 +96,77 @@ jobs:
       - name: Publish
         run: npm publish --access public --tag beta
 
+  # Manual publish of an existing v* tag, skipping the sync permutation test. Lives in this
+  # file because npm's trusted publisher only accepts publishes from npm-publish.yml.
+  publish-untested:
+    name: Publish v${{ inputs.version }} to beta without the sync test
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'publish-untested'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      VERSION: ${{ inputs.version }}
+
+    steps:
+      - name: Check inputs
+        run: |
+          if [ "$GITHUB_REF" != "refs/heads/main" ]; then
+            echo "Run this from main (was $GITHUB_REF)."
+            exit 1
+          fi
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.]+)?$ ]]; then
+            echo "'$VERSION' is not a version number."
+            exit 1
+          fi
+
+      - name: Checkout the tag
+        uses: actions/checkout@v4
+        with:
+          ref: refs/tags/v${{ inputs.version }}
+          fetch-depth: 0
+
+      - name: Verify tag matches package.json version
+        run: |
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$VERSION" != "$PKG_VERSION" ]; then
+            echo "Tag v$VERSION has package.json version $PKG_VERSION."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Check the version isn't already published
+        run: |
+          if npm view "@agility/cli@$VERSION" version 2>/dev/null | grep -qx "$VERSION"; then
+            echo "@agility/cli@$VERSION is already on npm."
+            exit 1
+          fi
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Unit tests
+        run: npx jest src/core src/lib --no-coverage
+
+      - name: Publish
+        run: npm publish --access public --tag beta
+
+      - name: Note the skipped sync test
+        run: |
+          echo "⚠️ @agility/cli@$VERSION was published to beta WITHOUT the sync permutation test." >> "$GITHUB_STEP_SUMMARY"
+          npm view @agility/cli dist-tags
+
   promote:
     name: Promote ${{ inputs.version }} to ${{ inputs.dist_tag }}
-    if: github.event_name == 'workflow_dispatch'
+    if: github.event_name == 'workflow_dispatch' && inputs.mode == 'promote'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -127,8 +206,8 @@ jobs:
       - name: Check the version is published
         run: npm view "@agility/cli@$VERSION" version | grep -qx "$VERSION" || { echo "@agility/cli@$VERSION is not on npm."; exit 1; }
 
-      # No separate test check: since the sync permutation test gates the publish, every version
-      # published from now on has passed it. (Versions published before that, 1.2.2 and earlier,
+      # No separate test check: the sync permutation test gates a tag-push publish. (Versions
+      # published before that, 1.2.2 and earlier, and any published with publish-untested,
       # never went through it.)
       - name: Promote
         run: npm dist-tag add "@agility/cli@$VERSION" "$DIST_TAG"
