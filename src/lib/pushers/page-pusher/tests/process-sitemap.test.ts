@@ -544,6 +544,37 @@ describe("processSitemap — parent not on the target (PROD-3113)", () => {
     expect(result.failureDetails).toHaveLength(0);
   });
 
+  it("in preflight, previews the children of a skipped parent as skips, not failures", async () => {
+    // e.g. preflight skips the parent because its page template would only be created by the run
+    setState({ preflight: true });
+    mockProcessPage.mockResolvedValueOnce({ status: "skip" });
+    const result = await processSitemap(
+      makeProps({
+        pageMapper: mapperWith([]),
+        sitemapNodes: [makeNode(30, [makeNode(31, [makeNode(32)])])],
+        sourcePages: [makePage(30), makePage(31), makePage(32)],
+      })
+    );
+    expect(mockProcessPage).toHaveBeenCalledTimes(1);
+    expect(result.skipped).toBe(3);
+    expect(result.failed).toBe(0);
+    expect(result.failureDetails).toHaveLength(0);
+  });
+
+  it("in preflight, still reports the children of a failed parent as failures", async () => {
+    setState({ preflight: true });
+    mockProcessPage.mockResolvedValueOnce({ status: "failure", error: "boom" });
+    const result = await processSitemap(
+      makeProps({
+        pageMapper: mapperWith([]),
+        sitemapNodes: [makeNode(30, [makeNode(31)])],
+        sourcePages: [makePage(30), makePage(31)],
+      })
+    );
+    expect(result.failed).toBe(2);
+    expect(result.failureDetails.map((f) => f.pageID)).toEqual([30, 31]);
+  });
+
   it("in preflight, plans the children of a parent it plans to create or map", async () => {
     setState({ preflight: true });
     mockProcessPage
