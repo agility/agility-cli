@@ -197,6 +197,17 @@ A sync puts each synced content list on the target in the source's item order. I
 - Each run records, per list, the source's order and the order it left on the target. A list reordered on the target since then, while the source's order didn't change, keeps the target's order with a warning ("Target changes kept"); reordered on both sides, it's a conflict. `--overwrite` sets the source's order either way. Adding or deleting an item isn't a reorder, and neither is a list that still shows the order the last sync replaced (the Fetch API shows an order change a few minutes later; the list is skipped until it does). The first sync after upgrading has no record, so it sets the source's order, as before, and records it.
 - `--preflight` lists the lists it would reorder under a `List order` phase, and `--jsonSummary` reports them as the `listOrder` phase.
 
+### Page Order
+
+A sync puts each synced page on the target under the source's parent and in the source's place among its siblings. A page save places a page only when it creates it, so without this a page moved on the source after its first sync would stay where it was on the target. It runs after pages and moves only the pages that are out of place, using the Management API's page move.
+
+- The target's order is read from the Management API when the phase runs, so it already includes the pages this sync created.
+- For each parent, the pages already in the source's order stay where they are, and the rest move. Pages that exist only on the target stay where they are.
+- A move gives the page a new version and puts it in staging in every locale, because a page's place is shared by all locales. With `--autoPublish` covering pages, a moved page is republished in each locale where it was published on both the source and the target. The sync records the new version, so the next sync doesn't count the move as a change on the target.
+- A page left alone because it changed on the target since the last sync (kept with a warning, or a conflict) isn't moved. The other pages are ordered around it. Moving a page on the target gives it a new version, so a move made only on the target is kept this way. `--overwrite` moves it too. A scoped run (`--pages`) only moves the pages in its scope.
+- `--preflight` lists the moves under a `Page order` phase, and `--jsonSummary` reports them as the `pageOrder` phase.
+- Needs a Management API with the page move route (in production since November 2026).
+
 ### Auto-Publish
 
 The `--autoPublish` flag lets you automatically publish synced content and/or pages in the target instance immediately after a sync completes. Only items that are **published in the source instance** will be published in the target — staging-only items are skipped.

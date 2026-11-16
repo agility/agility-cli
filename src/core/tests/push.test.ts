@@ -110,7 +110,7 @@ describe("mergeOtherLocaleStaging (PROD-2782)", () => {
       pageIdsByLocale,
       new Map([
         ["en-us", [{ targetPageID: 98, pageName: "a", savedLocale: "pt-br" }]],
-        ["pt-br", [{ targetPageID: 40, pageName: "promotions", savedLocale: "en-us" }]],
+        ["pt-br", [{ targetPageID: 40, pageName: "news", savedLocale: "en-us" }]],
       ])
     );
     expect(pageIdsByLocale.get("en-us")).toEqual([10, 98, 98]);
@@ -121,16 +121,25 @@ describe("mergeOtherLocaleStaging (PROD-2782)", () => {
 describe("otherLocaleStagingWarnings (PROD-2782)", () => {
   it("emits one non-blocking staging notice per page, in the page's locale", () => {
     const warnings = otherLocaleStagingWarnings(
-      new Map([["pt-br", [{ targetPageID: 40, pageName: "promotions", savedLocale: "en-us" }]]])
+      new Map([["pt-br", [{ targetPageID: 40, pageName: "news", savedLocale: "en-us" }]]])
     );
     expect(warnings).toEqual([
       {
         locale: "pt-br",
         type: "staging",
         error:
-          'page "promotions" (target page 40) was put in staging by the en-us save and was not republished (auto-publish does not include pages)',
+          'page "news" (target page 40) was put in staging by the en-us save and was not republished (auto-publish does not include pages)',
       },
     ]);
+  });
+
+  it("names a page move (PROD-3164) as the cause", () => {
+    const [warning] = otherLocaleStagingWarnings(
+      new Map([["pt-br", [{ targetPageID: 40, pageName: "news", savedLocale: "en-us", cause: "page move" }]]])
+    );
+    expect(warning.error).toBe(
+      'page "news" (target page 40) was put in staging by the page move in en-us and was not republished (auto-publish does not include pages)'
+    );
   });
 
   it("is empty when nothing was recorded", () => {

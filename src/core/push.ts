@@ -11,6 +11,7 @@ import {
   getPageCmsLink,
   getContentCmsLink,
 } from "./state";
+import { resetHeldPages } from "../lib/page-order/held-pages";
 import ansiColors from "ansi-colors";
 import { markPushStart } from "../lib/incremental";
 import { fileOperations } from "./fileOperations";
@@ -56,11 +57,12 @@ export function otherLocaleStagingWarnings(
 ): Array<{ locale: string; type: string; error: string }> {
   const warnings: Array<{ locale: string; type: string; error: string }> = [];
   stagingByLocale.forEach((entries, locale) => {
-    for (const { targetPageID, pageName, savedLocale } of entries) {
+    for (const { targetPageID, pageName, savedLocale, cause } of entries) {
+      const by = cause ? `the ${cause} in ${savedLocale}` : `the ${savedLocale} save`;
       warnings.push({
         locale,
         type: "staging",
-        error: `page "${pageName}" (target page ${targetPageID}) was put in staging by the ${savedLocale} save and was not republished (auto-publish does not include pages)`,
+        error: `page "${pageName}" (target page ${targetPageID}) was put in staging by ${by} and was not republished (auto-publish does not include pages)`,
       });
     }
   });
@@ -107,6 +109,8 @@ export class Push {
     // Entities saved by a previous run must not stand in for this run's pulled targets
     clearSavedTargets();
     clearOtherLocaleStagingRegistry();
+    // PROD-3164: pages the page phase held back, which page order mustn't move
+    resetHeldPages();
 
     // Preflight (PROD-2203): start each run with a clean report of planned actions
     preflightReport.reset();
@@ -616,9 +620,11 @@ export class Push {
     console.log(ansiColors.gray(`Total content items: ${totalContent}`));
     console.log(ansiColors.gray(`Total pages: ${totalPages}`));
     if (publishPages && otherLocaleStaging.size > 0) {
-      let count = 0;
-      otherLocaleStaging.forEach((entries) => (count += entries.length));
-      console.log(ansiColors.gray(`  incl. ${count} page(s) put in staging by a save in another locale`));
+      let saved = 0;
+      let moved = 0;
+      otherLocaleStaging.forEach((entries) => entries.forEach((e) => (e.cause === "page move" ? moved++ : saved++)));
+      if (saved > 0) console.log(ansiColors.gray(`  incl. ${saved} page(s) put in staging by a save in another locale`));
+      if (moved > 0) console.log(ansiColors.gray(`  incl. ${moved} page(s) put in staging by a page move`));
     }
 
     // Import workflow dependencies

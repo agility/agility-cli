@@ -47,6 +47,9 @@ export type PageProcessResult = {
   // PROD-2316: non-blocking notices for modules dropped from this page because their content
   // couldn't be resolved on the target. The page itself still pushes.
   warnings?: FailureDetail[];
+  // PROD-3164: the target page changed since the last sync and was left as it is (a kept target
+  // change or a conflict), so page order must not move it either.
+  held?: boolean;
   // PROD-3113: preflight only: the page would be mapped to the target page already at its path
   // and updated (--overwrite), so its child pages will have somewhere to go.
   adopted?: boolean;
@@ -244,7 +247,7 @@ export async function processPage({
         locale,
         detail: "target changed since the last sync and the source didn't; kept the target's version",
       });
-      return { status: "skip" }; // Keep the target's page; don't auto-publish it either
+      return { status: "skip", held: true }; // Keep the target's page; don't auto-publish it either
     } else if (isConflict && !overwrite) {
       // CONFLICT: Target has independent changes.
       // Use mapping's targetPageID as fallback in case existingPage wasn't loaded.
@@ -267,7 +270,7 @@ export async function processPage({
 
       if (!overwrite) {
         preflightReport.record({ phase: "Pages", action: "conflict", name: page.name, locale, detail: reason });
-        return { status: "skip" }; // Prevent conflicting pages from being processed and auto-published
+        return { status: "skip", held: true }; // Prevent conflicting pages from being processed and auto-published
       }
       // overwrite mode: warn but continue processing
     } else if (createRequired) {
