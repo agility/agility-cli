@@ -302,6 +302,34 @@ export class Pushers {
     const sourceDataLoader = new GuidDataLoader(sourceGuid);
     const targetDataLoader = new GuidDataLoader(targetGuid);
 
+    // PROD-3212: an empty source pull (Fetch API preview not ready) must stop the run before anything
+    // is written, not "succeed" with nothing synced. Checked on the unscoped pull.
+    const readinessKinds = [
+      ...(elements.includes("Content") ? (["content"] as const) : []),
+      ...(elements.includes("Pages") ? (["pages"] as const) : []),
+    ];
+    if (readinessKinds.length > 0) {
+      const { checkSourceReadiness, readinessError, readinessWarnings, printReadinessIssues } = await import(
+        "./source-readiness"
+      );
+      const { readMappingsForGuidPair } = await import("../mappers/mapping-reader");
+      const counts = [];
+      for (const locale of locales) {
+        const pulled = await sourceDataLoader.loadGuidEntities(locale);
+        const mapped = readMappingsForGuidPair(sourceGuid, targetGuid, [locale]);
+        counts.push({
+          locale,
+          pulled: { content: pulled.content?.length ?? 0, pages: pulled.pages?.length ?? 0 },
+          mapped: { content: mapped.contentMappings.length, pages: mapped.pageMappings.length },
+        });
+      }
+      const issues = checkSourceReadiness(counts, [...readinessKinds]);
+      printReadinessIssues(issues);
+      warningDetails.push(...readinessWarnings(sourceGuid, issues));
+      const error = readinessError(sourceGuid, issues);
+      if (error) throw error;
+    }
+
     // Do guid level ops first
     // TODO: use locale[0] as a temp locale THIS NEEDS TO BE REFACTORED
     try {
@@ -408,6 +436,27 @@ export class Pushers {
       if (phases.some((p) => p.operation === "pushPages" && p.successful > 0)) {
         const { refreshContainerDatesAfterPageSaves } = await import("../mappers/refresh-container-dates");
         await refreshContainerDatesAfterPageSaves(sourceGuid, targetGuid, locales[0]);
+      }
+
+      // Page order (PROD-3164) runs after pages: a page save never moves an existing page, so pages
+      // moved on the source are put in the source's place here. Before auto-publish, which
+      // republishes the pages a move put in staging.
+      if (elements.includes("Pages")) {
+        const { runSyncPageOrder } = await import("../page-order/sync-page-order");
+        const order = await runSyncPageOrder({ sourceGuid, targetGuid, locales });
+        totalSuccess += order.successful;
+        totalFailures += order.failed;
+        totalSkipped += order.skipped;
+        failureDetails.push(...(order.failureDetails || []));
+        warningDetails.push(...(order.warningDetails || []));
+        phases.push({
+          operation: "pageOrder",
+          description: "Put synced pages in the source's parent and order",
+          successful: order.successful,
+          failed: order.failed,
+          skipped: order.skipped,
+          status: order.status === "error" ? "error" : "success",
+        });
       }
 
       // --syncDeletes runs last: every push has repointed what it could, so the targets that are

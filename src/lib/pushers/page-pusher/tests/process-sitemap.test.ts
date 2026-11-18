@@ -9,6 +9,7 @@ import {
   clearOtherLocaleStagingRegistry,
 } from "core/state";
 import { processSitemap, resetProcessedPageIDs } from "../process-sitemap";
+import { isHeldPage, resetHeldPages } from "../../../page-order/held-pages";
 import { SitemapNode } from "types/syncAnalysis";
 
 // Mock processPage — it makes real API calls
@@ -588,5 +589,18 @@ describe("processSitemap — parent not on the target (PROD-3113)", () => {
       })
     );
     expect(mockProcessPage).toHaveBeenCalledTimes(3);
+  });
+});
+
+describe("processSitemap — held pages (PROD-3164)", () => {
+  beforeEach(() => resetHeldPages());
+
+  it("records a page the page phase held, so page order doesn't move it", async () => {
+    mockProcessPage.mockImplementation(async ({ page }: any) => (page.pageID === 1 ? { status: "skip", held: true } : { status: "skip" }));
+
+    await processSitemap(makeProps({ sitemapNodes: [makeNode(1), makeNode(2)], sourcePages: [makePage(1, 2), makePage(2, 2)] }));
+
+    expect(isHeldPage(1)).toBe(true);
+    expect(isHeldPage(2)).toBe(false);
   });
 });

@@ -11,13 +11,18 @@
  * branch at all, which is a silent drop and reads identically to a clean skip if you only
  * assert that nothing was written.
  */
+import * as fs from "fs";
+import * as path from "path";
 import { SyncHarness } from "./helpers/run-sync";
 import { installNetworkStubs, InstalledNetworkStubs } from "./helpers/network-stubs";
 import { ALL_ELEMENTS, ALL_OPERATIONS, FIXTURE_LOCALE, fullInstanceFixture, MODEL_POST } from "./helpers/full-instance-fixture";
 
-// The post-push list order phase (PROD-2992) runs after the eight push phases; it's asserted on its own.
+// The post-push page order (PROD-3164) and list order (PROD-2992) phases run after the eight push
+// phases; they're asserted on their own.
+const PAGE_ORDER = "pageOrder";
 const LIST_ORDER = "listOrder";
-const pushPhases = <T extends { operation: string }>(phases: T[]) => phases.filter((p) => p.operation !== LIST_ORDER);
+const pushPhases = <T extends { operation: string }>(phases: T[]) =>
+  phases.filter((p) => p.operation !== LIST_ORDER && p.operation !== PAGE_ORDER);
 
 jest.mock("lib/pushers/batch-polling", () => ({
   pollBatchUntilComplete: jest.fn(),
@@ -65,8 +70,17 @@ describe("full instance — all eight phases", () => {
 
       // A phase missing from the run entirely is the failure mode where an --elements typo,
       // or an unreachable loop, removes a whole entity type without anything going red.
-      expect(run.phases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS, LIST_ORDER]);
-      expect(run.ranPhases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS, LIST_ORDER]);
+      expect(run.phases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS, PAGE_ORDER, LIST_ORDER]);
+      expect(run.ranPhases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS, PAGE_ORDER, LIST_ORDER]);
+    });
+
+    it("runs page order after the push phases without failing or moving anything", async () => {
+      harness = makeHarness();
+      const run = await harness.run();
+      const pageOrder = run.phases.find((p) => p.operation === PAGE_ORDER)!;
+      // One new page, placed when it was created: nothing is out of place.
+      expect(pageOrder.failed).toBe(0);
+      expect(harness.fake.callsTo("pageMethods.movePage")).toHaveLength(0);
     });
 
     it("runs list order after the push phases without failing", async () => {
@@ -275,6 +289,47 @@ describe("full instance — all eight phases", () => {
       expect(after[modelsKey]).toHaveLength(before[modelsKey].length);
       // Same source model, same target model — an update must not re-point the mapping.
       expect(after[modelsKey][0].targetID).toBe(before[modelsKey][0].targetID);
+    });
+  });
+  // ─── D. Source not ready (PROD-3212) ──────────────────────────────────────
+
+  describe("D. re-sync when the source pull comes back empty", () => {
+    // What a source whose Fetch API (preview) isn't ready looks like on disk: no items, no pages.
+    const emptySourcePull = (h: SyncHarness) => {
+      for (const kind of ["item", "page", "sitemap", "nestedsitemap"]) {
+        fs.rmSync(path.join(h.rootPath, h.sourceGuid, FIXTURE_LOCALE, kind), { recursive: true, force: true });
+      }
+    };
+
+    it("stops before writing anything, instead of succeeding with nothing synced", async () => {
+      harness = makeHarness();
+      await harness.run();
+      emptySourcePull(harness);
+
+      const run2 = await harness.resync();
+
+      // A run-level failure: push reports it in the ERROR SUMMARY and exits 1.
+      const failed = run2.results.flatMap((r) => r.failed);
+      expect(failed).toEqual([
+        expect.objectContaining({ error: expect.stringMatching(/^Source validation failed.*no content items for en-us.*no pages for en-us/) }),
+      ]);
+      expect(run2.ranPhases).toEqual([]);
+
+      const writes = harness.fake.calls.filter((c) => /save|delete|move|axios\.post|setContentListItemOrder/i.test(c.method));
+      expect(writes.map((c) => c.method)).toEqual([]);
+    });
+
+    it("stops a preflight the same way", async () => {
+      harness = makeHarness();
+      await harness.run();
+      emptySourcePull(harness);
+      harness.stateOverrides = { preflight: true };
+
+      const run2 = await harness.resync();
+
+      expect(run2.results.flatMap((r) => r.failed)).toEqual([
+        expect.objectContaining({ error: expect.stringContaining("Source validation failed") }),
+      ]);
     });
   });
 });

@@ -137,6 +137,8 @@ export interface OtherLocaleStagingEntry {
   pageName: string;
   /** The locale whose save put this page in staging. */
   savedLocale: string;
+  /** What put it in staging, when not a save (e.g. "page move", PROD-3164). */
+  cause?: string;
 }
 
 // Global state - populated from argv and referenced throughout the app

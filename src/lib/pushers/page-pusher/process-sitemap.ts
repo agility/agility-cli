@@ -9,6 +9,7 @@ import { preflightReport } from "../../preflight/preflight-report";
 import { SitemapNode } from "types/index";
 import { LocalePageScope } from "types/pageScope";
 import { Logs } from "core/logs";
+import { recordHeldPage } from "../../page-order/held-pages";
 
 interface ReturnType {
   successful: number;
@@ -262,6 +263,7 @@ export async function processSitemap({
       }
     } else if (pageRes.status === "skip") {
       returnData.skipped++;
+      if (pageRes.held) recordHeldPage(sourcePage.pageID);
     } else {
       // pageRes.status is "failure"
       returnData.failed++;
