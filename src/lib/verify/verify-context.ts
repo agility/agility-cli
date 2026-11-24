@@ -188,6 +188,11 @@ export function createVerifyContext(input: {
    * this locale's source pages.
    */
   sourcePlaced?: PlacedContentIDs;
+  /**
+   * PROD-3399: the unscoped source, when `source` was narrowed by a scope. Links to Components are
+   * read from it, so an out-of-scope linker still keeps a Component used.
+   */
+  sourceUnscoped?: SideEntities;
 }): VerifyContext {
   const clean = (side: SideEntities): SideIndex => {
     const containers = side.containers.filter(
@@ -217,8 +222,9 @@ export function createVerifyContext(input: {
   const cleanIds = new Set(cleanSource.entities.content.map((item) => item?.contentID));
   const unusedComponents = findUnusedComponents({
     content: input.source.content,
-    containers: input.source.containers,
-    models: input.source.models,
+    allContent: input.sourceUnscoped?.content,
+    containers: input.sourceUnscoped?.containers?.length ? input.sourceUnscoped.containers : input.source.containers,
+    models: input.sourceUnscoped?.models?.length ? input.sourceUnscoped.models : input.source.models,
     placed: input.sourcePlaced ?? {
       ids: cleanSource.pageBoundContentIDs,
       pageCount: cleanSource.pagesById.size,

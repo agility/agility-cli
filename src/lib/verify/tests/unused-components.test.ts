@@ -82,6 +82,25 @@ describe("verify: unused Components (PROD-3399)", () => {
     expect(collector.findings.find((f) => f.category === "unusedComponent")).toBeUndefined();
   });
 
+  it("under a scope, an out-of-scope linker in the unscoped source keeps a Component used", () => {
+    const linker = item(3, { banner: { contentid: 2 } });
+    const pages = [page(5, { main: [module("Banner", 1)] })];
+    const ctx = context({
+      source: { models: [POST_MODEL_SOURCE], containers: SOURCE_CONTAINERS, content: [banner(2)], pages },
+      target: { models: [POST_MODEL_TARGET], containers: TARGET_CONTAINERS, content: [banner(102)] },
+      mappings: { ...MAPPINGS, locales: { [LOCALE]: { item: itemMappings([[2, 102]]) } } },
+      scoped: true,
+      sourceUnscoped: {
+        models: [POST_MODEL_SOURCE],
+        containers: SOURCE_CONTAINERS,
+        content: [banner(1), banner(2), linker],
+        pages,
+      },
+    });
+    expect(ctx.source.unusedComponents).toEqual([]);
+    expect(ctx.source.contentById.has(2)).toBe(true);
+  });
+
   it("treats nothing as unused when the source has no pages", () => {
     const collector = run([banner(1)], [], [], []);
     expect(collector.findings).toContainEqual(expect.objectContaining({ category: "unmapped", severity: "failure" }));
