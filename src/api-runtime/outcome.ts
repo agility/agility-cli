@@ -67,8 +67,19 @@ export function statusOf(err: any): Status {
   return "error";
 }
 
+/** The server's explanation in an HTTP error response, if it gave one. */
+function serverDetail(err: any): string | null {
+  const data = err?.response?.data ?? err?.innerError?.response?.data;
+  if (!data) return null;
+  if (typeof data === "string") return data.trim().slice(0, 500) || null;
+  const text = data.message || data.detail || data.title || data.error;
+  return typeof text === "string" && text.trim() ? text.trim() : null;
+}
+
 export function messageOf(err: any): string {
   if (!err) return "Unknown error";
   if (typeof err === "string") return err;
-  return err.message || String(err);
+  const message = err.message || String(err);
+  const detail = serverDetail(err);
+  return detail && message.indexOf(detail) === -1 ? `${message}: ${detail}` : message;
 }

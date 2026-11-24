@@ -1,4 +1,4 @@
-import { Endpoint, flag, pos, takeSkip } from "../types";
+import { Endpoint, flag, pos, q, takeSkip } from "../types";
 
 export const asset: Endpoint[] = [
   {
@@ -27,7 +27,7 @@ export const asset: Endpoint[] = [
     effect: "read",
     sdk: ["assetMethods.getAssetByUrl"],
     args: [pos("url", "string", "Media URL")],
-    call: (c, a) => c.assetMethods.getAssetByUrl(a.url, a.guid),
+    call: (c, a) => c.assetMethods.getAssetByUrl(q(a.url), a.guid),
   },
   {
     resource: "asset",

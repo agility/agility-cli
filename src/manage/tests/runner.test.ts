@@ -17,6 +17,9 @@ function setup(overrides: Partial<RunDeps> = {}, locale = "en-us") {
     readStdin: () => '{"from":"stdin"}',
     readFile: (p) => (p === "body.json" ? '{"from":"file"}' : "{bad"),
     cliVersion: () => "3.0.0-test",
+    interactive: () => false,
+    confirm: async () => false,
+    audit: () => null,
     ...overrides,
   };
   return { out, deps };

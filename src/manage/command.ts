@@ -9,6 +9,7 @@ import { getPackageVersion } from "../lib/shared";
 import { registry, resources } from "./registry";
 import { ArgSpec, Endpoint } from "./types";
 import { runEndpoint } from "./runner";
+import { REQUEST_METHODS, requestEndpoint, requestPath } from "./request";
 
 export const MANAGE_GLOBAL_OPTIONS: Record<string, Options> = {
   guid: { type: "string", describe: "Instance GUID. Defaults to AGILITY_GUID in .env." },
@@ -26,6 +27,22 @@ export const MANAGE_GLOBAL_OPTIONS: Record<string, Options> = {
   all: { type: "boolean", default: false, describe: "Page through every result of a list action" },
   token: { type: "string", describe: "Personal access token. Defaults to AGILITY_TOKEN or your login." },
   dev: { type: "boolean", default: false, describe: "Use the dev environment" },
+  yes: {
+    type: "boolean",
+    default: false,
+    describe: "Writes and deletes: run without the confirmation prompt (required when there's no terminal)",
+  },
+  "dry-run": {
+    type: "boolean",
+    default: false,
+    describe: "Writes and deletes: show what would be sent, and send nothing",
+  },
+  wait: {
+    type: "boolean",
+    default: true,
+    describe: "Wait for the write's batch to finish and report each item. --no-wait returns the batch IDs",
+  },
+  timeout: { type: "number", default: 300, describe: "Seconds to wait for a batch" },
 };
 
 function yargsType(spec: ArgSpec): "string" | "number" | "boolean" {
@@ -44,6 +61,7 @@ function buildAction(y: Argv, e: Endpoint): Argv {
   for (const spec of e.args) {
     if (spec.kind === "positional") {
       const opt: PositionalOptions = { type: yargsType(spec), describe: spec.describe };
+      if (spec.choices) opt.choices = spec.choices;
       y.positional(spec.name, opt);
     } else {
       const opt: Options = { type: yargsType(spec), describe: spec.describe };
@@ -55,23 +73,27 @@ function buildAction(y: Argv, e: Endpoint): Argv {
   return y;
 }
 
+function usageDocument(command: string, message: string): number {
+  return finish(
+    {
+      command,
+      status: "usage",
+      result: undefined,
+      errors: [{ status: "usage", message }],
+      warnings: [],
+      startedAt: new Date(),
+      cliVersion: getPackageVersion(),
+    },
+    { json: process.argv.indexOf("--json") !== -1, output: "json" },
+    processWriter
+  );
+}
+
 /** A usage error from yargs itself (unknown action, missing positional). Exits 2. */
 function onUsageError(msg: string | undefined, err: Error | undefined, y: Argv) {
   const message = msg || err?.message || "Invalid command";
   if (process.argv.indexOf("--json") !== -1) {
-    process.exitCode = finish(
-      {
-        command: "manage",
-        status: "usage",
-        result: undefined,
-        errors: [{ status: "usage", message }],
-        warnings: [],
-        startedAt: new Date(),
-        cliVersion: getPackageVersion(),
-      },
-      { json: true, output: "json" },
-      processWriter
-    );
+    process.exitCode = usageDocument("manage", message);
     return;
   }
   y.showHelp();
@@ -111,10 +133,34 @@ export function registerManageCommand(y: { command: Argv["command"] }): void {
           },
         });
       }
+      my.command({
+        command: "request <method> <path>",
+        describe: "A raw Management API call, for operations the SDK doesn't wrap (GET, POST, PUT, DELETE)",
+        builder: (ay: Argv) =>
+          ay
+            .positional("method", { type: "string", describe: REQUEST_METHODS.join(", ") })
+            .positional("path", { type: "string", describe: "Path under /api/v1/instance/<guid>/, e.g. locales" })
+            .option("data", { type: "string", describe: "Request body as JSON, @file.json, or - for stdin" }),
+        handler: async (argv: any) => {
+          let endpoint;
+          try {
+            requestPath(argv.path);
+            endpoint = requestEndpoint(argv.method);
+          } catch (err: any) {
+            process.exitCode = usageDocument(`manage request`, err.message);
+            return;
+          }
+          process.exitCode = await runEndpoint(endpoint, argv);
+        },
+      });
       return my.demandCommand(1, "Choose a resource.").fail(onUsageError);
     },
     handler: (argv: any) => {
-      onUsageError(`Unknown resource "${argv._[1]}". Choose one of: ${resources().join(", ")}.`, undefined, y as Argv);
+      onUsageError(
+        `Unknown resource "${argv._[1]}". Choose one of: ${resources().concat("request").join(", ")}.`,
+        undefined,
+        y as Argv
+      );
     },
   });
 }

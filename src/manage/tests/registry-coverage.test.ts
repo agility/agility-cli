@@ -52,7 +52,29 @@ describe("manage registry coverage", () => {
     expect(keys.filter((k, i) => keys.indexOf(k) !== i)).toEqual([]);
   });
 
-  it("exposes only reads until the write guards land", () => {
-    expect(registry.filter((e) => e.effect !== "read").map((e) => `${e.resource} ${e.action}`)).toEqual([]);
+  it("plans nothing: every SDK method is exposed or deliberately skipped", () => {
+    expect(PLANNED_SDK_METHODS).toEqual([]);
+  });
+
+  it("marks every delete as a delete", () => {
+    const misfiled = registry
+      .filter((e) => e.effect !== "delete" && e.sdk.some((m) => /\.delete/i.test(m)))
+      .map((e) => `${e.resource} ${e.action}`);
+    expect(misfiled).toEqual([]);
+  });
+
+  it("never marks a write as a read", () => {
+    const misfiled = registry
+      .filter(
+        (e) =>
+          e.effect === "read" &&
+          e.sdk.some((m) =>
+            /\.(save|delete|publish|unpublish|approve|decline|request|move|upload|create|rename|rotate|set|batchWorkflow)/i.test(
+              m
+            )
+          )
+      )
+      .map((e) => `${e.resource} ${e.action}`);
+    expect(misfiled).toEqual([]);
   });
 });

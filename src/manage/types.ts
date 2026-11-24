@@ -37,16 +37,38 @@ export interface Endpoint {
   needsLocale?: boolean;
   /** Names of the take/skip args, for `--all`, which pages through until a short page. */
   paged?: { take: string; skip: string };
+  /**
+   * The call returns batch IDs (the SDK method was called with `returnBatchId`). The runner waits
+   * for the batches and reports their items, unless `--no-wait`. The SDK's own wait is never used:
+   * it has no timeout unless Options.retryCount is set, and it hides which items failed.
+   */
+  batched?: boolean;
+  /**
+   * Read-only checks before a write runs, after its arguments are resolved. Each string returned
+   * is a warning; none of them stop the write. Used for the last-write-wins versionID check.
+   */
+  checks?: (client: mgmtApi.ApiClient, a: ResolvedArgs) => Promise<string[]>;
   call: (client: mgmtApi.ApiClient, a: ResolvedArgs) => Promise<unknown>;
 }
 
-export const pos = (name: string, type: ArgType, describe: string): ArgSpec => ({
+export const pos = (name: string, type: ArgType, describe: string, extra: Partial<ArgSpec> = {}): ArgSpec => ({
   name,
   kind: "positional",
   type,
   describe,
   required: true,
+  ...extra,
 });
+
+/**
+ * A value for a query-string position in an SDK call. The SDK concatenates query values without
+ * encoding them and turns an omitted optional value into the text "undefined" or "null", so an
+ * omitted value is sent as empty, which the API binds as null.
+ */
+export function q(value: unknown): string {
+  if (value === undefined || value === null) return "";
+  return encodeURIComponent(String(value));
+}
 
 export const flag = (name: string, type: ArgType, describe: string, extra: Partial<ArgSpec> = {}): ArgSpec => ({
   name,

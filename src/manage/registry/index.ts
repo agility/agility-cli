@@ -4,18 +4,42 @@ import { page, template } from "./page";
 import { model, container } from "./model";
 import { asset, gallery } from "./asset";
 import { batch, user, webhook, instance, search } from "./instance";
+import {
+  assetWrites,
+  batchWrites,
+  containerWrites,
+  contentWrites,
+  galleryWrites,
+  modelWrites,
+  pageWrites,
+  redirectWrites,
+  templateWrites,
+  userWrites,
+  webhookWrites,
+} from "./writes";
 
 export const registry: Endpoint[] = [
   ...content,
+  ...contentWrites,
   ...page,
+  ...pageWrites,
   ...template,
+  ...templateWrites,
   ...model,
+  ...modelWrites,
   ...container,
+  ...containerWrites,
   ...asset,
+  ...assetWrites,
   ...gallery,
+  ...galleryWrites,
   ...batch,
+  ...batchWrites,
   ...user,
+  ...userWrites,
   ...webhook,
+  ...webhookWrites,
+  ...redirectWrites,
   ...instance,
   ...search,
 ];
@@ -24,55 +48,10 @@ export const registry: Endpoint[] = [
 export const SKIPPED_SDK_METHODS: string[] = ["batchMethods.Retry", "batchMethods.delay"];
 
 /**
- * Write and delete methods not exposed yet. They arrive with the write guards (--data, --dry-run,
- * confirmation, --wait). Listed so the coverage test passes until then and still catches a new
- * or renamed SDK method.
+ * SDK methods not exposed yet. Empty since phase 3; kept so the coverage test has somewhere to
+ * park a new SDK method deliberately rather than by accident.
  */
-export const PLANNED_SDK_METHODS: string[] = [
-  "contentMethods.publishContent",
-  "contentMethods.unPublishContent",
-  "contentMethods.batchWorkflowContent",
-  "contentMethods.contentRequestApproval",
-  "contentMethods.approveContent",
-  "contentMethods.declineContent",
-  "contentMethods.deleteContent",
-  "contentMethods.saveContentItem",
-  "contentMethods.saveContentItems",
-  "contentMethods.setContentListItemOrder",
-  "pageMethods.publishPage",
-  "pageMethods.unPublishPage",
-  "pageMethods.batchWorkflowPages",
-  "pageMethods.pageRequestApproval",
-  "pageMethods.approvePage",
-  "pageMethods.declinePage",
-  "pageMethods.deletePage",
-  "pageMethods.savePage",
-  "pageMethods.savePageTemplate",
-  "pageMethods.deletePageTemplate",
-  "modelMethods.saveModel",
-  "modelMethods.deleteModel",
-  "containerMethods.saveContainer",
-  "containerMethods.deleteContainer",
-  "assetMethods.upload",
-  "assetMethods.moveFile",
-  "assetMethods.deleteFile",
-  "assetMethods.createFolder",
-  "assetMethods.renameFolder",
-  "assetMethods.deleteFolder",
-  "assetMethods.saveGallery",
-  "assetMethods.deleteGallery",
-  "batchMethods.publishBatch",
-  "batchMethods.unpublishBatch",
-  "batchMethods.approveBatch",
-  "batchMethods.declineBatch",
-  "batchMethods.requestApprovalBatch",
-  "instanceUserMethods.saveUser",
-  "instanceUserMethods.deleteUser",
-  "webhookMethods.saveWebhook",
-  "webhookMethods.deleteWebhook",
-  "webhookMethods.rotateWebhookSecret",
-  "urlRedirectionMethods.deleteUrlRedirections",
-];
+export const PLANNED_SDK_METHODS: string[] = [];
 
 export function findEndpoint(resource: string, action: string): Endpoint | undefined {
   return registry.find((e) => e.resource === resource && e.action === action);

@@ -1,3 +1,6 @@
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
 import * as mgmtApi from "@agility/management-sdk";
 import { registry } from "../registry";
 import { ArgSpec, camel, Endpoint, ResolvedArgs } from "../types";
@@ -82,13 +85,32 @@ function deepIncludes(haystack: unknown, needle: unknown): boolean {
 }
 
 /** Args whose value the entry transforms before the call, so they can't be found verbatim. */
-const TRANSFORMED = new Set(["updated-since", "type", "zones", "include-defaults", "expand", "wait", "show-deleted"]);
+const TRANSFORMED = new Set([
+  "updated-since",
+  "type",
+  "zones",
+  "include-defaults",
+  "expand",
+  "wait",
+  "show-deleted",
+  // A workflow name becomes the SDK's WorkflowOperationType number.
+  "operation",
+  // Optional numbers in a query string are sent as encoded text, so an omitted one is empty.
+  "gallery-id",
+  "media-id",
+  // The file is read into multipart form data.
+  "file",
+]);
+
+/** A real file for `asset upload`, which reads it before calling the SDK. */
+const UPLOAD_FILE = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "manage-arg-mapping-")), "upload.txt");
+fs.writeFileSync(UPLOAD_FILE, "hello");
 
 async function invoke(e: Endpoint): Promise<{ call: Call; a: ResolvedArgs }> {
   const calls: Call[] = [];
   const a: ResolvedArgs = { guid: GUID, locale: LOCALE };
   e.args.forEach((spec, i) => {
-    a[camel(spec.name)] = sample(spec, i);
+    a[camel(spec.name)] = spec.name === "file" ? UPLOAD_FILE : sample(spec, i);
   });
   await e.call(recordingClient(calls), a);
   expect(calls).toHaveLength(1);
