@@ -118,7 +118,7 @@ export function zoneModules(page: any): Array<{ zone: string; module: any }> {
 export function moduleContentID(module: any): number | undefined {
   const item = module?.item;
   if (!item || typeof item !== "object") return undefined;
-  const raw = item.contentid ?? item.contentID ?? item.ContentID;
+  const raw = item.contentid ?? item.contentID ?? item.ContentID ?? item.contentId;
   const id = typeof raw === "string" ? parseInt(raw, 10) : raw;
   return typeof id === "number" && id > 0 ? id : undefined;
 }
@@ -211,16 +211,19 @@ export function createVerifyContext(input: {
   };
   const target = clean(input.target);
   const cleanSource = clean(input.source);
-  // PROD-3399: the sync skips Components that no page places; so does the comparison.
+  // PROD-3399: the sync skips Components that no page places; so does the comparison. Decided on the
+  // raw pull, as the sync decides it, so an unpublished or dead-container item that links to a
+  // Component keeps it used here too.
+  const cleanIds = new Set(cleanSource.entities.content.map((item) => item?.contentID));
   const unusedComponents = findUnusedComponents({
-    content: cleanSource.entities.content,
-    containers: cleanSource.entities.containers,
-    models: cleanSource.entities.models,
+    content: input.source.content,
+    containers: input.source.containers,
+    models: input.source.models,
     placed: input.sourcePlaced ?? {
       ids: cleanSource.pageBoundContentIDs,
       pageCount: cleanSource.pagesById.size,
     },
-  });
+  }).filter((item) => cleanIds.has(item?.contentID));
   const unusedIds = new Set(unusedComponents.map((item) => item.contentID));
   const source =
     unusedIds.size === 0

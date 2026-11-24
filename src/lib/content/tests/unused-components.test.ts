@@ -5,6 +5,8 @@ import {
   findUnusedComponents,
   isComponentContainer,
   loadPlacedContentIDs,
+  loadPlacedContentIDsCached,
+  templatePlacement,
   pageZoneContentIDs,
   placedContentIDsFromPages,
   UNUSED_COMPONENT_WARNING_CODE,
@@ -44,6 +46,7 @@ describe("isComponentContainer", () => {
     expect(isComponentContainer(componentContainer("a"))).toBe(true);
     expect(isComponentContainer(componentContainer("a", { isShared: true }))).toBe(true);
     expect(isComponentContainer(componentContainer("a", { isDynamicPageList: true }))).toBe(false);
+    expect(isComponentContainer(componentContainer("a", { isDeleted: true }))).toBe(false);
     expect(isComponentContainer(listContainer("posts"))).toBe(false);
     expect(isComponentContainer({ referenceName: "x", contentDefinitionType: 2 })).toBe(true);
     expect(isComponentContainer(null)).toBe(false);
@@ -58,9 +61,10 @@ describe("pageZoneContentIDs", () => {
           a: [{ item: { contentid: 1 } }, { item: { contentID: "2" } }],
           b: [{ item: { ContentID: 3 } }, { item: { contentid: 0 } }, { item: null }, {}],
           c: null,
+          d: [{ item: { contentId: 4 } }],
         },
       })
-    ).toEqual([1, 2, 3]);
+    ).toEqual([1, 2, 3, 4]);
     expect(pageZoneContentIDs({})).toEqual([]);
   });
 });
@@ -152,6 +156,68 @@ describe("findUnusedComponents", () => {
   });
 });
 
+describe("findUnusedComponents with template placement and a scope", () => {
+  const placed = (pages: any[], extra: Partial<{ ids: number[]; containerIDs: number[] }> = {}) => {
+    const p = placedContentIDsFromPages(pages);
+    (extra.ids || []).forEach((id) => p.ids.add(id));
+    return { ...p, containerIDs: new Set(extra.containerIDs || []) };
+  };
+
+  it("keeps a Component a page template places, by item or by whole container", () => {
+    const containers = [
+      componentContainer("landing_PromoCard", { contentViewID: 40 }),
+      componentContainer("landing_PromoCardA1B2C3D4", { contentViewID: 41 }),
+    ];
+    const unused = findUnusedComponents({
+      content: [item(501, "landing_PromoCard"), item(502, "landing_PromoCard"), item(503, "landing_PromoCardA1B2C3D4")],
+      containers,
+      placed: placed([page(1)], { ids: [501], containerIDs: [41] }),
+    });
+    expect(unused.map((i) => i.contentID)).toEqual([502]);
+  });
+
+  it("reads links from the whole locale, and only skips in-scope items", () => {
+    const component = item(501, "landing_PromoCard");
+    const other = item(502, "landing_PromoCard");
+    const outOfScopePost = item(300, "posts", { banner: { contentid: 501 } }, "Post");
+    const unused = findUnusedComponents({
+      content: [component],
+      allContent: [component, other, outOfScopePost],
+      containers: CONTAINERS,
+      placed: placed([page(1)]),
+    });
+    expect(unused).toEqual([]);
+    const unusedOther = findUnusedComponents({
+      content: [other],
+      allContent: [component, other, outOfScopePost],
+      containers: CONTAINERS,
+      placed: placed([page(1)]),
+    });
+    expect(unusedOther.map((i) => i.contentID)).toEqual([502]);
+  });
+});
+
+describe("templatePlacement", () => {
+  it("collects fixed items, shared/default module items and bound containers, skipping deleted templates", () => {
+    const result = templatePlacement([
+      {
+        contentSectionDefinitions: [
+          {
+            publishContentItemID: 7,
+            itemContainerID: null,
+            sharedModules: [{ item: { contentID: 8 } }],
+            defaultModules: null,
+          },
+          { publishContentItemID: null, itemContainerID: 41, sharedModules: [], defaultModules: [{ contentId: "9" }] },
+        ],
+      },
+      { isDeleted: true, contentSectionDefinitions: [{ publishContentItemID: 99 }] },
+    ]);
+    expect(Array.from(result.ids).sort()).toEqual([7, 8, 9]);
+    expect(Array.from(result.containerIDs)).toEqual([41]);
+  });
+});
+
 describe("loadPlacedContentIDs", () => {
   let root: string;
   beforeEach(() => {
@@ -165,13 +231,38 @@ describe("loadPlacedContentIDs", () => {
     fs.writeFileSync(path.join(dir, `${p.pageID}.json`), JSON.stringify(p));
   };
 
-  it("unions every pulled locale with the pages passed in, and skips unreadable files", () => {
+  const writeJson = (rel: string, data: any) => {
+    const file = path.join(root, "src-guid", rel);
+    fs.mkdirSync(path.dirname(file), { recursive: true });
+    fs.writeFileSync(file, JSON.stringify(data));
+  };
+
+  it("unions every pulled locale and the templates, ignores the pages passed in, and skips unreadable files", () => {
     writePage("en-us", page(1, 10));
     writePage("fr-ca", page(1, 11));
     fs.writeFileSync(path.join(root, "src-guid", "en-us", "page", "bad.json"), "{");
+    writeJson("templates/14.json", { contentSectionDefinitions: [{ publishContentItemID: 13, itemContainerID: 41 }] });
     const result = loadPlacedContentIDs(root, "src-guid", [page(2, 12)]);
-    expect(Array.from(result.ids).sort()).toEqual([10, 11, 12]);
-    expect(result.pageCount).toBe(3);
+    expect(Array.from(result.ids).sort()).toEqual([10, 11, 13]);
+    expect(result.pageCount).toBe(2);
+    expect(Array.from(result.containerIDs || [])).toEqual([41]);
+  });
+
+  it("treats placement as unknown when a sitemap lists a page with no page file (incomplete pull)", () => {
+    writePage("en-us", page(1, 10));
+    writeJson("en-us/sitemap/website.json", { "/home": { pageID: 1 }, "/about": { pageID: 2 } });
+    expect(loadPlacedContentIDs(root, "src-guid").pageCount).toBe(0);
+    writePage("en-us", page(2, 11));
+    expect(loadPlacedContentIDs(root, "src-guid").pageCount).toBe(2);
+  });
+
+  it("caches per instance until the report is reset", () => {
+    writePage("en-us", page(1, 10));
+    expect(loadPlacedContentIDsCached(root, "src-guid").ids.has(11)).toBe(false);
+    writePage("en-us", page(2, 11));
+    expect(loadPlacedContentIDsCached(root, "src-guid").ids.has(11)).toBe(false);
+    unusedComponentsReport.reset();
+    expect(loadPlacedContentIDsCached(root, "src-guid").ids.has(11)).toBe(true);
   });
 
   it("falls back to the pages passed in when nothing was pulled", () => {

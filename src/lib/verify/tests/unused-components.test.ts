@@ -71,6 +71,17 @@ describe("verify: unused Components (PROD-3399)", () => {
     expect(collector.findings.map((f) => f.category)).toEqual(["unusedComponent"]);
   });
 
+  it("decides on the raw pull like the sync: an unpublished item's link keeps a Component used", () => {
+    const unpublishedLinker = item(3, { banner: { contentid: 2 } }, { state: 7 });
+    const collector = run(
+      [banner(1), banner(2), unpublishedLinker],
+      [banner(101)],
+      [[1, 101]],
+      [page(5, { main: [module("Banner", 1)] })]
+    );
+    expect(collector.findings.find((f) => f.category === "unusedComponent")).toBeUndefined();
+  });
+
   it("treats nothing as unused when the source has no pages", () => {
     const collector = run([banner(1)], [], [], []);
     expect(collector.findings).toContainEqual(expect.objectContaining({ category: "unmapped", severity: "failure" }));

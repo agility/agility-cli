@@ -15,16 +15,30 @@ import { stripContentReferences } from "./util/strip-content-references";
 import { preflightReport } from "lib/preflight/preflight-report";
 import {
   findUnusedComponents,
-  loadPlacedContentIDs,
+  loadPlacedContentIDsCached,
   UNUSED_COMPONENT_REASON,
   unusedComponentsReport,
 } from "lib/content/unused-components";
+import { fileOperations } from "core/fileOperations";
+import { getContentItemsFromFileSystem } from "lib/getters/filesystem/get-content-items";
+import { getContainersFromFileSystem } from "lib/getters/filesystem/get-containers";
 
 /** The rest of the source instance, which pushContent needs to tell unused Components apart. */
 export interface ContentPushSourceContext {
   containers?: any[];
   models?: any[];
   pages?: any[];
+}
+
+/** The locale's whole source content and the instance's containers, as pulled to disk. */
+function readFullSource(sourceGuid: string, locale: string): { content: any[]; containers: any[] } {
+  try {
+    const content = getContentItemsFromFileSystem(new fileOperations(sourceGuid, locale));
+    const containers = getContainersFromFileSystem(new fileOperations(sourceGuid));
+    return { content: Array.isArray(content) ? content : [], containers: Array.isArray(containers) ? containers : [] };
+  } catch {
+    return { content: [], containers: [] };
+  }
 }
 
 /**
@@ -57,12 +71,17 @@ export async function pushContent(
   // PROD-3399: Components removed from or replaced on their pages but never deleted. The pull still
   // returns them, but nobody can open them in the Manager, so they are skipped and reported once
   // as "unused, skipped", never as failures, in a real run and in preflight alike.
+  // A --models / --models-with-deps / --pages / --containers scope narrows what was loaded, so links
+  // held by out-of-scope items (and their containers) are read from the whole pull on disk.
+  const scoped = !!(state.models || state.modelsWithDeps || state.pages || state.containers);
+  const fullSource = sourceContext && scoped ? readFullSource(sourceGuidStr, locale) : undefined;
   const unusedComponents = sourceContext
     ? findUnusedComponents({
         content: allContentItems,
-        containers: sourceContext.containers || [],
+        allContent: fullSource?.content,
+        containers: fullSource?.containers?.length ? fullSource.containers : sourceContext.containers || [],
         models: sourceContext.models || [],
-        placed: loadPlacedContentIDs(state.rootPath, sourceGuidStr, sourceContext.pages || []),
+        placed: loadPlacedContentIDsCached(state.rootPath, sourceGuidStr, sourceContext.pages || []),
       })
     : [];
   const unusedIds = new Set(unusedComponents.map((item) => item.contentID));

@@ -11,12 +11,15 @@
  * The sync now skips them and reports them once, as "unused, skipped", instead of as errors.
  *
  * An item counts as an unused Component when all of these hold:
- *  - its container is a Component container (contentDefinitionTypeID 2) that is not a dynamic page
- *    list;
- *  - no page zone the CLI pulled places it, in any pulled locale;
- *  - no other item that is used links to it, by ID or by its container's reference name.
+ *  - its container is a live Component container (contentDefinitionTypeID 2, not deleted) that is
+ *    not a dynamic page list;
+ *  - no page zone the CLI pulled places it, in any pulled locale, and no page template places it
+ *    (a fixed item, shared/default modules, or a whole container);
+ *  - no other item that is used links to it, by ID or by its container's reference name. Links are
+ *    read from the locale's whole source content, even when a scope narrows what is pushed.
  *
- * Nothing is skipped when no page was pulled at all, since then nothing can be told apart.
+ * Nothing is skipped when placement can't be trusted: no page was pulled, or a page some sitemap
+ * lists has no page file (an incomplete pull).
  */
 import * as fs from "fs";
 import * as path from "path";
@@ -36,7 +39,7 @@ function lower(value: any): string {
 
 /** A Component container (page module list), not a dynamic page list. */
 export function isComponentContainer(container: any): boolean {
-  if (!container || container.isDynamicPageList === true) return false;
+  if (!container || container.isDynamicPageList === true || container.isDeleted === true) return false;
   const typeID = container.contentDefinitionTypeID ?? container.contentDefinitionType;
   return typeID === COMPONENT_CONTAINER_TYPE_ID;
 }
@@ -52,7 +55,7 @@ export function pageZoneContentIDs(page: any): number[] {
     for (const module of modules) {
       const item = (module as any)?.item;
       if (!item || typeof item !== "object") continue;
-      const raw = item.contentid ?? item.contentID ?? item.ContentID;
+      const raw = item.contentid ?? item.contentID ?? item.ContentID ?? item.contentId;
       const id = typeof raw === "string" ? parseInt(raw, 10) : raw;
       if (typeof id === "number" && id > 0) ids.push(id);
     }
@@ -64,6 +67,54 @@ export interface PlacedContentIDs {
   ids: Set<number>;
   /** Pages read. Zero means placement is unknown, and nothing may be treated as unused. */
   pageCount: number;
+  /** Containers (contentViewID) a page template places as a whole: every item in them is used. */
+  containerIDs?: Set<number>;
+}
+
+const CONTENT_ID_KEY = /^content_?id$/i;
+
+function positiveInt(raw: any): number | undefined {
+  const id = typeof raw === "string" ? parseInt(raw, 10) : raw;
+  return typeof id === "number" && Number.isFinite(id) && id > 0 ? id : undefined;
+}
+
+/** Every content ID under a value, by any contentID-like key. */
+function collectContentIDKeys(value: any, out: Set<number>, depth = 0): void {
+  if (!value || typeof value !== "object" || depth > 6) return;
+  if (Array.isArray(value)) {
+    value.forEach((v) => collectContentIDKeys(v, out, depth + 1));
+    return;
+  }
+  for (const key of Object.keys(value)) {
+    const v = value[key];
+    if (CONTENT_ID_KEY.test(key)) {
+      const id = positiveInt(v);
+      if (id) out.add(id);
+    } else if (v && typeof v === "object") {
+      collectContentIDKeys(v, out, depth + 1);
+    }
+  }
+}
+
+/**
+ * What page templates place: a section's fixed item (publishContentItemID), the items in its shared
+ * and default modules, and a section bound to a whole container (itemContainerID).
+ */
+export function templatePlacement(templates: any[]): { ids: Set<number>; containerIDs: Set<number> } {
+  const ids = new Set<number>();
+  const containerIDs = new Set<number>();
+  for (const template of templates || []) {
+    if (!template || template.isDeleted === true) continue;
+    for (const section of template.contentSectionDefinitions || []) {
+      const fixed = positiveInt(section?.publishContentItemID);
+      if (fixed) ids.add(fixed);
+      const container = positiveInt(section?.itemContainerID);
+      if (container) containerIDs.add(container);
+      collectContentIDKeys(section?.sharedModules, ids);
+      collectContentIDKeys(section?.defaultModules, ids);
+    }
+  }
+  return { ids, containerIDs };
 }
 
 /** Placement from a list of pages. */
@@ -78,15 +129,40 @@ export function placedContentIDsFromPages(pages: any[]): PlacedContentIDs {
   return { ids, pageCount };
 }
 
+function readJson(file: string): any {
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8"));
+  } catch {
+    return undefined; // unreadable: left out (the loaders already warn about it)
+  }
+}
+
+function jsonFiles(dir: string): string[] {
+  try {
+    return fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
+  } catch {
+    return [];
+  }
+}
+
 /**
- * Placement from every pulled locale of one instance (`<rootPath>/<guid>/<locale>/page/*.json`),
- * plus any pages passed in. A Component placed only in another locale's page still counts as used.
- * Reading from disk, not the loaded pages, keeps a --pages scope from making the Components of
- * out-of-scope pages look unused. Unreadable files are left out (the loaders already warn about them).
+ * Placement from every pulled locale of one instance (`<rootPath>/<guid>/<locale>/page/*.json`) and
+ * its page templates (`<rootPath>/<guid>/templates/*.json`). A Component placed only in another
+ * locale's page still counts as used. Reading from disk, not the loaded pages, keeps a --pages scope
+ * from making the Components of out-of-scope pages look unused. `extraPages` are used only when no
+ * page file was found on disk.
+ *
+ * If a page some locale's sitemap lists has no page file, the pull didn't finish (a channel's run
+ * failed, for instance), so placement is unknown and `pageCount` is 0: nothing may be skipped.
  */
 export function loadPlacedContentIDs(rootPath: string, guid: string, extraPages: any[] = []): PlacedContentIDs {
-  const result = placedContentIDsFromPages(extraPages);
   const base = path.join(rootPath, guid);
+  const templates = templatePlacement(
+    jsonFiles(path.join(base, "templates"))
+      .map((f) => readJson(path.join(base, "templates", f)))
+      .filter(Boolean)
+  );
+  const result: PlacedContentIDs = { ids: new Set(templates.ids), pageCount: 0, containerIDs: templates.containerIDs };
   let locales: string[] = [];
   try {
     locales = fs
@@ -94,50 +170,79 @@ export function loadPlacedContentIDs(rootPath: string, guid: string, extraPages:
       .filter((d) => d.isDirectory())
       .map((d) => d.name);
   } catch {
-    return result;
+    locales = [];
   }
   for (const locale of locales) {
-    const dir = path.join(base, locale, "page");
-    let files: string[];
-    try {
-      files = fs.readdirSync(dir).filter((f) => f.endsWith(".json"));
-    } catch {
-      continue;
-    }
+    const pageDir = path.join(base, locale, "page");
+    const files = jsonFiles(pageDir);
+    const pageIDs = new Set<number>();
     for (const file of files) {
-      try {
-        const page = JSON.parse(fs.readFileSync(path.join(dir, file), "utf8"));
-        result.pageCount++;
-        pageZoneContentIDs(page).forEach((id) => result.ids.add(id));
-      } catch {
-        // unreadable: left out
+      const page = readJson(path.join(pageDir, file));
+      if (!page) continue;
+      result.pageCount++;
+      const id = positiveInt(page.pageID);
+      if (id) pageIDs.add(id);
+      pageZoneContentIDs(page).forEach((cid) => result.ids.add(cid));
+    }
+    const sitemapDir = path.join(base, locale, "sitemap");
+    for (const file of jsonFiles(sitemapDir)) {
+      const sitemap = readJson(path.join(sitemapDir, file));
+      if (!sitemap || typeof sitemap !== "object") continue;
+      for (const key of Object.keys(sitemap)) {
+        const id = positiveInt(sitemap[key]?.pageID);
+        if (id && !pageIDs.has(id)) return { ids: new Set(), pageCount: 0, containerIDs: new Set() };
       }
     }
+  }
+  if (result.pageCount === 0) {
+    const extra = placedContentIDsFromPages(extraPages);
+    extra.ids.forEach((id) => result.ids.add(id));
+    result.pageCount = extra.pageCount;
   }
   return result;
 }
 
+const placementCache = new Map<string, PlacedContentIDs>();
+
+/** loadPlacedContentIDs, read once per run per instance (the sync calls it once per locale). */
+export function loadPlacedContentIDsCached(rootPath: string, guid: string, extraPages: any[] = []): PlacedContentIDs {
+  const key = `${rootPath}\u0000${guid}`;
+  let placed = placementCache.get(key);
+  if (!placed) {
+    placed = loadPlacedContentIDs(rootPath, guid, extraPages);
+    placementCache.set(key, placed);
+  }
+  return placed;
+}
+
 /**
- * The unused Components among `content` (one locale's source items). `containers` and `models` are
- * the source instance's; models are only used to find links held in companion fields.
+ * The unused Components among `content` (one locale's source items, possibly narrowed by a scope).
+ * `allContent` is the locale's whole source content, which links are read from; it defaults to
+ * `content`. `containers` and `models` are the source instance's; models are only used to find links
+ * held in companion fields.
  */
 export function findUnusedComponents(input: {
   content: any[];
   containers: any[];
   placed: PlacedContentIDs;
   models?: any[];
+  allContent?: any[];
 }): any[] {
   const { content, containers, placed } = input;
   if (!placed || placed.pageCount === 0) return [];
+  const all = input.allContent && input.allContent.length > 0 ? input.allContent : content;
 
   const componentContainers = new Set<string>();
   for (const container of containers || []) {
-    if (isComponentContainer(container)) componentContainers.add(lower(container.referenceName));
+    if (!isComponentContainer(container)) continue;
+    // a page template binds this whole container to a section: all of its items are used
+    if (placed.containerIDs?.has(container.contentViewID)) continue;
+    componentContainers.add(lower(container.referenceName));
   }
   if (componentContainers.size === 0) return [];
 
   const candidates = new Map<number, any>();
-  for (const item of content || []) {
+  for (const item of all || []) {
     const id = item?.contentID;
     if (typeof id !== "number" || placed.ids.has(id)) continue;
     if (componentContainers.has(lower(item?.properties?.referenceName))) candidates.set(id, item);
@@ -173,7 +278,7 @@ export function findUnusedComponents(input: {
       pending.push(id);
     }
   };
-  for (const item of content || []) {
+  for (const item of all || []) {
     if (candidates.has(item?.contentID)) continue;
     linksOf(item).forEach(markUsed);
   }
@@ -182,7 +287,10 @@ export function findUnusedComponents(input: {
     linksOf(candidates.get(id)).forEach(markUsed);
   }
 
-  return Array.from(candidates.values()).filter((item) => !used.has(item.contentID));
+  const inScope = all === content ? undefined : new Set((content || []).map((item) => item?.contentID));
+  return Array.from(candidates.values()).filter(
+    (item) => !used.has(item.contentID) && (!inScope || inScope.has(item.contentID))
+  );
 }
 
 // ─── run report ──────────────────────────────────────────────────────────────
@@ -219,8 +327,10 @@ const SUMMARY_LIST_LIMIT = 20;
 class UnusedComponentsReport {
   private entries: UnusedComponentEntry[] = [];
 
+  /** Clears the entries and the cached placement, at the start of a run. */
   reset(): void {
     this.entries = [];
+    placementCache.clear();
   }
 
   record(entry: UnusedComponentEntry): void {
