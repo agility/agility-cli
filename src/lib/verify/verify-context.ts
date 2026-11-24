@@ -16,6 +16,7 @@ import { SitemapHierarchy } from "../pushers/page-pusher/sitemap-hierarchy";
 import { SitemapNode } from "../../types/syncAnalysis";
 import { LocaleMappingIndex, MappingIndex } from "./mapping-index";
 import { AssetUrlTranslator, buildAssetUrlTranslator, CanonicalContext, DANGLING_CONTENT_REF } from "./canonicalize";
+import { findUnusedComponents, PlacedContentIDs } from "../content/unused-components";
 
 export const UNPUBLISHED_STATE = 7;
 
@@ -67,6 +68,11 @@ export interface SideIndex {
    * them (no container mapping), so they are left out of every comparison.
    */
   outsideLiveContainers: any[];
+  /**
+   * PROD-3399 (source side only): Components on no page. The sync skips them, so they are left out
+   * of every comparison and listed once as a source defect, like outsideLiveContainers.
+   */
+  unusedComponents: any[];
 }
 
 export interface VerifyContext {
@@ -117,7 +123,11 @@ export function moduleContentID(module: any): number | undefined {
   return typeof id === "number" && id > 0 ? id : undefined;
 }
 
-export function buildSideIndex(entities: SideEntities, outsideLiveContainers: any[] = []): SideIndex {
+export function buildSideIndex(
+  entities: SideEntities,
+  outsideLiveContainers: any[] = [],
+  unusedComponents: any[] = []
+): SideIndex {
   const index: SideIndex = {
     entities,
     modelsById: new Map(),
@@ -131,6 +141,7 @@ export function buildSideIndex(entities: SideEntities, outsideLiveContainers: an
     pageBoundContentIDs: new Set(),
     contentCountByContainer: new Map(),
     outsideLiveContainers,
+    unusedComponents,
   };
   entities.models.forEach((m) => {
     if (typeof m?.id === "number") index.modelsById.set(m.id, m);
@@ -172,6 +183,11 @@ export function createVerifyContext(input: {
   target: SideEntities;
   scoped?: boolean;
   channels?: string[];
+  /**
+   * PROD-3399: which source content IDs some page places, across every pulled locale. Defaults to
+   * this locale's source pages.
+   */
+  sourcePlaced?: PlacedContentIDs;
 }): VerifyContext {
   const clean = (side: SideEntities): SideIndex => {
     const containers = side.containers.filter(
@@ -193,8 +209,30 @@ export function createVerifyContext(input: {
       pulled.filter((item) => !isLive(item))
     );
   };
-  const source = clean(input.source);
   const target = clean(input.target);
+  const cleanSource = clean(input.source);
+  // PROD-3399: the sync skips Components that no page places; so does the comparison.
+  const unusedComponents = findUnusedComponents({
+    content: cleanSource.entities.content,
+    containers: cleanSource.entities.containers,
+    models: cleanSource.entities.models,
+    placed: input.sourcePlaced ?? {
+      ids: cleanSource.pageBoundContentIDs,
+      pageCount: cleanSource.pagesById.size,
+    },
+  });
+  const unusedIds = new Set(unusedComponents.map((item) => item.contentID));
+  const source =
+    unusedIds.size === 0
+      ? cleanSource
+      : buildSideIndex(
+          {
+            ...cleanSource.entities,
+            content: cleanSource.entities.content.filter((item) => !unusedIds.has(item.contentID)),
+          },
+          cleanSource.outsideLiveContainers,
+          unusedComponents
+        );
   const localeMappings = input.mappings.byLocale.get(input.locale);
   if (!localeMappings) {
     throw new Error(`No mapping index for locale ${input.locale}`);

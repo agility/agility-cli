@@ -208,6 +208,15 @@ A sync puts each synced page on the target under the source's parent and in the 
 - `--preflight` lists the moves under a `Page order` phase, and `--jsonSummary` reports them as the `pageOrder` phase.
 - Needs a Management API with the page move route (in production since November 2026).
 
+### Unused Components
+
+When a Component is removed from a page, or replaced with a new one, its item isn't deleted. It stays in the instance and the source pull still returns it, but the Manager can't open it, because a Component is opened through its page. The sync skips these instead of creating them on the target or reporting them as errors.
+
+- A Component counts as unused when no page in any pulled locale places it and no item that is used links to it. Shared Components count too. Nothing is skipped when no page was pulled.
+- The run ends with a non-blocking "Unused Components skipped" list. It counts toward the skipped total, never toward failures or the exit code. Items an earlier sync already created on the target are named and left as they are.
+- `--preflight` lists each one as a Content skip ("unused Component: not on any page"), `--jsonSummary` reports each as an `unusedComponentSkipped` warning, and `verify` lists each as an `unusedComponent` source defect instead of an unmapped failure.
+- To clear them for good, delete them in the source instance.
+
 ### Auto-Publish
 
 The `--autoPublish` flag lets you automatically publish synced content and/or pages in the target instance immediately after a sync completes. Only items that are **published in the source instance** will be published in the target — staging-only items are skipped.

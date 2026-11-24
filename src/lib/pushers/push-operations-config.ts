@@ -63,7 +63,11 @@ export const PUSH_OPERATIONS: Record<string, PushOperationConfig> = {
     description: "Push content items",
     handler: async (sourceData, targetData, locale) => {
       const { pushContent } = await import("./content-pusher/content-pusher");
-      return await pushContent(sourceData["content"], targetData["content"], locale);
+      return await pushContent(sourceData["content"], targetData["content"], locale, {
+        containers: sourceData["containers"],
+        models: sourceData["models"],
+        pages: sourceData["pages"],
+      });
     },
     elements: ["Content"],
     dataKey: "content",

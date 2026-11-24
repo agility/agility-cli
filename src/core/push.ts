@@ -24,6 +24,7 @@ import { buildJsonSummary, writeJsonSummary, JsonSummaryDetail, JsonSummaryPhase
 import type { FailureDetail } from "../types/sourceData";
 import { foreignCdnReport } from "../lib/content/foreign-cdn-report";
 import { keptTargetChanges } from "../lib/pushers/kept-target-changes";
+import { unusedComponentsReport } from "../lib/content/unused-components";
 import { resetForeignCdnDetectorCache } from "../lib/pushers/content-pusher/util/report-foreign-cdn-references";
 import type { OtherLocaleStagingEntry } from "./state";
 
@@ -119,6 +120,8 @@ export class Push {
     resetForeignCdnDetectorCache();
     // Entities whose target-only change the sync kept, reported once per entity per run
     keptTargetChanges.reset();
+    // PROD-3399: Components on no page, skipped and reported once per run
+    unusedComponentsReport.reset();
 
     // Initialize logger for push operation
     // Determine if this is a sync operation by checking if both source and target GUIDs exist
@@ -371,6 +374,13 @@ export class Push {
         rest.forEach((line) => console.log(ansiColors.yellow(`  ${line}`)));
       }
 
+      // PROD-3399: Components on no page, skipped instead of synced. Non-blocking.
+      if (unusedComponentsReport.hasEntries()) {
+        const [headline, ...rest] = unusedComponentsReport.renderSummaryLines();
+        console.log(ansiColors.yellow(`\n  ${headline}`));
+        rest.forEach((line) => console.log(ansiColors.yellow(`  ${line}`)));
+      }
+
       // Target-only changes the sync kept instead of overwriting: non-blocking, --overwrite replaces them
       if (keptTargetChanges.hasEntries()) {
         const [headline, ...rest] = keptTargetChanges.renderSummaryLines();
@@ -415,6 +425,9 @@ export class Push {
         if (keptTargetChanges.hasEntries()) {
           preflightReport.recordWarning(`${keptTargetChanges.headline()} — see the list above`);
         }
+        if (unusedComponentsReport.hasEntries()) {
+          preflightReport.recordWarning(`${unusedComponentsReport.headline()} — see the list above`);
+        }
         preflightReport.print();
         if (preflightReport.hasConflicts()) {
           process.exitCode = 1;
@@ -431,10 +444,12 @@ export class Push {
         failures: syncFailureDetails,
         // PROD-2773: one additive entry per foreign CDN URL (code "foreignCdnReference")
         // One entry per entity whose target-only change was kept (code "targetChangeKept")
+        // PROD-3399: one entry per Component on no page that was skipped (code "unusedComponentSkipped")
         warnings: [
           ...syncWarningDetails,
           ...foreignCdnReport.toWarningDetails(sourceGuid),
           ...keptTargetChanges.toWarningDetails(targetGuid),
+          ...unusedComponentsReport.toWarningDetails(sourceGuid),
         ],
         operationErrors: syncErrors,
         autoPublishErrors,

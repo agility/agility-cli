@@ -12,11 +12,30 @@ import { getApiClient } from "core/state";
 import { reportForeignCdnReferences } from "./util/report-foreign-cdn-references";
 import { BatchProcessingResult } from "./util/types";
 import { stripContentReferences } from "./util/strip-content-references";
+import { preflightReport } from "lib/preflight/preflight-report";
+import {
+  findUnusedComponents,
+  loadPlacedContentIDs,
+  UNUSED_COMPONENT_REASON,
+  unusedComponentsReport,
+} from "lib/content/unused-components";
+
+/** The rest of the source instance, which pushContent needs to tell unused Components apart. */
+export interface ContentPushSourceContext {
+  containers?: any[];
+  models?: any[];
+  pages?: any[];
+}
 
 /**
  * Push content to the target instance
  */
-export async function pushContent(sourceData: ContentItem[], targetData: ContentItem[], locale: string): Promise<any> {
+export async function pushContent(
+  sourceData: ContentItem[],
+  targetData: ContentItem[],
+  locale: string,
+  sourceContext?: ContentPushSourceContext
+): Promise<any> {
   // Use batch pusher for better performance (default behavior)
   const { ContentBatchProcessor } = await import("./content-batch-processor");
 
@@ -29,11 +48,39 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
   const modelMapper = new ModelMapper(sourceGuidStr, targetGuidStr);
   const containerMapper = new ContainerMapper(sourceGuidStr, targetGuidStr);
   const referenceMapper = new ContentItemMapper(sourceGuidStr, targetGuidStr, locale);
-  const contentItems = sourceData || [];
+  const allContentItems = sourceData || [];
 
-  if (contentItems.length === 0) {
+  if (allContentItems.length === 0) {
     return { status: "success" as const, successful: 0, failed: 0, skipped: 0, publishableIds: [], failureDetails: [] };
   }
+
+  // PROD-3399: Components removed from or replaced on their pages but never deleted. The pull still
+  // returns them, but nobody can open them in the Manager, so they are skipped and reported once
+  // as "unused, skipped", never as failures, in a real run and in preflight alike.
+  const unusedComponents = sourceContext
+    ? findUnusedComponents({
+        content: allContentItems,
+        containers: sourceContext.containers || [],
+        models: sourceContext.models || [],
+        placed: loadPlacedContentIDs(state.rootPath, sourceGuidStr, sourceContext.pages || []),
+      })
+    : [];
+  const unusedIds = new Set(unusedComponents.map((item) => item.contentID));
+  for (const item of unusedComponents) {
+    const name = item.properties?.referenceName || `Item ${item.contentID}`;
+    const targetID = referenceMapper.getContentItemMappingByContentID(item.contentID, "source")?.targetContentID;
+    const entry = {
+      contentID: item.contentID,
+      name,
+      model: item.properties?.definitionName,
+      locale,
+      ...(typeof targetID === "number" && targetID > 0 ? { targetID } : {}),
+    };
+    unusedComponentsReport.record(entry);
+    logger?.content?.skipped?.(item, UNUSED_COMPONENT_REASON, locale, targetGuidStr);
+    preflightReport.record({ phase: "Content", action: "skip", name, locale, detail: UNUSED_COMPONENT_REASON });
+  }
+  const contentItems = unusedIds.size > 0 ? allContentItems.filter((item) => !unusedIds.has(item.contentID)) : allContentItems;
 
   // Deterministically classify content items by references: linked (referenced, split into
   // dependency levels), normal (unreferenced) and skipped (missing mappings)
@@ -60,7 +107,7 @@ export async function pushContent(sourceData: ContentItem[], targetData: Content
 
   let totalSuccessful = 0;
   let totalFailed = 0;
-  let totalSkipped = 0;
+  let totalSkipped = unusedIds.size;
   const allPublishableIds: number[] = [];
   const allFailureDetails: Array<{
     name: string;
