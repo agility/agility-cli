@@ -48,6 +48,7 @@ export function context(input: {
   locale?: string;
   scoped?: boolean;
   channels?: string[];
+  sourceUnscoped?: Partial<SideEntities>;
 }): VerifyContext {
   const locale = input.locale ?? LOCALE;
   return createVerifyContext({
@@ -59,6 +60,7 @@ export function context(input: {
     target: emptySide(input.target),
     scoped: input.scoped,
     channels: input.channels,
+    sourceUnscoped: input.sourceUnscoped ? emptySide(input.sourceUnscoped) : undefined,
   });
 }
 

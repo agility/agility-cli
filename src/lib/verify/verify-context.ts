@@ -16,6 +16,7 @@ import { SitemapHierarchy } from "../pushers/page-pusher/sitemap-hierarchy";
 import { SitemapNode } from "../../types/syncAnalysis";
 import { LocaleMappingIndex, MappingIndex } from "./mapping-index";
 import { AssetUrlTranslator, buildAssetUrlTranslator, CanonicalContext, DANGLING_CONTENT_REF } from "./canonicalize";
+import { findUnusedComponents, PlacedContentIDs } from "../content/unused-components";
 
 export const UNPUBLISHED_STATE = 7;
 
@@ -67,6 +68,11 @@ export interface SideIndex {
    * them (no container mapping), so they are left out of every comparison.
    */
   outsideLiveContainers: any[];
+  /**
+   * PROD-3399 (source side only): Components on no page. The sync skips them, so they are left out
+   * of every comparison and listed once as a source defect, like outsideLiveContainers.
+   */
+  unusedComponents: any[];
 }
 
 export interface VerifyContext {
@@ -112,12 +118,16 @@ export function zoneModules(page: any): Array<{ zone: string; module: any }> {
 export function moduleContentID(module: any): number | undefined {
   const item = module?.item;
   if (!item || typeof item !== "object") return undefined;
-  const raw = item.contentid ?? item.contentID ?? item.ContentID;
+  const raw = item.contentid ?? item.contentID ?? item.ContentID ?? item.contentId;
   const id = typeof raw === "string" ? parseInt(raw, 10) : raw;
   return typeof id === "number" && id > 0 ? id : undefined;
 }
 
-export function buildSideIndex(entities: SideEntities, outsideLiveContainers: any[] = []): SideIndex {
+export function buildSideIndex(
+  entities: SideEntities,
+  outsideLiveContainers: any[] = [],
+  unusedComponents: any[] = []
+): SideIndex {
   const index: SideIndex = {
     entities,
     modelsById: new Map(),
@@ -131,6 +141,7 @@ export function buildSideIndex(entities: SideEntities, outsideLiveContainers: an
     pageBoundContentIDs: new Set(),
     contentCountByContainer: new Map(),
     outsideLiveContainers,
+    unusedComponents,
   };
   entities.models.forEach((m) => {
     if (typeof m?.id === "number") index.modelsById.set(m.id, m);
@@ -172,6 +183,16 @@ export function createVerifyContext(input: {
   target: SideEntities;
   scoped?: boolean;
   channels?: string[];
+  /**
+   * PROD-3399: which source content IDs some page places, across every pulled locale. Defaults to
+   * this locale's source pages.
+   */
+  sourcePlaced?: PlacedContentIDs;
+  /**
+   * PROD-3399: the unscoped source, when `source` was narrowed by a scope. Links to Components are
+   * read from it, so an out-of-scope linker still keeps a Component used.
+   */
+  sourceUnscoped?: SideEntities;
 }): VerifyContext {
   const clean = (side: SideEntities): SideIndex => {
     const containers = side.containers.filter(
@@ -193,8 +214,34 @@ export function createVerifyContext(input: {
       pulled.filter((item) => !isLive(item))
     );
   };
-  const source = clean(input.source);
   const target = clean(input.target);
+  const cleanSource = clean(input.source);
+  // PROD-3399: the sync skips Components that no page places; so does the comparison. Decided on the
+  // raw pull, as the sync decides it, so an unpublished or dead-container item that links to a
+  // Component keeps it used here too.
+  const cleanIds = new Set(cleanSource.entities.content.map((item) => item?.contentID));
+  const unusedComponents = findUnusedComponents({
+    content: input.source.content,
+    allContent: input.sourceUnscoped?.content,
+    containers: input.sourceUnscoped?.containers?.length ? input.sourceUnscoped.containers : input.source.containers,
+    models: input.sourceUnscoped?.models?.length ? input.sourceUnscoped.models : input.source.models,
+    placed: input.sourcePlaced ?? {
+      ids: cleanSource.pageBoundContentIDs,
+      pageCount: cleanSource.pagesById.size,
+    },
+  }).filter((item) => cleanIds.has(item?.contentID));
+  const unusedIds = new Set(unusedComponents.map((item) => item.contentID));
+  const source =
+    unusedIds.size === 0
+      ? cleanSource
+      : buildSideIndex(
+          {
+            ...cleanSource.entities,
+            content: cleanSource.entities.content.filter((item) => !unusedIds.has(item.contentID)),
+          },
+          cleanSource.outsideLiveContainers,
+          unusedComponents
+        );
   const localeMappings = input.mappings.byLocale.get(input.locale);
   if (!localeMappings) {
     throw new Error(`No mapping index for locale ${input.locale}`);
