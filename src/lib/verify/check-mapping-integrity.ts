@@ -36,6 +36,11 @@ export interface IntegritySet {
   checkExtra: boolean;
   /** Returns a reason when a source entity's absence on the target is explained by the source. */
   sourceDefect?: (source: any) => string | undefined;
+  /**
+   * Source IDs the sync skips on purpose and that are reported elsewhere (PROD-3399). A target
+   * entity mapped only from these is not a sourceNotInPull warning.
+   */
+  skippedSourceIDs?: Set<number>;
 }
 
 export function checkIntegrity(set: IntegritySet, collector: FindingCollector): ComparablePair[] {
@@ -116,6 +121,7 @@ export function checkIntegrity(set: IntegritySet, collector: FindingCollector): 
           message: "Target entity is not mapped from any source entity",
         });
       } else if (!sources.some((s) => set.source.has(s))) {
+        if (set.skippedSourceIDs && sources.every((s) => set.skippedSourceIDs!.has(s))) return;
         collector.count(locale, entity, "extra");
         collector.add({
           category: "sourceNotInPull",
@@ -265,10 +271,36 @@ function reportContentOutsideLiveContainers(ctx: VerifyContext, collector: Findi
     });
 }
 
+/**
+ * PROD-3399: Components no page places. The sync skips them, so each is listed as a source defect,
+ * with the target item an earlier sync created for it, if any.
+ */
+function reportUnusedComponents(ctx: VerifyContext, collector: FindingCollector): void {
+  ctx.source.unusedComponents.forEach((item) => {
+    const targetID = ctx.localeMappings.content.target(item.contentID);
+    const onTarget = targetID !== undefined && ctx.target.contentById.has(targetID);
+    collector.count(ctx.locale, "content", "checked");
+    collector.count(ctx.locale, "content", "known");
+    collector.add({
+      category: "unusedComponent",
+      severity: "sourceDefect",
+      entity: "content",
+      locale: ctx.locale,
+      sourceID: item.contentID,
+      targetID: onTarget ? targetID : null,
+      name: item?.properties?.referenceName,
+      message: onTarget
+        ? "Component on no page in the source: the sync skips it (an earlier sync created this target item)"
+        : "Component on no page in the source: the sync skips it",
+    });
+  });
+}
+
 /** Content items and pages for one locale. */
 export function checkLocaleIntegrity(ctx: VerifyContext, collector: FindingCollector): LocaleIntegrityResult {
   const checkExtra = !ctx.scoped;
   reportContentOutsideLiveContainers(ctx, collector);
+  reportUnusedComponents(ctx, collector);
   return {
     content: checkIntegrity(
       {
@@ -280,6 +312,7 @@ export function checkLocaleIntegrity(ctx: VerifyContext, collector: FindingColle
         name: (c) => c?.properties?.referenceName,
         checkExtra,
         sourceDefect: (item) => contentSourceDefect(item, ctx.source.modelsByRef),
+        skippedSourceIDs: new Set(ctx.source.unusedComponents.map((item) => item.contentID)),
       },
       collector
     ),

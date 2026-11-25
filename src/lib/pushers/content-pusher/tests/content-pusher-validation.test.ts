@@ -189,3 +189,68 @@ describe("pushContent — client-side validation failures (PROD-2542)", () => {
     expect(getFailedContent(12942, "en-us")).toBeDefined();
   });
 });
+
+describe("pushContent — unused Components (PROD-3399)", () => {
+  const containers = [
+    { referenceName: "landing_PromoCard", contentDefinitionTypeID: 2, isShared: false },
+    { referenceName: "ref-2", contentDefinitionTypeID: 1, isShared: false },
+  ];
+  const pages = [{ pageID: 21, zones: { main: [{ module: "PromoCard", item: { contentid: 500 } }] } }];
+
+  beforeEach(() => {
+    const { unusedComponentsReport } = require("lib/content/unused-components");
+    unusedComponentsReport.reset();
+    mockTypes.mockReset();
+    mockFilter.mockReset();
+    mockTypes.mockImplementation((items: any[]) => ({
+      linkedContentItems: [],
+      linkedContentLevels: [],
+      linkedCycleReferences: new Map(),
+      normalContentItems: items,
+      skippedItems: [],
+    }));
+    mockFilter.mockImplementation(async ({ contentItems }: any) => filterResult(contentItems, []));
+  });
+
+  it("skips Components no page places before validation, and reports them as skips, not failures", async () => {
+    const { unusedComponentsReport } = require("lib/content/unused-components");
+    const placed = item(500, "landing_PromoCard");
+    const removed = item(501, "landing_PromoCard");
+    const post = item(2);
+
+    const result = await pushContent([placed, removed, post], [], "en-us", { containers, models: [], pages });
+
+    expect(mockTypes.mock.calls[0][0].map((i: any) => i.contentID)).toEqual([500, 2]);
+    expect(result.failed).toBe(0);
+    expect(result.skipped).toBe(1);
+    expect(result.failureDetails).toEqual([]);
+    expect(getFailedContent(501, "en-us")).toBeUndefined();
+    expect(logger.content.skipped).toHaveBeenCalledWith(
+      removed,
+      expect.stringContaining("unused Component"),
+      "en-us",
+      "tgt-guid"
+    );
+    expect(unusedComponentsReport.getEntries()).toEqual([
+      { contentID: 501, name: "landing_PromoCard", model: "PromoBanner", locale: "en-us" },
+    ]);
+  });
+
+  it("records them as preflight skips", async () => {
+    const { preflightReport } = require("lib/preflight/preflight-report");
+    setState({ preflight: true });
+    preflightReport.reset();
+
+    await pushContent([item(501, "landing_PromoCard")], [], "en-us", { containers, models: [], pages });
+
+    const entries = preflightReport.getPhaseSummaries().flatMap((p: any) => p.entries);
+    expect(entries).toContainEqual(
+      expect.objectContaining({ action: "skip", name: "landing_PromoCard", detail: expect.stringContaining("not on any page") })
+    );
+  });
+
+  it("skips nothing without the source context (callers that don't pass pages)", async () => {
+    await pushContent([item(501, "landing_PromoCard")], [], "en-us");
+    expect(mockTypes.mock.calls[0][0].map((i: any) => i.contentID)).toEqual([501]);
+  });
+});

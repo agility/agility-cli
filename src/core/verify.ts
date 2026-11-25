@@ -62,6 +62,7 @@ import {
   writeVerifyReport,
 } from "../lib/verify/verify-report";
 import * as path from "path";
+import { loadPlacedContentIDs } from "../lib/content/unused-components";
 
 /** How long the status guard waits for an in-progress update before giving up. */
 export const STATUS_TIMEOUT_MS = 10 * 60 * 1000;
@@ -441,6 +442,9 @@ export class Verify {
       this.deps.log(ansiColors.cyan(`🔎 Comparing ${locale}...`));
       const source = await this.deps.loadSide(sourceGuid, locale, filter);
       const target = await this.deps.loadSide(targetGuid, locale);
+      // PROD-3399: a scope narrows the source, which would hide the items that link to a Component.
+      // Decide which Components are used on the whole source, as the sync does.
+      const sourceUnscoped = filter ? await this.deps.loadSide(sourceGuid, locale) : undefined;
       const ctx = createVerifyContext({
         sourceGuid,
         targetGuid,
@@ -450,6 +454,8 @@ export class Verify {
         target,
         scoped: !!filter,
         channels: channel ? [channel] : undefined,
+        sourcePlaced: loadPlacedContentIDs(rootPath, sourceGuid, source.pages),
+        sourceUnscoped,
       });
 
       if (i === 0) {
