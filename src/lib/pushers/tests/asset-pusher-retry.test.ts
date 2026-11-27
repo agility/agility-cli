@@ -129,4 +129,50 @@ describe("pushAssets — retries a transient upload failure (PROD-3449)", () => 
     expect(result.failed).toBe(1);
     expect(failedAssets.size).toBe(0);
   });
+
+  it("doesn't hold content back for an upload the server rejects outright", async () => {
+    const { failedAssets } = await import("../../assets/failed-assets");
+    failedAssets.reset();
+    axios.post.mockRejectedValue(
+      Object.assign(new Error("Request failed with status code 413"), { response: { status: 413 } })
+    );
+
+    const { pushAssets } = await import("../asset-pusher");
+    const result = await pushAssets([sourceAssetWithFile()], []);
+
+    expect(axios.post).toHaveBeenCalledTimes(1);
+    expect(result.failed).toBe(1);
+    expect(failedAssets.size).toBe(0);
+  });
+
+  it("stops retrying after five assets in a row fail even with retries", async () => {
+    jest.useFakeTimers();
+    axios.post.mockRejectedValue(http503());
+    const assets = Array.from({ length: 7 }, (_, i) => {
+      const a = sourceAssetWithFile();
+      const name = `banner-${i}.png`;
+      const file = new fileOperations("src-retry-u").getDataFilePath(
+        `assets/${getAssetFilePath(a.originUrl.replace("banner-01.png", name))}`
+      );
+      fs.mkdirSync(path.dirname(file), { recursive: true });
+      fs.writeFileSync(file, "png-bytes");
+      return {
+        ...a,
+        mediaID: 100 + i,
+        fileName: name,
+        originUrl: a.originUrl.replace("banner-01.png", name),
+        edgeUrl: a.edgeUrl.replace("banner-01.png", name),
+        originKey: a.originKey.replace("banner-01.png", name),
+      };
+    });
+
+    const { pushAssets } = await import("../asset-pusher");
+    const run = pushAssets(assets, []);
+    await jest.advanceTimersByTimeAsync(5 * (2000 + 4000 + 8000 + 16000));
+    const result = await run;
+
+    // 5 assets × 5 attempts, then 1 attempt each for the last 2.
+    expect(axios.post).toHaveBeenCalledTimes(27);
+    expect(result.failed).toBe(7);
+  });
 });

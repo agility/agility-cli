@@ -44,6 +44,19 @@ export function msUntilExpiry(token: StoredLoginToken | null | undefined, now = 
   return expiresAt === null ? null : expiresAt - now;
 }
 
+/** The `sub` and `exp` of a JWT access token, or null when it isn't one. */
+export function jwtClaims(accessToken: string | null | undefined): { sub?: string; exp?: number } | null {
+  if (!accessToken || typeof accessToken !== "string") return null;
+  const parts = accessToken.split(".");
+  if (parts.length !== 3) return null;
+  try {
+    const payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+    return payload && typeof payload === "object" ? payload : null;
+  } catch {
+    return null;
+  }
+}
+
 export function canRefresh(token: StoredLoginToken | null | undefined): boolean {
   return typeof token?.refresh_token === "string" && token.refresh_token.length > 0;
 }
@@ -102,25 +115,41 @@ export class TokenKeeper {
   }
 
   /** Refresh the token if it can be refreshed and is close to expiring. Exposed for tests. */
-  async check(): Promise<"refreshed" | "adopted" | "not-needed" | "cannot-refresh" | "failed" | "busy"> {
+  private warnOnce(message: string): void {
+    if (this.warned) return;
+    this.warned = true;
+    this.deps.warn(message);
+  }
+
+  async check(): Promise<
+    "refreshed" | "adopted" | "other-login" | "not-needed" | "cannot-refresh" | "failed" | "busy"
+  > {
     if (this.busy) return "busy";
     this.busy = true;
     try {
       const token = await this.deps.readToken();
-      const left = msUntilExpiry(token, (this.deps.now ?? Date.now)());
-      // Another CLI process (or `agility login`) may have stored a newer token. Use it: deciding
-      // from the keychain while sending an older token would let this process's token expire.
+      const now = (this.deps.now ?? Date.now)();
+      const left = msUntilExpiry(token, now);
       const inUse = this.deps.inUseToken?.();
-      if (
-        token?.access_token &&
-        inUse &&
-        token.access_token !== inUse &&
-        left !== null &&
-        left > REFRESH_WITHIN_MS &&
-        this.deps.adopt
-      ) {
-        this.deps.adopt(token.access_token);
-        return "adopted";
+      if (token?.access_token && inUse && token.access_token !== inUse) {
+        // The keychain holds a different token than this run sends: another CLI process refreshed,
+        // or someone ran `agility login`. Never switch to another account's login mid-run.
+        const stored = jwtClaims(token.access_token);
+        const current = jwtClaims(inUse);
+        if (!stored?.sub || !current?.sub || stored.sub !== current.sub) {
+          this.warnOnce(
+            "Your stored login changed to a different account during this run; this run keeps its own token until it expires."
+          );
+          return "other-login";
+        }
+        // Same login, refreshed elsewhere: take it over only when ours is about to expire, rather
+        // than refresh again with a refresh token the other process may already have rotated.
+        const currentLeft = typeof current.exp === "number" ? current.exp * 1000 - now : null;
+        if (currentLeft === null || currentLeft > REFRESH_WITHIN_MS) return "not-needed";
+        if (left !== null && left > REFRESH_WITHIN_MS && this.deps.adopt) {
+          this.deps.adopt(token.access_token);
+          return "adopted";
+        }
       }
       if (left === null || left > REFRESH_WITHIN_MS) return "not-needed";
       if (!canRefresh(token)) return "cannot-refresh";

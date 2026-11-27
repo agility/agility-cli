@@ -587,15 +587,18 @@ export class Auth {
           const left = expiresAt - Date.now();
           // PROD-3449: an expired or nearly expired login that has a refresh token is renewed here,
           // without a browser sign-in (which can't complete in a headless run).
-          if (left < REFRESH_WITHIN_MS && canRefresh(token)) {
+          let refreshable = canRefresh(token);
+          if (left < REFRESH_WITHIN_MS && refreshable) {
             const refreshed = await this.refreshLoginToken().catch(() => false);
             if (refreshed) {
               console.log(ansiColors.green(`\r● Authenticated to ${env === "prod" ? "Agility" : env} servers.\n`));
               return true;
             }
+            // The refresh failed, so the keeper won't manage either: handle it like a login without one.
+            refreshable = false;
           }
           const longRun = state.isSync || state.isPush;
-          if (left > 0 && longRun && !canRefresh(token) && left < MIN_LOGIN_REMAINING_MS) {
+          if (left > 0 && longRun && !refreshable && left < MIN_LOGIN_REMAINING_MS) {
             // PROD-3449: this login can't be renewed mid-run and may expire during a long sync.
             const minutes = Math.round(left / 60000);
             if (state.headless) {

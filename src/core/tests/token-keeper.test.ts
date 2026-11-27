@@ -74,20 +74,47 @@ describe("TokenKeeper (PROD-3449)", () => {
     expect(warn.mock.calls[0][0]).toContain("HTTP 401");
   });
 
-  it("switches to a newer token another process stored, instead of keeping its own", async () => {
+  /** A fake JWT for `sub` expiring `minutesLeft` after NOW. */
+  function jwt(sub: string, minutesLeft: number, tag = ""): string {
+    const enc = (o: any) => Buffer.from(JSON.stringify(o)).toString("base64url");
+    return `${enc({ alg: "none" })}.${enc({ sub, exp: Math.floor((NOW + minutesLeft * 60000) / 1000), tag })}.sig`;
+  }
+
+  function adoptKeeper(stored: string, inUse: string) {
     const adopt = jest.fn();
     const refresh = jest.fn(async () => true);
+    const warn = jest.fn();
     const k = new TokenKeeper({
-      readToken: async () => ({ ...token(24 * 60 - 5), access_token: "at-from-other-process" }),
+      readToken: async () => ({ ...token(24 * 60 - 5), access_token: stored }),
       refresh,
-      inUseToken: () => "at-1",
+      inUseToken: () => inUse,
       adopt,
-      warn: () => {},
+      warn,
       now: () => NOW,
     });
+    return { k, adopt, refresh, warn };
+  }
+
+  it("takes over a newer token of the same login once its own is about to expire", async () => {
+    const { k, adopt, refresh } = adoptKeeper(jwt("user-a", 24 * 60, "new"), jwt("user-a", 5));
     await expect(k.check()).resolves.toBe("adopted");
-    expect(adopt).toHaveBeenCalledWith("at-from-other-process");
+    expect(adopt).toHaveBeenCalledTimes(1);
     expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("keeps its own token while it still has time, even if the same login was refreshed elsewhere", async () => {
+    const { k, adopt } = adoptKeeper(jwt("user-a", 24 * 60, "new"), jwt("user-a", 120));
+    await expect(k.check()).resolves.toBe("not-needed");
+    expect(adopt).not.toHaveBeenCalled();
+  });
+
+  it("never switches to another account's login, and warns once", async () => {
+    const { k, adopt, refresh, warn } = adoptKeeper(jwt("user-b", 24 * 60), jwt("user-a", 5));
+    await expect(k.check()).resolves.toBe("other-login");
+    await expect(k.check()).resolves.toBe("other-login");
+    expect(adopt).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledTimes(1);
   });
 
   it("checks once as soon as it starts", async () => {
