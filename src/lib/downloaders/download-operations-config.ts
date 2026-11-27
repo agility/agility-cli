@@ -2,6 +2,7 @@
 import { downloadAllGalleries } from "./download-galleries";
 import { downloadAllAssets } from "./download-assets";
 import { downloadAllModels } from "./download-models";
+import { downloadModelAvailability } from "./download-model-availability";
 import { downloadAllTemplates } from "./download-templates";
 import { downloadAllContainers } from "./download-containers";
 import { downloadAllSyncSDK } from "./download-sync-sdk";
@@ -53,6 +54,16 @@ export const DOWNLOAD_OPERATIONS: Record<string, OperationConfig> = {
     description: "Download content models and field definitions",
     handler: async (guid) => {
       await downloadAllModels(guid);
+    },
+    elements: ["Models"],
+  },
+  // PROD-2914: component availability rules travel with the models. A separate operation so an
+  // instance without the feature (or a failed read) never fails the model download itself.
+  modelAvailability: {
+    name: "downloadModelAvailability",
+    description: "Download component availability rules",
+    handler: async (guid) => {
+      await downloadModelAvailability(guid);
     },
     elements: ["Models"],
   },

@@ -19,10 +19,10 @@
     dotenv "^8.2.0"
     proper-lockfile "^4.1.2"
 
-"@agility/management-sdk@^0.2.2":
-  version "0.2.2"
-  resolved "https://registry.npmjs.org/@agility/management-sdk/-/management-sdk-0.2.2.tgz"
-  integrity sha512-cy7E3S4l/zvY2q3w1FwgSSf8GbkuPJmKwUxMQ1U1ShvZb4TiEQDioZ2r8eAqPfdFwWR92xce7qfo9hhK/SreTQ==
+"@agility/management-sdk@^0.3.0-beta.0":
+  version "0.3.0-beta.0"
+  resolved "https://registry.npmjs.org/@agility/management-sdk/-/management-sdk-0.3.0-beta.0.tgz"
+  integrity sha512-xLXO5+V6fbYhtnHZPWaGOmINExUkVYSTrUs2HdIad4jRdP9cHJXp1aZupTunbj1cCKID2yo+HMJB7llQ8+njTw==
   dependencies:
     axios "^0.27.2"
 

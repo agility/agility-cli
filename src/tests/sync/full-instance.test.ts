@@ -1,10 +1,11 @@
 /**
- * All eight push phases, driven end to end, twice.
+ * All nine push phases, driven end to end, twice.
  *
  * `full-sync.test.ts` covers models and containers in depth. This suite covers *breadth*:
  * every entity type the orchestrator pushes — models, galleries, assets, containers, URL
  * redirections, templates, content and pages — created on a fresh sync and then proven inert
- * on a re-sync with no source change.
+ * on a re-sync with no source change. (The ninth phase, component availability, runs here with
+ * nothing to do; `component-availability.test.ts` covers it.)
  *
  * Assertions pin **positive** counts, never just the absence of writes. A phase reporting
  * `successful`/`failed`/`skipped` all zero has not "done nothing safely" — it has matched no
@@ -15,12 +16,22 @@ import * as fs from "fs";
 import * as path from "path";
 import { SyncHarness } from "./helpers/run-sync";
 import { installNetworkStubs, InstalledNetworkStubs } from "./helpers/network-stubs";
-import { ALL_ELEMENTS, ALL_OPERATIONS, FIXTURE_LOCALE, fullInstanceFixture, MODEL_POST } from "./helpers/full-instance-fixture";
+import {
+  ALL_ELEMENTS,
+  ALL_OPERATIONS,
+  FIXTURE_LOCALE,
+  IDLE_OPERATIONS,
+  fullInstanceFixture,
+  MODEL_POST,
+} from "./helpers/full-instance-fixture";
 
 // The post-push page order (PROD-3164) and list order (PROD-2992) phases run after the eight push
 // phases; they're asserted on their own.
 const PAGE_ORDER = "pageOrder";
 const LIST_ORDER = "listOrder";
+// Component availability (PROD-2914) runs last, after page order and list order.
+const AVAILABILITY = "pushModelAvailability";
+const RUN_ORDER = [...ALL_OPERATIONS.filter((op) => op !== AVAILABILITY), PAGE_ORDER, LIST_ORDER, AVAILABILITY];
 const pushPhases = <T extends { operation: string }>(phases: T[]) =>
   phases.filter((p) => p.operation !== LIST_ORDER && p.operation !== PAGE_ORDER);
 
@@ -39,7 +50,7 @@ jest.mock("lib/pushers/url-redirection-api", () => ({
   saveUrlRedirections: jest.fn(),
 }));
 
-describe("full instance — all eight phases", () => {
+describe("full instance — all nine phases", () => {
   let harness: SyncHarness;
   let net: InstalledNetworkStubs;
 
@@ -63,15 +74,15 @@ describe("full instance — all eight phases", () => {
   // ─── A. Fresh sync ─────────────────────────────────────────────────────────
 
   describe("A. fresh sync into an empty target", () => {
-    it("runs every one of the eight phases", async () => {
+    it("runs every one of the nine phases", async () => {
       harness = makeHarness();
 
       const run = await harness.run();
 
       // A phase missing from the run entirely is the failure mode where an --elements typo,
       // or an unreachable loop, removes a whole entity type without anything going red.
-      expect(run.phases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS, PAGE_ORDER, LIST_ORDER]);
-      expect(run.ranPhases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS, PAGE_ORDER, LIST_ORDER]);
+      expect(run.phases.map((p) => p.operation)).toEqual(RUN_ORDER);
+      expect(run.ranPhases.map((p) => p.operation)).toEqual(RUN_ORDER);
     });
 
     it("runs page order after the push phases without failing or moving anything", async () => {
@@ -102,7 +113,7 @@ describe("full instance — all eight phases", () => {
       pushPhases(run.phases).forEach((phase) => {
         expect({ op: phase.operation, ok: phase.successful, failed: phase.failed }).toEqual({
           op: phase.operation,
-          ok: 1,
+          ok: IDLE_OPERATIONS.includes(phase.operation) ? 0 : 1,
           failed: 0,
         });
       });
@@ -172,7 +183,7 @@ describe("full instance — all eight phases", () => {
         expect({ op: phase.operation, ok: phase.successful, skip: phase.skipped, failed: phase.failed }).toEqual({
           op: phase.operation,
           ok: 0,
-          skip: 1,
+          skip: IDLE_OPERATIONS.includes(phase.operation) ? 0 : 1,
           failed: 0,
         });
       });
@@ -262,7 +273,7 @@ describe("full instance — all eight phases", () => {
           expect({ op: phase.operation, ok: phase.successful, skip: phase.skipped }).toEqual({
             op: phase.operation,
             ok: 0,
-            skip: 1,
+            skip: IDLE_OPERATIONS.includes(phase.operation) ? 0 : 1,
           });
         });
     });
