@@ -168,6 +168,25 @@ describe("pushAssets — failure details", () => {
     ]);
   });
 
+  it("records the failed asset so content using it is held back (PROD-3449)", async () => {
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeMockApiClient());
+    const { failedAssets } = await import("../../assets/failed-assets");
+    failedAssets.reset();
+    const { pushAssets } = await import("../asset-pusher");
+
+    const sourceAsset = makeMedia({
+      mediaID: 1719,
+      fileName: "banner-01.png",
+      edgeUrl: "https://cdn.example.com/src/banner-01.png",
+      originUrl: "https://example.com/assets/banner-01.png",
+      originKey: "banner-01.png",
+    });
+    await pushAssets([sourceAsset], []);
+
+    expect(failedAssets.find("https://cdn.example.com/src/banner-01.png")).toMatchObject({ mediaID: 1719 });
+    failedAssets.reset();
+  });
+
   it("returns an empty failureDetails list when nothing fails", async () => {
     jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeMockApiClient());
     const { pushAssets } = await import("../asset-pusher");

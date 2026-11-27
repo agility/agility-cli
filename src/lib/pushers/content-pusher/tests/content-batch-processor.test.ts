@@ -1017,3 +1017,105 @@ describe("ContentBatchProcessor.prepareContentPayloads — unresolved child casc
     expect(other.failedItems[0].error).not.toContain("child 'es-only'");
   });
 });
+
+// ─── PROD-3449: an item using an asset whose upload failed is not pushed ──────
+
+describe("ContentBatchProcessor.prepareContentPayloads — failed asset upload (PROD-3449)", () => {
+  const { failedAssets } = require("lib/assets/failed-assets");
+  const failedUrl = "https://cdn.example.com/src-container/promotions/banner-01.png";
+
+  function seed(sourceGuid: string, targetGuid: string): void {
+    writeEntityFile(tmpDir, sourceGuid, "models", 1, { id: 1, referenceName: "TestModel", fields: [] });
+    writeMappingFile(tmpDir, sourceGuid, targetGuid, "models", [
+      {
+        sourceGuid,
+        targetGuid,
+        sourceID: 1,
+        targetID: 1,
+        sourceReferenceName: "TestModel",
+        targetReferenceName: "TestModel",
+      },
+    ]);
+    writeMappingFile(tmpDir, sourceGuid, targetGuid, "containers", [
+      {
+        sourceGuid,
+        targetGuid,
+        sourceContentViewID: 10,
+        targetContentViewID: 999,
+        sourceReferenceName: "ref-1",
+        targetReferenceName: "ref-1",
+      },
+    ]);
+    writeEntityFile(tmpDir, targetGuid, "containers", 999, { contentViewID: 999, referenceName: "ref-1" });
+  }
+
+  function itemWithImage(url: string): any {
+    const item = makeContentItem(1479);
+    item.properties.referenceName = "ref-1";
+    item.properties.definitionName = "TestModel";
+    item.fields = { title: "Promo", bannerImage: { url, label: "Promo" } };
+    return item;
+  }
+
+  beforeEach(() => failedAssets.reset());
+  afterAll(() => failedAssets.reset());
+
+  it("fails an item whose image failed to upload in this run, naming the asset", async () => {
+    seed("fa-src", "fa-tgt");
+    failedAssets.record(
+      { mediaID: 77, fileName: "banner-01.png", edgeUrl: failedUrl, originUrl: undefined },
+      "The service is unavailable."
+    );
+    const processor = new ContentBatchProcessor(
+      makeConfig({
+        sourceGuid: "fa-src",
+        targetGuid: "fa-tgt",
+        referenceMapper: new ContentItemMapper("fa-src", "fa-tgt", "en-us"),
+      })
+    );
+
+    const result = await (processor as any).prepareContentPayloads(
+      [itemWithImage(failedUrl)],
+      "fa-src",
+      "fa-tgt",
+      makeLogger()
+    );
+
+    expect(result.prepared).toHaveLength(0);
+    expect(result.failedItems).toHaveLength(1);
+    expect(result.failedItems[0].error).toContain("failed to upload in this run");
+    expect(result.failedItems[0].error).toContain(
+      "bannerImage.url → banner-01.png (mediaID 77: The service is unavailable.)"
+    );
+  });
+
+  it("still prepares the item when its image didn't fail", async () => {
+    seed("ok-src", "ok-tgt");
+    failedAssets.record(
+      {
+        mediaID: 78,
+        fileName: "other.png",
+        edgeUrl: "https://cdn.example.com/src-container/other.png",
+        originUrl: undefined,
+      },
+      "The service is unavailable."
+    );
+    const processor = new ContentBatchProcessor(
+      makeConfig({
+        sourceGuid: "ok-src",
+        targetGuid: "ok-tgt",
+        referenceMapper: new ContentItemMapper("ok-src", "ok-tgt", "en-us"),
+      })
+    );
+
+    const result = await (processor as any).prepareContentPayloads(
+      [itemWithImage(failedUrl)],
+      "ok-src",
+      "ok-tgt",
+      makeLogger()
+    );
+
+    expect(result.failedItems).toHaveLength(0);
+    expect(result.prepared).toHaveLength(1);
+  });
+});

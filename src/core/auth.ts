@@ -19,6 +19,13 @@ function getKeytar() {
 }
 import { exit } from "process";
 import ansiColors from "ansi-colors";
+import {
+  TokenKeeper,
+  StoredLoginToken,
+  canRefresh,
+  mergeRefreshedToken,
+  MIN_LOGIN_REMAINING_MS,
+} from "./token-keeper";
 
 const SERVICE_NAME = "agility-cli";
 
@@ -317,7 +324,9 @@ export class Auth {
     const redirectUri = `${baseUrl}/oauth/CliAuth`;
     const authUrl = `${baseUrl}/oauth/Authorize?response_type=code&redirect_uri=${encodeURIComponent(
       redirectUri
-    )}&state=cli-code%2e${code}`;
+    )}&state=cli-code%2e${code}&scope=offline_access`;
+    // PROD-3449: offline_access makes the login come with a refresh token, so a long run can renew
+    // its token instead of failing with 401 when the 24-hour token expires mid-run.
 
     // Debug logging for dev development
     if (state.dev) {
@@ -349,6 +358,8 @@ export class Auth {
       if (!isAuthenticated) {
         return false;
       }
+      // PROD-3449: renew the login token during long runs, before it expires.
+      this.startTokenKeeper();
     }
 
     // Step 3: Get API keys for the source and target GUIDs
@@ -572,7 +583,23 @@ export class Auth {
           const issuedAt = new Date(token.timestamp).getTime();
           const expiresAt = issuedAt + token.expires_in * 1000;
 
-          if (Date.now() < expiresAt) {
+          const left = expiresAt - Date.now();
+          if (left > 0 && !canRefresh(token) && left < MIN_LOGIN_REMAINING_MS) {
+            // PROD-3449: this login can't be renewed mid-run and may expire during a long sync.
+            const minutes = Math.round(left / 60000);
+            if (state.headless) {
+              console.warn(
+                ansiColors.yellow(
+                  `⚠️  Your login expires in ${minutes} min and can't be renewed during the run. ` +
+                    `A sync that runs longer will fail with 401. Run \`agility login\` first, or use a Personal Access Token (--token).`
+                )
+              );
+              return true;
+            }
+            console.log(
+              ansiColors.yellow(`Your login expires in ${minutes} min, which may not last this run. Signing in again...`)
+            );
+          } else if (left > 0) {
             console.log(ansiColors.green(`\r● Authenticated to ${env === "prod" ? "Agility" : env} servers.\n`));
             return true;
           } else {
@@ -824,6 +851,51 @@ export class Auth {
         console.warn("⚠️  Could not store PAT in keychain for future sessions.");
       }
     }
+  }
+
+  /** The stored browser-login token, or null. */
+  async readLoginToken(): Promise<StoredLoginToken | null> {
+    const kt = getKeytar();
+    if (!kt) return null;
+    const raw = await kt.getPassword(SERVICE_NAME, this.getEnvKey(this.getEnv()));
+    if (!raw) return null;
+    try {
+      return JSON.parse(raw);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * PROD-3449: swap the stored login token for a new one through /oauth/Refresh, and point the
+   * running API clients at it (they all share state.mgmtApiOptions and read its token per request).
+   * False when the login has no refresh token or the refresh failed.
+   */
+  async refreshLoginToken(): Promise<boolean> {
+    const current = await this.readLoginToken();
+    if (!current || !canRefresh(current)) return false;
+    const params = new URLSearchParams();
+    params.append("refresh_token", current.refresh_token as string);
+    const refreshed = await this.executePost("/Refresh", "blank-d", params);
+    if (!refreshed?.access_token) return false;
+
+    const next = mergeRefreshedToken(current, refreshed);
+    const kt = getKeytar();
+    if (kt) await kt.setPassword(SERVICE_NAME, this.getEnvKey(this.getEnv()), JSON.stringify(next));
+    if (state.mgmtApiOptions) state.mgmtApiOptions.token = next.access_token;
+    return true;
+  }
+
+  private static tokenKeeper: TokenKeeper | null = null;
+
+  private startTokenKeeper(): void {
+    if (Auth.tokenKeeper) return;
+    Auth.tokenKeeper = new TokenKeeper({
+      readToken: () => this.readLoginToken(),
+      refresh: () => this.refreshLoginToken(),
+      warn: (message) => console.warn(ansiColors.yellow(`⚠️  ${message}`)),
+    });
+    Auth.tokenKeeper.start();
   }
 
   async cliPoll(data: FormData | URLSearchParams, guid: string = "blank-d") {

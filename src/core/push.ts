@@ -25,6 +25,7 @@ import type { FailureDetail } from "../types/sourceData";
 import { foreignCdnReport } from "../lib/content/foreign-cdn-report";
 import { keptTargetChanges } from "../lib/pushers/kept-target-changes";
 import { unusedComponentsReport } from "../lib/content/unused-components";
+import { failedAssets } from "../lib/assets/failed-assets";
 import { resetForeignCdnDetectorCache } from "../lib/pushers/content-pusher/util/report-foreign-cdn-references";
 import type { OtherLocaleStagingEntry } from "./state";
 
@@ -122,6 +123,8 @@ export class Push {
     keptTargetChanges.reset();
     // PROD-3399: Components on no page, skipped and reported once per run
     unusedComponentsReport.reset();
+    // PROD-3449: assets whose upload failed; content using them fails instead of syncing without them
+    failedAssets.reset();
 
     // Initialize logger for push operation
     // Determine if this is a sync operation by checking if both source and target GUIDs exist

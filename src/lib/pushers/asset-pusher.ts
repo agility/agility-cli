@@ -10,6 +10,8 @@ import path from "path";
 import { GalleryMapper } from "lib/mappers/gallery-mapper";
 import { preflightReport } from "../preflight/preflight-report";
 import { keptTargetChanges } from "./kept-target-changes";
+import { failedAssets } from "../assets/failed-assets";
+import { withTransientRetry } from "../shared/transient-retry";
 import { FailureDetail, PusherResult } from "../../types/sourceData";
 
 /**
@@ -361,6 +363,8 @@ export async function pushAssets(
     } catch (error: any) {
       const errorMsg = extractErrorMessage(error);
       logger.asset.error(media, errorMsg, targetGuid);
+      // PROD-3449: content using this asset must not be pushed without it (see failed-assets.ts).
+      failedAssets.record(media, errorMsg);
       // PROD-2629: without a detail the ERROR SUMMARY and --jsonSummary `failures` carried only
       // the count ("N items failed (see details above)").
       failureDetails.push({
@@ -422,31 +426,15 @@ async function createAsset(
     throw new Error(`Local asset file is empty (0 bytes): ${resolvedPath}`);
   }
 
-  // Build form data with file stream using resolved absolute path
-  const form = new FormData();
-  const fileStream = fs.createReadStream(resolvedPath);
-  form.append("files", fileStream, media.fileName);
-
-  // Make direct axios call with form-data headers (SDK bug workaround)
-  // The SDK's executePost doesn't include form.getHeaders() which is required for multipart uploads
-  const axios = require("axios");
-
-  // Get the base URL from the API client's options
-  const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
-  const token = (apiClient as any)._options?.token;
-
-  const focalPointQuery = buildFocalPointQuery(media, sourceGuid);
-  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}${focalPointQuery}`;
-  const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
-
-  const response = await axios.post(url, form, {
-    headers: {
-      ...form.getHeaders(), // Critical: include multipart boundary
-      Authorization: `Bearer ${token}`,
-      "Cache-Control": "no-cache",
-    },
-    maxContentLength: Infinity,
-    maxBodyLength: Infinity,
+  const response = await postAssetUpload({
+    media,
+    resolvedPath,
+    folderPath,
+    targetMediaGroupingID,
+    apiClient,
+    sourceGuid,
+    targetGuid,
+    logger,
   });
 
   const uploadedMediaArray = response.data as mgmtApi.Media[];
@@ -460,6 +448,56 @@ async function createAsset(
   logger.asset.uploaded(media, "uploaded", targetGuid);
 
   return uploadedMedia;
+}
+
+/**
+ * POST one file to asset/upload, retrying transient failures (PROD-3449).
+ * Direct axios call instead of the SDK: the SDK's executePost doesn't include form.getHeaders(),
+ * which multipart uploads need. The form is rebuilt for every attempt, because a file stream can
+ * only be sent once. An upload is path-based, so sending it again replaces the same asset.
+ */
+async function postAssetUpload(args: {
+  media: mgmtApi.Media;
+  resolvedPath: string;
+  folderPath: string;
+  targetMediaGroupingID: number;
+  apiClient: mgmtApi.ApiClient;
+  sourceGuid: string;
+  targetGuid: string;
+  logger: Logs;
+}): Promise<any> {
+  const { media, resolvedPath, folderPath, targetMediaGroupingID, apiClient, sourceGuid, targetGuid, logger } = args;
+  const fs = require("fs");
+  const axios = require("axios");
+
+  const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
+  const focalPointQuery = buildFocalPointQuery(media, sourceGuid);
+  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}${focalPointQuery}`;
+  const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
+
+  return withTransientRetry(
+    () => {
+      const form = new FormData();
+      form.append("files", fs.createReadStream(resolvedPath), media.fileName);
+      // Read the token on each attempt, so a token refreshed during the run is used.
+      const token = (apiClient as any)._options?.token;
+      return axios.post(url, form, {
+        headers: {
+          ...form.getHeaders(), // Critical: include multipart boundary
+          Authorization: `Bearer ${token}`,
+          "Cache-Control": "no-cache",
+        },
+        maxContentLength: Infinity,
+        maxBodyLength: Infinity,
+      });
+    },
+    {
+      onRetry: (error, attempt, delayMs) =>
+        logger.warning(
+          `Asset ${media.fileName} upload failed (${extractErrorMessage(error)}); retry ${attempt} in ${delayMs / 1000}s`
+        ),
+    }
+  );
 }
 
 /**
@@ -509,29 +547,15 @@ async function updateAsset(
     throw new Error(`Local asset file is empty (0 bytes): ${resolvedPath}`);
   }
 
-  // Build form data with file stream using resolved absolute path
-  const form = new FormData();
-  const fileStream = fs.createReadStream(resolvedPath);
-  form.append("files", fileStream, media.fileName);
-
-  // Make direct axios call with form-data headers (SDK bug workaround)
-  const axios = require("axios");
-
-  const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
-  const token = (apiClient as any)._options?.token;
-
-  const focalPointQuery = buildFocalPointQuery(media, sourceGuid);
-  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}${focalPointQuery}`;
-  const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
-
-  const response = await axios.post(url, form, {
-    headers: {
-      ...form.getHeaders(),
-      Authorization: `Bearer ${token}`,
-      "Cache-Control": "no-cache",
-    },
-    maxContentLength: Infinity,
-    maxBodyLength: Infinity,
+  const response = await postAssetUpload({
+    media,
+    resolvedPath,
+    folderPath,
+    targetMediaGroupingID,
+    apiClient,
+    sourceGuid,
+    targetGuid,
+    logger,
   });
 
   const uploadedMediaArray = response.data as mgmtApi.Media[];
