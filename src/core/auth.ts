@@ -25,6 +25,7 @@ import {
   canRefresh,
   mergeRefreshedToken,
   MIN_LOGIN_REMAINING_MS,
+  REFRESH_WITHIN_MS,
 } from "./token-keeper";
 
 const SERVICE_NAME = "agility-cli";
@@ -584,7 +585,17 @@ export class Auth {
           const expiresAt = issuedAt + token.expires_in * 1000;
 
           const left = expiresAt - Date.now();
-          if (left > 0 && !canRefresh(token) && left < MIN_LOGIN_REMAINING_MS) {
+          // PROD-3449: an expired or nearly expired login that has a refresh token is renewed here,
+          // without a browser sign-in (which can't complete in a headless run).
+          if (left < REFRESH_WITHIN_MS && canRefresh(token)) {
+            const refreshed = await this.refreshLoginToken().catch(() => false);
+            if (refreshed) {
+              console.log(ansiColors.green(`\r● Authenticated to ${env === "prod" ? "Agility" : env} servers.\n`));
+              return true;
+            }
+          }
+          const longRun = state.isSync || state.isPush;
+          if (left > 0 && longRun && !canRefresh(token) && left < MIN_LOGIN_REMAINING_MS) {
             // PROD-3449: this login can't be renewed mid-run and may expire during a long sync.
             const minutes = Math.round(left / 60000);
             if (state.headless) {
@@ -893,6 +904,10 @@ export class Auth {
     Auth.tokenKeeper = new TokenKeeper({
       readToken: () => this.readLoginToken(),
       refresh: () => this.refreshLoginToken(),
+      inUseToken: () => state.mgmtApiOptions?.token,
+      adopt: (accessToken) => {
+        if (state.mgmtApiOptions) state.mgmtApiOptions.token = accessToken;
+      },
       warn: (message) => console.warn(ansiColors.yellow(`⚠️  ${message}`)),
     });
     Auth.tokenKeeper.start();

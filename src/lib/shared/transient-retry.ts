@@ -15,7 +15,6 @@ export const TRANSIENT_HTTP_STATUSES = new Set([408, 429, 502, 503, 504]);
 
 export const TRANSIENT_NETWORK_CODES = new Set([
   "ECONNRESET",
-  "ECONNREFUSED",
   "ECONNABORTED",
   "ETIMEDOUT",
   "EPIPE",
@@ -31,11 +30,28 @@ export function httpStatusOf(error: any): number | undefined {
   return typeof status === "number" ? status : undefined;
 }
 
+/** A connection-level failure (no HTTP response). */
+export function isNetworkError(error: any): boolean {
+  const code = error?.code ?? error?.cause?.code;
+  return typeof code === "string" && /^E[A-Z_]+$/.test(code) && httpStatusOf(error) === undefined;
+}
+
 export function isTransientError(error: any): boolean {
   const status = httpStatusOf(error);
   if (status !== undefined) return TRANSIENT_HTTP_STATUSES.has(status);
   const code = error?.code ?? error?.cause?.code;
   return typeof code === "string" && TRANSIENT_NETWORK_CODES.has(code);
+}
+
+/** The wait a 429/503 asks for in Retry-After (seconds or an HTTP date), capped at 60s; null when absent. */
+export function retryAfterMs(error: any, now = Date.now()): number | null {
+  const headers = error?.response?.headers;
+  const value = headers?.["retry-after"] ?? headers?.["Retry-After"];
+  if (value === undefined || value === null || value === "") return null;
+  const seconds = Number(value);
+  const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(String(value)) - now;
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  return Math.min(ms, 60000);
 }
 
 export interface RetryOptions {
@@ -59,7 +75,7 @@ export async function withTransientRetry<T>(fn: () => Promise<T>, options: Retry
       return await fn();
     } catch (error) {
       if (attempt >= delays.length || !isTransientError(error)) throw error;
-      const delayMs = delays[attempt];
+      const delayMs = Math.max(delays[attempt], retryAfterMs(error) ?? 0);
       options.onRetry?.(error, attempt + 1, delayMs);
       await sleep(delayMs);
     }

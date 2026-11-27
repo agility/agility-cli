@@ -1,4 +1,4 @@
-import { isTransientError, withTransientRetry } from "../transient-retry";
+import { isNetworkError, isTransientError, retryAfterMs, withTransientRetry } from "../transient-retry";
 
 const httpError = (status: number) => Object.assign(new Error(`HTTP ${status}`), { response: { status } });
 const netError = (code: string) => Object.assign(new Error(code), { code });
@@ -16,7 +16,25 @@ describe("isTransientError (PROD-3449)", () => {
   it("retries dropped connections, not other errors", () => {
     expect(isTransientError(netError("ECONNRESET"))).toBe(true);
     expect(isTransientError(netError("ENOTFOUND"))).toBe(true);
+    expect(isTransientError(netError("ECONNREFUSED"))).toBe(false);
     expect(isTransientError(new Error("Local asset file not found"))).toBe(false);
+  });
+
+  it("tells connection failures from HTTP and local errors", () => {
+    expect(isNetworkError(netError("ECONNREFUSED"))).toBe(true);
+    expect(isNetworkError(httpError(503))).toBe(false);
+    expect(isNetworkError(Object.assign(new Error("x"), { code: "ENOENT_LOCAL", response: { status: 400 } }))).toBe(
+      false
+    );
+    expect(isNetworkError(new Error("Local asset file not found"))).toBe(false);
+  });
+
+  it("reads Retry-After in seconds or as a date, capped at 60s", () => {
+    const withHeader = (v: string) => ({ response: { status: 429, headers: { "retry-after": v } } });
+    expect(retryAfterMs(withHeader("5"))).toBe(5000);
+    expect(retryAfterMs(withHeader("600"))).toBe(60000);
+    expect(retryAfterMs(withHeader(new Date(10_000).toUTCString()), 0)).toBe(10000);
+    expect(retryAfterMs(httpError(503))).toBeNull();
   });
 });
 
@@ -42,6 +60,15 @@ describe("withTransientRetry (PROD-3449)", () => {
 
     await expect(withTransientRetry(fn, { delaysMs: [1, 1], sleep: noSleep })).rejects.toBe(err);
     expect(fn).toHaveBeenCalledTimes(3);
+  });
+
+  it("waits at least as long as Retry-After asks", async () => {
+    const throttled = Object.assign(httpError(429), { response: { status: 429, headers: { "retry-after": "30" } } });
+    const fn = jest.fn().mockRejectedValueOnce(throttled).mockResolvedValue("ok");
+    const sleep = jest.fn(noSleep);
+
+    await withTransientRetry(fn, { delaysMs: [10], sleep });
+    expect(sleep).toHaveBeenCalledWith(30000);
   });
 
   it("doesn't retry a non-transient error", async () => {

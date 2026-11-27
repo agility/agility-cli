@@ -168,12 +168,13 @@ describe("pushAssets — failure details", () => {
     ]);
   });
 
-  it("records the failed asset so content using it is held back (PROD-3449)", async () => {
+  it("doesn't hold content back for a local file problem, which would fail every run (PROD-3449)", async () => {
     jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeMockApiClient());
     const { failedAssets } = await import("../../assets/failed-assets");
     failedAssets.reset();
     const { pushAssets } = await import("../asset-pusher");
 
+    // No local file was downloaded -> "Local asset file not found", not an upload failure.
     const sourceAsset = makeMedia({
       mediaID: 1719,
       fileName: "banner-01.png",
@@ -181,10 +182,10 @@ describe("pushAssets — failure details", () => {
       originUrl: "https://example.com/assets/banner-01.png",
       originKey: "banner-01.png",
     });
-    await pushAssets([sourceAsset], []);
+    const result = await pushAssets([sourceAsset], []);
 
-    expect(failedAssets.find("https://cdn.example.com/src/banner-01.png")).toMatchObject({ mediaID: 1719 });
-    failedAssets.reset();
+    expect(result.failed).toBe(1);
+    expect(failedAssets.find("https://cdn.example.com/src/banner-01.png")).toBeUndefined();
   });
 
   it("returns an empty failureDetails list when nothing fails", async () => {

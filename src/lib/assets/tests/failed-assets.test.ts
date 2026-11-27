@@ -27,6 +27,12 @@ describe("failedAssets (PROD-3449)", () => {
     expect(refs[0].asset).toEqual({ mediaID: 7, fileName: "banner-01.png", error: "503" });
   });
 
+  it("doesn't match a longer URL that only starts with the failed one", () => {
+    failedAssets.record({ ...asset, edgeUrl: "https://cdn.example.com/src/logo.svg", originUrl: undefined }, "503");
+    expect(failedAssets.findReferences({ img: { url: "https://cdn.example.com/src/logo.svg.png" } })).toEqual([]);
+    expect(failedAssets.findReferences({ img: { url: "https://cdn.example.com/src/logo.svg" } })).toHaveLength(1);
+  });
+
   it("forgets failures on reset", () => {
     failedAssets.record(asset, "503");
     failedAssets.reset();

@@ -11,7 +11,7 @@ import { GalleryMapper } from "lib/mappers/gallery-mapper";
 import { preflightReport } from "../preflight/preflight-report";
 import { keptTargetChanges } from "./kept-target-changes";
 import { failedAssets } from "../assets/failed-assets";
-import { withTransientRetry } from "../shared/transient-retry";
+import { withTransientRetry, httpStatusOf, isNetworkError } from "../shared/transient-retry";
 import { FailureDetail, PusherResult } from "../../types/sourceData";
 
 /**
@@ -129,6 +129,8 @@ export async function pushAssets(
 
   for (const media of assets) {
     let currentStatus: "success" | "error" = "success";
+    // PROD-3449: whether the target already has a copy content can use if this asset fails
+    let hasUsableTargetAsset = false;
     try {
       const relativeFilePath = `assets/${getAssetFilePath(media.originUrl)}`; // Uses imported util with consistent decoding
       const absoluteLocalFilePath = fileOps.getDataFilePath(relativeFilePath);
@@ -169,6 +171,7 @@ export async function pushAssets(
       // get the target asset, check if the source and targets need updates
       let targetAsset: mgmtApi.Media =
         targetData.find((targetAsset) => targetAsset.mediaID === existingMapping?.targetMediaID) || null;
+      hasUsableTargetAsset = !!targetAsset;
 
       // PROD-2627: an asset upload is path-based, so pushing to a target asset that is missing or sits
       // at a different path creates a second copy instead of updating it. Resolve those cases first.
@@ -364,7 +367,12 @@ export async function pushAssets(
       const errorMsg = extractErrorMessage(error);
       logger.asset.error(media, errorMsg, targetGuid);
       // PROD-3449: content using this asset must not be pushed without it (see failed-assets.ts).
-      failedAssets.record(media, errorMsg);
+      // Only when the upload request itself failed and the target has no copy to point at: an asset
+      // whose update failed keeps working on the target, and a local file problem (missing, 0 bytes)
+      // fails the same way every run, so holding content back for it would block that content for good.
+      if (!hasUsableTargetAsset && isUploadRequestFailure(error)) {
+        failedAssets.record(media, errorMsg);
+      }
       // PROD-2629: without a detail the ERROR SUMMARY and --jsonSummary `failures` carried only
       // the count ("N items failed (see details above)").
       failureDetails.push({
@@ -450,6 +458,11 @@ async function createAsset(
   return uploadedMedia;
 }
 
+/** The upload request reached the network and failed (HTTP error or connection), as opposed to a local problem. */
+function isUploadRequestFailure(error: any): boolean {
+  return httpStatusOf(error) !== undefined || isNetworkError(error);
+}
+
 /**
  * POST one file to asset/upload, retrying transient failures (PROD-3449).
  * Direct axios call instead of the SDK: the SDK's executePost doesn't include form.getHeaders(),
@@ -476,20 +489,27 @@ async function postAssetUpload(args: {
   const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
 
   return withTransientRetry(
-    () => {
+    async () => {
       const form = new FormData();
-      form.append("files", fs.createReadStream(resolvedPath), media.fileName);
+      const stream = fs.createReadStream(resolvedPath);
+      form.append("files", stream, media.fileName);
       // Read the token on each attempt, so a token refreshed during the run is used.
       const token = (apiClient as any)._options?.token;
-      return axios.post(url, form, {
-        headers: {
-          ...form.getHeaders(), // Critical: include multipart boundary
-          Authorization: `Bearer ${token}`,
-          "Cache-Control": "no-cache",
-        },
-        maxContentLength: Infinity,
-        maxBodyLength: Infinity,
-      });
+      try {
+        return await axios.post(url, form, {
+          headers: {
+            ...form.getHeaders(), // Critical: include multipart boundary
+            Authorization: `Bearer ${token}`,
+            "Cache-Control": "no-cache",
+          },
+          maxContentLength: Infinity,
+          maxBodyLength: Infinity,
+        });
+      } catch (error) {
+        // A failed attempt may not have read the file; close it rather than wait for GC.
+        stream.destroy();
+        throw error;
+      }
     },
     {
       onRetry: (error, attempt, delayMs) =>

@@ -68,6 +68,10 @@ export interface TokenKeeperDeps {
   readToken: () => Promise<StoredLoginToken | null>;
   /** Refresh and store the token, and point the running API clients at it. True on success. */
   refresh: () => Promise<boolean>;
+  /** The access token this process is sending now. */
+  inUseToken?: () => string | null | undefined;
+  /** Switch this process to another access token (one another process stored). */
+  adopt?: (accessToken: string) => void;
   warn: (message: string) => void;
   now?: () => number;
   setInterval?: (fn: () => void, ms: number) => any;
@@ -87,6 +91,8 @@ export class TokenKeeper {
     this.handle = set(() => void this.check(), everyMs);
     // Don't keep the process alive just for this timer.
     if (this.handle && typeof this.handle.unref === "function") this.handle.unref();
+    // Check once now too: a token close to expiry shouldn't wait a full interval.
+    void this.check();
   }
 
   stop(): void {
@@ -96,12 +102,26 @@ export class TokenKeeper {
   }
 
   /** Refresh the token if it can be refreshed and is close to expiring. Exposed for tests. */
-  async check(): Promise<"refreshed" | "not-needed" | "cannot-refresh" | "failed" | "busy"> {
+  async check(): Promise<"refreshed" | "adopted" | "not-needed" | "cannot-refresh" | "failed" | "busy"> {
     if (this.busy) return "busy";
     this.busy = true;
     try {
       const token = await this.deps.readToken();
       const left = msUntilExpiry(token, (this.deps.now ?? Date.now)());
+      // Another CLI process (or `agility login`) may have stored a newer token. Use it: deciding
+      // from the keychain while sending an older token would let this process's token expire.
+      const inUse = this.deps.inUseToken?.();
+      if (
+        token?.access_token &&
+        inUse &&
+        token.access_token !== inUse &&
+        left !== null &&
+        left > REFRESH_WITHIN_MS &&
+        this.deps.adopt
+      ) {
+        this.deps.adopt(token.access_token);
+        return "adopted";
+      }
       if (left === null || left > REFRESH_WITHIN_MS) return "not-needed";
       if (!canRefresh(token)) return "cannot-refresh";
       const ok = await this.deps.refresh();

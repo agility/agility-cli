@@ -65,7 +65,7 @@ class FailedAssets {
       if (typeof value === "string") {
         const lower = value.toLowerCase();
         this.byUrl.forEach((asset, url) => {
-          if (lower.includes(url)) {
+          if (containsUrl(lower, url)) {
             const key = `${path}\u0000${asset.mediaID}`;
             if (!seen.has(key)) {
               seen.add(key);
@@ -87,6 +87,15 @@ class FailedAssets {
     visit(fields, "");
     return refs;
   }
+}
+
+/** `url` occurs in `text` as a whole URL, not as the start of a longer one (logo.svg vs logo.svg.png). */
+function containsUrl(text: string, url: string): boolean {
+  for (let i = text.indexOf(url); i !== -1; i = text.indexOf(url, i + 1)) {
+    const next = text.charAt(i + url.length);
+    if (next === "" || /[?#"'()<>\s]/.test(next)) return true;
+  }
+  return false;
 }
 
 function normalize(url: string | undefined | null): string | null {

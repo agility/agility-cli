@@ -74,6 +74,31 @@ describe("TokenKeeper (PROD-3449)", () => {
     expect(warn.mock.calls[0][0]).toContain("HTTP 401");
   });
 
+  it("switches to a newer token another process stored, instead of keeping its own", async () => {
+    const adopt = jest.fn();
+    const refresh = jest.fn(async () => true);
+    const k = new TokenKeeper({
+      readToken: async () => ({ ...token(24 * 60 - 5), access_token: "at-from-other-process" }),
+      refresh,
+      inUseToken: () => "at-1",
+      adopt,
+      warn: () => {},
+      now: () => NOW,
+    });
+    await expect(k.check()).resolves.toBe("adopted");
+    expect(adopt).toHaveBeenCalledWith("at-from-other-process");
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("checks once as soon as it starts", async () => {
+    const readToken = jest.fn(async () => token(5));
+    const refresh = jest.fn(async () => true);
+    const k = new TokenKeeper({ readToken, refresh, warn: () => {}, now: () => NOW, setInterval: () => ({}) });
+    k.start();
+    await new Promise((r) => setImmediate(r));
+    expect(refresh).toHaveBeenCalledTimes(1);
+  });
+
   it("starts one timer, which doesn't hold the process open, and stops it", () => {
     const handle = { unref: jest.fn() };
     const set = jest.fn(() => handle);

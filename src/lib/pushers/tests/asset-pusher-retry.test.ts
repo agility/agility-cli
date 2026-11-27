@@ -98,4 +98,35 @@ describe("pushAssets — retries a transient upload failure (PROD-3449)", () => 
     expect(failedAssets.find("https://cdn.example.com/src/promotions/banner-01.png")).toMatchObject({ mediaID: 41 });
     failedAssets.reset();
   });
+
+  it("doesn't hold content back when the target already has a copy of the asset", async () => {
+    jest.useFakeTimers();
+    const { failedAssets } = await import("../../assets/failed-assets");
+    const { AssetMapper } = await import("lib/mappers/asset-mapper");
+    failedAssets.reset();
+    axios.post.mockRejectedValue(http503());
+
+    const source = { ...sourceAssetWithFile(), dateModified: "2026-11-20T00:00:00Z" };
+    const target = {
+      mediaID: 900,
+      fileName: "banner-01.png",
+      originKey: source.originKey,
+      originUrl: "https://origin.example.com/tgt/promotions/banner-01.png",
+      edgeUrl: "https://cdn.example.com/tgt/promotions/banner-01.png",
+      dateModified: "2026-11-01T00:00:00Z",
+    };
+    new AssetMapper("src-retry-u", "tgt-retry-u").addMapping(
+      { ...source, dateModified: "2026-11-01T00:00:00Z" },
+      target as any
+    );
+
+    const { pushAssets } = await import("../asset-pusher");
+    const run = pushAssets([source], [target as any]);
+    await jest.advanceTimersByTimeAsync(2000 + 4000 + 8000 + 16000);
+    const result = await run;
+
+    expect(axios.post).toHaveBeenCalled();
+    expect(result.failed).toBe(1);
+    expect(failedAssets.size).toBe(0);
+  });
 });
