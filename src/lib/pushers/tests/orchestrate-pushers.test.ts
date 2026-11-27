@@ -4,6 +4,13 @@ import * as path from "path";
 import { resetState, setState, state } from "core/state";
 import { Pushers } from "../orchestrate-pushers";
 
+// The phases after pages call the Management API, which these tests don't set up. Stub them so a
+// run reaches the phases after them (PROD-2914 availability runs last); their own tests cover them.
+const mockNoOpPhase = { status: "success", successful: 0, failed: 0, skipped: 0, failureDetails: [], warningDetails: [] };
+jest.mock("lib/page-order/sync-page-order", () => ({ runSyncPageOrder: jest.fn(async () => mockNoOpPhase) }));
+jest.mock("lib/list-order/sync-list-order", () => ({ runSyncListOrder: jest.fn(async () => mockNoOpPhase) }));
+jest.mock("lib/mappers/refresh-container-dates", () => ({ refreshContainerDatesAfterPageSaves: jest.fn(async () => 0) }));
+
 let tmpDir: string;
 
 beforeAll(() => {

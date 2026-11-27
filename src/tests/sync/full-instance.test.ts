@@ -29,6 +29,9 @@ import {
 // phases; they're asserted on their own.
 const PAGE_ORDER = "pageOrder";
 const LIST_ORDER = "listOrder";
+// Component availability (PROD-2914) runs last, after page order and list order.
+const AVAILABILITY = "pushModelAvailability";
+const RUN_ORDER = [...ALL_OPERATIONS.filter((op) => op !== AVAILABILITY), PAGE_ORDER, LIST_ORDER, AVAILABILITY];
 const pushPhases = <T extends { operation: string }>(phases: T[]) =>
   phases.filter((p) => p.operation !== LIST_ORDER && p.operation !== PAGE_ORDER);
 
@@ -78,8 +81,8 @@ describe("full instance — all nine phases", () => {
 
       // A phase missing from the run entirely is the failure mode where an --elements typo,
       // or an unreachable loop, removes a whole entity type without anything going red.
-      expect(run.phases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS, PAGE_ORDER, LIST_ORDER]);
-      expect(run.ranPhases.map((p) => p.operation)).toEqual([...ALL_OPERATIONS, PAGE_ORDER, LIST_ORDER]);
+      expect(run.phases.map((p) => p.operation)).toEqual(RUN_ORDER);
+      expect(run.ranPhases.map((p) => p.operation)).toEqual(RUN_ORDER);
     });
 
     it("runs page order after the push phases without failing or moving anything", async () => {
