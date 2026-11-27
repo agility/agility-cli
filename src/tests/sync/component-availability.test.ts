@@ -16,6 +16,7 @@ import {
   FIXTURE_LOCALE,
   MODEL_POST,
   PAGE_HOME,
+  CONTAINER_POSTS,
   TEMPLATE_STANDARD,
   fullInstanceFixture,
 } from "./helpers/full-instance-fixture";
@@ -50,7 +51,7 @@ const POST_MODULE = { module: "PostModule", item: { contentid: 500 } };
 /** The page holds the component in Main, from before the source's rule said "Hero only". */
 const PAGE_WITH_POST = { ...PAGE_HOME, zones: { Main: [POST_MODULE] } };
 
-/** Source rules: only the Hero zone of Standard. The who rules are there to prove they never travel. */
+/** Source rules: only the Hero zone of Standard, and only Administrators can add it. */
 const AVAILABILITY_POST = {
   modelID: 10,
   modelReferenceName: "Post",
@@ -71,11 +72,14 @@ function componentFixture(model: any = COMPONENT_POST) {
   return fixture;
 }
 
-function makeHarness(opts: { overwrite?: boolean; model?: any } = {}): SyncHarness {
+function makeHarness(
+  opts: { overwrite?: boolean; model?: any; security?: "roles" | "where" | "none"; fixture?: any } = {}
+): SyncHarness {
   const harness = new SyncHarness({
     elements: ALL_ELEMENTS,
-    fixture: componentFixture(opts.model),
+    fixture: opts.fixture ?? componentFixture(opts.model),
     overwrite: opts.overwrite ?? false,
+    stateOverrides: opts.security ? { security: opts.security } : {},
   });
   // A real sync pulls the target first; an empty, migrated target answers "no rules".
   harness.fake.projectToDisk(harness.rootPath, harness.targetGuid);
@@ -137,7 +141,7 @@ describe("component availability sync (PROD-2914)", () => {
         .forEach((c) => expect("isVisible" in c.payload).toBe(false));
     });
 
-    it("leaves the target with the source's disabled state and placement rules, and its own who rules", async () => {
+    it("leaves the target with the source's disabled state, placement rules and roles (--security roles, the default)", async () => {
       harness = makeHarness();
 
       const run = await harness.run();
@@ -152,7 +156,7 @@ describe("component availability sync (PROD-2914)", () => {
       expect({ ok: availability.successful, failed: availability.failed }).toEqual({ ok: 2, failed: 0 });
       expect(target.models.get(targetModelID).isVisible).toBe(false);
       const saved = target.availability.get(targetModelID);
-      expect(saved.addableBy).toBeNull();
+      expect(saved.addableBy).toEqual({ permissions: ["Administrator"], users: [], teams: [] });
       expect(saved.allowedIn.sitemaps).toEqual([]);
       expect(saved.allowedIn.pageModels).toEqual([]);
       // Remapped onto the target: its page model ID, the names, and never a source ID.
@@ -211,6 +215,118 @@ describe("component availability sync (PROD-2914)", () => {
           'Rejected by a component availability rule: The "Post" component is disabled on this instance.'
         )
       );
+    });
+  });
+
+  // PROD-2914 §5a: who can add a component travels by role; the target keeps its own people.
+  describe("--security", () => {
+    const LOCAL_USER = { userID: 41, emailAddress: "local-editor@example.com" };
+
+    /** First sync, then someone adds a user of their own to the rule on the target. */
+    async function syncThenAddLocalUser(security?: "roles" | "where" | "none") {
+      harness = makeHarness({ overwrite: true, security });
+      await harness.run();
+      const target = harness.fake.instance(harness.targetGuid);
+      const targetModelID = harness.readMappings("models")![0].targetID;
+      const stored = target.availability.get(targetModelID) ?? { modelID: targetModelID, allowedIn: null };
+      target.availability.set(targetModelID, {
+        ...stored,
+        addableBy: { permissions: ["Manager"], users: [LOCAL_USER], teams: [] },
+      });
+      return { target, targetModelID };
+    }
+
+    it("roles: the source's roles replace the target's, and the target's own users stay", async () => {
+      const { target, targetModelID } = await syncThenAddLocalUser();
+      harness.editSourceFile("model-availability/10.json", {
+        ...AVAILABILITY_POST,
+        addableBy: { permissions: ["Designer"], users: [{ emailAddress: "source-only@example.com" }], teams: [] },
+      });
+
+      const run2 = await harness.resync();
+
+      expect(run2.totals.failed).toBe(0);
+      expect(target.availability.get(targetModelID).addableBy).toEqual({
+        permissions: ["Designer"],
+        users: [LOCAL_USER],
+        teams: [],
+      });
+    });
+
+    it("roles: a source rule naming only people is limited to Administrators on the target, and reported", async () => {
+      harness = makeHarness({
+        fixture: (() => {
+          const f = componentFixture();
+          f.source["model-availability/10.json"] = {
+            ...AVAILABILITY_POST,
+            addableBy: { permissions: [], users: [{ emailAddress: "source-only@example.com" }], teams: [] },
+          };
+          return f;
+        })(),
+      });
+
+      const run = await harness.run();
+
+      const targetModelID = harness.readMappings("models")![0].targetID;
+      expect(harness.fake.instance(harness.targetGuid).availability.get(targetModelID).addableBy).toEqual({
+        permissions: ["Administrator"],
+        users: [],
+        teams: [],
+      });
+      expect(run.results.flatMap((r) => r.warningDetails).map((w) => w.error)).toContainEqual(
+        expect.stringMatching(/limited to Administrators/)
+      );
+    });
+
+    it("where: the target keeps its own who rules", async () => {
+      const { target, targetModelID } = await syncThenAddLocalUser("where");
+      harness.editSourceFile("model-availability/10.json", {
+        ...AVAILABILITY_POST,
+        addableBy: { permissions: ["Designer"], users: [], teams: [] },
+      });
+
+      await harness.resync();
+
+      expect(target.availability.get(targetModelID).addableBy).toEqual({
+        permissions: ["Manager"],
+        users: [LOCAL_USER],
+        teams: [],
+      });
+    });
+
+    it("none: no rules are saved, and a new model is still disabled as on the source", async () => {
+      harness = makeHarness({ security: "none" });
+
+      const run = await harness.run();
+
+      const target = harness.fake.instance(harness.targetGuid);
+      const targetModelID = harness.readMappings("models")![0].targetID;
+      expect(harness.fake.calls.map((c) => c.method)).not.toContain("modelMethods.saveModelAvailability");
+      expect(target.availability.size).toBe(0);
+      expect(target.models.get(targetModelID).isVisible).toBe(false);
+      expect(run.totals.failed).toBe(0);
+    });
+
+    it("a component model whose only item is skipped as unused (PROD-3399) still gets its rules", async () => {
+      const f = componentFixture();
+      f.source["containers/200.json"] = { ...CONTAINER_POSTS, contentDefinitionTypeID: 2 };
+      f.source[`${FIXTURE_LOCALE}/page/800.json`] = { ...PAGE_HOME };
+      harness = makeHarness({ fixture: f });
+
+      const run = await harness.run();
+
+      const target = harness.fake.instance(harness.targetGuid);
+      const targetModelID = harness.readMappings("models")![0].targetID;
+      // Item 500 is on no page, so it isn't synced; the model is, and so are its rules.
+      expect(Array.from(target.content?.values?.() ?? []).map((c: any) => c.contentID)).toEqual([]);
+      expect(harness.readMappings("models")).toHaveLength(1);
+      expect(run.results.flatMap((r) => r.warningDetails).map((w) => w.error).join("\n")).not.toMatch(/Post.*failed/);
+      expect(target.availability.get(targetModelID)?.allowedIn?.zones).toHaveLength(1);
+      expect(target.availability.get(targetModelID)?.addableBy).toEqual({
+        permissions: ["Administrator"],
+        users: [],
+        teams: [],
+      });
     });
   });
 });

@@ -12,12 +12,14 @@ import { preflightReport } from "../preflight/preflight-report";
 /**
  * PROD-2914: push component availability from the source to the target.
  *
- * Ownership, per the component availability design:
- * - `allowedIn` (sitemaps, page models, zones) is modelling, so it travels with the model.
- * - `addableBy` (who can add) belongs to the instance: it's always sent as `null`, so the API keeps
- *   the target's own rules.
- * - `isVisible` (disabled) belongs to the instance too: the model pusher never sends it on an
- *   update. A model created this run takes the source's value, and this phase applies it.
+ * What travels depends on `--security` (PROD-2914, decided 2026-11-25):
+ * - `roles` (default): `allowedIn` (sitemaps, page models, zones) and the role part of `addableBy`
+ *   (`permissions`) come from the source. The target keeps its own users and teams, because people
+ *   differ per instance. See `mergeAddableBy` for the merge, which never widens a rule.
+ * - `where`: only `allowedIn`; `addableBy` is sent as `null`, so the target keeps its own.
+ * - `none`: no rules are sent.
+ * - `isVisible` (disabled) belongs to the instance in every mode: the model pusher never sends it on
+ *   an update. A model created this run takes the source's value, and this phase applies it.
  *
  * This phase runs LAST, after the pages of every locale. On a new target every placement on a page
  * counts as new, and the API checks new placements against the rules, so rules (or a disabled
@@ -38,6 +40,86 @@ import { preflightReport } from "../preflight/preflight-report";
  */
 
 const EMPTY_ALLOWED_IN: mgmtApi.ModelAvailabilityAllowedIn = { sitemaps: [], pageModels: [], zones: [] };
+
+/** `--security`: which availability rules a sync copies. */
+export type SecurityMode = "roles" | "where" | "none";
+export const SECURITY_MODES: SecurityMode[] = ["roles", "where", "none"];
+export const DEFAULT_SECURITY_MODE: SecurityMode = "roles";
+
+function permissionsOf(group: mgmtApi.ModelAvailabilityAddableBy | null | undefined): string[] {
+  return (group?.permissions || []).filter((p) => typeof p === "string" && p.length > 0);
+}
+
+function hasPeople(group: mgmtApi.ModelAvailabilityAddableBy | null | undefined): boolean {
+  return (group?.users || []).length > 0 || (group?.teams || []).length > 0;
+}
+
+function isEmptyAddableBy(group: mgmtApi.ModelAvailabilityAddableBy | null | undefined): boolean {
+  return permissionsOf(group).length === 0 && !hasPeople(group);
+}
+
+/** Comparable key of an `addableBy` group: permissions, users and teams, by ID or portable name. */
+function addableByKey(group: mgmtApi.ModelAvailabilityAddableBy | null | undefined): string {
+  const permissions = permissionsOf(group)
+    .map((p) => p.toLowerCase())
+    .sort();
+  const users = (group?.users || []).map((u) => (u.userID ? `#${u.userID}` : lower(u.emailAddress))).sort();
+  const teams = (group?.teams || []).map((t) => (t.teamID ? `#${t.teamID}` : lower(t.name))).sort();
+  return JSON.stringify({ permissions, users, teams });
+}
+
+export interface AddableByMerge {
+  /** The group to send, or null to leave the target's group as it is. */
+  addableBy: mgmtApi.ModelAvailabilityAddableBy | null;
+  /** Set when the result isn't simply the source's rule; it goes in the log and the summary. */
+  note?: string;
+}
+
+/**
+ * PROD-2914 (plan §5a): the `addableBy` group to send under `--security roles`. The API replaces the
+ * whole group, so the source's permissions are sent together with the target's own users and teams.
+ * Never widen: a source group that names only people can't be copied (people differ per instance),
+ * and dropping them would turn "these people" into "anyone".
+ *
+ * | Source                | Target          | Sent                                   |
+ * |-----------------------|-----------------|----------------------------------------|
+ * | none                  | none            | nothing                                |
+ * | permissions P         | any             | P + target users/teams                 |
+ * | none                  | permissions only| empty group (clears it)                |
+ * | none                  | has people      | target users/teams (noted)             |
+ * | people only           | no people       | ["Administrator"] (noted)              |
+ * | people only           | has people      | target users/teams (noted)             |
+ */
+export function mergeAddableBy(
+  source: mgmtApi.ModelAvailabilityAddableBy | null | undefined,
+  target: mgmtApi.ModelAvailabilityAddableBy | null | undefined
+): AddableByMerge {
+  const targetPeople = { users: target?.users || [], teams: target?.teams || [] };
+  const sourcePermissions = permissionsOf(source);
+
+  if (sourcePermissions.length > 0) {
+    return { addableBy: { permissions: sourcePermissions, ...targetPeople } };
+  }
+  if (!hasPeople(source)) {
+    if (isEmptyAddableBy(target)) return { addableBy: null };
+    if (!hasPeople(target)) return { addableBy: { permissions: [], users: [], teams: [] } };
+    return {
+      addableBy: { permissions: [], ...targetPeople },
+      note: "anyone can add it on the source, but the target's own users and teams were kept, so the target stays narrower",
+    };
+  }
+  // The source names only people.
+  if (!hasPeople(target)) {
+    return {
+      addableBy: { permissions: ["Administrator"], users: [], teams: [] },
+      note: "on the source only specific users or teams can add it, and those aren't copied, so the target was limited to Administrators. Set the users and teams on the target",
+    };
+  }
+  return {
+    addableBy: { permissions: [], ...targetPeople },
+    note: "on the source only specific users or teams can add it; the target's own users and teams stand in for them",
+  };
+}
 
 function lower(value: string | null | undefined): string {
   return (value || "").toLowerCase();
@@ -244,11 +326,20 @@ async function disableModelsCreatedThisRun(
   return counts;
 }
 
-/** Push the source's placement rules (`allowedIn`) for the models in this sync's scope. */
-async function pushPlacementRules(sourceModels: mgmtApi.Model[], modelMapper: ModelMapper): Promise<PhaseCounts> {
+/**
+ * Push the source's availability rules for the models in this sync's scope: `allowedIn` in modes
+ * `roles` and `where`, and the merged `addableBy` in mode `roles`.
+ */
+async function pushAvailabilityRules(
+  sourceModels: mgmtApi.Model[],
+  modelMapper: ModelMapper,
+  mode: SecurityMode
+): Promise<PhaseCounts> {
   const { sourceGuid, targetGuid } = state;
   const logger = getLoggerForGuid(sourceGuid);
   const counts = emptyCounts();
+  if (mode === "none") return counts;
+  const copyWho = mode === "roles";
 
   const sourceRules = getModelAvailabilityFromFileSystem(new fileOperations(sourceGuid));
   if (sourceRules === null) {
@@ -262,7 +353,7 @@ async function pushPlacementRules(sourceModels: mgmtApi.Model[], modelMapper: Mo
     // without knowing what it holds would be guesswork, so say so once (when there's anything to say).
     if (sourceRules.length > 0) {
       const message =
-        "The target instance's component availability rules couldn't be read (its API may not support them yet), so placement rules weren't synced.";
+        "The target instance's component availability rules couldn't be read (its API may not support them yet), so they weren't synced.";
       console.log(ansiColors.yellow(`⚠️ ${message}`));
       logger?.warning(message);
       counts.warningDetails.push({ name: "Component availability", error: message, type: "model", guid: sourceGuid });
@@ -272,8 +363,8 @@ async function pushPlacementRules(sourceModels: mgmtApi.Model[], modelMapper: Mo
 
   // A database without the feature reads exactly like one with no rules (an empty list), so an
   // empty source can't be told from a source that hasn't been migrated yet. Only a source that
-  // listed at least one rule has proved it stores them, and only then is a model with no placement
-  // rules allowed to clear the target's. Otherwise a sync from an unmigrated source would silently
+  // listed at least one rule has proved it stores them, and only then is a model with no rules
+  // allowed to clear the target's. Otherwise a sync from an unmigrated source would silently
   // wipe rules set on a migrated target.
   const sourceStoresRules = sourceRules.length > 0;
 
@@ -289,31 +380,32 @@ async function pushPlacementRules(sourceModels: mgmtApi.Model[], modelMapper: Mo
   // Only models in this sync's scope (sourceModels is already narrowed by --models and friends).
   for (const sourceModel of sourceModels || []) {
     if (!sourceModel?.id) continue;
-    const sourceAllowedIn = sourceByModelID.get(sourceModel.id)?.allowedIn ?? null;
+    const sourceRule = sourceByModelID.get(sourceModel.id);
+    const sourceAllowedIn = sourceRule?.allowedIn ?? null;
+    const sourceAddableBy = copyWho ? (sourceRule?.addableBy ?? null) : null;
 
     // A rule whose sitemaps (or page models and zones) were all deleted on the source allows the
-    // component nowhere. Without them the rule would allow it everywhere, so leave the target alone.
+    // component nowhere. Without them the rule would allow it everywhere, so its placement rules are
+    // left alone on the target (who can add it is still synced).
     const staleOnly = staleOnlyRules(sourceAllowedIn);
     if (staleOnly.length > 0) {
       const which = staleOnly.map((part) => `every ${part} it's limited to`).join(" and ");
-      const message = `Component availability for "${sourceModel.referenceName}" wasn't synced: on the source, ${which} has been deleted. Sending the rule without them would allow the component everywhere, so fix the rule on the source first.`;
+      const message = `Component availability for "${sourceModel.referenceName}": its placement rules weren't synced, because on the source ${which} has been deleted. Sending the rule without them would allow the component everywhere, so fix the rule on the source first.`;
       console.log(ansiColors.yellow(`⚠️ ${message}`));
       logger?.warning(message);
       counts.warningDetails.push({ name: sourceModel.referenceName, error: message, type: "model", guid: sourceGuid });
-      counts.skipped++;
-      continue;
     }
 
     const mapping = modelMapper.getModelMappingByID(sourceModel.id, "source");
     if (!mapping?.targetID) {
-      if (isEmptyAllowedIn(sourceAllowedIn)) continue;
+      if (isEmptyAllowedIn(sourceAllowedIn) && isEmptyAddableBy(sourceAddableBy)) continue;
       if (state.preflight) {
         // Preflight writes no models, so a model the real run would create has no mapping yet.
         preflightReport.record({
           phase: "Component availability",
           action: "create",
           name: sourceModel.referenceName,
-          detail: "set the placement rules once the model exists on the target",
+          detail: "set the availability rules once the model exists on the target",
         });
         counts.successful++;
       } else {
@@ -323,29 +415,58 @@ async function pushPlacementRules(sourceModels: mgmtApi.Model[], modelMapper: Mo
       continue;
     }
 
-    const targetAllowedIn = targetByModelID.get(mapping.targetID)?.allowedIn ?? null;
+    const targetRule = targetByModelID.get(mapping.targetID);
+    const targetAllowedIn = targetRule?.allowedIn ?? null;
+    const targetAddableBy = targetRule?.addableBy ?? null;
 
-    // Most models have no rules on either side: nothing to do, and nothing worth counting. A source
-    // that hasn't proved it stores rules never clears the target's.
-    if (isEmptyAllowedIn(sourceAllowedIn) && (!sourceStoresRules || isEmptyAllowedIn(targetAllowedIn))) continue;
+    // Where: the source's rule, remapped for the target. null = leave the target's as it is.
+    let allowedIn: mgmtApi.ModelAvailabilityAllowedIn | null = null;
+    if (staleOnly.length === 0 && (!isEmptyAllowedIn(sourceAllowedIn) || sourceStoresRules)) {
+      const desired = isEmptyAllowedIn(sourceAllowedIn)
+        ? EMPTY_ALLOWED_IN
+        : remapAllowedIn(sourceAllowedIn, templateMapper, sectionMapper);
+      if (allowedInKey(desired) !== allowedInKey(targetAllowedIn)) allowedIn = desired;
+    }
 
-    const desired = isEmptyAllowedIn(sourceAllowedIn)
-      ? EMPTY_ALLOWED_IN
-      : remapAllowedIn(sourceAllowedIn, templateMapper, sectionMapper);
+    // Who: the merge. A source that hasn't proved it stores rules never changes the target's.
+    let addableBy: mgmtApi.ModelAvailabilityAddableBy | null = null;
+    let note: string | undefined;
+    if (copyWho && (!isEmptyAddableBy(sourceAddableBy) || sourceStoresRules)) {
+      const merged = mergeAddableBy(sourceAddableBy, targetAddableBy);
+      if (merged.addableBy && addableByKey(merged.addableBy) !== addableByKey(targetAddableBy)) {
+        addableBy = merged.addableBy;
+        note = merged.note;
+      }
+    }
 
-    if (allowedInKey(desired) === allowedInKey(targetAllowedIn)) {
-      logger?.fileOnly(`Component availability for "${sourceModel.referenceName}" is unchanged, skipping.`);
-      counts.skipped++;
+    if (allowedIn === null && addableBy === null) {
+      // Nothing differs. A model with no rule on the source isn't worth counting (most have none).
+      if (sourceRule) {
+        logger?.fileOnly(`Component availability for "${sourceModel.referenceName}" is unchanged, skipping.`);
+        counts.skipped++;
+      }
       continue;
     }
+
+    const changing = [allowedIn ? "placement rules" : null, addableBy ? "who can add it" : null]
+      .filter(Boolean)
+      .join(" and ");
+    const reportNote = () => {
+      if (!note) return;
+      const message = `Component availability for "${sourceModel.referenceName}": ${note}.`;
+      console.log(ansiColors.yellow(`⚠️ ${message}`));
+      logger?.warning(message);
+      counts.warningDetails.push({ name: sourceModel.referenceName, error: message, type: "model", guid: sourceGuid });
+    };
 
     if (state.preflight) {
       preflightReport.record({
         phase: "Component availability",
         action: "update",
         name: sourceModel.referenceName,
-        detail: isEmptyAllowedIn(desired) ? "clear the placement rules" : "replace the placement rules",
+        detail: `replace ${changing}`,
       });
+      reportNote();
       counts.successful++;
       continue;
     }
@@ -353,17 +474,17 @@ async function pushPlacementRules(sourceModels: mgmtApi.Model[], modelMapper: Mo
     try {
       await apiClient.modelMethods.saveModelAvailability(
         mapping.targetID,
-        { modelID: mapping.targetID, addableBy: null, allowedIn: desired },
+        { modelID: mapping.targetID, addableBy, allowedIn },
         targetGuid
       );
-      logger?.info(`Component availability for "${sourceModel.referenceName}" updated.`);
+      logger?.info(`Component availability for "${sourceModel.referenceName}" updated (${changing}).`);
+      reportNote();
       counts.successful++;
     } catch (error: any) {
       const kind = classifySaveError(error);
       if (kind === "unsupported") {
         // The target can't store rules yet. Say so once and stop: every other save would fail too.
-        const message =
-          "The target instance doesn't support component availability rules yet, so placement rules weren't synced.";
+        const message = "The target instance doesn't support component availability rules yet, so they weren't synced.";
         console.log(ansiColors.yellow(`⚠️ ${message}`));
         logger?.warning(message);
         counts.warningDetails.push({ name: "Component availability", error: message, type: "model", guid: sourceGuid });
@@ -398,7 +519,7 @@ export async function pushModelAvailability(sourceModels: mgmtApi.Model[]): Prom
 
   const parts = [
     await disableModelsCreatedThisRun(sourceModels, modelMapper),
-    await pushPlacementRules(sourceModels, modelMapper),
+    await pushAvailabilityRules(sourceModels, modelMapper, state.security ?? DEFAULT_SECURITY_MODE),
   ];
   const sum = (pick: (c: PhaseCounts) => number) => parts.reduce((total, c) => total + pick(c), 0);
   const failed = sum((c) => c.failed);

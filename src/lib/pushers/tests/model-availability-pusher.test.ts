@@ -7,7 +7,7 @@ import { ModelMapper } from "lib/mappers/model-mapper";
 import { TemplateMapper } from "lib/mappers/template-mapper";
 import { SectionMapper } from "lib/mappers/section-mapper";
 import { preflightReport } from "../../preflight/preflight-report";
-import { pushModelAvailability } from "../model-availability-pusher";
+import { pushModelAvailability, mergeAddableBy } from "../model-availability-pusher";
 
 const SOURCE = "src-avail-u";
 const TARGET = "tgt-avail-u";
@@ -99,6 +99,10 @@ function httpError(statusCode: number, message: string) {
 // ─── pushModelAvailability ────────────────────────────────────────────────────
 
 describe("pushModelAvailability", () => {
+  // These cover the placement rules (allowedIn), the part every mode but `none` copies. Under
+  // --security where, who can add a component stays the target's own (addableBy: null).
+  beforeEach(() => setState({ security: "where" }));
+
   it("sends allowedIn only, with addableBy null so the target keeps its own who rules", async () => {
     writeRules(SOURCE, [sourceRule()]);
     writeRules(TARGET, []);
@@ -599,5 +603,213 @@ describe("pushModelAvailability — models created this run that are disabled on
     expect(preflightReport.getEntries()).toEqual([
       expect.objectContaining({ phase: "Component availability", action: "update", name: "HeroBanner" }),
     ]);
+  });
+});
+
+// ─── PROD-2914: who can add a component (--security) ───────────────────────────
+
+const ADMIN_ONLY = { permissions: ["Administrator"], users: [], teams: [] };
+const TARGET_USER = { userID: 77, emailAddress: "local@example.com" };
+const TARGET_TEAM = { teamID: 8, name: "Local editors" };
+
+describe("mergeAddableBy — the merge table (plan §5a)", () => {
+  it("row 1: anyone on both sides sends nothing", () => {
+    expect(mergeAddableBy(null, null)).toEqual({ addableBy: null });
+    expect(mergeAddableBy({ permissions: [], users: [], teams: [] }, null)).toEqual({ addableBy: null });
+  });
+
+  it("row 2: source permissions travel, with the target's own users and teams", () => {
+    const merged = mergeAddableBy(
+      { permissions: ["Designer"], users: [{ userID: 5, emailAddress: "src@example.com" }], teams: [] },
+      { permissions: ["Manager"], users: [TARGET_USER], teams: [TARGET_TEAM] }
+    );
+    expect(merged).toEqual({ addableBy: { permissions: ["Designer"], users: [TARGET_USER], teams: [TARGET_TEAM] } });
+  });
+
+  it("row 3: anyone on the source clears a role-only rule on the target", () => {
+    expect(mergeAddableBy(null, { permissions: ["Manager"], users: [], teams: [] })).toEqual({
+      addableBy: { permissions: [], users: [], teams: [] },
+    });
+  });
+
+  it("row 4: anyone on the source keeps the target's own people, and says the target stays narrower", () => {
+    const merged = mergeAddableBy(null, { permissions: ["Manager"], users: [TARGET_USER], teams: [] });
+    expect(merged.addableBy).toEqual({ permissions: [], users: [TARGET_USER], teams: [] });
+    expect(merged.note).toMatch(/stays narrower/);
+  });
+
+  it("row 5: a source rule naming only people never widens: Administrators only, reported", () => {
+    const merged = mergeAddableBy({ permissions: [], users: [{ emailAddress: "src@example.com" }], teams: [] }, null);
+    expect(merged.addableBy).toEqual(ADMIN_ONLY);
+    expect(merged.note).toMatch(/limited to Administrators/);
+    // A role-only target rule has no people to stand in either.
+    expect(mergeAddableBy({ teams: [{ name: "Src team" }] }, { permissions: ["Designer"] }).addableBy).toEqual(
+      ADMIN_ONLY
+    );
+  });
+
+  it("row 6: a source rule naming only people takes the target's own people, reported", () => {
+    const merged = mergeAddableBy(
+      { teams: [{ name: "Src team" }] },
+      { permissions: [], users: [], teams: [TARGET_TEAM] }
+    );
+    expect(merged.addableBy).toEqual({ permissions: [], users: [], teams: [TARGET_TEAM] });
+    expect(merged.note).toMatch(/stand in/);
+  });
+});
+
+describe("pushModelAvailability — who can add it (--security)", () => {
+  function setup(source: any, target: any, mode?: "roles" | "where" | "none") {
+    writeRules(SOURCE, [sourceRule({ addableBy: source })]);
+    writeRules(TARGET, target === undefined ? [] : [{ modelID: 120, addableBy: target, allowedIn: null }]);
+    mapModel(12, 120);
+    if (mode) setState({ security: mode });
+    return mockApi();
+  }
+
+  it("roles (the default) sends the source's permissions with the target's own people, and the placement rules", async () => {
+    const save = setup(
+      { permissions: ["Designer"], users: [{ emailAddress: "src@example.com" }], teams: [] },
+      {
+        permissions: [],
+        users: [TARGET_USER],
+        teams: [],
+      }
+    );
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(result).toMatchObject({ successful: 1, failed: 0 });
+    const body = save.mock.calls[0][1];
+    expect(body.addableBy).toEqual({ permissions: ["Designer"], users: [TARGET_USER], teams: [] });
+    expect(body.allowedIn.zones).toHaveLength(1);
+    expect(result.warningDetails).toEqual([]);
+  });
+
+  it("reports a never-widen fallback in the warnings that reach the summary and --jsonSummary", async () => {
+    const save = setup({ permissions: [], users: [{ emailAddress: "src@example.com" }], teams: [] }, null);
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save.mock.calls[0][1].addableBy).toEqual(ADMIN_ONLY);
+    expect(result.warningDetails).toEqual([
+      expect.objectContaining({ name: "HeroBanner", error: expect.stringMatching(/limited to Administrators/) }),
+    ]);
+  });
+
+  it("saves only who can add it when the placement rules already match, leaving allowedIn null", async () => {
+    writeRules(SOURCE, [sourceRule({ addableBy: { permissions: ["Manager"], users: [], teams: [] } })]);
+    mapModel(12, 120);
+    mapTemplateAndZone();
+    // the target's placement rules, as the remap would send them
+    writeRules(TARGET, [
+      {
+        modelID: 120,
+        addableBy: { permissions: ["Designer"], users: [], teams: [] },
+        allowedIn: {
+          sitemaps: [{ referenceName: "website", name: "Website" }],
+          pageModels: [{ pageModelID: 30, name: "Landing Page" }],
+          zones: [
+            {
+              zoneID: 140,
+              pageModelID: 30,
+              pageModelName: "Landing Page",
+              referenceName: "HeroZone",
+              name: "Hero Zone",
+            },
+          ],
+        },
+      },
+    ]);
+    const save = mockApi();
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0][1]).toMatchObject({ allowedIn: null, addableBy: { permissions: ["Manager"] } });
+  });
+
+  it("writes nothing when the merged rule is what the target already has", async () => {
+    const save = setup(
+      { permissions: ["Designer"], users: [], teams: [] },
+      { permissions: ["Designer"], users: [TARGET_USER], teams: [] }
+    );
+    // placement already matches too
+    mapTemplateAndZone();
+    writeRules(TARGET, [
+      {
+        modelID: 120,
+        addableBy: { permissions: ["Designer"], users: [TARGET_USER], teams: [] },
+        allowedIn: {
+          sitemaps: [{ referenceName: "website" }],
+          pageModels: [{ name: "Landing Page" }],
+          zones: [{ pageModelName: "Landing Page", referenceName: "HeroZone" }],
+        },
+      },
+    ]);
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+  });
+
+  it("where keeps the target's own who rules (addableBy null)", async () => {
+    const save = setup(
+      { permissions: ["Designer"], users: [], teams: [] },
+      { permissions: ["Manager"], users: [], teams: [] },
+      "where"
+    );
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save.mock.calls[0][1].addableBy).toBeNull();
+    expect(save.mock.calls[0][1].allowedIn).not.toBeNull();
+  });
+
+  it("none copies no rules at all", async () => {
+    const save = setup(
+      { permissions: ["Designer"], users: [], teams: [] },
+      { permissions: ["Manager"], users: [], teams: [] },
+      "none"
+    );
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ successful: 0, failed: 0, skipped: 0 });
+  });
+
+  it("never changes the target's who rules from a source that has no rules at all", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, [
+      { modelID: 120, addableBy: { permissions: ["Manager"], users: [], teams: [] }, allowedIn: null },
+    ]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("plans the who change in preflight, with its note, and writes nothing", async () => {
+    writeRules(SOURCE, [sourceRule({ addableBy: { users: [{ emailAddress: "src@example.com" }] } })]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    setState({ preflight: true });
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(preflightReport.getEntries()).toEqual([
+      expect.objectContaining({
+        name: "HeroBanner",
+        action: "update",
+        detail: "replace placement rules and who can add it",
+      }),
+    ]);
+    expect(result.warningDetails[0].error).toMatch(/limited to Administrators/);
   });
 });

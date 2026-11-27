@@ -134,6 +134,8 @@ export interface JsonSummary {
     overwrite: boolean;
     /** --syncDeletes. Optional so summaries written before the flag existed still parse. */
     syncDeletes?: boolean;
+    /** --security (PROD-2914). Optional so summaries written before the flag existed still parse. */
+    security?: string;
     autoPublish: string;
     elements: string[];
     locales: string[];
@@ -247,6 +249,7 @@ export function emitAbortSummary(
     preflight?: boolean;
     overwrite?: boolean;
     syncDeletes?: boolean;
+    security?: string;
     autoPublish?: string;
     elements?: string;
     locale?: string[];
@@ -266,6 +269,7 @@ export function emitAbortSummary(
         preflight: runState.preflight === true,
         overwrite: runState.overwrite === true,
         syncDeletes: runState.syncDeletes === true,
+        security: runState.security || "roles",
         autoPublish: runState.autoPublish || "",
         elements: (runState.elements || "").split(",").filter(Boolean),
         locales: Array.isArray(runState.locale) ? runState.locale : [],
