@@ -648,6 +648,20 @@ describe("mergeAddableBy — the merge table (plan §5a)", () => {
     );
   });
 
+  it("reads ['Administrator'] plus people as a people-only rule, the way the API stores one", () => {
+    const stored = { permissions: ["Administrator"], users: [{ emailAddress: "src@example.com" }], teams: [] };
+    expect(mergeAddableBy(stored, null)).toMatchObject({
+      addableBy: ADMIN_ONLY,
+      note: expect.stringMatching(/limited/),
+    });
+    expect(mergeAddableBy(stored, { users: [TARGET_USER] })).toMatchObject({
+      addableBy: { permissions: [], users: [TARGET_USER], teams: [] },
+      note: expect.stringMatching(/stand in/),
+    });
+    // Administrators only, with no people, is a role rule and travels as one.
+    expect(mergeAddableBy({ permissions: ["Administrator"] }, null)).toEqual({ addableBy: ADMIN_ONLY });
+  });
+
   it("row 6: a source rule naming only people takes the target's own people, reported", () => {
     const merged = mergeAddableBy(
       { teams: [{ name: "Src team" }] },
@@ -752,6 +766,30 @@ describe("pushModelAvailability — who can add it (--security)", () => {
 
     expect(save).not.toHaveBeenCalled();
     expect(result.skipped).toBe(1);
+  });
+
+  it("treats Administrator as implied, as the API stores it, so a re-sync writes nothing", async () => {
+    // Saved as ["Designer"] by the last sync; the API reads it back with Administrator added.
+    const save = setup(
+      { permissions: ["Designer"], users: [], teams: [] },
+      { permissions: ["Administrator", "Designer"], users: [], teams: [] }
+    );
+    mapTemplateAndZone();
+    writeRules(TARGET, [
+      {
+        modelID: 120,
+        addableBy: { permissions: ["Administrator", "Designer"], users: [], teams: [] },
+        allowedIn: {
+          sitemaps: [{ referenceName: "website" }],
+          pageModels: [{ name: "Landing Page" }],
+          zones: [{ pageModelName: "Landing Page", referenceName: "HeroZone" }],
+        },
+      },
+    ]);
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
   });
 
   it("where keeps the target's own who rules (addableBy null)", async () => {

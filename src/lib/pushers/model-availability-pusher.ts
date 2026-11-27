@@ -58,11 +58,16 @@ function isEmptyAddableBy(group: mgmtApi.ModelAvailabilityAddableBy | null | und
   return permissionsOf(group).length === 0 && !hasPeople(group);
 }
 
-/** Comparable key of an `addableBy` group: permissions, users and teams, by ID or portable name. */
+/**
+ * Comparable key of an `addableBy` group: permissions, users and teams, by ID or portable name.
+ * Administrator is implied in any non-empty group, and the API stores it that way (a saved
+ * ["Designer"] reads back as ["Administrator", "Designer"]), so it's added to every non-empty group
+ * here; otherwise each re-sync would see a difference and save the rule again.
+ */
 function addableByKey(group: mgmtApi.ModelAvailabilityAddableBy | null | undefined): string {
-  const permissions = permissionsOf(group)
-    .map((p) => p.toLowerCase())
-    .sort();
+  const permissionSet = new Set(permissionsOf(group).map((p) => p.toLowerCase()));
+  if (!isEmptyAddableBy(group)) permissionSet.add("administrator");
+  const permissions = Array.from(permissionSet).sort();
   const users = (group?.users || []).map((u) => (u.userID ? `#${u.userID}` : lower(u.emailAddress))).sort();
   const teams = (group?.teams || []).map((t) => (t.teamID ? `#${t.teamID}` : lower(t.name))).sort();
   return JSON.stringify({ permissions, users, teams });
@@ -95,7 +100,12 @@ export function mergeAddableBy(
   target: mgmtApi.ModelAvailabilityAddableBy | null | undefined
 ): AddableByMerge {
   const targetPeople = { users: target?.users || [], teams: target?.teams || [] };
+  // Administrator is implied in any non-empty group, and the API stores it, so a rule that names
+  // only users or teams reads back as ["Administrator"] plus them. That's still a people-only rule.
   const sourcePermissions = permissionsOf(source);
+  if (hasPeople(source) && sourcePermissions.every((p) => p.toLowerCase() === "administrator")) {
+    sourcePermissions.length = 0;
+  }
 
   if (sourcePermissions.length > 0) {
     return { addableBy: { permissions: sourcePermissions, ...targetPeople } };
