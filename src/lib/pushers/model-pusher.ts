@@ -1,17 +1,12 @@
 import * as mgmtApi from "@agility/management-sdk";
-import {
-  getApiClient,
-  state,
-  getLoggerForGuid,
-  recordSavedTarget,
-  registerDeferredModelDisable,
-} from "../../core/state";
+import { getApiClient, state, getLoggerForGuid, recordSavedTarget } from "../../core/state";
 import { PusherResult, FailureDetail } from "../../types/sourceData";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { Logs } from "core/logs";
 import { preflightReport } from "../preflight/preflight-report";
 import { keptTargetChanges } from "./kept-target-changes";
 import ansiColors from "ansi-colors";
+import { registerPendingModelDisable, targetSupportsModelVisibility } from "./pending-model-disables";
 
 /**
  * Two Agility models can share a `referenceName` while differing in `contentDefinitionTypeID`
@@ -435,7 +430,7 @@ export async function pushModels(sourceData: mgmtApi.Model[], targetData: mgmtAp
       preflightReport.record({ phase: "Models", action: "create", name: model.referenceName });
       recordSavedTarget("model", model.id, model, model.referenceName);
       // PROD-2914: a real run would create it enabled and disable it after the pages.
-      if (model.isVisible === false) registerDeferredModelDisable(model.id);
+      if (model.isVisible === false) registerPendingModelDisable(model.id);
     }
     for (const model of shouldUpdateFields) {
       preflightReport.record({ phase: "Models", action: "update", name: model.referenceName });
@@ -559,13 +554,16 @@ const createNewModel = async (
     // PROD-2914: a new model takes the source's `isVisible`, but not yet. On a new target every
     // placement on a page counts as new, so a model created disabled would get this run's pages
     // that use it rejected. It's created enabled (left out, the API defaults a new model to
-    // enabled), and the component availability phase disables it after the pages.
-    delete createPayload.isVisible;
+    // enabled), and the component availability phase disables it after the pages through
+    // model/{id}/visibility. A target without that route gets the source's value on create, as
+    // before, since nothing could disable the model later.
+    const deferDisable = model.isVisible === false && (await targetSupportsModelVisibility(apiClient, targetGuid));
+    if (deferDisable) delete createPayload.isVisible;
 
     const newModel = await apiClient.modelMethods.saveModel(createPayload, targetGuid);
     logger.model.created(model, "created", targetGuid);
     referenceMapper.addMapping(model, newModel);
-    if (model.isVisible === false) registerDeferredModelDisable(model.id);
+    if (deferDisable) registerPendingModelDisable(model.id);
     return { result: "created" };
   } catch (error: any) {
     // PROD-2211: saveModel can reject even though the API created the model server-side. Before
@@ -576,7 +574,7 @@ const createNewModel = async (
     if (recovered) {
       logger.model.created(model, "created", targetGuid);
       referenceMapper.addMapping(model, recovered);
-      if (model.isVisible === false) registerDeferredModelDisable(model.id);
+      if (model.isVisible === false && recovered.isVisible !== false) registerPendingModelDisable(model.id);
       return { result: "created" };
     }
     logger.model.error(model, error, targetGuid);

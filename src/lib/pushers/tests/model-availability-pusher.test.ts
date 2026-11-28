@@ -515,90 +515,125 @@ describe("pushModelAvailability", () => {
 // ─── disabling models created this run ────────────────────────────────────────
 
 describe("pushModelAvailability — models created this run that are disabled on the source", () => {
-  const targetModel = { id: 120, referenceName: "HeroBanner", lastModifiedDate: "2026-01-01", fields: [] };
+  const { registerPendingModelDisable, getPendingModelDisables } = require("../pending-model-disables");
+  const disabledSource = { ...sourceModel, isVisible: false, lastModifiedDate: "2026-01-01" };
+  const targetModel = { id: 120, referenceName: "HeroBanner", lastModifiedDate: "2026-05-05", fields: [] };
 
-  function mockModelApi(overrides: { get?: jest.Mock; saveModel?: jest.Mock } = {}) {
-    const get = overrides.get ?? jest.fn().mockResolvedValue({ ...targetModel, isVisible: true });
-    const saveModel =
-      overrides.saveModel ??
-      jest.fn().mockImplementation(async (model: any) => ({ ...model, lastModifiedDate: "2026-05-05" }));
+  function mockModelApi(overrides: { visibility?: jest.Mock; saveModel?: jest.Mock } = {}) {
+    const visibility = overrides.visibility ?? jest.fn().mockResolvedValue({ modelID: 120, isVisible: false });
+    const saveModel = overrides.saveModel ?? jest.fn();
+    const get = jest.fn().mockResolvedValue({ ...targetModel, isVisible: false });
     jest.spyOn(stateModule, "getApiClient").mockReturnValue({
-      modelMethods: { getContentModel: get, saveModel, saveModelAvailability: jest.fn() },
+      modelMethods: {
+        getContentModel: get,
+        saveModel,
+        saveModelVisibility: visibility,
+        saveModelAvailability: jest.fn(),
+      },
     } as any);
-    return { get, saveModel };
+    return { visibility, saveModel, get };
   }
 
-  it("disables them after the pages, and records the save in the model mapping", async () => {
+  it("disables them through the visibility route after the pages, never a model save, and records the new date", async () => {
     writeRules(SOURCE, []);
     writeRules(TARGET, []);
     mapModel(12, 120);
-    stateModule.registerDeferredModelDisable(12);
-    const { get, saveModel } = mockModelApi();
+    registerPendingModelDisable(12);
+    const { visibility, saveModel } = mockModelApi();
 
-    const result = await pushModelAvailability([{ ...sourceModel, lastModifiedDate: "2026-01-01" }]);
+    const result = await pushModelAvailability([disabledSource]);
 
-    expect(get).toHaveBeenCalledWith(120, TARGET);
-    expect(saveModel).toHaveBeenCalledTimes(1);
-    expect(saveModel.mock.calls[0][0]).toMatchObject({ id: 120, isVisible: false });
+    expect(visibility).toHaveBeenCalledWith(120, false, TARGET);
+    expect(saveModel).not.toHaveBeenCalled();
     expect(result).toMatchObject({ status: "success", successful: 1, failed: 0 });
-    // Otherwise the next sync reads the model as changed on the target.
     const mapping = new ModelMapper(SOURCE, TARGET).getModelMappingByID(12, "source");
     expect(mapping?.targetLastModifiedDate).toBe("2026-05-05");
+    expect(getPendingModelDisables()).toEqual([]);
   });
 
-  it("leaves models that weren't created this run alone", async () => {
+  it("leaves models that weren't created by a sync alone", async () => {
     writeRules(SOURCE, []);
     writeRules(TARGET, []);
     mapModel(12, 120);
-    const { saveModel } = mockModelApi();
+    const { visibility } = mockModelApi();
 
-    await pushModelAvailability([{ ...sourceModel, isVisible: false }]);
+    await pushModelAvailability([disabledSource]);
 
-    expect(saveModel).not.toHaveBeenCalled();
+    expect(visibility).not.toHaveBeenCalled();
   });
 
-  it("warns once and leaves them enabled when the target's API doesn't return isVisible", async () => {
+  it("disables a model an earlier run created but stopped before disabling", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    registerPendingModelDisable(12);
+    // A new run: the in-memory list is gone, the file next to the mappings isn't.
+    stateModule.clearDeferredModelDisables();
+    const { visibility } = mockModelApi();
+
+    await pushModelAvailability([disabledSource]);
+
+    expect(visibility).toHaveBeenCalledWith(120, false, TARGET);
+  });
+
+  it("warns once and keeps them pending when the target's API has no visibility route", async () => {
     writeRules(SOURCE, []);
     writeRules(TARGET, []);
     mapModel(12, 120);
     mapModel(13, 130, "Other");
-    stateModule.registerDeferredModelDisable(12);
-    stateModule.registerDeferredModelDisable(13);
-    const { get, saveModel } = mockModelApi({ get: jest.fn().mockResolvedValue({ ...targetModel }) });
+    registerPendingModelDisable(12);
+    registerPendingModelDisable(13);
+    const { visibility } = mockModelApi({ visibility: jest.fn().mockRejectedValue(httpError(405, "")) });
 
-    const result = await pushModelAvailability([sourceModel, { id: 13, referenceName: "Other" } as any]);
+    const result = await pushModelAvailability([
+      disabledSource,
+      { id: 13, referenceName: "Other", isVisible: false } as any,
+    ]);
 
-    expect(get).toHaveBeenCalledTimes(1);
-    expect(saveModel).not.toHaveBeenCalled();
+    expect(visibility).toHaveBeenCalledTimes(1);
     expect(result).toMatchObject({ status: "success", failed: 0 });
     expect(result.warningDetails).toHaveLength(1);
     expect(result.warningDetails[0].error).toMatch(/can't disable models yet/);
+    expect(getPendingModelDisables().sort()).toEqual([12, 13]);
   });
 
-  it("reports a failed disable as that model's failure", async () => {
+  it("forgets a pending model that's enabled on the source by now", async () => {
     writeRules(SOURCE, []);
     writeRules(TARGET, []);
     mapModel(12, 120);
-    stateModule.registerDeferredModelDisable(12);
-    mockModelApi({ saveModel: jest.fn().mockRejectedValue(new Error("boom")) });
+    registerPendingModelDisable(12);
+    const { visibility } = mockModelApi();
 
-    const result = await pushModelAvailability([sourceModel]);
+    await pushModelAvailability([{ ...sourceModel, isVisible: true }]);
+
+    expect(visibility).not.toHaveBeenCalled();
+    expect(getPendingModelDisables()).toEqual([]);
+  });
+
+  it("reports a failed disable as that model's failure, and keeps it pending", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    registerPendingModelDisable(12);
+    mockModelApi({ visibility: jest.fn().mockRejectedValue(new Error("boom")) });
+
+    const result = await pushModelAvailability([disabledSource]);
 
     expect(result).toMatchObject({ status: "error", successful: 0, failed: 1 });
     expect(result.failureDetails[0].error).toMatch(/Failed to disable model "HeroBanner".*boom/);
+    expect(getPendingModelDisables()).toEqual([12]);
   });
 
   it("records the planned disable in preflight and writes nothing", async () => {
     writeRules(SOURCE, []);
     writeRules(TARGET, []);
     setState({ preflight: true });
-    stateModule.registerDeferredModelDisable(12);
-    const { get, saveModel } = mockModelApi();
+    registerPendingModelDisable(12);
+    const { visibility } = mockModelApi();
 
-    const result = await pushModelAvailability([sourceModel]);
+    const result = await pushModelAvailability([disabledSource]);
 
-    expect(get).not.toHaveBeenCalled();
-    expect(saveModel).not.toHaveBeenCalled();
+    expect(visibility).not.toHaveBeenCalled();
     expect(result.successful).toBe(1);
     expect(preflightReport.getEntries()).toEqual([
       expect.objectContaining({ phase: "Component availability", action: "update", name: "HeroBanner" }),
@@ -849,5 +884,68 @@ describe("pushModelAvailability — who can add it (--security)", () => {
       }),
     ]);
     expect(result.warningDetails[0].error).toMatch(/limited to Administrators/);
+  });
+
+  it("repeats a never-widen note on later runs, while the case stands, without saving again", async () => {
+    writeRules(SOURCE, [
+      sourceRule({
+        addableBy: { permissions: ["Administrator"], users: [{ emailAddress: "s@example.com" }] },
+        allowedIn: null,
+      }),
+    ]);
+    writeRules(TARGET, [
+      { modelID: 120, addableBy: { permissions: ["Administrator"], users: [], teams: [] }, allowedIn: null },
+    ]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result.warningDetails.map((w) => w.error)).toEqual([expect.stringMatching(/limited to Administrators/)]);
+  });
+
+  it("treats Web API's own 404 for an unknown route as an API without the feature: one warning", async () => {
+    writeRules(SOURCE, [sourceRule(), sourceRule({ modelID: 13, modelReferenceName: "Other" })]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    mapModel(13, 130, "Other");
+    const routeMissing = Object.assign(new Error("Not found"), {
+      statusCode: 404,
+      responseData: { Message: "No HTTP resource was found that matches the request URI" },
+    });
+    const save = mockApi(jest.fn().mockRejectedValue(routeMissing));
+
+    const result = await pushModelAvailability([sourceModel, { id: 13, referenceName: "Other" } as any]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.failed).toBe(0);
+    expect(result.warningDetails).toEqual([
+      expect.objectContaining({ error: expect.stringMatching(/doesn't support/) }),
+    ]);
+  });
+
+  it("asks the target once per run whether it has model/{id}/visibility, with model 0", async () => {
+    const { targetSupportsModelVisibility, resetVisibilitySupport } = require("../pending-model-disables");
+    const client = (data: any, statusCode = 404) =>
+      ({
+        modelMethods: {
+          saveModelVisibility: jest
+            .fn()
+            .mockRejectedValue(Object.assign(new Error("x"), { statusCode, responseData: data })),
+        },
+      }) as any;
+    resetVisibilitySupport();
+    const withRoute = client({ message: "The model with ID 0 could not be located." });
+    expect(await targetSupportsModelVisibility(withRoute, "g1")).toBe(true);
+    expect(await targetSupportsModelVisibility(withRoute, "g1")).toBe(true);
+    expect(withRoute.modelMethods.saveModelVisibility).toHaveBeenCalledTimes(1);
+    expect(withRoute.modelMethods.saveModelVisibility).toHaveBeenCalledWith(0, true, "g1");
+    expect(await targetSupportsModelVisibility(client(""), "g2")).toBe(false);
+    expect(
+      await targetSupportsModelVisibility(client({ Message: "No HTTP resource was found that matches" }), "g3")
+    ).toBe(false);
+    expect(await targetSupportsModelVisibility(client("", 405), "g4")).toBe(false);
+    resetVisibilitySupport();
   });
 });

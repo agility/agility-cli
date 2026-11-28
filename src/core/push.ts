@@ -27,6 +27,7 @@ import { foreignCdnReport } from "../lib/content/foreign-cdn-report";
 import { keptTargetChanges } from "../lib/pushers/kept-target-changes";
 import { unusedComponentsReport } from "../lib/content/unused-components";
 import { failedAssets } from "../lib/assets/failed-assets";
+import { resetVisibilitySupport } from "../lib/pushers/pending-model-disables";
 import { resetForeignCdnDetectorCache } from "../lib/pushers/content-pusher/util/report-foreign-cdn-references";
 import type { OtherLocaleStagingEntry } from "./state";
 
@@ -128,6 +129,8 @@ export class Push {
     unusedComponentsReport.reset();
     // PROD-3449: assets whose upload failed; content using them fails instead of syncing without them
     failedAssets.reset();
+    // PROD-2914: ask each target again whether it can change a model's visibility
+    resetVisibilitySupport();
 
     // Initialize logger for push operation
     // Determine if this is a sync operation by checking if both source and target GUIDs exist

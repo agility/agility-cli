@@ -243,9 +243,11 @@ export class FakeInstance {
       const store = this.instance(guid);
       // Model creation is two-pass: a shell with `fields: []` to get an ID, then the same
       // model again with its fields. Both arrive here; the second must update, not duplicate.
+      const existing = model?.id && model.id > 0 ? store.models.get(model.id) : undefined;
       const id = model?.id && model.id > 0 ? model.id : this.allocate("model");
-      // PROD-2914: `isVisible` left out (or null) keeps the stored value, and a new model is enabled.
-      const isVisible = model?.isVisible ?? store.models.get(id)?.isVisible ?? true;
+      // PROD-2914: like the API, `isVisible` counts only when the save creates the model (left out,
+      // a new model is enabled). An update keeps the stored value; model/{id}/visibility changes it.
+      const isVisible = existing ? (existing.isVisible ?? true) : (model?.isVisible ?? true);
       const saved = { ...model, id, isVisible, lastModifiedDate: nextTimestamp() };
       store.models.set(id, saved);
       return saved;
@@ -261,6 +263,15 @@ export class FakeInstance {
     getPageModules: async (includeDefaults: boolean, guid: string) => {
       this.record("modelMethods.getPageModules", guid, { includeDefaults });
       return [];
+    },
+    // POST model/{id}/visibility, as the CLI sends it through the SDK's client.
+    saveModelVisibility: async (modelID: number, isVisible: boolean, guid: string) => {
+      this.record("modelMethods.saveModelVisibility", guid, { modelID, isVisible });
+      const store = this.instance(guid);
+      const model = store.models.get(modelID);
+      if (!model) throw httpError(404, `The model with ID ${modelID} could not be located.`);
+      store.models.set(modelID, { ...model, isVisible, lastModifiedDate: nextTimestamp() });
+      return { modelID, isVisible };
     },
     getAllModelAvailability: async (guid: string) => {
       this.record("modelMethods.getAllModelAvailability", guid);

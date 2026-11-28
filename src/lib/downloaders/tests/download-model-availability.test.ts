@@ -113,6 +113,21 @@ describe("downloadModelAvailability", () => {
     expect(getModelAvailabilityFromFileSystem(new fileOperations(GUID))).toBeNull();
   });
 
+  it("treats the SDK's 'not a list' error (an older API, SDK 0.3) as no feature, not a failure", async () => {
+    seedStaleFile(12);
+    // What getAllModelAvailability throws in SDK 0.3.0 when the answer isn't a list: no status.
+    const sdkError = Object.assign(
+      new Error(
+        "Unable to retrieve model availability.: The response is not a list of availability rules. The Management API may be too old for component availability."
+      ),
+      { innerError: new Error("The response is not a list of availability rules.") }
+    );
+    mockApi(jest.fn().mockRejectedValue(sdkError));
+
+    await expect(downloadModelAvailability(GUID)).resolves.toBeUndefined();
+    expect(fs.existsSync(folder)).toBe(false);
+  });
+
   it("removes a half-written folder and rethrows when writing the rules fails", async () => {
     seedStaleFile(99);
     mockApi(jest.fn().mockResolvedValue([rule(12)]));

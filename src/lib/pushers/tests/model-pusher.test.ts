@@ -1063,9 +1063,21 @@ describe("pushModels — isVisible ownership (PROD-2914)", () => {
   const JUN = new Date(2025, 5, 1).toISOString();
   const fields = (label = "Title") => [{ name: "Title", label, type: "Text", itemOrder: 0, settings: {} }];
 
+  /** A client whose target has model/{id}/visibility (true) or not (false). */
+  function clientWithVisibility(saveModel: jest.Mock, supported: boolean) {
+    const client: any = makeApiClient(saveModel);
+    const probe = supported
+      ? Object.assign(new Error("not found"), { statusCode: 404, responseData: "The model with ID 0 could not be located." })
+      : Object.assign(new Error("not found"), { statusCode: 404, responseData: "" });
+    client.modelMethods.saveModelVisibility = jest.fn().mockRejectedValue(probe);
+    return client;
+  }
+
+  beforeEach(() => require("../pending-model-disables").resetVisibilitySupport());
+
   it("creates a disabled source model enabled, and defers disabling it until after the pages", async () => {
     const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 777 }));
-    jest.spyOn(stateModule, "getApiClient").mockReturnValue(makeApiClient(saveModel));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(clientWithVisibility(saveModel, true));
     const { pushModels } = await import("../model-pusher");
 
     const source = makeModel({ id: 42, referenceName: "hidden-component", isVisible: false });
@@ -1076,6 +1088,17 @@ describe("pushModels — isVisible ownership (PROD-2914)", () => {
     expect("isVisible" in saveModel.mock.calls[0][0]).toBe(false);
     expect("isVisible" in saveModel.mock.calls[1][0]).toBe(false);
     expect(stateModule.getDeferredModelDisables()).toEqual([42]);
+  });
+
+  it("creates it disabled, as before, on a target that can't change a model's visibility later", async () => {
+    const saveModel = jest.fn().mockResolvedValue(makeModel({ id: 778 }));
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue(clientWithVisibility(saveModel, false));
+    const { pushModels } = await import("../model-pusher");
+
+    await pushModels([makeModel({ id: 45, referenceName: "hidden-on-old-api", isVisible: false })], []);
+
+    expect(saveModel.mock.calls[0][0].isVisible).toBe(false);
+    expect(stateModule.getDeferredModelDisables()).toEqual([]);
   });
 
   it("defers nothing for a created model that's enabled on the source", async () => {

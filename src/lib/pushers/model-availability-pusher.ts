@@ -1,7 +1,8 @@
 import * as mgmtApi from "@agility/management-sdk";
 import ansiColors from "ansi-colors";
 import { fileOperations } from "../../core/fileOperations";
-import { getApiClient, getDeferredModelDisables, getLoggerForGuid, state } from "../../core/state";
+import { getApiClient, getLoggerForGuid, state } from "../../core/state";
+import { getPendingModelDisables, resolvePendingModelDisable, saveModelVisibility } from "./pending-model-disables";
 import { FailureDetail, PusherResult } from "../../types/sourceData";
 import { ModelMapper } from "lib/mappers/model-mapper";
 import { TemplateMapper } from "lib/mappers/template-mapper";
@@ -235,6 +236,13 @@ function hasServerMessage(error: any): boolean {
   return Boolean(data.message ?? data.Message ?? data.exceptionMessage ?? data.title);
 }
 
+/** The framework's 404 for a route the API doesn't have, as opposed to the API's own 404. */
+function isUnmatchedRoute(error: any): boolean {
+  const data = error?.responseData ?? error?.response?.data;
+  const text = typeof data === "string" ? data : JSON.stringify(data ?? "");
+  return /No HTTP resource was found|<html/i.test(text);
+}
+
 /**
  * How a failed availability save is handled:
  * - "unsupported": the target can't store rules (405, 409 from a database without the feature, or
@@ -246,7 +254,8 @@ function hasServerMessage(error: any): boolean {
 function classifySaveError(error: any): "unsupported" | "forbidden" | "model" {
   const status = error?.statusCode ?? error?.response?.status;
   if (status === 405 || status === 409) return "unsupported";
-  if (status === 404) return hasServerMessage(error) ? "model" : "unsupported";
+  // ASP.NET Web API's own 404 for an unmatched route carries a message too.
+  if (status === 404) return hasServerMessage(error) && !isUnmatchedRoute(error) ? "model" : "unsupported";
   if (status === 403) return "forbidden";
   return "model";
 }
@@ -268,8 +277,11 @@ function emptyCounts(): PhaseCounts {
 }
 
 /**
- * Disable the models this run created whose source is disabled (`isVisible: false`). The model
- * pusher created them enabled so this run's pages could place them.
+ * Disable the models a sync created whose source is disabled (`isVisible: false`): this run's, and
+ * any an earlier run created but stopped before disabling. They were created enabled so the run's
+ * pages could place them. Disabling uses `POST model/{id}/visibility`, which changes only
+ * `isVisible`: a model save keeps the stored value on an update, and would also move the modified
+ * dates of the model's containers.
  */
 async function disableModelsCreatedThisRun(
   sourceModels: mgmtApi.Model[],
@@ -278,12 +290,18 @@ async function disableModelsCreatedThisRun(
   const { sourceGuid, targetGuid } = state;
   const logger = getLoggerForGuid(sourceGuid);
   const counts = emptyCounts();
-  const deferred = new Set(getDeferredModelDisables());
-  if (deferred.size === 0) return counts;
+  const pending = new Set(getPendingModelDisables());
+  if (pending.size === 0) return counts;
   const apiClient = getApiClient();
 
   for (const sourceModel of sourceModels || []) {
-    if (!sourceModel?.id || !deferred.has(sourceModel.id)) continue;
+    if (!sourceModel?.id || !pending.has(sourceModel.id)) continue;
+
+    if (sourceModel.isVisible !== false) {
+      // Enabled on the source since: nothing to disable.
+      resolvePendingModelDisable(sourceModel.id);
+      continue;
+    }
 
     if (state.preflight) {
       preflightReport.record({
@@ -303,24 +321,24 @@ async function disableModelsCreatedThisRun(
     }
 
     try {
-      const target = await apiClient.modelMethods.getContentModel(mapping.targetID, targetGuid);
-      if (!target) throw new Error(`The model with ID ${mapping.targetID} wasn't found on the target.`);
-      if (target.isVisible === undefined) {
-        // An API that doesn't return isVisible can't store it either (it saves every model enabled).
+      await saveModelVisibility(apiClient, mapping.targetID, false, targetGuid);
+      // The change moves the model's modified date. Record it, or the next sync reads the model as
+      // changed on the target and holds it back as a conflict.
+      const saved = await apiClient.modelMethods.getContentModel(mapping.targetID, targetGuid).catch(() => null);
+      if (saved?.lastModifiedDate) modelMapper.addMapping(sourceModel, saved);
+      resolvePendingModelDisable(sourceModel.id);
+      logger?.info(`Model "${sourceModel.referenceName}" disabled, as it is on the source.`);
+      counts.successful++;
+    } catch (error: any) {
+      if (classifySaveError(error) === "unsupported") {
+        // An API without the route. Keep the models pending, so a later sync disables them.
         const message =
-          "The target instance's API can't disable models yet, so models that are disabled on the source were left enabled.";
+          "The target instance's API can't disable models yet, so models that are disabled on the source were left enabled. A later sync will disable them.";
         console.log(ansiColors.yellow(`⚠️ ${message}`));
         logger?.warning(message);
         counts.warningDetails.push({ name: "Component availability", error: message, type: "model", guid: sourceGuid });
         break;
       }
-      const saved = await apiClient.modelMethods.saveModel({ ...target, isVisible: false }, targetGuid);
-      // The save moves the target's modified date. Record it, or the next sync reads the model as
-      // changed on the target and holds it back as a conflict.
-      modelMapper.addMapping(sourceModel, saved?.lastModifiedDate ? saved : { ...target, ...(saved || {}) });
-      logger?.info(`Model "${sourceModel.referenceName}" disabled, as it is on the source.`);
-      counts.successful++;
-    } catch (error: any) {
       const reason = errorText(error);
       logger?.error(`Disabling model "${sourceModel.referenceName}" failed: ${reason}`);
       counts.failed++;
@@ -443,24 +461,13 @@ async function pushAvailabilityRules(
     let note: string | undefined;
     if (copyWho && (!isEmptyAddableBy(sourceAddableBy) || sourceStoresRules)) {
       const merged = mergeAddableBy(sourceAddableBy, targetAddableBy);
+      // The note stands while the case does, whether or not this run changes anything.
+      note = merged.note;
       if (merged.addableBy && addableByKey(merged.addableBy) !== addableByKey(targetAddableBy)) {
         addableBy = merged.addableBy;
-        note = merged.note;
       }
     }
 
-    if (allowedIn === null && addableBy === null) {
-      // Nothing differs. A model with no rule on the source isn't worth counting (most have none).
-      if (sourceRule) {
-        logger?.fileOnly(`Component availability for "${sourceModel.referenceName}" is unchanged, skipping.`);
-        counts.skipped++;
-      }
-      continue;
-    }
-
-    const changing = [allowedIn ? "placement rules" : null, addableBy ? "who can add it" : null]
-      .filter(Boolean)
-      .join(" and ");
     const reportNote = () => {
       if (!note) return;
       const message = `Component availability for "${sourceModel.referenceName}": ${note}.`;
@@ -469,6 +476,19 @@ async function pushAvailabilityRules(
       counts.warningDetails.push({ name: sourceModel.referenceName, error: message, type: "model", guid: sourceGuid });
     };
 
+    if (allowedIn === null && addableBy === null) {
+      // Nothing differs. A model with no rule on the source isn't worth counting (most have none).
+      if (sourceRule) {
+        logger?.fileOnly(`Component availability for "${sourceModel.referenceName}" is unchanged, skipping.`);
+        counts.skipped++;
+      }
+      if (!state.preflight) reportNote();
+      continue;
+    }
+
+    const changing = [allowedIn ? "placement rules" : null, addableBy ? "who can add it" : null]
+      .filter(Boolean)
+      .join(" and ");
     if (state.preflight) {
       preflightReport.record({
         phase: "Component availability",

@@ -128,7 +128,7 @@ describe("component availability sync (PROD-2914)", () => {
       const pageSave = methods.indexOf("pageMethods.savePage");
       const rulesSave = methods.indexOf("modelMethods.saveModelAvailability");
       const disable = harness.fake.calls.findIndex(
-        (c) => c.method === "modelMethods.saveModel" && c.payload?.isVisible === false
+        (c) => c.method === "modelMethods.saveModelVisibility" && c.payload?.isVisible === false
       );
       expect(pageSave).toBeGreaterThanOrEqual(0);
       expect(rulesSave).toBeGreaterThan(pageSave);
@@ -320,7 +320,12 @@ describe("component availability sync (PROD-2914)", () => {
       // Item 500 is on no page, so it isn't synced; the model is, and so are its rules.
       expect(Array.from(target.content?.values?.() ?? []).map((c: any) => c.contentID)).toEqual([]);
       expect(harness.readMappings("models")).toHaveLength(1);
-      expect(run.results.flatMap((r) => r.warningDetails).map((w) => w.error).join("\n")).not.toMatch(/Post.*failed/);
+      expect(
+        run.results
+          .flatMap((r) => r.warningDetails)
+          .map((w) => w.error)
+          .join("\n")
+      ).not.toMatch(/Post.*failed/);
       expect(target.availability.get(targetModelID)?.allowedIn?.zones).toHaveLength(1);
       expect(target.availability.get(targetModelID)?.addableBy).toEqual({
         permissions: ["Administrator"],

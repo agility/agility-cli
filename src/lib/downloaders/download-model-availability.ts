@@ -26,8 +26,12 @@ export const MODEL_AVAILABILITY_FOLDER = "model-availability";
  * 409; a 409 is tolerated anyway, as only the save is specified to return it.)
  */
 export function isAvailabilityUnsupported(error: any): boolean {
-  const status = error?.statusCode ?? error?.response?.status;
-  return status === 404 || status === 405 || status === 409;
+  const status = error?.statusCode ?? error?.response?.status ?? error?.innerError?.response?.status;
+  if (status === 404 || status === 405 || status === 409) return true;
+  // SDK 0.3.0: an older API answers model/availability from its model/{referenceName} route, with a
+  // model or nothing. getAllModelAvailability then throws "...is not a list..." with no status.
+  const text = `${error?.message ?? ""} ${error?.innerError?.message ?? ""}`;
+  return status === undefined && /not a list/i.test(text);
 }
 
 export async function downloadModelAvailability(guid: string): Promise<void> {
