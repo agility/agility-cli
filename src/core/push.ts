@@ -6,6 +6,7 @@ import {
   clearFailedContentRegistry,
   clearHeldBackTemplateRegistry,
   clearSavedTargets,
+  clearDeferredModelDisables,
   clearOtherLocaleStagingRegistry,
   getOtherLocaleStaging,
   getPageCmsLink,
@@ -25,6 +26,8 @@ import type { FailureDetail } from "../types/sourceData";
 import { foreignCdnReport } from "../lib/content/foreign-cdn-report";
 import { keptTargetChanges } from "../lib/pushers/kept-target-changes";
 import { unusedComponentsReport } from "../lib/content/unused-components";
+import { failedAssets } from "../lib/assets/failed-assets";
+import { resetVisibilitySupport } from "../lib/pushers/pending-model-disables";
 import { resetForeignCdnDetectorCache } from "../lib/pushers/content-pusher/util/report-foreign-cdn-references";
 import type { OtherLocaleStagingEntry } from "./state";
 
@@ -109,6 +112,8 @@ export class Push {
     clearHeldBackTemplateRegistry();
     // Entities saved by a previous run must not stand in for this run's pulled targets
     clearSavedTargets();
+    // PROD-2914: models a previous run meant to disable after its pages
+    clearDeferredModelDisables();
     clearOtherLocaleStagingRegistry();
     // PROD-3164: pages the page phase held back, which page order mustn't move
     resetHeldPages();
@@ -122,6 +127,10 @@ export class Push {
     keptTargetChanges.reset();
     // PROD-3399: Components on no page, skipped and reported once per run
     unusedComponentsReport.reset();
+    // PROD-3449: assets whose upload failed; content using them fails instead of syncing without them
+    failedAssets.reset();
+    // PROD-2914: ask each target again whether it can change a model's visibility
+    resetVisibilitySupport();
 
     // Initialize logger for push operation
     // Determine if this is a sync operation by checking if both source and target GUIDs exist
@@ -528,6 +537,7 @@ export class Push {
           preflight: state.preflight === true,
           overwrite: state.overwrite === true,
           syncDeletes: state.syncDeletes === true,
+          security: state.security,
           autoPublish: state.autoPublish || "",
           elements: (state.elements || "").split(",").filter(Boolean),
           locales: Array.isArray(state.locale) ? state.locale : [],

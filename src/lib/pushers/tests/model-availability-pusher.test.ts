@@ -1,0 +1,951 @@
+import * as fs from "fs";
+import * as os from "os";
+import * as path from "path";
+import { resetState, setState, initializeGuidLogger } from "core/state";
+import * as stateModule from "core/state";
+import { ModelMapper } from "lib/mappers/model-mapper";
+import { TemplateMapper } from "lib/mappers/template-mapper";
+import { SectionMapper } from "lib/mappers/section-mapper";
+import { preflightReport } from "../../preflight/preflight-report";
+import { pushModelAvailability, mergeAddableBy } from "../model-availability-pusher";
+
+const SOURCE = "src-avail-u";
+const TARGET = "tgt-avail-u";
+
+let tmpDir: string;
+
+beforeAll(() => {
+  tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "agility-availability-"));
+});
+
+afterAll(() => {
+  fs.rmSync(tmpDir, { recursive: true, force: true });
+});
+
+beforeEach(() => {
+  resetState();
+  setState({ rootPath: tmpDir, sourceGuid: SOURCE, targetGuid: TARGET, token: "test-token" });
+  // Mappings and pulled rules would otherwise leak between tests (shared tmpDir, fixed guids).
+  fs.rmSync(path.join(tmpDir, "mappings"), { recursive: true, force: true });
+  fs.rmSync(path.join(tmpDir, SOURCE), { recursive: true, force: true });
+  fs.rmSync(path.join(tmpDir, TARGET), { recursive: true, force: true });
+  preflightReport.reset();
+  initializeGuidLogger(SOURCE, "push");
+  jest.spyOn(console, "log").mockImplementation(() => {});
+  jest.spyOn(console, "warn").mockImplementation(() => {});
+  jest.spyOn(console, "error").mockImplementation(() => {});
+});
+
+afterEach(() => {
+  jest.restoreAllMocks();
+});
+
+// ─── helpers ──────────────────────────────────────────────────────────────────
+
+/** Write pulled rules for an instance; `null` leaves the folder out (rules unknown). */
+function writeRules(guid: string, rules: any[] | null) {
+  const folder = path.join(tmpDir, guid, "model-availability");
+  fs.rmSync(folder, { recursive: true, force: true });
+  if (rules === null) return;
+  fs.mkdirSync(folder, { recursive: true });
+  for (const rule of rules) fs.writeFileSync(path.join(folder, `${rule.modelID}.json`), JSON.stringify(rule));
+}
+
+function mapModel(sourceID: number, targetID: number, referenceName = "HeroBanner") {
+  new ModelMapper(SOURCE, TARGET).addMapping(
+    { id: sourceID, referenceName, lastModifiedDate: "2026-01-01" } as any,
+    { id: targetID, referenceName, lastModifiedDate: "2026-01-01" } as any
+  );
+}
+
+function mapTemplateAndZone() {
+  new TemplateMapper(SOURCE, TARGET).addMapping(
+    { pageTemplateID: 3, pageTemplateName: "Landing Page" } as any,
+    { pageTemplateID: 30, pageTemplateName: "Landing Page" } as any
+  );
+  new SectionMapper(SOURCE, TARGET).addMapping(
+    { pageItemTemplateID: 14, pageItemTemplateReferenceName: "HeroZone" } as any,
+    { pageItemTemplateID: 140, pageItemTemplateReferenceName: "HeroZone" } as any
+  );
+}
+
+const sourceModel = { id: 12, referenceName: "HeroBanner" } as any;
+
+const sourceAllowedIn = {
+  sitemaps: [{ sitemapID: 1, referenceName: "website", name: "Website" }],
+  pageModels: [{ pageModelID: 3, name: "Landing Page" }],
+  zones: [{ zoneID: 14, pageModelID: 3, pageModelName: "Landing Page", referenceName: "HeroZone", name: "Hero Zone" }],
+};
+
+function sourceRule(overrides: any = {}) {
+  return {
+    modelID: 12,
+    modelReferenceName: "HeroBanner",
+    addableBy: { permissions: ["Administrator"], users: [{ userID: 5, emailAddress: "a@example.com" }], teams: [] },
+    allowedIn: sourceAllowedIn,
+    ...overrides,
+  };
+}
+
+function mockApi(save: jest.Mock = jest.fn().mockResolvedValue({})) {
+  jest.spyOn(stateModule, "getApiClient").mockReturnValue({ modelMethods: { saveModelAvailability: save } } as any);
+  return save;
+}
+
+function httpError(statusCode: number, message: string) {
+  return Object.assign(new Error(message), { statusCode });
+}
+
+// ─── pushModelAvailability ────────────────────────────────────────────────────
+
+describe("pushModelAvailability", () => {
+  // These cover the placement rules (allowedIn), the part every mode but `none` copies. Under
+  // --security where, who can add a component stays the target's own (addableBy: null).
+  beforeEach(() => setState({ security: "where" }));
+
+  it("sends allowedIn only, with addableBy null so the target keeps its own who rules", async () => {
+    writeRules(SOURCE, [sourceRule()]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(result).toMatchObject({ status: "success", successful: 1, failed: 0 });
+    expect(save).toHaveBeenCalledTimes(1);
+    const [modelID, body, guid] = save.mock.calls[0];
+    expect(modelID).toBe(120);
+    expect(guid).toBe(TARGET);
+    expect(body.modelID).toBe(120);
+    expect(body.addableBy).toBeNull();
+    expect(body.allowedIn).toBeDefined();
+  });
+
+  it("remaps by name and never sends a source ID", async () => {
+    writeRules(SOURCE, [sourceRule()]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save.mock.calls[0][1].allowedIn).toEqual({
+      sitemaps: [{ referenceName: "website", name: "Website" }],
+      pageModels: [{ name: "Landing Page" }],
+      zones: [{ pageModelName: "Landing Page", referenceName: "HeroZone", name: "Hero Zone" }],
+    });
+  });
+
+  it("uses the sync's template and zone mappings for target IDs when they exist", async () => {
+    writeRules(SOURCE, [sourceRule()]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    mapTemplateAndZone();
+    const save = mockApi();
+
+    await pushModelAvailability([sourceModel]);
+
+    const allowedIn = save.mock.calls[0][1].allowedIn;
+    expect(allowedIn.pageModels).toEqual([{ pageModelID: 30, name: "Landing Page" }]);
+    expect(allowedIn.zones).toEqual([
+      { zoneID: 140, pageModelID: 30, pageModelName: "Landing Page", referenceName: "HeroZone", name: "Hero Zone" },
+    ]);
+    // Sitemaps have no mapping: by referenceName only.
+    expect(allowedIn.sitemaps).toEqual([{ referenceName: "website", name: "Website" }]);
+  });
+
+  it("skips a model whose target already has the same placement rules", async () => {
+    writeRules(SOURCE, [sourceRule()]);
+    // Target has its own IDs and its own who rules; only the placement names are compared.
+    writeRules(TARGET, [
+      {
+        modelID: 120,
+        addableBy: { permissions: ["Designer"], users: [], teams: [] },
+        allowedIn: {
+          sitemaps: [{ sitemapID: 7, referenceName: "Website", name: "Website" }],
+          pageModels: [{ pageModelID: 30, name: "landing page" }],
+          zones: [{ zoneID: 140, pageModelID: 30, pageModelName: "Landing Page", referenceName: "HeroZone" }],
+        },
+      },
+    ]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ successful: 0, skipped: 1, failed: 0 });
+  });
+
+  it("clears the target's placement rules when the source has none", async () => {
+    writeRules(SOURCE, [sourceRule({ allowedIn: null })]);
+    writeRules(TARGET, [{ modelID: 120, addableBy: null, allowedIn: sourceAllowedIn }]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0][1]).toEqual({
+      modelID: 120,
+      addableBy: null,
+      allowedIn: { sitemaps: [], pageModels: [], zones: [] },
+    });
+  });
+
+  it("also clears when the source model has no rules file, once the source has listed any rule", async () => {
+    // Another model's rules prove the source stores them, so no file for model 12 means "no rules".
+    writeRules(SOURCE, [sourceRule({ modelID: 13, modelReferenceName: "Other" })]);
+    writeRules(TARGET, [{ modelID: 120, addableBy: null, allowedIn: sourceAllowedIn }]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save.mock.calls[0][1].allowedIn).toEqual({ sitemaps: [], pageModels: [], zones: [] });
+  });
+
+  it("never clears from a source that has no rules at all (it may not have been migrated yet)", async () => {
+    // An unmigrated database answers with an empty list, exactly like one with no rules.
+    writeRules(SOURCE, []);
+    writeRules(TARGET, [{ modelID: 120, addableBy: null, allowedIn: sourceAllowedIn }]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: "success", successful: 0, skipped: 0, failed: 0 });
+  });
+
+  it("never clears when the target's rules are unknown", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, null);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ successful: 0, skipped: 0, failed: 0 });
+    expect(result.warningDetails).toEqual([]);
+  });
+
+  it("pushes nothing and warns once when the source has rules but the target's couldn't be read", async () => {
+    writeRules(SOURCE, [sourceRule()]);
+    writeRules(TARGET, null);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: "success", failed: 0 });
+    expect(result.warningDetails).toHaveLength(1);
+    expect(result.warningDetails[0].error).toMatch(/couldn't be read/);
+  });
+
+  it("does nothing when the source's rules weren't pulled (an instance without the feature)", async () => {
+    writeRules(SOURCE, null);
+    writeRules(TARGET, [{ modelID: 120, addableBy: null, allowedIn: sourceAllowedIn }]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: "success", successful: 0, skipped: 0, failed: 0 });
+  });
+
+  it("leaves models with no rules on either side alone, and doesn't count them", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ successful: 0, skipped: 0, failed: 0 });
+  });
+
+  it("skips a model that has rules but no target mapping (the model itself wasn't synced)", async () => {
+    writeRules(SOURCE, [sourceRule()]);
+    writeRules(TARGET, []);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+  });
+
+  it("only touches models in the sync's scope", async () => {
+    writeRules(SOURCE, [sourceRule(), sourceRule({ modelID: 13, modelReferenceName: "Other" })]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    mapModel(13, 130, "Other");
+    const save = mockApi();
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0][0]).toBe(120);
+  });
+
+  it("reports a rejected save (e.g. an unresolved zone) as a model failure with the API's reason", async () => {
+    writeRules(SOURCE, [sourceRule()]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    mockApi(jest.fn().mockRejectedValue(httpError(400, 'Unknown zone "Landing Page" / "HeroZone".')));
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(result).toMatchObject({ status: "error", successful: 0, failed: 1 });
+    expect(result.failureDetails[0]).toMatchObject({ name: "HeroBanner", type: "model", guid: SOURCE });
+    expect(result.failureDetails[0].error).toContain('Unknown zone "Landing Page" / "HeroZone".');
+  });
+
+  it("counts a 404 with the API's message (a stale model mapping) as that model's failure, and carries on", async () => {
+    writeRules(SOURCE, [sourceRule(), sourceRule({ modelID: 13, modelReferenceName: "Other" })]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    mapModel(13, 130, "Other");
+    const notFound = Object.assign(httpError(404, "Unable to save availability for model id: 120."), {
+      responseData: { message: "The model with ID 120 could not be located." },
+    });
+    const save = mockApi(jest.fn().mockRejectedValueOnce(notFound).mockResolvedValueOnce({}));
+
+    const result = await pushModelAvailability([sourceModel, { id: 13, referenceName: "Other" } as any]);
+
+    expect(save).toHaveBeenCalledTimes(2);
+    expect(result).toMatchObject({ status: "error", successful: 1, failed: 1 });
+    expect(result.failureDetails[0]).toMatchObject({ name: "HeroBanner" });
+    expect(result.warningDetails).toEqual([]);
+  });
+
+  it("reports a 403 once, not once per model, and stops", async () => {
+    writeRules(SOURCE, [sourceRule(), sourceRule({ modelID: 13, modelReferenceName: "Other" })]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    mapModel(13, 130, "Other");
+    const save = mockApi(jest.fn().mockRejectedValue(httpError(403, "Forbidden")));
+
+    const result = await pushModelAvailability([sourceModel, { id: 13, referenceName: "Other" } as any]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "error", failed: 1 });
+    expect(result.failureDetails).toHaveLength(1);
+    expect(result.failureDetails[0].error).toMatch(/needs the Manage or Design permission/);
+  });
+
+  it.each([404, 405, 409])(
+    "stops with one warning when the target answers %i (feature not available)",
+    async (status) => {
+      writeRules(SOURCE, [sourceRule(), sourceRule({ modelID: 13, modelReferenceName: "Other" })]);
+      writeRules(TARGET, []);
+      mapModel(12, 120);
+      mapModel(13, 130, "Other");
+      const save = mockApi(jest.fn().mockRejectedValue(httpError(status, "not available")));
+
+      const result = await pushModelAvailability([sourceModel, { id: 13, referenceName: "Other" } as any]);
+
+      expect(save).toHaveBeenCalledTimes(1);
+      expect(result).toMatchObject({ status: "success", failed: 0 });
+      expect(result.warningDetails).toHaveLength(1);
+      expect(result.warningDetails[0].error).toMatch(/doesn't support component availability rules yet/);
+    }
+  );
+
+  it("leaves stale (deleted) source targets out of the save", async () => {
+    writeRules(SOURCE, [
+      sourceRule({
+        allowedIn: {
+          sitemaps: [...sourceAllowedIn.sitemaps, { sitemapID: 2, stale: true }],
+          pageModels: [...sourceAllowedIn.pageModels, { pageModelID: 4, stale: true }],
+          zones: [...sourceAllowedIn.zones, { zoneID: 15, stale: true }],
+        },
+      }),
+    ]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(result).toMatchObject({ status: "success", successful: 1, failed: 0 });
+    expect(result.warningDetails).toEqual([]);
+    expect(save.mock.calls[0][1].allowedIn).toEqual({
+      sitemaps: [{ referenceName: "website", name: "Website" }],
+      pageModels: [{ name: "Landing Page" }],
+      zones: [{ pageModelName: "Landing Page", referenceName: "HeroZone", name: "Hero Zone" }],
+    });
+  });
+
+  it.each([
+    ["sitemap", { sitemaps: [{ sitemapID: 2, stale: true }], pageModels: sourceAllowedIn.pageModels, zones: [] }],
+    [
+      "page model and zone",
+      {
+        sitemaps: sourceAllowedIn.sitemaps,
+        pageModels: [{ pageModelID: 4, stale: true }],
+        zones: [{ zoneID: 15, stale: true }],
+      },
+    ],
+  ])(
+    "skips a model with a warning when every %s in its rule is stale (sending it empty would widen it)",
+    async (part, allowedIn) => {
+      writeRules(SOURCE, [sourceRule({ allowedIn })]);
+      writeRules(TARGET, [{ modelID: 120, addableBy: null, allowedIn: sourceAllowedIn }]);
+      mapModel(12, 120);
+      const save = mockApi();
+
+      const result = await pushModelAvailability([sourceModel]);
+
+      expect(save).not.toHaveBeenCalled();
+      expect(result).toMatchObject({ status: "success", successful: 0, skipped: 1, failed: 0 });
+      expect(result.warningDetails).toHaveLength(1);
+      expect(result.warningDetails[0]).toMatchObject({ name: "HeroBanner", type: "model" });
+      expect(result.warningDetails[0].error).toContain(`every ${part} it's limited to`);
+      expect(result.warningDetails[0].error).toMatch(/would allow the component everywhere/);
+    }
+  );
+
+  it("still syncs the layout rule when only some page models and zones are stale", async () => {
+    // A stale page model next to a live zone: the zone keeps the rule restricted.
+    writeRules(SOURCE, [
+      sourceRule({
+        allowedIn: { sitemaps: [], pageModels: [{ pageModelID: 4, stale: true }], zones: sourceAllowedIn.zones },
+      }),
+    ]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(result).toMatchObject({ successful: 1, skipped: 0 });
+    expect(save.mock.calls[0][1].allowedIn).toEqual({
+      sitemaps: [],
+      pageModels: [],
+      zones: [{ pageModelName: "Landing Page", referenceName: "HeroZone", name: "Hero Zone" }],
+    });
+  });
+
+  it("ignores the target's stale entries when comparing, so a re-sync writes nothing", async () => {
+    writeRules(SOURCE, [sourceRule()]);
+    writeRules(TARGET, [
+      {
+        modelID: 120,
+        addableBy: null,
+        allowedIn: {
+          sitemaps: [
+            { sitemapID: 7, referenceName: "website" },
+            { sitemapID: 8, stale: true },
+          ],
+          pageModels: [
+            { pageModelID: 30, name: "Landing Page" },
+            { pageModelID: 31, stale: true },
+          ],
+          zones: [
+            { zoneID: 140, pageModelName: "Landing Page", referenceName: "HeroZone" },
+            { zoneID: 141, stale: true },
+          ],
+        },
+      },
+    ]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ successful: 0, skipped: 1, failed: 0 });
+  });
+
+  it("replaces a target sitemap list that holds only stale entries, which allows the component nowhere", async () => {
+    // The source has no sitemap rule (anywhere); the target's only sitemap was deleted (nowhere).
+    writeRules(SOURCE, [
+      sourceRule({ allowedIn: { sitemaps: [], pageModels: sourceAllowedIn.pageModels, zones: [] } }),
+    ]);
+    writeRules(TARGET, [
+      {
+        modelID: 120,
+        addableBy: null,
+        allowedIn: {
+          sitemaps: [{ sitemapID: 8, stale: true }],
+          pageModels: [{ pageModelID: 30, name: "Landing Page" }],
+          zones: [],
+        },
+      },
+    ]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.successful).toBe(1);
+    expect(save.mock.calls[0][1].allowedIn).toEqual({
+      sitemaps: [],
+      pageModels: [{ name: "Landing Page" }],
+      zones: [],
+    });
+  });
+
+  it("records the planned saves in preflight and writes nothing", async () => {
+    writeRules(SOURCE, [sourceRule(), sourceRule({ modelID: 13, modelReferenceName: "NewModel" })]);
+    writeRules(TARGET, []);
+    mapModel(12, 120); // before preflight is on: preflight never writes mapping files
+    setState({ preflight: true });
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel, { id: 13, referenceName: "NewModel" } as any]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result.successful).toBe(2);
+    const entries = preflightReport.getEntries();
+    expect(entries).toEqual([
+      expect.objectContaining({ phase: "Component availability", action: "update", name: "HeroBanner" }),
+      expect.objectContaining({ phase: "Component availability", action: "create", name: "NewModel" }),
+    ]);
+  });
+});
+
+// ─── disabling models created this run ────────────────────────────────────────
+
+describe("pushModelAvailability — models created this run that are disabled on the source", () => {
+  const { registerPendingModelDisable, getPendingModelDisables } = require("../pending-model-disables");
+  const disabledSource = { ...sourceModel, isVisible: false, lastModifiedDate: "2026-01-01" };
+  const targetModel = { id: 120, referenceName: "HeroBanner", lastModifiedDate: "2026-05-05", fields: [] };
+
+  function mockModelApi(overrides: { visibility?: jest.Mock; saveModel?: jest.Mock } = {}) {
+    const visibility = overrides.visibility ?? jest.fn().mockResolvedValue({ modelID: 120, isVisible: false });
+    const saveModel = overrides.saveModel ?? jest.fn();
+    const get = jest.fn().mockResolvedValue({ ...targetModel, isVisible: false });
+    jest.spyOn(stateModule, "getApiClient").mockReturnValue({
+      modelMethods: {
+        getContentModel: get,
+        saveModel,
+        saveModelVisibility: visibility,
+        saveModelAvailability: jest.fn(),
+      },
+    } as any);
+    return { visibility, saveModel, get };
+  }
+
+  it("disables them through the visibility route after the pages, never a model save, and records the new date", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    registerPendingModelDisable(12);
+    const { visibility, saveModel } = mockModelApi();
+
+    const result = await pushModelAvailability([disabledSource]);
+
+    expect(visibility).toHaveBeenCalledWith(120, false, TARGET);
+    expect(saveModel).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ status: "success", successful: 1, failed: 0 });
+    const mapping = new ModelMapper(SOURCE, TARGET).getModelMappingByID(12, "source");
+    expect(mapping?.targetLastModifiedDate).toBe("2026-05-05");
+    expect(getPendingModelDisables()).toEqual([]);
+  });
+
+  it("leaves models that weren't created by a sync alone", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    const { visibility } = mockModelApi();
+
+    await pushModelAvailability([disabledSource]);
+
+    expect(visibility).not.toHaveBeenCalled();
+  });
+
+  it("disables a model an earlier run created but stopped before disabling", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    registerPendingModelDisable(12);
+    // A new run: the in-memory list is gone, the file next to the mappings isn't.
+    stateModule.clearDeferredModelDisables();
+    const { visibility } = mockModelApi();
+
+    await pushModelAvailability([disabledSource]);
+
+    expect(visibility).toHaveBeenCalledWith(120, false, TARGET);
+  });
+
+  it("warns once and keeps them pending when the target's API has no visibility route", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    mapModel(13, 130, "Other");
+    registerPendingModelDisable(12);
+    registerPendingModelDisable(13);
+    const { visibility } = mockModelApi({ visibility: jest.fn().mockRejectedValue(httpError(405, "")) });
+
+    const result = await pushModelAvailability([
+      disabledSource,
+      { id: 13, referenceName: "Other", isVisible: false } as any,
+    ]);
+
+    expect(visibility).toHaveBeenCalledTimes(1);
+    expect(result).toMatchObject({ status: "success", failed: 0 });
+    expect(result.warningDetails).toHaveLength(1);
+    expect(result.warningDetails[0].error).toMatch(/can't disable models yet/);
+    expect(getPendingModelDisables().sort()).toEqual([12, 13]);
+  });
+
+  it("forgets a pending model that's enabled on the source by now", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    registerPendingModelDisable(12);
+    const { visibility } = mockModelApi();
+
+    await pushModelAvailability([{ ...sourceModel, isVisible: true }]);
+
+    expect(visibility).not.toHaveBeenCalled();
+    expect(getPendingModelDisables()).toEqual([]);
+  });
+
+  it("reports a failed disable as that model's failure, and keeps it pending", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    registerPendingModelDisable(12);
+    mockModelApi({ visibility: jest.fn().mockRejectedValue(new Error("boom")) });
+
+    const result = await pushModelAvailability([disabledSource]);
+
+    expect(result).toMatchObject({ status: "error", successful: 0, failed: 1 });
+    expect(result.failureDetails[0].error).toMatch(/Failed to disable model "HeroBanner".*boom/);
+    expect(getPendingModelDisables()).toEqual([12]);
+  });
+
+  it("records the planned disable in preflight and writes nothing", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, []);
+    setState({ preflight: true });
+    registerPendingModelDisable(12);
+    const { visibility } = mockModelApi();
+
+    const result = await pushModelAvailability([disabledSource]);
+
+    expect(visibility).not.toHaveBeenCalled();
+    expect(result.successful).toBe(1);
+    expect(preflightReport.getEntries()).toEqual([
+      expect.objectContaining({ phase: "Component availability", action: "update", name: "HeroBanner" }),
+    ]);
+  });
+});
+
+// ─── PROD-2914: who can add a component (--security) ───────────────────────────
+
+const ADMIN_ONLY = { permissions: ["Administrator"], users: [], teams: [] };
+const TARGET_USER = { userID: 77, emailAddress: "local@example.com" };
+const TARGET_TEAM = { teamID: 8, name: "Local editors" };
+
+describe("mergeAddableBy — the merge table (plan §5a)", () => {
+  it("row 1: anyone on both sides sends nothing", () => {
+    expect(mergeAddableBy(null, null)).toEqual({ addableBy: null });
+    expect(mergeAddableBy({ permissions: [], users: [], teams: [] }, null)).toEqual({ addableBy: null });
+  });
+
+  it("row 2: source permissions travel, with the target's own users and teams", () => {
+    const merged = mergeAddableBy(
+      { permissions: ["Designer"], users: [{ userID: 5, emailAddress: "src@example.com" }], teams: [] },
+      { permissions: ["Manager"], users: [TARGET_USER], teams: [TARGET_TEAM] }
+    );
+    expect(merged).toEqual({ addableBy: { permissions: ["Designer"], users: [TARGET_USER], teams: [TARGET_TEAM] } });
+  });
+
+  it("row 3: anyone on the source clears a role-only rule on the target", () => {
+    expect(mergeAddableBy(null, { permissions: ["Manager"], users: [], teams: [] })).toEqual({
+      addableBy: { permissions: [], users: [], teams: [] },
+    });
+  });
+
+  it("row 4: anyone on the source keeps the target's own people, and says the target stays narrower", () => {
+    const merged = mergeAddableBy(null, { permissions: ["Manager"], users: [TARGET_USER], teams: [] });
+    expect(merged.addableBy).toEqual({ permissions: [], users: [TARGET_USER], teams: [] });
+    expect(merged.note).toMatch(/stays narrower/);
+  });
+
+  it("row 5: a source rule naming only people never widens: Administrators only, reported", () => {
+    const merged = mergeAddableBy({ permissions: [], users: [{ emailAddress: "src@example.com" }], teams: [] }, null);
+    expect(merged.addableBy).toEqual(ADMIN_ONLY);
+    expect(merged.note).toMatch(/limited to Administrators/);
+    // A role-only target rule has no people to stand in either.
+    expect(mergeAddableBy({ teams: [{ name: "Src team" }] }, { permissions: ["Designer"] }).addableBy).toEqual(
+      ADMIN_ONLY
+    );
+  });
+
+  it("reads ['Administrator'] plus people as a people-only rule, the way the API stores one", () => {
+    const stored = { permissions: ["Administrator"], users: [{ emailAddress: "src@example.com" }], teams: [] };
+    expect(mergeAddableBy(stored, null)).toMatchObject({
+      addableBy: ADMIN_ONLY,
+      note: expect.stringMatching(/limited/),
+    });
+    expect(mergeAddableBy(stored, { users: [TARGET_USER] })).toMatchObject({
+      addableBy: { permissions: [], users: [TARGET_USER], teams: [] },
+      note: expect.stringMatching(/stand in/),
+    });
+    // Administrators only, with no people, is a role rule and travels as one.
+    expect(mergeAddableBy({ permissions: ["Administrator"] }, null)).toEqual({ addableBy: ADMIN_ONLY });
+  });
+
+  it("row 6: a source rule naming only people takes the target's own people, reported", () => {
+    const merged = mergeAddableBy(
+      { teams: [{ name: "Src team" }] },
+      { permissions: [], users: [], teams: [TARGET_TEAM] }
+    );
+    expect(merged.addableBy).toEqual({ permissions: [], users: [], teams: [TARGET_TEAM] });
+    expect(merged.note).toMatch(/stand in/);
+  });
+});
+
+describe("pushModelAvailability — who can add it (--security)", () => {
+  function setup(source: any, target: any, mode?: "roles" | "where" | "none") {
+    writeRules(SOURCE, [sourceRule({ addableBy: source })]);
+    writeRules(TARGET, target === undefined ? [] : [{ modelID: 120, addableBy: target, allowedIn: null }]);
+    mapModel(12, 120);
+    if (mode) setState({ security: mode });
+    return mockApi();
+  }
+
+  it("roles (the default) sends the source's permissions with the target's own people, and the placement rules", async () => {
+    const save = setup(
+      { permissions: ["Designer"], users: [{ emailAddress: "src@example.com" }], teams: [] },
+      {
+        permissions: [],
+        users: [TARGET_USER],
+        teams: [],
+      }
+    );
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(result).toMatchObject({ successful: 1, failed: 0 });
+    const body = save.mock.calls[0][1];
+    expect(body.addableBy).toEqual({ permissions: ["Designer"], users: [TARGET_USER], teams: [] });
+    expect(body.allowedIn.zones).toHaveLength(1);
+    expect(result.warningDetails).toEqual([]);
+  });
+
+  it("reports a never-widen fallback in the warnings that reach the summary and --jsonSummary", async () => {
+    const save = setup({ permissions: [], users: [{ emailAddress: "src@example.com" }], teams: [] }, null);
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save.mock.calls[0][1].addableBy).toEqual(ADMIN_ONLY);
+    expect(result.warningDetails).toEqual([
+      expect.objectContaining({ name: "HeroBanner", error: expect.stringMatching(/limited to Administrators/) }),
+    ]);
+  });
+
+  it("saves only who can add it when the placement rules already match, leaving allowedIn null", async () => {
+    writeRules(SOURCE, [sourceRule({ addableBy: { permissions: ["Manager"], users: [], teams: [] } })]);
+    mapModel(12, 120);
+    mapTemplateAndZone();
+    // the target's placement rules, as the remap would send them
+    writeRules(TARGET, [
+      {
+        modelID: 120,
+        addableBy: { permissions: ["Designer"], users: [], teams: [] },
+        allowedIn: {
+          sitemaps: [{ referenceName: "website", name: "Website" }],
+          pageModels: [{ pageModelID: 30, name: "Landing Page" }],
+          zones: [
+            {
+              zoneID: 140,
+              pageModelID: 30,
+              pageModelName: "Landing Page",
+              referenceName: "HeroZone",
+              name: "Hero Zone",
+            },
+          ],
+        },
+      },
+    ]);
+    const save = mockApi();
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(save.mock.calls[0][1]).toMatchObject({ allowedIn: null, addableBy: { permissions: ["Manager"] } });
+  });
+
+  it("writes nothing when the merged rule is what the target already has", async () => {
+    const save = setup(
+      { permissions: ["Designer"], users: [], teams: [] },
+      { permissions: ["Designer"], users: [TARGET_USER], teams: [] }
+    );
+    // placement already matches too
+    mapTemplateAndZone();
+    writeRules(TARGET, [
+      {
+        modelID: 120,
+        addableBy: { permissions: ["Designer"], users: [TARGET_USER], teams: [] },
+        allowedIn: {
+          sitemaps: [{ referenceName: "website" }],
+          pageModels: [{ name: "Landing Page" }],
+          zones: [{ pageModelName: "Landing Page", referenceName: "HeroZone" }],
+        },
+      },
+    ]);
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result.skipped).toBe(1);
+  });
+
+  it("treats Administrator as implied, as the API stores it, so a re-sync writes nothing", async () => {
+    // Saved as ["Designer"] by the last sync; the API reads it back with Administrator added.
+    const save = setup(
+      { permissions: ["Designer"], users: [], teams: [] },
+      { permissions: ["Administrator", "Designer"], users: [], teams: [] }
+    );
+    mapTemplateAndZone();
+    writeRules(TARGET, [
+      {
+        modelID: 120,
+        addableBy: { permissions: ["Administrator", "Designer"], users: [], teams: [] },
+        allowedIn: {
+          sitemaps: [{ referenceName: "website" }],
+          pageModels: [{ name: "Landing Page" }],
+          zones: [{ pageModelName: "Landing Page", referenceName: "HeroZone" }],
+        },
+      },
+    ]);
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("where keeps the target's own who rules (addableBy null)", async () => {
+    const save = setup(
+      { permissions: ["Designer"], users: [], teams: [] },
+      { permissions: ["Manager"], users: [], teams: [] },
+      "where"
+    );
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save.mock.calls[0][1].addableBy).toBeNull();
+    expect(save.mock.calls[0][1].allowedIn).not.toBeNull();
+  });
+
+  it("none copies no rules at all", async () => {
+    const save = setup(
+      { permissions: ["Designer"], users: [], teams: [] },
+      { permissions: ["Manager"], users: [], teams: [] },
+      "none"
+    );
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result).toMatchObject({ successful: 0, failed: 0, skipped: 0 });
+  });
+
+  it("never changes the target's who rules from a source that has no rules at all", async () => {
+    writeRules(SOURCE, []);
+    writeRules(TARGET, [
+      { modelID: 120, addableBy: { permissions: ["Manager"], users: [], teams: [] }, allowedIn: null },
+    ]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+  });
+
+  it("plans the who change in preflight, with its note, and writes nothing", async () => {
+    writeRules(SOURCE, [sourceRule({ addableBy: { users: [{ emailAddress: "src@example.com" }] } })]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    setState({ preflight: true });
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(preflightReport.getEntries()).toEqual([
+      expect.objectContaining({
+        name: "HeroBanner",
+        action: "update",
+        detail: "replace placement rules and who can add it",
+      }),
+    ]);
+    expect(result.warningDetails[0].error).toMatch(/limited to Administrators/);
+  });
+
+  it("repeats a never-widen note on later runs, while the case stands, without saving again", async () => {
+    writeRules(SOURCE, [
+      sourceRule({
+        addableBy: { permissions: ["Administrator"], users: [{ emailAddress: "s@example.com" }] },
+        allowedIn: null,
+      }),
+    ]);
+    writeRules(TARGET, [
+      { modelID: 120, addableBy: { permissions: ["Administrator"], users: [], teams: [] }, allowedIn: null },
+    ]);
+    mapModel(12, 120);
+    const save = mockApi();
+
+    const result = await pushModelAvailability([sourceModel]);
+
+    expect(save).not.toHaveBeenCalled();
+    expect(result.warningDetails.map((w) => w.error)).toEqual([expect.stringMatching(/limited to Administrators/)]);
+  });
+
+  it("treats Web API's own 404 for an unknown route as an API without the feature: one warning", async () => {
+    writeRules(SOURCE, [sourceRule(), sourceRule({ modelID: 13, modelReferenceName: "Other" })]);
+    writeRules(TARGET, []);
+    mapModel(12, 120);
+    mapModel(13, 130, "Other");
+    const routeMissing = Object.assign(new Error("Not found"), {
+      statusCode: 404,
+      responseData: { Message: "No HTTP resource was found that matches the request URI" },
+    });
+    const save = mockApi(jest.fn().mockRejectedValue(routeMissing));
+
+    const result = await pushModelAvailability([sourceModel, { id: 13, referenceName: "Other" } as any]);
+
+    expect(save).toHaveBeenCalledTimes(1);
+    expect(result.failed).toBe(0);
+    expect(result.warningDetails).toEqual([
+      expect.objectContaining({ error: expect.stringMatching(/doesn't support/) }),
+    ]);
+  });
+
+  it("asks the target once per run whether it has model/{id}/visibility, with model 0", async () => {
+    const { targetSupportsModelVisibility, resetVisibilitySupport } = require("../pending-model-disables");
+    const client = (data: any, statusCode = 404) =>
+      ({
+        modelMethods: {
+          saveModelVisibility: jest
+            .fn()
+            .mockRejectedValue(Object.assign(new Error("x"), { statusCode, responseData: data })),
+        },
+      }) as any;
+    resetVisibilitySupport();
+    const withRoute = client({ message: "The model with ID 0 could not be located." });
+    expect(await targetSupportsModelVisibility(withRoute, "g1")).toBe(true);
+    expect(await targetSupportsModelVisibility(withRoute, "g1")).toBe(true);
+    expect(withRoute.modelMethods.saveModelVisibility).toHaveBeenCalledTimes(1);
+    expect(withRoute.modelMethods.saveModelVisibility).toHaveBeenCalledWith(0, true, "g1");
+    expect(await targetSupportsModelVisibility(client(""), "g2")).toBe(false);
+    expect(
+      await targetSupportsModelVisibility(client({ Message: "No HTTP resource was found that matches" }), "g3")
+    ).toBe(false);
+    expect(await targetSupportsModelVisibility(client("", 405), "g4")).toBe(false);
+    resetVisibilitySupport();
+  });
+});

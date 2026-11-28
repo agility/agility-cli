@@ -10,6 +10,8 @@ import path from "path";
 import { GalleryMapper } from "lib/mappers/gallery-mapper";
 import { preflightReport } from "../preflight/preflight-report";
 import { keptTargetChanges } from "./kept-target-changes";
+import { failedAssets } from "../assets/failed-assets";
+import { withTransientRetry, isTransientError } from "../shared/transient-retry";
 import { FailureDetail, PusherResult } from "../../types/sourceData";
 
 /**
@@ -75,6 +77,7 @@ export async function pushAssets(
   targetData: mgmtApi.Media[], // TODO: Type these
   onProgress?: (processed: number, total: number, status?: "success" | "error") => void
 ): Promise<PusherResult> {
+  resetRetryBreaker();
   // Extract data from sourceData - unified parameter pattern
   const assets: mgmtApi.Media[] = sourceData || [];
 
@@ -127,6 +130,8 @@ export async function pushAssets(
 
   for (const media of assets) {
     let currentStatus: "success" | "error" = "success";
+    // PROD-3449: whether the target already has a copy content can use if this asset fails
+    let hasUsableTargetAsset = false;
     try {
       const relativeFilePath = `assets/${getAssetFilePath(media.originUrl)}`; // Uses imported util with consistent decoding
       const absoluteLocalFilePath = fileOps.getDataFilePath(relativeFilePath);
@@ -170,6 +175,7 @@ export async function pushAssets(
 
       // PROD-2627: an asset upload is path-based, so pushing to a target asset that is missing or sits
       // at a different path creates a second copy instead of updating it. Resolve those cases first.
+      hasUsableTargetAsset = !!targetAsset;
       let recreate = false;
       let recreateReason = "";
       let moveToFolder: string | null = null;
@@ -183,6 +189,8 @@ export async function pushAssets(
           // the mapped target asset is gone but an unmapped asset sits at the same path: relink to it
           referenceMapper.relinkTarget(existingMapping, targetAssetByOriginKey);
           targetAsset = targetAssetByOriginKey;
+          // relinked to a live target copy, which content can use even if the upload below fails
+          hasUsableTargetAsset = true;
         } else if (state.overwrite) {
           recreate = true;
           recreateReason = `mapped target asset (ID: ${existingMapping.targetMediaID}) no longer exists on the target; recreating`;
@@ -361,6 +369,14 @@ export async function pushAssets(
     } catch (error: any) {
       const errorMsg = extractErrorMessage(error);
       logger.asset.error(media, errorMsg, targetGuid);
+      // PROD-3449: content using this asset must not be pushed without it (see failed-assets.ts).
+      // Only for a failure a later run can clear (a 5xx/429/408 or dropped connection that outlasted
+      // the retries) and only when the target has no copy to point at. An asset whose update failed
+      // keeps working on the target, and a permanent failure (a 400/413/415/500 rejection, a missing or
+      // 0-byte local file) fails the same way every run, so holding content back would block it for good.
+      if (!hasUsableTargetAsset && isTransientError(error)) {
+        failedAssets.record(media, errorMsg);
+      }
       // PROD-2629: without a detail the ERROR SUMMARY and --jsonSummary `failures` carried only
       // the count ("N items failed (see details above)").
       failureDetails.push({
@@ -422,31 +438,15 @@ async function createAsset(
     throw new Error(`Local asset file is empty (0 bytes): ${resolvedPath}`);
   }
 
-  // Build form data with file stream using resolved absolute path
-  const form = new FormData();
-  const fileStream = fs.createReadStream(resolvedPath);
-  form.append("files", fileStream, media.fileName);
-
-  // Make direct axios call with form-data headers (SDK bug workaround)
-  // The SDK's executePost doesn't include form.getHeaders() which is required for multipart uploads
-  const axios = require("axios");
-
-  // Get the base URL from the API client's options
-  const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
-  const token = (apiClient as any)._options?.token;
-
-  const focalPointQuery = buildFocalPointQuery(media, sourceGuid);
-  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}${focalPointQuery}`;
-  const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
-
-  const response = await axios.post(url, form, {
-    headers: {
-      ...form.getHeaders(), // Critical: include multipart boundary
-      Authorization: `Bearer ${token}`,
-      "Cache-Control": "no-cache",
-    },
-    maxContentLength: Infinity,
-    maxBodyLength: Infinity,
+  const response = await postAssetUpload({
+    media,
+    resolvedPath,
+    folderPath,
+    targetMediaGroupingID,
+    apiClient,
+    sourceGuid,
+    targetGuid,
+    logger,
   });
 
   const uploadedMediaArray = response.data as mgmtApi.Media[];
@@ -460,6 +460,93 @@ async function createAsset(
   logger.asset.uploaded(media, "uploaded", targetGuid);
 
   return uploadedMedia;
+}
+
+/**
+ * PROD-3449: retries are per upload, and assets upload one after another, so during a long outage
+ * every asset would wait out the full backoff (minutes each with Retry-After) and the run would look
+ * hung for hours. After this many assets in a row fail even with retries, stop retrying for the rest
+ * of the run, so it fails fast and reports them; the next upload that succeeds turns retries back on.
+ */
+const RETRY_BREAKER_THRESHOLD = 5;
+const retryBreaker = { consecutiveFailures: 0, open: false };
+
+function resetRetryBreaker(): void {
+  retryBreaker.consecutiveFailures = 0;
+  retryBreaker.open = false;
+}
+
+/**
+ * POST one file to asset/upload, retrying transient failures (PROD-3449).
+ * Direct axios call instead of the SDK: the SDK's executePost doesn't include form.getHeaders(),
+ * which multipart uploads need. The form is rebuilt for every attempt, because a file stream can
+ * only be sent once. An upload is path-based, so sending it again replaces the same asset.
+ */
+async function postAssetUpload(args: {
+  media: mgmtApi.Media;
+  resolvedPath: string;
+  folderPath: string;
+  targetMediaGroupingID: number;
+  apiClient: mgmtApi.ApiClient;
+  sourceGuid: string;
+  targetGuid: string;
+  logger: Logs;
+}): Promise<any> {
+  const { media, resolvedPath, folderPath, targetMediaGroupingID, apiClient, sourceGuid, targetGuid, logger } = args;
+  const fs = require("fs");
+  const axios = require("axios");
+
+  const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
+  const focalPointQuery = buildFocalPointQuery(media, sourceGuid);
+  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}${focalPointQuery}`;
+  const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
+
+  try {
+    const response = await withTransientRetry(
+      async () => {
+        const form = new FormData();
+        const stream = fs.createReadStream(resolvedPath);
+        form.append("files", stream, media.fileName);
+        // Read the token on each attempt, so a token refreshed during the run is used.
+        const token = (apiClient as any)._options?.token;
+        try {
+          return await axios.post(url, form, {
+            headers: {
+              ...form.getHeaders(), // Critical: include multipart boundary
+              Authorization: `Bearer ${token}`,
+              "Cache-Control": "no-cache",
+            },
+            maxContentLength: Infinity,
+            maxBodyLength: Infinity,
+          });
+        } catch (error) {
+          // A failed attempt may not have read the file; close it rather than wait for GC.
+          stream.destroy();
+          throw error;
+        }
+      },
+      {
+        delaysMs: retryBreaker.open ? [] : undefined,
+        onRetry: (error, attempt, delayMs) =>
+          logger.warning(
+            `Asset ${media.fileName} upload failed (${extractErrorMessage(error)}); retry ${attempt} in ${delayMs / 1000}s`
+          ),
+      }
+    );
+    resetRetryBreaker();
+    return response;
+  } catch (error) {
+    if (isTransientError(error)) {
+      retryBreaker.consecutiveFailures++;
+      if (!retryBreaker.open && retryBreaker.consecutiveFailures >= RETRY_BREAKER_THRESHOLD) {
+        retryBreaker.open = true;
+        logger.warning(
+          `${RETRY_BREAKER_THRESHOLD} asset uploads in a row failed after retries; not retrying further uploads in this run until one succeeds.`
+        );
+      }
+    }
+    throw error;
+  }
 }
 
 /**
@@ -509,29 +596,15 @@ async function updateAsset(
     throw new Error(`Local asset file is empty (0 bytes): ${resolvedPath}`);
   }
 
-  // Build form data with file stream using resolved absolute path
-  const form = new FormData();
-  const fileStream = fs.createReadStream(resolvedPath);
-  form.append("files", fileStream, media.fileName);
-
-  // Make direct axios call with form-data headers (SDK bug workaround)
-  const axios = require("axios");
-
-  const baseUrl = (apiClient as any)._options?.baseUrl || determineBaseUrl(targetGuid);
-  const token = (apiClient as any)._options?.token;
-
-  const focalPointQuery = buildFocalPointQuery(media, sourceGuid);
-  const apiPath = `asset/upload?folderPath=${encodeURIComponent(folderPath)}&groupingID=${targetMediaGroupingID}${focalPointQuery}`;
-  const url = `${baseUrl}/api/v1/instance/${targetGuid}/${apiPath}`;
-
-  const response = await axios.post(url, form, {
-    headers: {
-      ...form.getHeaders(),
-      Authorization: `Bearer ${token}`,
-      "Cache-Control": "no-cache",
-    },
-    maxContentLength: Infinity,
-    maxBodyLength: Infinity,
+  const response = await postAssetUpload({
+    media,
+    resolvedPath,
+    folderPath,
+    targetMediaGroupingID,
+    apiClient,
+    sourceGuid,
+    targetGuid,
+    logger,
   });
 
   const uploadedMediaArray = response.data as mgmtApi.Media[];

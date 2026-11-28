@@ -162,6 +162,15 @@ export const systemArgs = {
     alias: ["sync-deletes", "syncdeletes", "SyncDeletes", "SYNC_DELETES", "SYNCDELETES"],
     default: false,
   },
+  // PROD-2914: component availability rules. Not primed from .env: chosen per run.
+  security: {
+    describe:
+      "(sync/push only) Which component availability rules travel with component models. roles (default): where rules (sitemaps, page models, zones) and the roles who can add a component (Administrators, Managers, Designers); the target keeps its own users and teams, and a rule that names only users or teams is limited to Administrators on the target and reported. where: where rules only; the target keeps its own who rules. none: no rules are copied. Disabled is copied only when the sync creates the model, whatever the value.",
+    type: "string" as const,
+    choices: ["roles", "where", "none"],
+    default: "roles",
+    coerce: (value: string) => (value === undefined || value === null ? value : String(value).toLowerCase()),
+  },
   allowMassDeletes: {
     describe:
       "(with --syncDeletes) Allow a sync to delete more than half of the mapped entities of a kind. Without it such a run refuses to delete anything, since a stale or partial local cache looks the same as a mass delete. Default: false.",
@@ -285,6 +294,7 @@ export interface SystemArgs {
   overwrite?: boolean;
   syncDeletes?: boolean;
   allowMassDeletes?: boolean;
+  security?: "roles" | "where" | "none";
   elements?: string;
   guid?: string;
   sourceGuid?: string;

@@ -1,7 +1,7 @@
 import { SyncFixture } from "./run-sync";
 
 /**
- * One small instance that exercises **all eight push phases**.
+ * One small instance that exercises **all nine push phases**.
  *
  * Hand-authored minimal JSON on purpose. A scrubbed capture from a real pull must never be
  * committed here: this repo is public and git history is permanent, and scrubbing is easy to
@@ -144,7 +144,7 @@ export function fullInstanceFixture(): SyncFixture {
   };
 }
 
-/** The eight push operations, in the order the orchestrator runs them. */
+/** The nine push operations, in the order the orchestrator runs them. */
 export const ALL_OPERATIONS = [
   "pushModels",
   "pushGalleries",
@@ -154,4 +154,12 @@ export const ALL_OPERATIONS = [
   "pushTemplates",
   "pushContent",
   "pushPages",
+  "pushModelAvailability",
 ] as const;
+
+/**
+ * Phases this fixture gives nothing to do. Component availability rules only sit on component
+ * models, and this fixture's one model is a content model; `component-availability.test.ts`
+ * covers that phase with its own fixture. The phase still runs, so it's in ALL_OPERATIONS.
+ */
+export const IDLE_OPERATIONS: readonly string[] = ["pushModelAvailability"];

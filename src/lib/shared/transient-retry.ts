@@ -1,0 +1,83 @@
+/**
+ * PROD-3449: retry a request that failed for a reason that usually clears up by itself — a
+ * gateway/service error (502/503/504), throttling (429), a request timeout (408) or a dropped
+ * connection — with exponential backoff.
+ *
+ * On 2026-11-25 nine asset uploads got 503 "The service is unavailable" within six seconds and were
+ * never retried; the content using them then synced without its images. A few seconds of backoff
+ * rides out a blip like that.
+ *
+ * A 500 isn't retried: it usually means the request itself is the problem, and sending it again
+ * gives the same answer. Neither is anything in the 4xx range besides 408/429.
+ */
+
+export const TRANSIENT_HTTP_STATUSES = new Set([408, 429, 502, 503, 504]);
+
+export const TRANSIENT_NETWORK_CODES = new Set([
+  "ECONNRESET",
+  "ECONNABORTED",
+  "ETIMEDOUT",
+  "EPIPE",
+  "EAI_AGAIN",
+  "ENOTFOUND",
+]);
+
+/** Waits between attempts: 2s, 4s, 8s, 16s (five attempts, about 30s in all). */
+export const DEFAULT_RETRY_DELAYS_MS = [2000, 4000, 8000, 16000];
+
+export function httpStatusOf(error: any): number | undefined {
+  const status = error?.response?.status ?? error?.status ?? error?.statusCode;
+  return typeof status === "number" ? status : undefined;
+}
+
+/** A connection-level failure (no HTTP response). */
+export function isNetworkError(error: any): boolean {
+  const code = error?.code ?? error?.cause?.code;
+  return typeof code === "string" && /^E[A-Z_]+$/.test(code) && httpStatusOf(error) === undefined;
+}
+
+export function isTransientError(error: any): boolean {
+  const status = httpStatusOf(error);
+  if (status !== undefined) return TRANSIENT_HTTP_STATUSES.has(status);
+  const code = error?.code ?? error?.cause?.code;
+  return typeof code === "string" && TRANSIENT_NETWORK_CODES.has(code);
+}
+
+/** The wait a 429/503 asks for in Retry-After (seconds or an HTTP date), capped at 60s; null when absent. */
+export function retryAfterMs(error: any, now = Date.now()): number | null {
+  const headers = error?.response?.headers;
+  const value = headers?.["retry-after"] ?? headers?.["Retry-After"];
+  if (value === undefined || value === null || value === "") return null;
+  const seconds = Number(value);
+  const ms = Number.isFinite(seconds) ? seconds * 1000 : Date.parse(String(value)) - now;
+  if (!Number.isFinite(ms) || ms < 0) return null;
+  return Math.min(ms, 60000);
+}
+
+export interface RetryOptions {
+  delaysMs?: number[];
+  /** Called before each retry, e.g. to log it. `attempt` is the retry number, from 1. */
+  onRetry?: (error: any, attempt: number, delayMs: number) => void;
+  sleep?: (ms: number) => Promise<void>;
+}
+
+const defaultSleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Run `fn`, retrying it after each transient failure, up to `delaysMs.length` times. The last error
+ * (or the first non-transient one) is rethrown unchanged.
+ */
+export async function withTransientRetry<T>(fn: () => Promise<T>, options: RetryOptions = {}): Promise<T> {
+  const delays = options.delaysMs ?? DEFAULT_RETRY_DELAYS_MS;
+  const sleep = options.sleep ?? defaultSleep;
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await fn();
+    } catch (error) {
+      if (attempt >= delays.length || !isTransientError(error)) throw error;
+      const delayMs = Math.max(delays[attempt], retryAfterMs(error) ?? 0);
+      options.onRetry?.(error, attempt + 1, delayMs);
+      await sleep(delayMs);
+    }
+  }
+}

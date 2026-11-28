@@ -21,6 +21,7 @@ import { collectUnresolvedContentReferences } from "./util/has-unresolved-conten
 import { stripContentReferences } from "./util/strip-content-references";
 import { Logs } from "core/logs";
 import { state, getFailedContent } from "core/state";
+import { failedAssets } from "lib/assets/failed-assets";
 
 /**
  * PROD-2542: one source item and the payload built from it. Prepared items travel as pairs so the
@@ -526,6 +527,24 @@ export class ContentBatchProcessor {
             throw new Error(
               `Unresolved content reference(s) not present in the target mapping: ${detail}${more}. ` +
                 `Skipping to avoid a server-side NullReferenceException.`
+            );
+          }
+
+          // STEP 3.5c: Guard against assets whose upload failed in this run (PROD-3449).
+          // The field mapper would rewrite such a URL to the target container, where the asset
+          // doesn't exist, and the target saves the item without the image. Its mapping would then
+          // record the source version, so later runs skip it and never repair it. Failing it here
+          // leaves the mapping as it was, so the next run (after the asset uploads) pushes it again.
+          const failedAssetRefs = failedAssets.findReferences(contentItem.fields || {});
+          if (failedAssetRefs.length > 0) {
+            const detail = failedAssetRefs
+              .slice(0, 5)
+              .map((r) => `${r.path} → ${r.asset.fileName} (mediaID ${r.asset.mediaID}: ${r.asset.error})`)
+              .join("; ");
+            const more = failedAssetRefs.length > 5 ? ` (+${failedAssetRefs.length - 5} more)` : "";
+            throw new Error(
+              `Uses asset(s) that failed to upload in this run: ${detail}${more}. ` +
+                `Not pushed, so it isn't saved without them; the next sync pushes it once the asset uploads.`
             );
           }
 

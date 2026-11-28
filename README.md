@@ -120,6 +120,7 @@ agility sync [options]
 | --------------- | ------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `--overwrite`   | boolean | `false`      | Conflict-scoped override. By default, when a target item has its own changes that conflict with the source (both sides changed since the last sync), the CLI skips it as a conflict to avoid data loss. An item changed only on the target, with the source unchanged, is kept with a warning instead (listed under "Target changes kept" and as `targetChangeKept` warnings in `--jsonSummary`); it isn't a conflict, and a later source change to it is. This applies to content, pages, models, containers, assets, galleries, page templates, URL redirections and list order (page templates and URL redirections have no version, so the CLI stores a hash of each side in the mapping to tell which one changed; a mapping from an older CLI has none, so the first sync after upgrading lets the source win and records them). A page template kept on the target holds back the pages that use it only when it has no section for one of their zones. With `--overwrite`, both kinds are overwritten with the source version. Non-conflicting updates are applied either way. Also covers a mapped target item that no longer exists (deleted or unpublished on the target): by default that is reported as a conflict and skipped, with `--overwrite` the item is recreated and the mapping repointed. |
 | `--syncDeletes` | boolean | `false`      | After syncing, delete from the target the entities that were deleted in the source since the last sync (URL redirections, pages, content, containers, templates, models, assets, galleries — dependents first). Only entities the CLI previously synced (that have a mapping) are considered; nothing created directly on the target is touched. A target entity edited since the last sync is reported as a conflict and kept unless `--overwrite` is also set. An entity that something kept on the target still uses (a child page, a page or item that links to the content, a container's items, ...) is kept and reported. Content and page deletes are confirmed against the source first, so an item that was only unpublished is never deleted. Cannot be combined with `--pages`, `--containers`, `--models` or `--models-with-deps`; use `--elements` to limit the types. Works with `--preflight`. Not read from `.env`. See [Syncing deletes](#syncing-deletes). |
+| `--security`    | string  | `roles`      | Which component availability rules travel: `roles` (where rules and the roles who can add a component; the target keeps its own users and teams), `where` (where rules only) or `none`. See [Component Availability Rules](#component-availability-rules). Not read from `.env`. |
 | `--allowMassDeletes` | boolean | `false` | With `--syncDeletes`: allow a run to delete more than half (and more than 10) of the mapped entities of one type. Without it such a run deletes nothing and fails, because a stale or partial local cache looks the same as a mass delete. |
 | `--autoPublish` | string  | _(disabled)_ | Automatically publish synced items that were published in the source instance. Values: `content`, `pages`, `both`. If flag is provided without a value, defaults to `both`. Items that are only in staging (not published) in the source are skipped. |
 | `--fullPull`    | boolean | `false`      | Full content re-pull. Discards the stored content sync token for every locale, re-pulls all content items and pages, and removes local content/page files that no longer exist on the instance. Use when a local cache is suspected stale. Models, containers, templates, galleries and assets reconcile against the instance on every pull regardless. |
@@ -303,6 +304,57 @@ agility sync --sourceGuid="abc123" --targetGuid="def456" --models-with-deps="Pro
 - **Faster Operations**: Only processes relevant content instead of entire instance
 - **Targeted Updates**: Perfect for content-specific deployments
 - **Flexible Control**: Choose between models-only or models with dependencies
+
+---
+
+### Component Availability Rules
+
+A component model can carry rules about **who** can add it to a page, **where** it can be
+placed (sitemaps, page models and zones), and whether it's **disabled**. The CLI moves them
+like this:
+
+- **Pull** saves each model's rules to `model-availability/{modelID}.json`. An instance that
+  doesn't support the rules yet is pulled without them.
+- **Sync** sends the rules with the models, as the last step, after the pages of
+  every locale. What travels depends on `--security` (below). The target checks each page's new placements against its rules, and on a new
+  target every placement is new, so pages that are valid on the source are synced before the
+  rules arrive. The rules are matched on the target by name: sitemaps by reference name, page
+  models by name, and zones by page model name plus zone reference name (and by ID when the
+  sync has already mapped that page model or zone).
+- A source model with no where rules clears the target's, but only when the source has at least
+  one rule on some model. An instance that hasn't been upgraded for the rules yet reads as "no
+  rules", so a source with none at all never clears anything.
+- If the target's rules can't be read, no rules are synced, and the sync says so.
+- A sitemap, page model or zone that was deleted on the source after a rule was saved is left
+  out. If that would leave a rule's sitemaps, or its page models and zones, empty, the model's
+  where rules aren't synced and the sync warns: sending the rule empty would allow the component
+  everywhere, when on the source it's allowed nowhere.
+- **Disabled** belongs to each instance and is never overwritten. A model the sync creates is
+  disabled at the end of the sync if it's disabled on the source, whatever `--security` says.
+- A page the target rejects because of a rule is reported with the reason, for example
+  `Rejected by a component availability rule: The "Hero" component isn't allowed in the "Main"
+  zone of the "Landing Page" page model.` Once the rules are on the target, a later sync that
+  adds a placement the rules don't allow is rejected this way.
+
+#### `--security roles|where|none`
+
+| Rule | `roles` (default) | `where` | `none` |
+| --- | --- | --- | --- |
+| Where: sitemaps, page models, zones | From the source | From the source | Not touched |
+| Who: roles (Administrators, Managers, Designers) | From the source | Not touched | Not touched |
+| Who: specific users and teams | The target keeps its own | Not touched | Not touched |
+| Disabled | Copied only when the sync creates the model | Same | Same |
+
+Users and teams differ from one instance to the next, so with `roles` the sync sends the
+source's roles together with the target's own users and teams. A rule is never widened:
+
+- If only specific users or teams can add a component on the source, the target is limited to
+  Administrators (unless it has users or teams of its own, which then stand in). Set the users
+  and teams on the target by hand.
+- If anyone can add it on the source but the target lists its own users or teams, the target
+  keeps them, so it stays narrower than the source.
+
+Each of these is reported in the console, the end-of-run summary and `--jsonSummary`.
 
 ---
 
@@ -626,6 +678,7 @@ agility-files/
 │   │   ├── json/         # Asset metadata
 │   ├── galleries/        # Gallery definitions
 │   ├── models/           # Content models
+│   ├── model-availability/ # Component availability rules, one file per model that has any
 │   ├── containers/       # Content containers
 │   ├── templates/        # Page templates
 │   ├── sitemap/          # Flat sitemap
